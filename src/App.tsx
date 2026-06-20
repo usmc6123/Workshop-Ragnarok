@@ -11,7 +11,7 @@ import BrowseView from './components/BrowseView';
 import ManualView from './components/ManualView';
 import NetworkSettingsModal from './components/NetworkSettingsModal';
 import BootSplashScreen from './components/BootSplashScreen';
-import { LOGO_URL } from './constants/branding';
+import { LOGO_URL, BACKGROUND_URL } from './constants/branding';
 
 import { 
   Wrench, Home, Search, Server, Sun, Moon, AlertTriangle, PlayCircle, 
@@ -127,9 +127,21 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${
-      theme === 'dark' ? 'bg-[#020204] text-slate-100' : 'bg-slate-50 text-slate-900'
-    }`} id="application-container">
+    <div 
+      className={`min-h-screen flex flex-col font-sans transition-all duration-200 ${
+        theme === 'dark' ? 'text-slate-100 bg-[#020204]/70' : 'text-slate-900 bg-slate-50/70'
+      }`} 
+      id="application-container"
+      style={{
+        backgroundImage: theme === 'dark' 
+          ? `linear-gradient(rgba(2, 2, 4, 0.4), rgba(2, 2, 4, 0.6)), url(${BACKGROUND_URL})`
+          : `linear-gradient(rgba(248, 250, 252, 0.75), rgba(248, 250, 252, 0.85)), url(${BACKGROUND_URL})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'top center',
+        backgroundAttachment: 'fixed',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
       
       {/* Dynamic Master Utility Banner if manual server can't be reached */}
       {serverOnline === false && (

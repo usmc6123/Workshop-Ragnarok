@@ -233,11 +233,8 @@ export default function DashboardView({ onSelectVehicle, onNavigateToBrowse, ref
       </svg>
 
       {/* Prominent Search Bar / Welcome Section (Redesigned Hero matching reference) */}
-      <div className="relative rounded-2xl overflow-hidden border border-slate-700 bg-[#101116] p-8 md:p-14 text-center shadow-[0_20px_50px_rgba(0,0,0,0.98)] select-none">
+      <div className="relative rounded-2xl overflow-hidden border border-slate-700 bg-[#101116]/40 backdrop-blur-sm p-8 md:p-14 text-center shadow-[0_20px_50px_rgba(0,0,0,0.98)] select-none">
         
-        {/* Physical brushed metal & organic cracked-stone background container */}
-        <SubtleCrackedMetalGrid />
-
         {/* Four massive majestic blooming lightning corner flourishes */}
         <TopLeftLightning />
         <TopRightLightning />
@@ -535,7 +532,7 @@ export default function DashboardView({ onSelectVehicle, onNavigateToBrowse, ref
           </div>
 
           {/* Quick Specifications specs helper */}
-          <div className="relative overflow-hidden rounded-xl border border-slate-705 bg-gradient-to-b from-[#181a24]/60 to-[#0a0b0e]/60 p-4 space-y-3 shadow-md">
+          <div className="relative overflow-hidden rounded-xl border border-slate-705 bg-gradient-to-b from-[#181a24]/95 to-[#0a0b0e]/95 p-4 space-y-3 shadow-md">
             <PanelRivet className="top-1.5 left-1.5 opacity-25" />
             <PanelRivet className="top-1.5 right-1.5 opacity-25" />
             <PanelRivet className="bottom-1.5 left-1.5 opacity-25" />
