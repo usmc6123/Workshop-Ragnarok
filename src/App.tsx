@@ -11,7 +11,6 @@ import BrowseView from './components/BrowseView';
 import ManualView from './components/ManualView';
 import NetworkSettingsModal from './components/NetworkSettingsModal';
 import BootSplashScreen from './components/BootSplashScreen';
-import LogoRagnarok from './components/LogoRagnarok';
 
 import { 
   Wrench, Home, Search, Server, Sun, Moon, AlertTriangle, PlayCircle, 
@@ -159,11 +158,11 @@ export default function App() {
           className="flex items-center gap-3 cursor-pointer hover:opacity-95 active:scale-95 transition"
         >
           {/* Tightly cropped circular version of the logo */}
-          <div className="relative w-9 h-9 md:w-10 md:h-10 rounded-full border border-slate-800 bg-slate-950 flex items-center justify-center overflow-hidden shadow-inner shrink-0">
-            <div className="w-[140%] h-[140%] shrink-0 flex items-center justify-center translate-y-[2%]">
-              <LogoRagnarok glow={true} />
-            </div>
-          </div>
+          <img 
+            src="https://raw.githubusercontent.com/usmc6123/Workshop-Ragnarok/main/assets/3dlogo.jpg" 
+            alt="Workshop: Ragnarök Logo" 
+            className="w-9 h-9 md:w-10 md:h-10 object-cover rounded-full border border-slate-700/60 shadow-inner shrink-0 select-none"
+          />
           <div>
             <h1 className="text-sm md:text-base font-black tracking-wider text-slate-100 font-metal select-none flex items-center gap-1 leading-none uppercase" style={{ fontFamily: '"Metal Mania", "Cinzel", serif' }}>
               WORKSHOP: <span className="text-amber-500">RAGNARÖK</span>

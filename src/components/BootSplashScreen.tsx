@@ -4,7 +4,6 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import LogoRagnarok from './LogoRagnarok';
 
 interface BootSplashScreenProps {
   onComplete: () => void;
@@ -120,7 +119,11 @@ export default function BootSplashScreen({ onComplete }: BootSplashScreenProps) 
         
         {/* Emblem Wrapper */}
         <div className="w-64 h-64 md:w-80 md:h-80 flex items-center justify-center transform hover:scale-[1.03] transition duration-300">
-          <LogoRagnarok size="100%" glow={true} />
+          <img 
+            src="https://raw.githubusercontent.com/usmc6123/Workshop-Ragnarok/main/assets/3dlogo.jpg" 
+            alt="Workshop: Ragnarök" 
+            className="w-full h-full object-cover rounded-full border-4 border-slate-700/60 shadow-[0_0_25px_rgba(245,158,11,0.3)] select-none"
+          />
         </div>
 
         {/* Subtitle / Loading Prompt */}
