@@ -8,6 +8,7 @@ import { GarageItem, Vehicle } from '../types';
 import { api, ApiError } from '../lib/api';
 import { Search, Car, Trash2, ShieldAlert, Plus, BookOpen, RefreshCw, Key, ChevronRight, AlertTriangle } from 'lucide-react';
 import { MOCK_GARAGE } from '../lib/mockData';
+import { LOGO_URL } from '../constants/branding';
 
 // Tech rivets for physical panel feeling in workshop
 const PanelRivet = ({ className = "" }: { className?: string }) => (
@@ -255,7 +256,7 @@ export default function DashboardView({ onSelectVehicle, onNavigateToBrowse, ref
             {/* Soft Warm bloom highlight specifically behind the centered logo */}
             <div className="absolute -inset-6 bg-amber-500/15 rounded-full blur-2xl pointer-events-none" />
             <img 
-              src="https://raw.githubusercontent.com/usmc6123/Workshop-Ragnarok/main/assets/3dlogo.jpg" 
+              src={LOGO_URL} 
               alt="Workshop: Ragnarök" 
               className="w-full h-full object-cover rounded-full border-2 border-slate-700/50 shadow-[0_0_15px_rgba(245,158,11,0.25)] select-none"
             />

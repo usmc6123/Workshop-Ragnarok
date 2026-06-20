@@ -11,6 +11,7 @@ import BrowseView from './components/BrowseView';
 import ManualView from './components/ManualView';
 import NetworkSettingsModal from './components/NetworkSettingsModal';
 import BootSplashScreen from './components/BootSplashScreen';
+import { LOGO_URL } from './constants/branding';
 
 import { 
   Wrench, Home, Search, Server, Sun, Moon, AlertTriangle, PlayCircle, 
@@ -159,7 +160,7 @@ export default function App() {
         >
           {/* Tightly cropped circular version of the logo */}
           <img 
-            src="https://raw.githubusercontent.com/usmc6123/Workshop-Ragnarok/main/assets/3dlogo.jpg" 
+            src={LOGO_URL} 
             alt="Workshop: Ragnarök Logo" 
             className="w-9 h-9 md:w-10 md:h-10 object-cover rounded-full border border-slate-700/60 shadow-inner shrink-0 select-none"
           />
