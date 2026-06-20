@@ -8,6 +8,10 @@ import { Vehicle } from '../types';
 import { api } from '../lib/api';
 import { Search, Filter, Car, RefreshCw, Layers, ShieldAlert, Sparkles, BookOpen, Star } from 'lucide-react';
 
+const PanelRivet = ({ className = "" }: { className?: string }) => (
+  <div className={`absolute w-1 h-1 rounded-full bg-slate-500 border border-slate-900 shadow-[inset_0_0.5px_0.5px_rgba(255,255,255,0.3)] ${className}`} />
+);
+
 interface BrowseViewProps {
   onSelectVehicle: (vehicle: Vehicle) => void;
   initialSearch?: string;
@@ -157,9 +161,16 @@ export default function BrowseView({ onSelectVehicle, initialSearch }: BrowseVie
       </div>
 
       {/* Filter and Search Instrumentation Cluster */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-slate-900/60 border border-slate-800 p-5 rounded-xl shadow-lg">
+      <div className="relative overflow-hidden grid grid-cols-1 md:grid-cols-12 gap-4 bg-gradient-to-b from-[#181a24] to-[#0a0b0e] border border-slate-700 p-5 rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] shadow-lg select-none">
+        
+        {/* Tech rivets nested inside filter widget */}
+        <PanelRivet className="top-2 left-2 opacity-30" />
+        <PanelRivet className="top-2 right-2 opacity-30" />
+        <PanelRivet className="bottom-2 left-2 opacity-30" />
+        <PanelRivet className="bottom-2 right-2 opacity-30" />
+
         {/* Text Input Search (5/12 width) */}
-        <div className="md:col-span-5 relative">
+        <div className="md:col-span-5 relative z-10">
           <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400 mb-1.5">
             Manual Keyword Search
           </label>
@@ -169,7 +180,7 @@ export default function BrowseView({ onSelectVehicle, initialSearch }: BrowseVie
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search model, subclass... e.g. Civic, F-150"
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 pl-10 pr-4 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none transition font-sans"
+              className="w-full rounded-lg border border-slate-700 bg-[#020204]/90 hover:border-slate-500 pl-10 pr-4 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/15 focus:outline-none transition font-sans"
               id="browse-keyword-input"
             />
             <Search className="absolute left-3.5 top-2.5 w-4.5 h-4.5 text-slate-500" />
@@ -177,14 +188,14 @@ export default function BrowseView({ onSelectVehicle, initialSearch }: BrowseVie
         </div>
 
         {/* Make Dropdown filter (4/12 width) */}
-        <div className="md:col-span-4 select-none">
+        <div className="md:col-span-4 select-none relative z-10">
           <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400 mb-1.5">
             Filter by Manufacturer
           </label>
           <select
             value={selectedMake}
             onChange={(e) => setSelectedMake(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 cursor-pointer"
+            className="w-full bg-[#020204]/90 border border-slate-705 hover:border-slate-500 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 cursor-pointer transition-all"
           >
             <option value="">-- All Manufacturers --</option>
             {makes.map((m) => (
@@ -194,7 +205,7 @@ export default function BrowseView({ onSelectVehicle, initialSearch }: BrowseVie
         </div>
 
         {/* Year Dropdown filter (3/12 width) */}
-        <div className="md:col-span-3 select-none">
+        <div className="md:col-span-3 select-none relative z-10">
           <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400 mb-1.5 flex items-center justify-between">
             <span>Filter by Year</span>
             {!selectedMake && <span className="text-[9px] text-slate-500 font-sans lowercase">Select Make first</span>}
@@ -203,7 +214,7 @@ export default function BrowseView({ onSelectVehicle, initialSearch }: BrowseVie
             value={selectedYear}
             onChange={(e) => setSelectedYear(e.target.value)}
             disabled={!selectedMake || years.length === 0}
-            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="w-full bg-[#020204]/90 border border-slate-705 hover:border-slate-500 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
           >
             <option value="">-- All Years --</option>
             {years.map((y) => (
@@ -259,10 +270,16 @@ export default function BrowseView({ onSelectVehicle, initialSearch }: BrowseVie
                     return (
                       <div
                         key={combo.key}
-                        className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-slate-700 hover:bg-slate-900/60 transition"
+                        className="group relative overflow-hidden rounded-xl border border-slate-705 bg-gradient-to-b from-[#181a24] to-[#0a0b0e] p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-amber-500/50 hover:shadow-[0_0_15px_rgba(245,158,11,0.1)] transition duration-200"
                       >
+                        {/* Tech rivets in results listing row corners */}
+                        <PanelRivet className="top-1.5 left-1.5 opacity-25 group-hover:opacity-60" />
+                        <PanelRivet className="top-1.5 right-1.5 opacity-25 group-hover:opacity-60" />
+                        <PanelRivet className="bottom-1.5 left-1.5 opacity-25 group-hover:opacity-60" />
+                        <PanelRivet className="bottom-1.5 right-1.5 opacity-25 group-hover:opacity-60" />
+
                         {/* Title details */}
-                        <div className="space-y-1 bg-transparent">
+                        <div className="space-y-1 bg-transparent relative z-10">
                           <h4 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
                             <span className="text-amber-500 font-mono spec-number">{combo.year}</span>
                             <span>{combo.make} {combo.model}</span>
@@ -281,12 +298,12 @@ export default function BrowseView({ onSelectVehicle, initialSearch }: BrowseVie
                         </div>
 
                         {/* Action buttons list */}
-                        <div className="flex flex-wrap items-center gap-2.5 shrink-0 bg-transparent">
+                        <div className="flex flex-wrap items-center gap-2.5 shrink-0 bg-transparent relative z-10">
                           {combo.lemonVehicle && (
                             <button
                               type="button"
                               onClick={() => onSelectVehicle(combo.lemonVehicle!)}
-                              className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 hover:border-amber-500/80 bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-slate-950 px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-150 active:scale-95 cursor-pointer"
+                              className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 hover:border-amber-500/90 bg-amber-500/10 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 text-amber-400 hover:text-slate-950 px-4 py-2 text-xs font-black uppercase tracking-wider transition-all duration-150 active:scale-95 cursor-pointer hover:shadow-[0_0_12px_rgba(245,158,11,0.35)]"
                             >
                               <BookOpen className="w-3.5 h-3.5" />
                               Browse Lemon Manual
@@ -297,7 +314,7 @@ export default function BrowseView({ onSelectVehicle, initialSearch }: BrowseVie
                             <button
                               type="button"
                               onClick={() => onSelectVehicle(combo.charmVehicle!)}
-                              className="flex items-center gap-1.5 rounded-lg border border-indigo-500/30 hover:border-indigo-500/80 bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-150 active:scale-95 cursor-pointer"
+                              className="flex items-center gap-1.5 rounded-lg border border-indigo-500/40 hover:border-indigo-500/95 bg-[#191b2b] hover:bg-gradient-to-r hover:from-indigo-500 hover:to-indigo-600 text-indigo-400 hover:text-white px-4 py-2 text-xs font-black uppercase tracking-wider transition-all duration-150 active:scale-95 cursor-pointer hover:shadow-[0_0_12px_rgba(99,102,241,0.35)]"
                             >
                               <BookOpen className="w-3.5 h-3.5" />
                               Browse Charm Manual

@@ -1,5 +1,5 @@
 {
-  "name": "Car Service Manual Library",
+  "name": "WORKSHOP: RAGNARÖK",
   "description": "Interactive browser for personal car service manuals with checklist steps and detailed technical diagrams.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
