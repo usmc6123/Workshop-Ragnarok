@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { CategoryTreeNode, CategoryTreeLink, ContentPage, UnknownPage, ParsedPage } from '../types';
-import { api } from '../lib/api';
+import { api, getApiBase } from '../lib/api';
 import { 
   Folder, ChevronRight, FileText, Search, X, Loader2, 
   Wrench, Image, ClipboardList, CheckSquare, Compass, Info, Sliders, Hammer, ShieldAlert
@@ -46,6 +46,24 @@ const getSemanticIcon = (iconPath: string | null) => {
   if (path.includes('diagnostic') || path.includes('code') || path.includes('dtc')) return FileText;
   return FileText;
 };
+
+function resolveHref(baseUri: string, href: string): string {
+  if (href.startsWith('/')) {
+    return href; // already absolute from site root, use as-is
+  }
+  return baseUri + href; // relative, concatenate
+}
+
+function getLemonDownloadOrigin(): string {
+  const apiBase = getApiBase();
+  try {
+    const url = new URL(apiBase);
+    url.port = '9090';
+    return url.origin;
+  } catch {
+    return 'http://127.0.0.1:9090';
+  }
+}
 
 export default function TreeView({ 
   rootTitle, 
@@ -123,8 +141,15 @@ export default function TreeView({
   };
 
   // Fetch document page link click
-  const handleLinkClick = async (href: string) => {
-    const resolvedUri = currentBaseUri + href;
+  const handleLinkClick = async (node: CategoryTreeLink) => {
+    if (node.icon === '/icons/download.svg' || node.href.startsWith('/bundle/')) {
+      const resolvedUrl = resolveHref(currentBaseUri, node.href);
+      const downloadOrigin = getLemonDownloadOrigin();
+      window.open(`${downloadOrigin}${resolvedUrl}`, '_blank');
+      return; // don't attempt to fetch/parse as a page
+    }
+
+    const resolvedUri = resolveHref(currentBaseUri, node.href);
     setFetchingUri(resolvedUri);
     setFetchError(null);
 
@@ -224,7 +249,8 @@ export default function TreeView({
           <div className="divide-y divide-slate-800/60 border border-slate-800 bg-slate-950/30 rounded-xl overflow-hidden shadow-inner max-h-[500px] overflow-y-auto" id="tree-level-list">
             {currentLevel.nodes && currentLevel.nodes.length > 0 ? (
               currentLevel.nodes.map((node, i) => {
-                const isLoading = node.type === 'link' && fetchingUri === currentBaseUri + node.href;
+                const resolvedUri = node.type === 'link' ? resolveHref(currentBaseUri, node.href) : '';
+                const isLoading = node.type === 'link' && fetchingUri === resolvedUri;
                 
                 if (node.type === 'category') {
                   return (
@@ -255,7 +281,7 @@ export default function TreeView({
                       key={`${node.title}-${i}`}
                       type="button"
                       disabled={fetchingUri !== null}
-                      onClick={() => handleLinkClick(node.href)}
+                      onClick={() => handleLinkClick(node)}
                       className="w-full flex items-center justify-between text-left p-3.5 hover:bg-slate-800/35 transition disabled:opacity-60 disabled:cursor-not-allowed group rounded-none"
                     >
                       <div className="flex items-center gap-3 min-w-0">
@@ -295,7 +321,8 @@ export default function TreeView({
           <div className="divide-y divide-slate-800/60 border border-slate-800 bg-slate-950/30 rounded-xl overflow-hidden shadow-inner max-h-[500px] overflow-y-auto">
             {searchResults.length > 0 ? (
               searchResults.slice(0, 50).map((item, idx) => {
-                const isLoading = fetchingUri === currentBaseUri + item.node.href;
+                const resolvedUri = resolveHref(currentBaseUri, item.node.href);
+                const isLoading = fetchingUri === resolvedUri;
                 const LinkIcon = getSemanticIcon(item.node.icon);
                 
                 return (
@@ -303,7 +330,7 @@ export default function TreeView({
                     key={`${item.node.title}-${idx}`}
                     type="button"
                     disabled={fetchingUri !== null}
-                    onClick={() => handleLinkClick(item.node.href)}
+                    onClick={() => handleLinkClick(item.node)}
                     className="w-full flex items-center justify-between text-left p-3.5 hover:bg-slate-800/35 transition disabled:opacity-60 disabled:cursor-not-allowed group rounded-none"
                   >
                     <div className="min-w-0 flex-1 space-y-0.5 pr-2">
