@@ -58,8 +58,9 @@ export default function App() {
   // Check connection status when API Base is set or on start
   const runServerDiagnostics = async () => {
     try {
-      await api.getMakes();
-      setServerOnline(true);
+      const base = getApiBase();
+      const response = await fetch(`${base}/api/makes`, { method: 'GET' });
+      setServerOnline(response.ok);
     } catch (err) {
       setServerOnline(false);
     }

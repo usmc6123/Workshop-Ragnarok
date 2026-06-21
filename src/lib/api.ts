@@ -79,10 +79,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     return await response.json() as T;
   } catch (error: any) {
     console.error('API request failed:', error);
-    if (error.name === 'AbortError' || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
-      throw new ApiError("Can't reach the manual server — make sure it's running on Roscoe or your LAN IP.", true);
+    if (error instanceof ApiError) {
+      throw error;
     }
-    throw new ApiError(error.message || 'An unknown network error occurred.', false);
+    // Any other error thrown by fetch represents helper/host/server being unreachable, treat as isOffline: true
+    throw new ApiError(
+      error.message || "Can't reach the manual server — make sure it's running on Roscoe or your LAN IP.",
+      true
+    );
   }
 }
 
