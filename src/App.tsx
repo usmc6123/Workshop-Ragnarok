@@ -89,7 +89,7 @@ export default function App() {
       const targetVehicle = (event as CustomEvent).detail as Vehicle;
       if (targetVehicle) {
         setSelectedVehicle(targetVehicle);
-        setView('manual');
+        setView('browse');
       }
     };
 
@@ -113,7 +113,7 @@ export default function App() {
 
   const handleSelectVehicle = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
-    setView('manual');
+    setView('browse');
   };
 
   const handleApplyNewSettings = () => {
@@ -272,7 +272,9 @@ export default function App() {
 
         {view === 'browse' && (
           <BrowseView 
+            selectedVehicle={selectedVehicle}
             onSelectVehicle={handleSelectVehicle} 
+            onClearSelectedVehicle={() => setSelectedVehicle(null)}
             initialSearch={browseSearchQuery}
           />
         )}

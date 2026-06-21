@@ -132,27 +132,30 @@ export const MOCK_TOC: CategoryPage = {
   title: "Service Chapters Index",
   tree: [
     {
-      label: "General Engine Procedures",
-      uri: "/engine/procedures",
+      type: "category",
+      title: "General Engine Procedures",
+      icon: "/icons/service-and-repair.svg",
       children: [
-        { label: "Head Gasket Service & Specifications", uri: "/engine/head-gasket", children: [] },
-        { label: "Timing Chain Inspection & Calibration", uri: "/engine/timing-chain", children: [] },
-        { label: "Valve Clearance Correction Setup", uri: "/engine/valve-clearance", children: [] }
+        { type: "link", title: "Head Gasket Service & Specifications", icon: "/icons/service-and-repair.svg", href: "/engine/head-gasket" },
+        { type: "link", title: "Timing Chain Inspection & Calibration", icon: "/icons/service-and-repair.svg", href: "/engine/timing-chain" },
+        { type: "link", title: "Valve Clearance Correction Setup", icon: "/icons/service-and-repair.svg", href: "/engine/valve-clearance" }
       ]
     },
     {
-      label: "Fluid Dynamics & Maintenance",
-      uri: "/fluids/maintenance",
+      type: "category",
+      title: "Fluid Dynamics & Maintenance",
+      icon: "/icons/service-and-repair.svg",
       children: [
-        { label: "Cooling System Bleeding Procedure", uri: "/fluids/cooling", children: [] },
-        { label: "Oil Pressure Relief Valve Diagnostics", uri: "/fluids/oil-flow", children: [] }
+        { type: "link", title: "Cooling System Bleeding Procedure", icon: "/icons/service-and-repair.svg", href: "/fluids/cooling" },
+        { type: "link", title: "Oil Pressure Relief Valve Diagnostics", icon: "/icons/service-and-repair.svg", href: "/fluids/oil-flow" }
       ]
     },
     {
-      label: "Electrical Control Unit Diagnostics",
-      uri: "/electrical/ecu",
+      type: "category",
+      title: "Electrical Control Unit Diagnostics",
+      icon: "/icons/service-and-repair.svg",
       children: [
-        { label: "OBD-II Multi-Diagnostic Codes Guide", uri: "/electrical/obd-codes", children: [] }
+        { type: "link", title: "OBD-II Multi-Diagnostic Codes Guide", icon: "/icons/service-and-repair.svg", href: "/electrical/obd-codes" }
       ]
     }
   ]

@@ -19,43 +19,49 @@ export interface GarageItem extends Vehicle {
   nickname?: string;
 }
 
-export type PageType = 'category' | 'content';
+export type PageType = 'category' | 'content' | 'unknown';
 
-export interface TreeItem {
-  label: string;
-  uri: string;
-  children: TreeItem[];
-}
+export type CategoryTreeLink = {
+  type: 'link';
+  title: string;
+  icon: string | null; // e.g. "/icons/service-and-repair.svg", or null
+  href: string;         // percent-encoded, RELATIVE to the URI that fetched this tree
+};
 
-export interface CategoryPage {
+export type CategoryTreeFolder = {
+  type: 'category';
+  title: string;
+  icon: string | null;
+  children: CategoryTreeNode[];
+};
+
+export type CategoryTreeNode = CategoryTreeLink | CategoryTreeFolder;
+
+export type CategoryPage = {
   pageType: 'category';
   title: string;
-  tree: TreeItem[];
-}
+  tree: CategoryTreeNode[];
+};
 
-export type BlockType = 'heading' | 'text' | 'steps' | 'image';
+export type ContentBlock =
+  | { type: 'heading'; text: string }
+  | { type: 'image'; src: string }
+  | { type: 'steps'; items: string[] }
+  | { type: 'text'; text: string };
 
-export interface TextBlock {
-  type: 'text' | 'heading';
-  text: string;
-}
+export type Block = ContentBlock; // alias for backward compatibility
 
-export interface StepsBlock {
-  type: 'steps';
-  items: string[];
-}
-
-export interface ImageBlock {
-  type: 'image';
-  src: string;
-}
-
-export type Block = TextBlock | StepsBlock | ImageBlock;
-
-export interface ContentPage {
+export type ContentPage = {
   pageType: 'content';
   title: string;
-  blocks: Block[];
-}
+  blocks: ContentBlock[];
+};
 
-export type PageResponse = CategoryPage | ContentPage;
+export type UnknownPage = {
+  pageType: 'unknown';
+  title: string;
+  blocks: [];
+};
+
+export type ParsedPage = CategoryPage | ContentPage | UnknownPage;
+export type PageResponse = ParsedPage; // alias for client compatibility

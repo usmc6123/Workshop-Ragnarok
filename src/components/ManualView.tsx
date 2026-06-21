@@ -4,9 +4,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Vehicle, GarageItem, CategoryPage, ContentPage, PageResponse, TreeItem, Block } from '../types';
+import { Vehicle, GarageItem, CategoryPage, ContentPage, PageResponse, Block } from '../types';
 import { api, ApiError } from '../lib/api';
-import TreeView from './TreeView';
 import Lightbox from './Lightbox';
 import { 
   ArrowLeft, Star, StarOff, Menu, X, ChevronRight, FolderMinus, FolderPlus, 
@@ -18,9 +17,17 @@ interface ManualViewProps {
   vehicle: Vehicle;
   onBackToDashboard: () => void;
   onRefreshGarage: () => void;
+  initialContent?: ContentPage;
+  onBackToTree?: () => void;
 }
 
-export default function ManualView({ vehicle, onBackToDashboard, onRefreshGarage }: ManualViewProps) {
+export default function ManualView({ 
+  vehicle, 
+  onBackToDashboard, 
+  onRefreshGarage,
+  initialContent,
+  onBackToTree
+}: ManualViewProps) {
   // Navigation & Tree state
   const [currentUri, setCurrentUri] = useState<string>(vehicle.uriPath);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -114,17 +121,25 @@ export default function ManualView({ vehicle, onBackToDashboard, onRefreshGarage
   // Synchronize layout initialization
   useEffect(() => {
     checkGarageAndAlternatives();
-    loadSidebarTree();
-    loadActivePageDetails(vehicle.uriPath);
-  }, [vehicle]);
+    if (initialContent) {
+      setActivePage(initialContent);
+      setLoadingActivePage(false);
+      setLoadingSidebar(false);
+    } else {
+      loadSidebarTree();
+      loadActivePageDetails(vehicle.uriPath);
+    }
+  }, [vehicle, initialContent]);
 
   // Synchronize whenever current URI triggers load
   useEffect(() => {
-    loadActivePageDetails(currentUri);
-  }, [currentUri]);
+    if (!initialContent) {
+      loadActivePageDetails(currentUri);
+    }
+  }, [currentUri, initialContent]);
 
   // Handle Select Tree Node
-  const handleSelectNode = (node: TreeItem) => {
+  const handleSelectNode = (node: any) => {
     setCurrentUri(node.uri);
     setSidebarOpen(false); // Close mobile drawer overlay
   };
@@ -237,11 +252,11 @@ export default function ManualView({ vehicle, onBackToDashboard, onRefreshGarage
       <div className="bg-slate-950 border-b border-slate-800 px-4 py-3 flex items-center justify-between gap-4 select-none shrink-0" id="manual-toolbar">
         <div className="flex items-center gap-2">
           <button
-            onClick={onBackToDashboard}
+            onClick={onBackToTree ? onBackToTree : onBackToDashboard}
             className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white transition bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5"
           >
             <ArrowLeft className="w-3.5 h-3.5 mr-0.5" />
-            <span>Close Workspace</span>
+            <span>{onBackToTree ? 'Back to Index Tree' : 'Close Workspace'}</span>
           </button>
           
           {/* Complete Warning indicator */}
@@ -306,13 +321,15 @@ export default function ManualView({ vehicle, onBackToDashboard, onRefreshGarage
           </button>
 
           {/* Sidebar drawer toggle on mobile sizes */}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="md:hidden rounded-lg bg-slate-900 border border-slate-800 p-2 text-slate-300 hover:bg-slate-800"
-            aria-label="Navigation Menu"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+          {!initialContent && (
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="md:hidden rounded-lg bg-slate-900 border border-slate-800 p-2 text-slate-300 hover:bg-slate-800"
+              aria-label="Navigation Menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -320,65 +337,61 @@ export default function ManualView({ vehicle, onBackToDashboard, onRefreshGarage
       <div className="flex-1 flex overflow-hidden relative">
         
         {/* Left Side Sidebar - Category Index Tree */}
-        <aside 
-          className={`
-            absolute md:static top-0 bottom-0 left-0 z-40
-            w-72 md:w-80 shrink-0 border-r border-slate-800 bg-slate-950 flex flex-col h-full
-            transform md:translate-x-0 transition-transform duration-200 ease-in-out
-            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          `}
-          id="manual-sidebar-menu"
-        >
-          {/* Close drawer trigger on mobile */}
-          <div className="flex items-center justify-between border-b border-slate-900 bg-slate-950 p-3.5 md:hidden">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Chapters / Contents</span>
-            <button 
-              onClick={() => setSidebarOpen(false)} 
-              className="p-1 rounded text-slate-400 hover:bg-slate-900 hover:text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">
-              <span className="text-xs font-black uppercase text-slate-400 tracking-wider font-mono">Manual Directory</span>
-              <span className="text-[10px] bg-slate-900 font-mono border border-slate-800 text-slate-400 px-1.5 py-0.5 rounded">
-                v2.1
-              </span>
+        {!initialContent && (
+          <aside 
+            className={`
+              absolute md:static top-0 bottom-0 left-0 z-40
+              w-72 md:w-80 shrink-0 border-r border-slate-800 bg-slate-950 flex flex-col h-full
+              transform md:translate-x-0 transition-transform duration-200 ease-in-out
+              ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+            `}
+            id="manual-sidebar-menu"
+          >
+            {/* Close drawer trigger on mobile */}
+            <div className="flex items-center justify-between border-b border-slate-900 bg-slate-950 p-3.5 md:hidden">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Chapters / Contents</span>
+              <button 
+                onClick={() => setSidebarOpen(false)} 
+                className="p-1 rounded text-slate-400 hover:bg-slate-900 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {loadingSidebar ? (
-              <div className="py-12 flex flex-col items-center justify-center space-y-2">
-                <RefreshCw className="w-6 h-6 text-amber-500 animate-spin" />
-                <p className="text-xs text-slate-500">Unpacking index data...</p>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">
+                <span className="text-xs font-black uppercase text-slate-400 tracking-wider font-mono">Manual Directory</span>
+                <span className="text-[10px] bg-slate-900 font-mono border border-slate-800 text-slate-400 px-1.5 py-0.5 rounded">
+                  v2.1
+                </span>
               </div>
-            ) : errorSidebar ? (
-              <div className="p-3 bg-red-950/20 border border-red-900/30 text-red-300 rounded-lg text-xs leading-relaxed space-y-2">
-                <p>{errorSidebar}</p>
-                <button
-                  onClick={loadSidebarTree}
-                  className="w-full py-1.5 bg-slate-850 hover:bg-slate-800 text-white font-mono uppercase tracking-wider text-[10px] rounded"
-                >
-                  Recall Index Diagnostic
-                </button>
-              </div>
-            ) : rootCategoryPage && rootCategoryPage.tree.length > 0 ? (
-              <TreeView 
-                tree={rootCategoryPage.tree} 
-                selectedUri={currentUri} 
-                onSelectNode={handleSelectNode} 
-              />
-            ) : (
-              <p className="text-xs text-slate-500 text-center py-6 leading-relaxed">
-                No active chapters declared inside this manual index.
-              </p>
-            )}
-          </div>
-        </aside>
+
+              {loadingSidebar ? (
+                <div className="py-12 flex flex-col items-center justify-center space-y-2">
+                  <RefreshCw className="w-6 h-6 text-amber-500 animate-spin" />
+                  <p className="text-xs text-slate-500">Unpacking index data...</p>
+                </div>
+              ) : errorSidebar ? (
+                <div className="p-3 bg-red-950/20 border border-red-900/30 text-red-300 rounded-lg text-xs leading-relaxed space-y-2">
+                  <p>{errorSidebar}</p>
+                  <button
+                    onClick={loadSidebarTree}
+                    className="w-full py-1.5 bg-slate-850 hover:bg-slate-800 text-white font-mono uppercase tracking-wider text-[10px] rounded"
+                  >
+                    Recall Index Diagnostic
+                  </button>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 text-center py-6 leading-relaxed">
+                  No active chapters declared inside this manual index.
+                </p>
+              )}
+            </div>
+          </aside>
+        )}
 
         {/* Mobile menu backdrop blur */}
-        {sidebarOpen && (
+        {sidebarOpen && !initialContent && (
           <div 
             onClick={() => setSidebarOpen(false)}
             className="absolute inset-0 bg-slate-950/65 backdrop-blur-xs z-30 md:hidden" 
@@ -389,9 +402,11 @@ export default function ManualView({ vehicle, onBackToDashboard, onRefreshGarage
         <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-900/40" id="manual-viewer-stage">
           
           {/* Breadcrumb section */}
-          <div className="px-4 md:px-6 pt-4 text-xs font-sans shrink-0">
-            {renderBreadcrumbs()}
-          </div>
+          {!initialContent && (
+            <div className="px-4 md:px-6 pt-4 text-xs font-sans shrink-0">
+              {renderBreadcrumbs()}
+            </div>
+          )}
 
           {/* Scrollable Reader Stage */}
           <div className="flex-1 overflow-y-auto px-4 md:px-6 pb-16 space-y-6">

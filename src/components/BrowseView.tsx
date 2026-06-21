@@ -4,20 +4,31 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Vehicle } from '../types';
+import { Vehicle, CategoryTreeNode, ContentPage, UnknownPage } from '../types';
 import { api } from '../lib/api';
-import { Search, Filter, Car, RefreshCw, Layers, ShieldAlert, Sparkles, BookOpen, Star } from 'lucide-react';
+import { Search, Filter, Car, RefreshCw, Layers, ShieldAlert, Sparkles, BookOpen, Star, ArrowLeft } from 'lucide-react';
+import TreeView from './TreeView';
+import ManualView from './ManualView';
 
 const PanelRivet = ({ className = "" }: { className?: string }) => (
   <div className={`absolute w-1 h-1 rounded-full bg-slate-500 border border-slate-900 shadow-[inset_0_0.5px_0.5px_rgba(255,255,255,0.3)] ${className}`} />
 );
 
 interface BrowseViewProps {
-  onSelectVehicle: (vehicle: Vehicle) => void;
+  onSelectVehicle?: (vehicle: Vehicle) => void;
   initialSearch?: string;
+  selectedVehicle?: Vehicle | null;
+  onClearSelectedVehicle?: () => void;
 }
 
-export default function BrowseView({ onSelectVehicle, initialSearch }: BrowseViewProps) {
+export default function BrowseView({ 
+  onSelectVehicle, 
+  initialSearch,
+  selectedVehicle,
+  onClearSelectedVehicle
+}: BrowseViewProps) {
+  
+  // Search state
   const [searchTerm, setSearchTerm] = useState(initialSearch || '');
   const [selectedMake, setSelectedMake] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
@@ -26,6 +37,23 @@ export default function BrowseView({ onSelectVehicle, initialSearch }: BrowseVie
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Active child browsing state
+  const [localSelectedVehicle, setLocalSelectedVehicle] = useState<Vehicle | null>(null);
+  
+  // Resolve active selected vehicle (prop or local state)
+  const activeVehicle = selectedVehicle !== undefined ? selectedVehicle : localSelectedVehicle;
+
+  // Browser level state: 'list' (database browser list) | 'category' (tree view) | 'content' (procedure manual blocks) | 'unknown' (fallback)
+  const [browserMode, setBrowserMode] = useState<'list' | 'category' | 'content' | 'unknown'>('list');
+  const [rootTitle, setRootTitle] = useState('');
+  const [rootTree, setRootTree] = useState<CategoryTreeNode[]>([]);
+  const [treeBaseUri, setTreeBaseUri] = useState('');
+  const [loadingTree, setLoadingTree] = useState(false);
+  const [treeError, setTreeError] = useState<string | null>(null);
+
+  const [activeContent, setActiveContent] = useState<ContentPage | null>(null);
+  const [activeUnknown, setActiveUnknown] = useState<UnknownPage | null>(null);
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -90,6 +118,74 @@ export default function BrowseView({ onSelectVehicle, initialSearch }: BrowseVie
     };
   }, [searchTerm, selectedMake, selectedYear]);
 
+  // Handle vehicle local selections
+  const handleSelectVehicle = (vehicle: Vehicle) => {
+    if (onSelectVehicle) {
+      onSelectVehicle(vehicle);
+    } else {
+      setLocalSelectedVehicle(vehicle);
+    }
+  };
+
+  const handleClearSelectedVehicle = () => {
+    if (onClearSelectedVehicle) {
+      onClearSelectedVehicle();
+    } else {
+      setLocalSelectedVehicle(null);
+    }
+    setBrowserMode('list');
+    setTreeError(null);
+  };
+
+  // Listen for swap-manual-source notifications to trigger seamless updates
+  useEffect(() => {
+    const handleSwapSource = (e: Event) => {
+      const customEvent = e as CustomEvent<Vehicle>;
+      if (customEvent.detail) {
+        handleSelectVehicle(customEvent.detail);
+      }
+    };
+    window.addEventListener('swap-manual-source', handleSwapSource);
+    return () => window.removeEventListener('swap-manual-source', handleSwapSource);
+  }, [onSelectVehicle]);
+
+  // Fetch initial category tree when active selection shifts
+  const fetchInitialTree = async () => {
+    if (!activeVehicle) return;
+
+    setLoadingTree(true);
+    setTreeError(null);
+    try {
+      const response = await api.getPage(activeVehicle.uriPath);
+      if (response.pageType === 'category') {
+        setRootTitle(response.title || activeVehicle.model);
+        setRootTree(response.tree);
+        setTreeBaseUri(activeVehicle.uriPath);
+        setBrowserMode('category');
+      } else if (response.pageType === 'content') {
+        setActiveContent(response);
+        setBrowserMode('content');
+      } else if (response.pageType === 'unknown') {
+        setActiveUnknown(response);
+        setBrowserMode('unknown');
+      }
+    } catch (err: any) {
+      console.error('Failed to unpack initial category structural tree', err);
+      setTreeError(err.message || 'The server failed to respond or is offline.');
+    } finally {
+      setLoadingTree(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!activeVehicle) {
+      setBrowserMode('list');
+      setTreeError(null);
+      return;
+    }
+    fetchInitialTree();
+  }, [activeVehicle]);
+
   // Group search results by vehicle features to unite duplicate entries having different sources (lemon/charm)
   interface GroupedVehicle {
     key: string;
@@ -136,6 +232,135 @@ export default function BrowseView({ onSelectVehicle, initialSearch }: BrowseVie
 
   const makesSortedAlphabetically = Object.keys(categorizedByMake).sort();
 
+  // Mode 2: category drill-down
+  if (activeVehicle && browserMode === 'category') {
+    return (
+      <div className="space-y-6 max-w-5xl mx-auto px-4 py-6" id="browse-tree-view">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+          <div className="min-w-0">
+            <button
+              onClick={handleClearSelectedVehicle}
+              className="inline-flex items-center gap-1.5 text-xs text-amber-500 hover:text-amber-400 font-bold uppercase tracking-wider mb-2 transition"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to search database</span>
+            </button>
+            <h1 className="text-xl md:text-2xl font-black text-white uppercase tracking-wider flex items-center gap-2">
+              <Car className="w-6 h-6 text-amber-500 shadow-sm" />
+              {activeVehicle.year} {activeVehicle.make} {activeVehicle.model} Index
+            </h1>
+            <p className="text-slate-400 text-xs md:text-sm mt-1">
+              Active Specification: <span className="text-slate-200 font-mono">{activeVehicle.engine}</span> • Source: <span className="text-slate-200 font-mono font-semibold uppercase">{activeVehicle.source}</span>
+            </p>
+          </div>
+        </div>
+
+        <TreeView
+          rootTitle={rootTitle}
+          rootTree={rootTree}
+          baseUri={treeBaseUri}
+          onNavigateToContent={(contentPage) => {
+            setActiveContent(contentPage);
+            setBrowserMode('content');
+          }}
+          onNavigateToUnknown={(unknownPage) => {
+            setActiveUnknown(unknownPage);
+            setBrowserMode('unknown');
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Mode 3: Content Reader
+  if (activeVehicle && browserMode === 'content' && activeContent) {
+    return (
+      <div className="flex-1 flex flex-col h-full overflow-hidden" id="browse-content-view">
+        <ManualView
+          vehicle={activeVehicle}
+          initialContent={activeContent}
+          onBackToTree={() => setBrowserMode('category')}
+          onBackToDashboard={handleClearSelectedVehicle}
+          onRefreshGarage={() => {}}
+        />
+      </div>
+    );
+  }
+
+  // Mode 4: Unknown reader
+  if (activeVehicle && browserMode === 'unknown') {
+    return (
+      <div className="max-w-xl mx-auto py-20 px-4 text-center select-none space-y-5" id="browse-unsupported-view">
+        <div className="max-w-md mx-auto py-12 px-6 bg-[#16171d]/90 border border-slate-800 rounded-xl space-y-4 shadow-xl">
+          <ShieldAlert className="w-12 h-12 text-amber-500 mx-auto" />
+          <h3 className="text-slate-200 font-black tracking-wider uppercase text-sm">
+            {activeUnknown?.title || "Procedure Spec Unsupported"}
+          </h3>
+          <p className="text-slate-400 text-xs leading-relaxed font-sans">
+            This module format is not currently fully compatible with the interactive, fast Offline-Reader system schema. Please return to the directory level to search other sections.
+          </p>
+          <div className="flex gap-3 justify-center pt-2">
+            <button
+              onClick={() => setBrowserMode('category')}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black uppercase tracking-wider rounded-lg transition active:scale-95"
+            >
+              Return to Section Tree
+            </button>
+            <button
+              onClick={handleClearSelectedVehicle}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold uppercase tracking-wider rounded-lg transition"
+            >
+              Catalog Search
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading vehicle initial category tree
+  if (activeVehicle && loadingTree) {
+    return (
+      <div className="py-24 flex flex-col items-center justify-center space-y-4" id="browse-loading-view">
+        <div className="w-12 h-12 rounded-full border-4 border-slate-800 border-t-amber-500 animate-spin" />
+        <div className="text-center space-y-1.5 select-none">
+          <p className="text-slate-300 text-sm font-semibold tracking-wide">Syncing Workshop Directory...</p>
+          <p className="text-slate-500 text-xs font-mono">Unpacking diagnostic index structure</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error loading initial category tree
+  if (activeVehicle && treeError) {
+    return (
+      <div className="max-w-xl mx-auto py-20 px-4 text-center select-none" id="browse-error-view">
+        <div className="py-12 px-6 bg-red-950/15 border border-red-900/30 rounded-xl space-y-4 shadow-md">
+          <ShieldAlert className="w-12 h-12 text-red-500 mx-auto" />
+          <h3 className="text-red-200 font-bold uppercase tracking-wider text-sm">Offline Connection Timeout</h3>
+          <p className="text-slate-400 text-xs leading-relaxed max-w-sm mx-auto">
+            {treeError}
+          </p>
+          <div className="flex gap-3 justify-center pt-2">
+            <button
+              onClick={handleClearSelectedVehicle}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold uppercase tracking-wider rounded-lg transition"
+            >
+              Back to Catalog list
+            </button>
+            <button
+              onClick={fetchInitialTree}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black uppercase tracking-wider rounded-lg transition"
+            >
+              Retry Connection
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Base Mode 1: Search list
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 py-6" id="browse-view-root">
       
@@ -161,7 +386,7 @@ export default function BrowseView({ onSelectVehicle, initialSearch }: BrowseVie
       </div>
 
       {/* Filter and Search Instrumentation Cluster */}
-      <div className="relative overflow-hidden grid grid-cols-1 md:grid-cols-12 gap-4 bg-gradient-to-b from-[#181a24] to-[#0a0b0e] border border-slate-700 p-5 rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] shadow-lg select-none">
+      <div className="relative overflow-hidden grid grid-cols-1 md:grid-cols-12 gap-4 bg-gradient-to-b from-[#181a24] to-[#0a0b0e] border border-slate-705 p-5 rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] shadow-lg select-none">
         
         {/* Tech rivets nested inside filter widget */}
         <PanelRivet className="top-2 left-2 opacity-30" />
@@ -180,7 +405,7 @@ export default function BrowseView({ onSelectVehicle, initialSearch }: BrowseVie
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search model, subclass... e.g. Civic, F-150"
-              className="w-full rounded-lg border border-slate-700 bg-[#020204]/90 hover:border-slate-500 pl-10 pr-4 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/15 focus:outline-none transition font-sans"
+              className="w-full rounded-lg border border-slate-700 bg-[#020204]/90 hover:border-slate-500 pl-10 pr-4 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none transition font-sans"
               id="browse-keyword-input"
             />
             <Search className="absolute left-3.5 top-2.5 w-4.5 h-4.5 text-slate-500" />
@@ -302,7 +527,7 @@ export default function BrowseView({ onSelectVehicle, initialSearch }: BrowseVie
                           {combo.lemonVehicle && (
                             <button
                               type="button"
-                              onClick={() => onSelectVehicle(combo.lemonVehicle!)}
+                              onClick={() => handleSelectVehicle(combo.lemonVehicle!)}
                               className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 hover:border-amber-500/90 bg-amber-500/10 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 text-amber-400 hover:text-slate-950 px-4 py-2 text-xs font-black uppercase tracking-wider transition-all duration-150 active:scale-95 cursor-pointer hover:shadow-[0_0_12px_rgba(245,158,11,0.35)]"
                             >
                               <BookOpen className="w-3.5 h-3.5" />
@@ -313,7 +538,7 @@ export default function BrowseView({ onSelectVehicle, initialSearch }: BrowseVie
                           {combo.charmVehicle && (
                             <button
                               type="button"
-                              onClick={() => onSelectVehicle(combo.charmVehicle!)}
+                              onClick={() => handleSelectVehicle(combo.charmVehicle!)}
                               className="flex items-center gap-1.5 rounded-lg border border-indigo-500/40 hover:border-indigo-500/95 bg-[#191b2b] hover:bg-gradient-to-r hover:from-indigo-500 hover:to-indigo-600 text-indigo-400 hover:text-white px-4 py-2 text-xs font-black uppercase tracking-wider transition-all duration-150 active:scale-95 cursor-pointer hover:shadow-[0_0_12px_rgba(99,102,241,0.35)]"
                             >
                               <BookOpen className="w-3.5 h-3.5" />
