@@ -109,7 +109,7 @@ const runIngest = db.transaction((items) => {
       engine: item.engine || 'N/A',
       uriPath: item.uriPath || '',
       isComplete: item.isComplete !== undefined ? (item.isComplete ? 1 : 0) : 1
-    }
+    };
     
     insertStmt.run(mapped);
     inserted++;
