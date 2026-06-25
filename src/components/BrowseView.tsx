@@ -110,7 +110,7 @@ export default function BrowseView({
     <div className="space-y-6 max-w-7xl mx-auto px-4 py-6" id="browse-view-root">
       
       {/* Header Info Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#1e2028] pb-4">
         <div>
           <h1 className="text-xl md:text-2xl font-black text-slate-100 uppercase tracking-wider flex items-center gap-2">
             <Car className="w-5 h-5 text-amber-500" />
@@ -122,18 +122,18 @@ export default function BrowseView({
         </div>
 
         {/* Counter Info Badge */}
-        <div className="flex items-center gap-2 bg-[#09090d] border border-slate-800 rounded px-3 py-1.5 self-start font-mono text-xs">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
+        <div className="flex items-center gap-2 bg-[#13141a] border border-[#1e2028] rounded-full px-4 py-1.5 self-start font-mono text-xs">
+          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           <span className="text-slate-300">
-            {vehicles.length} direct entries loaded
+            {vehicles.length} entries loaded
           </span>
         </div>
       </div>
 
       {/* Modern High-Contrast Filter Panel */}
-      <div className="bg-[#09090d] border border-slate-850 rounded p-4 shadow-sm select-none">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-end">
-          {/* Keyword Search */}
+      <div className="bg-[#13141a] border border-[#1e2028] rounded-xl p-5 shadow-lg select-none">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+          {/* Keyword Search - Rounded-full Pill Shape */}
           <div className="md:col-span-6 space-y-1.5">
             <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">
               Manual Keyword Search
@@ -144,10 +144,10 @@ export default function BrowseView({
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search model, subclass... e.g. Civic, Explorer, F-150"
-                className="w-full rounded bg-[#030305] border border-slate-800 focus:border-amber-500 pl-10 pr-4 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none transition font-sans"
+                className="w-full rounded-full bg-[#0a0a0f] border border-[#1e2028] focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 pl-11 pr-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none transition font-sans"
                 id="browse-keyword-input"
               />
-              <Search className="absolute left-3.5 top-2.5 w-4.5 h-4.5 text-slate-500" />
+              <Search className="absolute left-4 top-3 w-4.5 h-4.5 text-slate-500" />
             </div>
           </div>
 
@@ -162,7 +162,7 @@ export default function BrowseView({
                 setSelectedMake(e.target.value);
                 setLimit(50); // reset page limit on filter change
               }}
-              className="w-full bg-[#030305] border border-slate-800 hover:border-slate-700 rounded px-3 py-2 text-xs text-slate-350 focus:outline-none focus:border-amber-500 cursor-pointer transition"
+              className="w-full bg-[#0a0a0f] border border-[#1e2028] hover:border-slate-700 rounded-lg px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500 cursor-pointer transition"
             >
               <option value="">All Manufacturers</option>
               {makes.map((m) => (
@@ -183,7 +183,7 @@ export default function BrowseView({
                 setLimit(50); // reset page limit on filter change
               }}
               disabled={!selectedMake || years.length === 0}
-              className="w-full bg-[#030305] border border-slate-800 hover:border-slate-700 rounded px-3 py-2 text-xs text-slate-350 focus:outline-none focus:border-amber-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
+              className="w-full bg-[#0a0a0f] border border-[#1e2028] hover:border-slate-700 rounded-lg px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
             >
               <option value="">All Years</option>
               {years.map((y) => (
@@ -202,7 +202,7 @@ export default function BrowseView({
             <p className="text-slate-400 text-sm font-sans">Accessing catalog registry...</p>
           </div>
         ) : error ? (
-          <div className="rounded border border-red-900/30 bg-red-950/10 p-10 text-center space-y-3 max-w-2xl mx-auto">
+          <div className="rounded-xl border border-red-900/30 bg-red-950/10 p-10 text-center space-y-3 max-w-2xl mx-auto">
             <AlertTriangle className="w-10 h-10 text-red-500 mx-auto" />
             <div>
               <p className="text-red-200 font-bold uppercase text-sm">Connection Interrupted</p>
@@ -210,13 +210,13 @@ export default function BrowseView({
             </div>
             <button
               onClick={() => executeSearch(selectedMake, selectedYear, searchTerm, limit)}
-              className="px-4 py-2 rounded bg-[#121218] border border-slate-800 text-slate-200 hover:text-white text-xs font-bold uppercase tracking-wider transition"
+              className="px-4 py-2 rounded-lg bg-[#13141a] border border-[#1e2028] text-slate-200 hover:text-white text-xs font-bold uppercase tracking-wider transition"
             >
               Retry Connection
             </button>
           </div>
         ) : vehicles.length === 0 ? (
-          <div className="py-16 text-center border border-dashed border-slate-850 rounded bg-[#09090d]/30 max-w-xl mx-auto">
+          <div className="py-16 text-center border border-dashed border-[#1e2028] rounded-xl bg-[#13141a]/10 max-w-xl mx-auto">
             <p className="text-slate-400 text-sm">No vehicles match your catalog filters.</p>
             <p className="text-slate-500 text-xs mt-1">Try broadening your keyword parameters.</p>
           </div>
@@ -227,18 +227,18 @@ export default function BrowseView({
               {vehicles.map((v) => (
                 <div
                   key={v.id}
-                  className="bg-[#09090d] border border-slate-850 hover:border-slate-700 rounded px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-150"
+                  className="bg-gradient-to-b from-[#13141a] to-[#0f1015] border border-[#1e2028] hover:border-slate-700 hover:border-l-amber-500 border-l-[3px] border-l-[#1e2028] rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-200 group"
                   id={`vehicle-catalog-row-${v.id}`}
                 >
                   {/* Left Metadata Row Column */}
                   <div className="flex flex-wrap items-center gap-3">
-                    <span className="text-xs font-mono text-amber-500 font-black bg-amber-500/10 px-2.5 py-1 rounded select-none">
+                    <span className="text-xs font-mono text-amber-500 font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded select-none">
                       {v.year}
                     </span>
                     <div>
-                      <h4 className="text-sm font-extrabold text-slate-100 flex items-center gap-2">
-                        {v.make} {v.model}
-                        <span className="text-slate-500 font-normal font-mono text-xs">
+                      <h4 className="text-sm font-bold text-slate-100 flex flex-wrap items-center gap-x-2 gap-y-0.5 group-hover:text-amber-500 transition-colors">
+                        <span>{v.make} {v.model}</span>
+                        <span className="text-slate-400 font-normal font-mono text-xs">
                           {v.engine}
                         </span>
                       </h4>
@@ -249,15 +249,15 @@ export default function BrowseView({
                   <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
                     <span className={`text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border select-none ${
                       v.source === 'lemon'
-                        ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                        : 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30'
+                        ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                        : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
                     }`}>
                       {v.source} MANUAL
                     </span>
                     <button
                       type="button"
                       onClick={() => handleSelectVehicle(v)}
-                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-1.5 px-3.5 rounded text-xs uppercase tracking-wider transition-all duration-150 active:scale-98 cursor-pointer flex items-center gap-1.5"
+                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-1.5 px-4 rounded-lg text-xs uppercase tracking-wider transition-all duration-150 active:scale-98 cursor-pointer flex items-center gap-1.5 shadow"
                     >
                       <BookOpen className="w-3.5 h-3.5" />
                       Open Manual
@@ -272,10 +272,10 @@ export default function BrowseView({
               <div className="pt-4 flex justify-center">
                 <button
                   onClick={handleLoadMore}
-                  className="bg-[#09090d] hover:bg-[#121217] border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white font-bold py-2.5 px-6 rounded text-xs uppercase tracking-widest transition-all cursor-pointer flex items-center gap-2"
+                  className="bg-[#13141a] hover:bg-[#1a1c24] border border-[#1e2028] text-slate-350 hover:text-white font-bold py-2.5 px-6 rounded-lg text-xs uppercase tracking-widest transition-all cursor-pointer flex items-center gap-2"
                 >
                   {loading && <RefreshCw className="w-3.5 h-3.5 text-amber-500 animate-spin" />}
-                  <span>Load More Catalog Results</span>
+                  <span>Load More Results</span>
                 </button>
               </div>
             )}

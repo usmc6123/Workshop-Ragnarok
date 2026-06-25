@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import { CategoryTreeNode, CategoryTreeLink, ContentPage, UnknownPage, ParsedPage } from '../types';
+import React, { useState, useEffect } from 'react';
+import { CategoryTreeNode, CategoryTreeLink, ContentPage, UnknownPage } from '../types';
 import { api, getApiBase } from '../lib/api';
 import { 
   Folder, ChevronRight, FileText, Search, X, Loader2, 
@@ -15,6 +15,7 @@ interface TreeViewProps {
   rootTitle: string;
   rootTree: CategoryTreeNode[];
   baseUri: string; // the URI that was fetched to get rootTree — needed to resolve hrefs
+  activeUri?: string; // currently selected page URI to highlight
   onNavigateToContent: (page: ContentPage, uri: string) => void;
   onNavigateToUnknown: (page: UnknownPage, uri: string) => void;
 }
@@ -69,6 +70,7 @@ export default function TreeView({
   rootTitle, 
   rootTree, 
   baseUri, 
+  activeUri,
   onNavigateToContent, 
   onNavigateToUnknown 
 }: TreeViewProps) {
@@ -178,30 +180,30 @@ export default function TreeView({
   const isSearching = searchQuery.trim() !== '';
 
   return (
-    <div className="w-full bg-[#101116]/45 border border-slate-700/60 backdrop-blur-md rounded-2xl p-4 md:p-6 shadow-2xl space-y-5" id="category-tree-panel">
+    <div className="w-full space-y-4" id="category-tree-panel">
       
       {/* 1. Directory Search Input */}
-      <div className="space-y-1.5 select-none">
-        <label className="block text-[10px] font-mono tracking-widest uppercase text-amber-500 font-bold">
-          Quick-Filter & Direct Finder
+      <div className="space-y-1 select-none">
+        <label className="block text-[9px] font-mono tracking-widest uppercase text-amber-500 font-bold">
+          Chapter Search
         </label>
         <div className="relative">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search this section... e.g. Relays, Engine, Diagram"
-            className="w-full rounded-lg border border-slate-700 bg-slate-950/80 hover:border-slate-500 pl-10 pr-10 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none transition font-sans"
+            placeholder="Filter sections..."
+            className="w-full rounded-lg border border-[#1e2028] bg-[#0a0a0f] hover:border-slate-700 pl-9 pr-9 py-2 text-xs text-slate-200 placeholder-slate-500 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10 focus:outline-none transition font-sans"
             id="tree-search-input"
           />
-          <Search className="absolute left-3.5 top-3.5 w-4.5 h-4.5 text-slate-500" />
+          <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3.5 top-3.5 p-0.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition"
+              className="absolute right-3 top-2.5 p-0.5 rounded-full hover:bg-[#1a1c24] text-slate-400 hover:text-white transition"
               title="Clear search"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3 h-3" />
             </button>
           )}
         </div>
@@ -209,48 +211,51 @@ export default function TreeView({
 
       {/* Error Banner */}
       {fetchError && (
-        <div className="bg-red-950/30 border border-red-900/40 text-red-200 rounded-lg p-3 text-xs leading-relaxed flex items-start gap-2 animate-fade-in">
+        <div className="bg-red-950/20 border border-red-900/30 text-red-200 rounded-lg p-3 text-xs leading-relaxed flex items-start gap-2 animate-fade-in">
           <span className="text-red-400 font-bold mt-0.5">⚠️</span>
           <div className="flex-1">
             <p className="font-semibold">{fetchError}</p>
-            <p className="text-[10px] text-slate-400 mt-1">Make sure the manual server is reachable on your offline network.</p>
+            <p className="text-[10px] text-slate-500 mt-1">Check manual server connection.</p>
           </div>
         </div>
       )}
 
       {/* 2. Interactive Navigation Trail (Only if not flat searching) */}
       {!isSearching ? (
-        <div className="space-y-4">
-          <nav aria-label="Tree Directory Breadcrumb" className="flex flex-wrap items-center gap-1 text-xs text-slate-400 font-sans font-medium bg-slate-950/50 rounded-lg p-3 border border-slate-800">
-            {stack.map((entry, idx) => {
-              const isLast = idx === stack.length - 1;
-              return (
-                <React.Fragment key={`${entry.title}-${idx}`}>
-                  {idx > 0 && <ChevronRight className="w-3.5 h-3.5 text-slate-600 shrink-0 select-none" />}
-                  {isLast ? (
-                    <span className="text-amber-400 font-bold max-w-[180px] md:max-w-xs truncate" title={entry.title}>
-                      {entry.title}
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleBreadcrumbClick(idx)}
-                      className="hover:text-amber-500 transition duration-150 max-w-[120px] md:max-w-xs truncate text-slate-300"
-                    >
-                      {entry.title}
-                    </button>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </nav>
+        <div className="space-y-3">
+          {stack.length > 1 && (
+            <nav aria-label="Tree Directory Breadcrumb" className="flex flex-wrap items-center gap-1 text-[11px] text-slate-400 font-sans font-medium bg-[#13141a] rounded-lg p-2.5 border border-[#1e2028] shadow-sm select-none">
+              {stack.map((entry, idx) => {
+                const isLast = idx === stack.length - 1;
+                return (
+                  <React.Fragment key={`${entry.title}-${idx}`}>
+                    {idx > 0 && <ChevronRight className="w-3 h-3 text-slate-650 shrink-0 select-none" />}
+                    {isLast ? (
+                      <span className="text-amber-500 font-bold max-w-[140px] truncate" title={entry.title}>
+                        {entry.title}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleBreadcrumbClick(idx)}
+                        className="hover:text-amber-500 transition duration-150 max-w-[100px] truncate text-slate-300"
+                      >
+                        {entry.title}
+                      </button>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </nav>
+          )}
 
           {/* 3A. Category Normal Content Rows list */}
-          <div className="divide-y divide-slate-800/60 border border-slate-800 bg-slate-950/30 rounded-xl overflow-hidden shadow-inner max-h-[500px] overflow-y-auto" id="tree-level-list">
+          <div className="space-y-1 max-h-[550px] overflow-y-auto pr-1" id="tree-level-list">
             {currentLevel.nodes && currentLevel.nodes.length > 0 ? (
               currentLevel.nodes.map((node, i) => {
                 const resolvedUri = node.type === 'link' ? resolveHref(currentBaseUri, node.href) : '';
                 const isLoading = node.type === 'link' && fetchingUri === resolvedUri;
+                const isCurrentActive = node.type === 'link' && activeUri === resolvedUri;
                 
                 if (node.type === 'category') {
                   return (
@@ -258,19 +263,19 @@ export default function TreeView({
                       key={`${node.title}-${i}`}
                       type="button"
                       onClick={() => handleCategoryClick(node.title, node.children)}
-                      className="w-full flex items-center justify-between text-left p-3.5 hover:bg-slate-800/35 transition cursor-pointer group rounded-none"
+                      className="w-full flex items-center justify-between text-left p-2.5 bg-transparent hover:bg-[#1a1c24] border-l-2 border-l-transparent hover:border-l-amber-500 text-slate-300 hover:text-white rounded-lg transition duration-150 cursor-pointer group"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Folder className="w-4.5 h-4.5 text-amber-500 shrink-0 group-hover:scale-105 duration-100" />
-                        <span className="text-slate-200 text-sm font-semibold truncate group-hover:text-amber-400 duration-150">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Folder className="w-4 h-4 text-amber-500 shrink-0 group-hover:scale-105 transition" />
+                        <span className="text-slate-200 text-xs font-semibold truncate">
                           {node.title}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 text-slate-500 shrink-0">
-                        <span className="text-[10px] font-mono bg-slate-900 px-1.5 py-0.5 rounded text-slate-400">
-                          {node.children.length} items
+                      <div className="flex items-center gap-1.5 text-slate-500 shrink-0">
+                        <span className="text-[9px] font-mono bg-[#13141a] px-1.5 py-0.5 rounded text-slate-400">
+                          {node.children.length}
                         </span>
-                        <ChevronRight className="w-4 h-4 group-hover:text-amber-400 transform group-hover:translate-x-1 duration-150" />
+                        <ChevronRight className="w-3.5 h-3.5 group-hover:text-amber-500 transform group-hover:translate-x-0.5 transition duration-150" />
                       </div>
                     </button>
                   );
@@ -282,19 +287,25 @@ export default function TreeView({
                       type="button"
                       disabled={fetchingUri !== null}
                       onClick={() => handleLinkClick(node)}
-                      className="w-full flex items-center justify-between text-left p-3.5 hover:bg-slate-800/35 transition disabled:opacity-60 disabled:cursor-not-allowed group rounded-none"
+                      className={`w-full flex items-center justify-between text-left p-2.5 rounded-lg border-l-2 transition duration-150 disabled:opacity-60 disabled:cursor-not-allowed group ${
+                        isCurrentActive 
+                          ? 'bg-amber-500/10 border-l-amber-500 text-amber-500 font-medium'
+                          : 'bg-transparent border-l-transparent hover:border-l-amber-500 hover:bg-[#1a1c24] text-slate-300 hover:text-white'
+                      }`}
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <LinkIcon className={`w-4.5 h-4.5 shrink-0 ${isLoading ? 'text-amber-500' : 'text-slate-400 group-hover:text-amber-400'}`} />
-                        <span className="text-slate-250 text-sm truncate group-hover:text-amber-200 font-sans">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <LinkIcon className={`w-4 h-4 shrink-0 ${
+                          isLoading ? 'text-amber-500 animate-spin' : isCurrentActive ? 'text-amber-500' : 'text-slate-400 group-hover:text-amber-500'
+                        }`} />
+                        <span className="text-xs truncate font-sans">
                           {node.title}
                         </span>
                       </div>
-                      <div className="shrink-0 pl-2">
+                      <div className="shrink-0 pl-1">
                         {isLoading ? (
-                          <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
+                          <Loader2 className="w-3.5 h-3.5 text-amber-500 animate-spin" />
                         ) : (
-                          <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-white" />
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-white transition" />
                         )}
                       </div>
                     </button>
@@ -302,8 +313,8 @@ export default function TreeView({
                 }
               })
             ) : (
-              <div className="p-8 text-center text-slate-500 text-sm font-sans">
-                Empty section folder layer. No items present.
+              <div className="p-6 text-center text-slate-500 text-xs font-sans">
+                No active items found here.
               </div>
             )}
           </div>
@@ -311,18 +322,19 @@ export default function TreeView({
       ) : (
         
         // 3B. Tree-Wide Search results page
-        <div className="space-y-3" id="tree-search-results">
+        <div className="space-y-2 animate-fade-in" id="tree-search-results">
           <div className="flex items-center justify-between px-1 select-none">
-            <span className="text-xs font-mono text-slate-450 uppercase">
-              Found {searchResults.length} manual procedure {searchResults.length === 1 ? 'match' : 'matches'}
+            <span className="text-[10px] font-mono text-slate-400 uppercase">
+              Found {searchResults.length} {searchResults.length === 1 ? 'match' : 'matches'}
             </span>
           </div>
 
-          <div className="divide-y divide-slate-800/60 border border-slate-800 bg-slate-950/30 rounded-xl overflow-hidden shadow-inner max-h-[500px] overflow-y-auto">
+          <div className="space-y-1 max-h-[550px] overflow-y-auto pr-1">
             {searchResults.length > 0 ? (
               searchResults.slice(0, 50).map((item, idx) => {
                 const resolvedUri = resolveHref(currentBaseUri, item.node.href);
                 const isLoading = fetchingUri === resolvedUri;
+                const isCurrentActive = activeUri === resolvedUri;
                 const LinkIcon = getSemanticIcon(item.node.icon);
                 
                 return (
@@ -331,19 +343,25 @@ export default function TreeView({
                     type="button"
                     disabled={fetchingUri !== null}
                     onClick={() => handleLinkClick(item.node)}
-                    className="w-full flex items-center justify-between text-left p-3.5 hover:bg-slate-800/35 transition disabled:opacity-60 disabled:cursor-not-allowed group rounded-none"
+                    className={`w-full flex items-center justify-between text-left p-2.5 rounded-lg border-l-2 transition duration-150 disabled:opacity-60 disabled:cursor-not-allowed group ${
+                      isCurrentActive 
+                        ? 'bg-amber-500/10 border-l-amber-500 text-amber-500 font-medium'
+                        : 'bg-transparent border-l-transparent hover:border-l-amber-500 hover:bg-[#1a1c24] text-slate-300 hover:text-white'
+                    }`}
                   >
                     <div className="min-w-0 flex-1 space-y-0.5 pr-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <LinkIcon className={`w-4 h-4 shrink-0 ${isLoading ? 'text-amber-500 animate-pulse' : 'text-slate-450 group-hover:text-amber-400'}`} />
-                        <span className="text-slate-200 text-sm font-bold truncate group-hover:text-amber-200 transition-colors font-sans">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <LinkIcon className={`w-3.5 h-3.5 shrink-0 ${
+                          isLoading ? 'text-amber-500 animate-pulse' : isCurrentActive ? 'text-amber-500' : 'text-slate-400 group-hover:text-amber-400'
+                        }`} />
+                        <span className="text-xs font-bold truncate">
                           {item.node.title}
                         </span>
                       </div>
                       
                       {/* Folder nesting paths subtitle */}
                       {item.path.length > 0 && (
-                        <p className="text-[10px] text-slate-500 font-mono font-medium truncate pl-6 max-w-full">
+                        <p className="text-[9px] text-slate-500 font-mono truncate pl-5 max-w-full">
                           {item.path.join(' › ')}
                         </p>
                       )}
@@ -351,24 +369,24 @@ export default function TreeView({
                     
                     <div className="shrink-0">
                       {isLoading ? (
-                        <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
+                        <Loader2 className="w-3.5 h-3.5 text-amber-500 animate-spin" />
                       ) : (
-                        <ChevronRight className="w-4 h-4 text-slate-650 group-hover:text-white" />
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white" />
                       )}
                     </div>
                   </button>
                 );
               })
             ) : (
-              <div className="p-12 text-center text-slate-500 text-sm font-sans select-none">
-                <p className="font-semibold">No quick-finder matches found.</p>
-                <p className="text-xs text-slate-600 mt-1">Check spelling or search for wider category keywords.</p>
+              <div className="p-8 text-center text-slate-500 text-xs font-sans select-none">
+                <p className="font-semibold">No matches found.</p>
+                <p className="text-[11px] text-slate-600 mt-0.5">Try another keyword filter.</p>
               </div>
             )}
             
             {searchResults.length > 50 && (
-              <div className="p-3 bg-slate-950/60 text-center text-slate-500 text-[10px] font-mono tracking-wide uppercase select-none border-t border-slate-800">
-                And {searchResults.length - 50} more results. Refine your search string for specificity.
+              <div className="p-2 bg-[#13141a]/60 text-center text-slate-500 text-[9px] font-mono uppercase tracking-wide border-t border-[#1e2028]">
+                +{searchResults.length - 50} more. Refine keyword.
               </div>
             )}
           </div>

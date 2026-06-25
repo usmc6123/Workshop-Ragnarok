@@ -189,7 +189,7 @@ export default function ManualView({
     });
 
     return (
-      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400 font-sans font-medium mb-4 bg-[#09090d] rounded px-3 py-2 border border-slate-850">
+      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400 font-sans font-medium mb-4 bg-[#13141a] rounded-lg px-3 py-2 border border-[#1e2028]">
         <button
           onClick={() => setCurrentUri(vehicle.uriPath)}
           className="hover:text-amber-500 transition-colors uppercase font-mono tracking-wider font-extrabold text-[10px]"
@@ -203,7 +203,7 @@ export default function ManualView({
 
           return (
             <React.Fragment key={path.uri}>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-700 shrink-0" />
+              <ChevronRight className="w-3.5 h-3.5 text-slate-655 text-slate-500 shrink-0" />
               {isLast ? (
                 <span className="text-amber-500 font-semibold truncate max-w-[160px] md:max-w-xs">
                   {path.label}
@@ -212,7 +212,7 @@ export default function ManualView({
                 <button
                   type="button"
                   onClick={() => setCurrentUri(isModelNode ? vehicle.uriPath : path.uri)}
-                  className="hover:text-amber-500 transition truncate max-w-[120px] md:max-w-xs text-slate-300"
+                  className="hover:text-amber-500 transition truncate max-w-[120px] md:max-w-xs text-slate-350"
                 >
                   {path.label}
                 </button>
@@ -227,14 +227,14 @@ export default function ManualView({
   const alternativeSource = availableSources.find((v) => v.id !== vehicle.id);
 
   return (
-    <div className="flex flex-col flex-1 h-[calc(100vh-64px)] overflow-hidden bg-[#020204]" id="manual-workspace">
+    <div className="flex flex-col flex-1 h-[calc(100vh-64px)] overflow-hidden bg-[#0a0a0f]" id="manual-workspace">
       
       {/* 1. Header Toolbar Bar */}
-      <div className="bg-[#09090d] border-b border-slate-850 px-4 py-2.5 flex items-center justify-between gap-4 select-none shrink-0" id="manual-toolbar">
+      <div className="bg-[#13141a] border-b border-[#1e2028] px-4 py-3 flex items-center justify-between gap-4 select-none shrink-0" id="manual-toolbar">
         <div className="flex items-center gap-2">
           <button
             onClick={onBackToDashboard}
-            className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-350 hover:text-white transition bg-[#121218] border border-slate-800 rounded px-3 py-1.5"
+            className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-300 hover:text-white transition bg-[#0a0a0f] border border-[#1e2028] hover:border-slate-605 rounded px-3 py-1.5"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Close Manual</span>
@@ -276,7 +276,7 @@ export default function ManualView({
             className={`flex items-center gap-1.5 rounded text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 border transition ${
               garageStatus.isSaved
                 ? 'bg-amber-500/10 border-amber-500/40 text-amber-400 hover:bg-amber-500 hover:text-slate-950'
-                : 'bg-[#121218] border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
+                : 'bg-[#0a0a0f] border-[#1e2028] text-slate-400 hover:border-slate-700 hover:text-white'
             }`}
             title={garageStatus.isSaved ? 'Saved in Garage' : 'Add to Garage'}
           >
@@ -287,7 +287,7 @@ export default function ManualView({
           {/* Mobile drawer toggle */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="md:hidden rounded bg-[#121218] border border-slate-800 p-2 text-slate-350 hover:bg-slate-900"
+            className="md:hidden rounded bg-[#0a0a0f] border border-[#1e2028] p-2 text-slate-350 hover:bg-[#13141a]"
             aria-label="Navigation Menu"
           >
             <Menu className="w-5 h-5" />
@@ -302,36 +302,36 @@ export default function ManualView({
         <aside 
           className={`
             absolute md:static top-0 bottom-0 left-0 z-40
-            w-[280px] shrink-0 border-r border-slate-850 bg-[#09090d] flex flex-col h-full
+            w-[280px] shrink-0 border-r border-[#1e2028] bg-[#0d0e14] flex flex-col h-full
             transform md:translate-x-0 transition-transform duration-200 ease-in-out
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
           `}
           id="manual-sidebar-menu"
         >
           {/* Mobile close sidebar header row */}
-          <div className="flex items-center justify-between border-b border-slate-850 bg-[#09090d] p-3 md:hidden">
+          <div className="flex items-center justify-between border-b border-[#1e2028] bg-[#0d0e14] p-3 md:hidden">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Chapters Index</span>
             <button 
               onClick={() => setSidebarOpen(false)} 
-              className="p-1 rounded text-slate-400 hover:bg-[#121218] hover:text-white"
+              className="p-1 rounded text-slate-400 hover:bg-[#13141a] hover:text-white"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Sidebar Top: Selected Model Specs Badge */}
-          <div className="bg-[#121218]/40 border-b border-slate-850 p-4">
+          <div className="bg-[#13141a] border-b border-[#1e2028] p-4">
             <span className="text-[9px] text-amber-500 font-mono font-black uppercase tracking-wider block mb-1">
               CHAPTER DIRECTORY
             </span>
             <h3 className="text-sm font-extrabold text-slate-100 uppercase tracking-tight truncate leading-tight">
               {vehicle.year} {vehicle.make} {vehicle.model}
             </h3>
-            <p className="text-[10px] text-slate-500 font-mono mt-0.5 truncate">{vehicle.engine}</p>
+            <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">{vehicle.engine}</p>
           </div>
 
           {/* Scrollable Tree Container */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-3 space-y-4">
             {loadingSidebar ? (
               <div className="py-12 flex flex-col items-center justify-center space-y-2">
                 <RefreshCw className="w-6 h-6 text-amber-500 animate-spin" />
@@ -342,17 +342,18 @@ export default function ManualView({
                 <p>{errorSidebar}</p>
                 <button
                   onClick={loadSidebarTree}
-                  className="w-full py-1.5 bg-[#121218] hover:bg-slate-800 text-white font-mono uppercase tracking-wider text-[10px] rounded"
+                  className="w-full py-1.5 bg-[#13141a] hover:bg-slate-800 text-white font-mono uppercase tracking-wider text-[10px] rounded"
                 >
                   Reload Tree
                 </button>
               </div>
             ) : rootCategoryPage ? (
-              /* Embed our beautiful fully custom recursive TreeView directly in the sidebar navigation stack */
+              /* Embed our recursive TreeView directly in the sidebar navigation stack */
               <TreeView
                 rootTitle={rootCategoryPage.title || vehicle.model}
                 rootTree={rootCategoryPage.tree}
                 baseUri={vehicle.uriPath}
+                activeUri={currentUri}
                 onNavigateToContent={(contentPage, resolvedUri) => {
                   setActivePage(contentPage);
                   setCurrentUri(resolvedUri);
@@ -381,7 +382,7 @@ export default function ManualView({
         )}
 
         {/* Right Aspect: Content Reader Display Panel */}
-        <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#020204]" id="manual-viewer-stage">
+        <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#0a0a0f]" id="manual-viewer-stage">
           
           {/* Breadcrumbs Row */}
           <div className="px-4 md:px-6 pt-4 text-xs font-sans shrink-0">
@@ -408,7 +409,7 @@ export default function ManualView({
                 </div>
                 <button
                   onClick={() => loadActivePageDetails(currentUri)}
-                  className="px-4 py-2 bg-[#121218] hover:bg-slate-800 text-white font-mono text-xs font-bold uppercase tracking-wider rounded border border-slate-800"
+                  className="px-4 py-2 bg-[#13141a] hover:bg-slate-800 text-white font-mono text-xs font-bold uppercase tracking-wider rounded border border-[#1e2028]"
                 >
                   Retry Load
                 </button>
@@ -418,9 +419,9 @@ export default function ManualView({
                 
                 {/* 2A. When active selection is a folder category (welcome state) */}
                 {activePage.pageType === 'category' ? (
-                  <div className="flex flex-col items-center justify-center text-center py-20 px-6 space-y-4 max-w-md mx-auto h-full" id="manual-welcome-pane">
+                  <div className="flex flex-col items-center justify-center text-center py-24 px-6 space-y-4 max-w-md mx-auto h-full" id="manual-welcome-pane">
                     <Wrench className="w-12 h-12 text-amber-500/80 animate-pulse" />
-                    <h3 className="text-slate-200 font-extrabold text-base uppercase">Manual Workspace Ready</h3>
+                    <h3 className="text-slate-200 font-bold text-base uppercase">Manual Workspace Ready</h3>
                     <p className="text-xs text-slate-400 leading-relaxed">
                       Select a specific repair chapter, wiring diagram, or testing procedure from the left directory sidebar to start viewing instructions.
                     </p>
@@ -429,7 +430,7 @@ export default function ManualView({
                   
                   // 2B. Content rendering mode
                   <div className="space-y-6" id="procedure-reader-content">
-                    <div className="border-b border-slate-850 pb-4">
+                    <div className="border-b border-[#1e2028] pb-4">
                       <span className="text-[10px] text-amber-500 font-mono tracking-widest font-semibold uppercase">
                         {vehicle.source.toUpperCase()} MANUAL • SERVICE DOCUMENT
                       </span>
@@ -439,7 +440,7 @@ export default function ManualView({
                     </div>
 
                     {/* Core Sequential Blocks */}
-                    <div className="space-y-5">
+                    <div className="space-y-6">
                       {activePage.blocks && activePage.blocks.length > 0 ? (
                         activePage.blocks.map((block: Block, blockIdx: number) => {
                           
@@ -448,7 +449,7 @@ export default function ManualView({
                             return (
                               <h3 
                                 key={`heading-${blockIdx}`}
-                                className="text-sm md:text-base font-extrabold text-amber-500 uppercase tracking-wider border-l-2 border-amber-500 pl-3 pt-0.5 pb-0.5 mt-8 bg-[#09090d] p-2 rounded"
+                                className="text-sm md:text-base font-extrabold text-amber-400 uppercase tracking-wider border-l-2 border-amber-500 pl-3 pt-0.5 mt-8"
                               >
                                 {block.text}
                               </h3>
@@ -466,7 +467,7 @@ export default function ManualView({
                                 key={`text-${blockIdx}`}
                                 className={`text-sm leading-relaxed text-slate-300 font-sans ${
                                   hasTorque 
-                                    ? 'bg-amber-500/5 border border-amber-500/10 p-3 rounded text-amber-200 font-semibold spec-number font-mono'
+                                    ? 'bg-amber-500/5 border border-amber-500/10 p-4 rounded-lg text-amber-250 font-semibold font-mono'
                                     : ''
                                 }`}
                               >
@@ -484,7 +485,7 @@ export default function ManualView({
                             return (
                               <div key={`steps-${blockIdx}`} className="space-y-3.5">
                                 {/* Checklist Title & Counter Banner */}
-                                <div className="bg-[#09090d] border border-slate-850 px-4 py-2.5 flex items-center justify-between rounded select-none">
+                                <div className="bg-[#13141a] border border-[#1e2028] px-4 py-3 flex items-center justify-between rounded-lg select-none">
                                   <div className="flex items-center gap-2">
                                     <CheckSquare className="w-4 h-4 text-amber-500" />
                                     <span className="text-[11px] font-mono font-bold uppercase text-slate-400 tracking-wider">
@@ -492,14 +493,14 @@ export default function ManualView({
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-mono font-bold bg-[#121218] border border-slate-800 text-slate-300 px-2 py-0.5 rounded">
+                                    <span className="text-[10px] font-mono font-bold bg-[#0a0a0f] border border-[#1e2028] text-slate-350 px-2.5 py-0.5 rounded-full">
                                       {completedCount} / {totalSteps} COMPLETE
                                     </span>
                                     {totalSteps > 0 && (
                                       <button
                                         type="button"
                                         onClick={() => setCompletedSteps({})}
-                                        className="text-[9px] text-amber-500 hover:text-amber-400 font-mono tracking-wider font-extrabold uppercase"
+                                        className="text-[9px] text-amber-500 hover:text-amber-400 font-mono tracking-wider font-extrabold uppercase transition"
                                       >
                                         RESET
                                       </button>
@@ -516,19 +517,19 @@ export default function ManualView({
                                       <div
                                         key={`step-${sIdx}`}
                                         onClick={() => toggleStepCompleted(sIdx)}
-                                        className={`group/step p-4 rounded border bg-[#09090d] hover:bg-[#121217] transition-all cursor-pointer flex items-start gap-4 ${
-                                          isDone ? 'border-amber-500/20 bg-amber-500/5' : 'border-slate-850'
+                                        className={`group/step p-4 rounded-xl border bg-[#13141a] hover:bg-[#1a1c24] border-l-[3px] transition-all duration-150 cursor-pointer flex items-start gap-4 ${
+                                          isDone ? 'border-amber-500/20 bg-amber-500/5 border-l-amber-500' : 'border-[#1e2028] border-l-transparent'
                                         }`}
                                       >
-                                        {/* Left Side: Monospace Step Number Card Badge */}
+                                        {/* Left Side: Step Number Badge */}
                                         <div className="shrink-0 flex flex-col items-center">
-                                          <span className="text-xs font-mono font-bold text-amber-500/80 bg-amber-500/5 px-2 py-1 rounded border border-amber-500/10">
+                                          <span className="text-xs font-mono font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
                                             {(sIdx + 1).toString().padStart(2, '0')}
                                           </span>
                                         </div>
 
                                         {/* Step Description Content */}
-                                        <div className="flex-1 space-y-1">
+                                        <div className="flex-1">
                                           <p className={`text-slate-200 text-sm leading-relaxed ${isDone ? 'line-through text-slate-500' : ''}`}>
                                             {step}
                                           </p>
@@ -541,7 +542,7 @@ export default function ManualView({
                                               <CheckSquare className="w-3.5 h-3.5" />
                                             </div>
                                           ) : (
-                                            <div className="w-5 h-5 rounded border border-slate-700 bg-[#030305] flex items-center justify-center text-transparent group-hover/step:border-amber-500/50 transition">
+                                            <div className="w-5 h-5 rounded border border-slate-700 bg-[#0a0a0f] flex items-center justify-center text-transparent group-hover/step:border-amber-500/50 transition">
                                               <Square className="w-3.5 h-3.5" />
                                             </div>
                                           )}
@@ -553,7 +554,7 @@ export default function ManualView({
 
                                 {/* Completed banner */}
                                 {isFinished && (
-                                  <div className="bg-green-950/20 border border-green-800/30 p-3.5 text-center text-green-300 text-xs flex items-center justify-center gap-2 font-medium rounded">
+                                  <div className="bg-green-950/20 border border-green-800/30 p-4 text-center text-green-300 text-xs flex items-center justify-center gap-2 font-medium rounded-lg shadow-sm">
                                     <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
                                     <span>All task steps checked off. Procedure verification complete.</span>
                                   </div>
@@ -569,7 +570,7 @@ export default function ManualView({
                             return (
                               <div 
                                 key={`image-${blockIdx}`}
-                                className="group relative rounded overflow-hidden border border-slate-850 bg-[#09090d] p-2 text-center max-w-2xl mx-auto cursor-zoom-in"
+                                className="group relative rounded-xl overflow-hidden border border-[#1e2028] bg-[#13141a] p-2 text-center max-w-2xl mx-auto cursor-zoom-in shadow-lg"
                                 onClick={() => {
                                   setLightboxSrc(proxiedSrc);
                                   setLightboxAlt(activePage.title);
@@ -579,9 +580,9 @@ export default function ManualView({
                                   src={proxiedSrc}
                                   alt={activePage.title}
                                   referrerPolicy="no-referrer"
-                                  className="max-h-96 object-contain rounded mx-auto filter bg-[#020204]/70 pointer-events-none group-hover:brightness-105 duration-150"
+                                  className="max-h-96 object-contain rounded-lg mx-auto filter bg-[#020204]/70 pointer-events-none group-hover:brightness-105 duration-150"
                                 />
-                                <div className="absolute inset-1.5 bg-black/40 backdrop-blur-xs opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-all text-xs gap-1.5 font-mono uppercase tracking-wider font-bold select-none rounded">
+                                <div className="absolute inset-2 bg-black/40 backdrop-blur-xs opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-all text-xs gap-1.5 font-mono uppercase tracking-wider font-bold select-none rounded-lg">
                                   <Eye className="w-4 h-4 text-amber-500" />
                                   <span>Zoom Diagram Blueprint</span>
                                 </div>
@@ -593,7 +594,7 @@ export default function ManualView({
                         })
                       ) : (
                         <div className="text-center py-16">
-                          <HelpCircle className="w-10 h-10 text-slate-650 mx-auto" />
+                          <HelpCircle className="w-10 h-10 text-slate-600 mx-auto" />
                           <p className="text-sm text-slate-500 mt-2">This procedure manual page does not define rendering blocks.</p>
                         </div>
                       )}
@@ -619,8 +620,8 @@ export default function ManualView({
       {/* Nickname bookmark dialog */}
       {showNicknameModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
-          <div className="w-full max-w-sm rounded border border-slate-850 bg-[#09090d] text-slate-100 overflow-hidden shadow-2xl">
-            <div className="bg-[#121218] border-b border-slate-850 p-4 flex items-center gap-2">
+          <div className="w-full max-w-sm rounded-xl border border-[#1e2028] bg-[#13141a] text-slate-100 overflow-hidden shadow-2xl">
+            <div className="bg-[#1a1c24] border-b border-[#1e2028] p-4 flex items-center gap-2">
               <Star className="w-4.5 h-4.5 text-amber-500 fill-amber-500" />
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200 font-mono">Bookmark Vehicle Profile</h3>
             </div>
@@ -636,18 +637,18 @@ export default function ManualView({
                   value={nicknameInput}
                   onChange={(e) => setNicknameInput(e.target.value)}
                   placeholder="Insert nickname identifier..."
-                  className="w-full rounded bg-[#030305] border border-slate-800 text-sm px-3.5 py-2.5 text-slate-200 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/20"
+                  className="w-full rounded bg-[#0a0a0f] border border-[#1e2028] text-slate-200 text-sm px-3.5 py-2.5 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/20"
                   autoFocus
                 />
               </div>
 
-              <div className="bg-[#121218]/50 border border-slate-850 p-3 rounded text-xs leading-relaxed text-slate-400 flex gap-2">
+              <div className="bg-[#1a1c24]/50 border border-[#1e2028] p-3 rounded-lg text-xs leading-relaxed text-slate-400 flex gap-2">
                 <Info className="w-4.5 h-4.5 text-amber-500 shrink-0 mt-0.5" />
                 <p>Pinning this vehicle puts it directly on your garage dashboard row for rapid offline lookup.</p>
               </div>
             </div>
 
-            <div className="bg-[#121218] p-3.5 border-t border-slate-850 flex items-center justify-end gap-3">
+            <div className="bg-[#1a1c24] p-3.5 border-t border-[#1e2028] flex items-center justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setShowNicknameModal(false)}
@@ -659,7 +660,7 @@ export default function ManualView({
                 type="button"
                 onClick={handleSaveGarageConfirm}
                 disabled={savingGarage}
-                className="rounded bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50"
+                className="rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50"
               >
                 {savingGarage ? 'Saving...' : 'Pin in Garage'}
               </button>

@@ -48,7 +48,7 @@ export default function BootSplashScreen({ onComplete }: BootSplashScreenProps) 
   return (
     <div
       onClick={handleSkip}
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#020204] cursor-pointer selection:bg-transparent select-none transition-opacity duration-300 ${
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0a0a0f] cursor-pointer selection:bg-transparent select-none transition-opacity duration-300 ${
         isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
       }`}
       id="boot-splash-container"
@@ -64,7 +64,7 @@ export default function BootSplashScreen({ onComplete }: BootSplashScreenProps) 
           5% {
             opacity: 0.8;
             transform: scale(0.95);
-            filter: brightness(1.8) drop-shadow(0 0 15px #38bdf8);
+            filter: brightness(1.8) drop-shadow(0 0 15px #f59e0b);
           }
           7% {
             opacity: 0.3;
@@ -74,7 +74,7 @@ export default function BootSplashScreen({ onComplete }: BootSplashScreenProps) 
           11% {
             opacity: 0.9;
             transform: scale(0.97);
-            filter: brightness(1.5) drop-shadow(0 0 20px #0284c7);
+            filter: brightness(1.5) drop-shadow(0 0 20px #d97706);
           }
           14% {
             opacity: 0.2;
@@ -84,15 +84,15 @@ export default function BootSplashScreen({ onComplete }: BootSplashScreenProps) 
           20% {
             opacity: 1;
             transform: scale(1);
-            filter: brightness(1) drop-shadow(0 0 8px rgba(56, 189, 248, 0.3));
+            filter: brightness(1) drop-shadow(0 0 8px rgba(245, 158, 11, 0.3));
           }
           75% {
-            filter: brightness(1.1) drop-shadow(0 0 12px rgba(56, 189, 248, 0.4));
+            filter: brightness(1.1) drop-shadow(0 0 12px rgba(245, 158, 11, 0.4));
           }
           100% {
             opacity: 1;
             transform: scale(1.02);
-            filter: brightness(1) drop-shadow(0 0 8px rgba(56, 189, 248, 0.2));
+            filter: brightness(1) drop-shadow(0 0 8px rgba(245, 158, 11, 0.2));
           }
         }
 
@@ -112,8 +112,8 @@ export default function BootSplashScreen({ onComplete }: BootSplashScreenProps) 
 
       {/* Grid Pattern and Ambient Backlit Glow */}
       <div className="absolute inset-0 tech-grid-bg opacity-15 pointer-events-none" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-sky-500/10 rounded-full blur-[120px] pointer-events-none lightning-bg-pulse" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-amber-500/5 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-[120px] pointer-events-none lightning-bg-pulse" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-amber-600/5 rounded-full blur-[100px] pointer-events-none" />
 
       {/* Main Container Content */}
       <div className={`relative flex flex-col items-center justify-center max-w-lg px-6 ${flickerClass}`}>
@@ -133,7 +133,7 @@ export default function BootSplashScreen({ onComplete }: BootSplashScreenProps) 
             Workshop Boot Sequence
           </div>
           <div className="text-xs text-slate-500 font-mono flex items-center justify-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-ping" />
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
             <span>Powering grid controllers...</span>
           </div>
         </div>

@@ -77,10 +77,10 @@ export default function App() {
     const root = document.documentElement;
     if (theme === 'dark') {
       root.classList.remove('theme-light');
-      root.classList.add('theme-dark', 'bg-[#020204]');
-      document.body.style.backgroundColor = '#020204'; // near-black
+      root.classList.add('theme-dark', 'bg-[#0a0a0f]');
+      document.body.style.backgroundColor = '#0a0a0f'; // rich black/navy
     } else {
-      root.classList.remove('theme-dark', 'bg-[#020204]');
+      root.classList.remove('theme-dark', 'bg-[#0a0a0f]');
       root.classList.add('theme-light', 'bg-slate-50');
       document.body.style.backgroundColor = '#f8fafc'; // slate-50
     }
@@ -138,7 +138,7 @@ export default function App() {
   return (
     <div 
       className={`min-h-screen flex flex-col font-sans transition-all duration-200 ${
-        theme === 'dark' ? 'text-slate-100 bg-[#020204]' : 'text-slate-900 bg-slate-50'
+        theme === 'dark' ? 'text-slate-100 bg-[#0a0a0f]' : 'text-slate-900 bg-slate-50'
       }`} 
       id="application-container"
     >
@@ -162,7 +162,7 @@ export default function App() {
 
       {/* Main App Bar Navbar */}
       <header className={`sticky top-0 z-40 px-4 py-3 border-b flex items-center justify-between shadow-md shrink-0 select-none ${
-        theme === 'dark' ? 'bg-[#09090d] border-slate-900' : 'bg-white border-slate-200'
+        theme === 'dark' ? 'bg-[#13141a] border-[#1e2028]' : 'bg-white border-slate-200'
       }`} id="app-header">
         
         {/* Brand Title block with Workshop Ragnarok styling */}
@@ -174,7 +174,7 @@ export default function App() {
           <img 
             src={LOGO_URL} 
             alt="Workshop: Ragnarök Logo" 
-            className="w-8 h-8 md:w-9 md:h-9 object-cover rounded border border-slate-750 shrink-0 select-none"
+            className="w-8 h-8 md:w-9 md:h-9 object-cover rounded border border-[#1e2028] shrink-0 select-none"
           />
           <div>
             <h1 className="text-sm md:text-base font-black tracking-wider text-slate-100 select-none flex items-center gap-1 leading-none uppercase">
@@ -193,7 +193,7 @@ export default function App() {
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition ${
               view === 'dashboard'
                 ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 bg-transparent hover:bg-slate-900/50'
+                : 'text-slate-400 hover:text-slate-200 bg-transparent hover:bg-[#1a1c24]'
             }`}
             id="tab-dashboard"
           >
@@ -206,7 +206,7 @@ export default function App() {
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition ${
               view === 'browse'
                 ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 bg-transparent hover:bg-slate-900/50'
+                : 'text-slate-400 hover:text-slate-200 bg-transparent hover:bg-[#1a1c24]'
             }`}
             id="tab-browse"
           >
@@ -237,7 +237,7 @@ export default function App() {
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             className={`p-2 rounded border transition ${
               theme === 'dark' 
-                ? 'bg-[#121218] border-slate-800 text-amber-500 hover:bg-slate-900' 
+                ? 'bg-[#13141a] border-[#1e2028] text-amber-500 hover:bg-[#1a1c24]' 
                 : 'bg-slate-100 border-slate-200 text-slate-650 hover:bg-slate-200'
             }`}
             title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -250,7 +250,7 @@ export default function App() {
           <button
             onClick={() => setSettingsOpen(true)}
             className={`p-2 rounded border transition ${
-              theme === 'dark' ? 'bg-[#121218] border-slate-800 text-slate-300 hover:text-white hover:bg-slate-900' : 'bg-slate-100 border-slate-200 text-slate-650'
+              theme === 'dark' ? 'bg-[#13141a] border-[#1e2028] text-slate-300 hover:text-white hover:bg-[#1a1c24]' : 'bg-slate-100 border-slate-200 text-slate-650'
             }`}
             title="Connection configuration Settings"
             aria-label="Settings"
