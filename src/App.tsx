@@ -141,6 +141,15 @@ export default function App() {
         theme === 'dark' ? 'text-slate-100 bg-[#0a0a0f]' : 'text-slate-900 bg-slate-50'
       }`} 
       id="application-container"
+      style={{
+        backgroundImage: theme === 'dark' 
+          ? `linear-gradient(rgba(10, 10, 15, 0.91), rgba(10, 10, 15, 0.96)), url(${BACKGROUND_URL})`
+          : `linear-gradient(rgba(248, 250, 252, 0.92), rgba(248, 250, 252, 0.96)), url(${BACKGROUND_URL})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+        backgroundRepeat: 'no-repeat',
+      }}
     >
       
       {/* Dynamic Master Utility Banner if manual server can't be reached */}
