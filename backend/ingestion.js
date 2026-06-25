@@ -76,6 +76,9 @@ if (Array.isArray(dataset)) {
   records = dataset;
 } else if (typeof dataset === 'object' && dataset !== null) {
   // If structured as an object with key values, map to list
+} else if (dataset.vehicles && Array.isArray(dataset.vehicles)) {
+  records = dataset.vehicles;
+} else {
   records = Object.values(dataset);
 }
 
