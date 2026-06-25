@@ -101,15 +101,15 @@ const runIngest = db.transaction((items) => {
   for (const item of items) {
     // Standardize structure and match sqlite constraints
     const mapped = {
-      id: item.id || null, // Auto-assigned by SQLite if null
+      id: null, // Always null so SQLite auto-assigns it
       source: item.source || 'charm',
       make: item.make || 'Unknown',
-      year: String(item.year || ''),
+      year: Array.isArray(item.years) ? String(item.years[0]) : String(item.year || ''),
       model: item.model || 'Unknown',
       engine: item.engine || 'N/A',
       uriPath: item.uriPath || '',
       isComplete: item.isComplete !== undefined ? (item.isComplete ? 1 : 0) : 1
-    };
+    }
     
     insertStmt.run(mapped);
     inserted++;
