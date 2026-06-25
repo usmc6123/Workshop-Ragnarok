@@ -1,13 +1,13 @@
 # Stage 1: Build the React frontend
-FROM node:20-slim AS frontend-builder
+FROM node:18-slim AS frontend-builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm install --force
+RUN npm ci
 COPY . .
 RUN npm run build
 
 # Stage 2: Build the Node.js/Express backend
-FROM node:20-slim
+FROM node:18-slim
 
 # Install system dependencies needed for compiling sqlite3 if prebuild is unavailable
 RUN apt-get update && apt-get install -y \
@@ -20,7 +20,7 @@ WORKDIR /app
 
 # Install backend dependencies
 COPY backend/package*.json ./
-RUN npm install --only=production
+RUN npm ci --only=production
 
 # Copy backend source files
 COPY backend/server.js ./

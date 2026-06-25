@@ -74,9 +74,8 @@ try {
 let records = [];
 if (Array.isArray(dataset)) {
   records = dataset;
-} else if (dataset && dataset.vehicles && Array.isArray(dataset.vehicles)) {
-  records = dataset.vehicles;
 } else if (typeof dataset === 'object' && dataset !== null) {
+  // If structured as an object with key values, map to list
   records = Object.values(dataset);
 }
 
