@@ -32,6 +32,8 @@ export default function App() {
     return true;
   });
 
+  const [lastView, setLastView] = useState<ViewType>('dashboard');
+
   const handleSplashComplete = () => {
     if (typeof window !== 'undefined' && window.sessionStorage) {
       window.sessionStorage.setItem('ragnarok_splash_shown', 'true');
@@ -90,7 +92,7 @@ export default function App() {
       const targetVehicle = (event as CustomEvent).detail as Vehicle;
       if (targetVehicle) {
         setSelectedVehicle(targetVehicle);
-        setView('browse');
+        setView('manual');
       }
     };
 
@@ -113,8 +115,14 @@ export default function App() {
   };
 
   const handleSelectVehicle = (vehicle: Vehicle) => {
+    setLastView(view);
     setSelectedVehicle(vehicle);
-    setView('browse');
+    setView('manual');
+  };
+
+  const handleBackFromManual = () => {
+    setView(lastView);
+    setSelectedVehicle(null);
   };
 
   const handleApplyNewSettings = () => {
@@ -130,28 +138,19 @@ export default function App() {
   return (
     <div 
       className={`min-h-screen flex flex-col font-sans transition-all duration-200 ${
-        theme === 'dark' ? 'text-slate-100 bg-[#020204]/70' : 'text-slate-900 bg-slate-50/70'
+        theme === 'dark' ? 'text-slate-100 bg-[#020204]' : 'text-slate-900 bg-slate-50'
       }`} 
       id="application-container"
-      style={{
-        backgroundImage: theme === 'dark' 
-          ? `linear-gradient(rgba(2, 2, 4, 0.4), rgba(2, 2, 4, 0.6)), url(${BACKGROUND_URL})`
-          : `linear-gradient(rgba(248, 250, 252, 0.75), rgba(248, 250, 252, 0.85)), url(${BACKGROUND_URL})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'top center',
-        backgroundAttachment: 'fixed',
-        backgroundRepeat: 'no-repeat',
-      }}
     >
       
       {/* Dynamic Master Utility Banner if manual server can't be reached */}
       {serverOnline === false && (
         <div 
-          className="bg-gradient-to-r from-orange-600 to-amber-600 text-slate-950 px-4 py-2 text-center text-xs font-bold flex items-center justify-center gap-2 select-none shadow animate-pulse shrink-0"
+          className="bg-amber-500 text-slate-950 px-4 py-2 text-center text-xs font-bold flex items-center justify-center gap-2 select-none shadow shrink-0"
           id="offline-banner"
         >
-          <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>Can't reach the manual server — make sure the REST API is running under Roscoe or your LAN IP.</span>
+          <AlertTriangle className="w-4 h-4 shrink-0 text-slate-950" />
+          <span>Manual server is unreachable. Verify connection settings or host LAN address.</span>
           <button
             onClick={() => setSettingsOpen(true)}
             className="underline hover:text-white font-mono text-[10px] uppercase ml-2 bg-slate-950/20 px-2 py-0.5 rounded transition"
@@ -162,27 +161,27 @@ export default function App() {
       )}
 
       {/* Main App Bar Navbar */}
-      <header className={`sticky top-0 z-40 px-4 py-2.5 border-b flex items-center justify-between shadow-md shrink-0 select-none ${
-        theme === 'dark' ? 'bg-[#06070a]/95 border-slate-900' : 'bg-white border-slate-200'
+      <header className={`sticky top-0 z-40 px-4 py-3 border-b flex items-center justify-between shadow-md shrink-0 select-none ${
+        theme === 'dark' ? 'bg-[#09090d] border-slate-900' : 'bg-white border-slate-200'
       }`} id="app-header">
         
         {/* Brand Title block with Workshop Ragnarok styling */}
         <div 
           onClick={handleNavHome}
-          className="flex items-center gap-3 cursor-pointer hover:opacity-95 active:scale-95 transition"
+          className="flex items-center gap-3 cursor-pointer hover:opacity-90 active:scale-98 transition"
         >
           {/* Tightly cropped circular version of the logo */}
           <img 
             src={LOGO_URL} 
             alt="Workshop: Ragnarök Logo" 
-            className="w-9 h-9 md:w-10 md:h-10 object-cover rounded-full border border-slate-700/60 shadow-inner shrink-0 select-none"
+            className="w-8 h-8 md:w-9 md:h-9 object-cover rounded border border-slate-750 shrink-0 select-none"
           />
           <div>
-            <h1 className="text-sm md:text-base font-black tracking-wider text-slate-100 font-metal select-none flex items-center gap-1 leading-none uppercase" style={{ fontFamily: '"Metal Mania", "Cinzel", serif' }}>
+            <h1 className="text-sm md:text-base font-black tracking-wider text-slate-100 select-none flex items-center gap-1 leading-none uppercase">
               WORKSHOP: <span className="text-amber-500">RAGNARÖK</span>
             </h1>
-            <p className="text-[9px] text-slate-500 font-mono tracking-[0.2em] hidden md:block mt-0.5">
-              SECURE WORKSHOP SERVICE INTERFACE
+            <p className="text-[9px] text-slate-500 font-mono tracking-[0.15em] mt-0.5">
+              SERVICE INTERFACE
             </p>
           </div>
         </div>
@@ -191,28 +190,28 @@ export default function App() {
         <nav className="flex items-center gap-1">
           <button
             onClick={handleNavHome}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition ${
               view === 'dashboard'
-                ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 bg-transparent border border-transparent'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 bg-transparent hover:bg-slate-900/50'
             }`}
             id="tab-dashboard"
           >
             <Home className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Garage</span>
+            <span>Garage</span>
           </button>
 
           <button
             onClick={() => handleNavBrowse('')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition ${
               view === 'browse'
-                ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 bg-transparent border border-transparent'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 bg-transparent hover:bg-slate-900/50'
             }`}
             id="tab-browse"
           >
             <Search className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Catalog</span>
+            <span>Catalog</span>
           </button>
         </nav>
 
@@ -222,7 +221,7 @@ export default function App() {
           {/* LAN Host indicator widget */}
           <div 
             onClick={() => setSettingsOpen(true)}
-            className={`hidden md:flex items-center gap-2 rounded-lg border px-3 py-1.5 text-[10px] font-mono cursor-pointer transition ${
+            className={`hidden md:flex items-center gap-2 rounded border px-3 py-1.5 text-[10px] font-mono cursor-pointer transition ${
               serverOnline 
                 ? 'bg-green-950/15 border-green-800/30 text-green-400 hover:border-green-600' 
                 : 'bg-red-950/15 border-red-800/30 text-red-400 hover:border-red-600'
@@ -230,18 +229,18 @@ export default function App() {
             title="Configure LAN Server Address IP"
           >
             <Wifi className="w-3.5 h-3.5 shrink-0" />
-            <span>LAN: {currentApiEndpoint.replace(/^https?:\/\//, '')}</span>
+            <span>{currentApiEndpoint.replace(/^https?:\/\//, '')}</span>
           </div>
 
           {/* Theme switcher */}
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className={`p-2 rounded-lg border transition ${
+            className={`p-2 rounded border transition ${
               theme === 'dark' 
-                ? 'bg-slate-800 border-slate-755 text-yellow-400 hover:bg-slate-750' 
-                : 'bg-slate-100 border-slate-205 text-slate-650 hover:bg-slate-200'
+                ? 'bg-[#121218] border-slate-800 text-amber-500 hover:bg-slate-900' 
+                : 'bg-slate-100 border-slate-200 text-slate-650 hover:bg-slate-200'
             }`}
-            title={theme === 'dark' ? 'Switch to light mode (Day mode)' : 'Switch to dark mode (Garage mode)'}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             aria-label="Theme toggle"
           >
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -250,8 +249,8 @@ export default function App() {
           {/* Quick Connection setup cog */}
           <button
             onClick={() => setSettingsOpen(true)}
-            className={`p-2 rounded-lg border transition ${
-              theme === 'dark' ? 'bg-slate-800 border-slate-755 text-slate-300 hover:text-white' : 'bg-slate-100 border-slate-205 text-slate-650'
+            className={`p-2 rounded border transition ${
+              theme === 'dark' ? 'bg-[#121218] border-slate-800 text-slate-300 hover:text-white hover:bg-slate-900' : 'bg-slate-100 border-slate-200 text-slate-650'
             }`}
             title="Connection configuration Settings"
             aria-label="Settings"
@@ -283,7 +282,7 @@ export default function App() {
         {view === 'manual' && selectedVehicle && (
           <ManualView
             vehicle={selectedVehicle}
-            onBackToDashboard={handleNavHome}
+            onBackToDashboard={handleBackFromManual}
             onRefreshGarage={() => setRefreshTrigger((prev) => prev + 1)}
           />
         )}
@@ -292,7 +291,7 @@ export default function App() {
       {/* Embedded footer */}
       {view !== 'manual' && (
         <span className={`text-[10px] font-mono text-center pb-5 select-none ${
-          theme === 'dark' ? 'text-slate-600' : 'text-slate-400'
+          theme === 'dark' ? 'text-slate-605 text-slate-500' : 'text-slate-400'
         }`} id="app-footer-credit">
           Service Manuals • Built for Offline Workshop Deployments
         </span>
