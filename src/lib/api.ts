@@ -3,7 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Vehicle, GarageItem, PageResponse, GarageVehicle, ServiceHistory, Job, JobPart, DatabaseStats } from '../types';
+import { 
+  Vehicle, GarageItem, PageResponse, Customer, CustomerVehicle, 
+  ServiceHistory, Job, JobPart, Appointment, DatabaseStats 
+} from '../types';
+
 import { 
   MOCK_GARAGE, 
   MOCK_MAKES, 
@@ -17,88 +21,58 @@ const STORAGE_KEY = 'car_manual_api_base';
 const DEFAULT_API_BASE = 'http://localhost:4000';
 
 const SIMULATED_GARAGE_KEY = 'ragnarok_simulated_garage_v1';
-const SIMULATED_GARAGE_VEHICLES_KEY = 'ragnarok_simulated_garage_vehicles_v1';
+const SIMULATED_CUSTOMERS_KEY = 'ragnarok_simulated_customers_v1';
+const SIMULATED_VEHICLES_KEY = 'ragnarok_simulated_vehicles_v1';
 const SIMULATED_SERVICE_HISTORY_KEY = 'ragnarok_simulated_service_history_v1';
 const SIMULATED_JOBS_KEY = 'ragnarok_simulated_jobs_v1';
 const SIMULATED_JOB_PARTS_KEY = 'ragnarok_simulated_job_parts_v1';
+const SIMULATED_APPOINTMENTS_KEY = 'ragnarok_simulated_appointments_v1';
 
-function getSimulatedGarageVehicles(): GarageVehicle[] {
-  const saved = localStorage.getItem(SIMULATED_GARAGE_VEHICLES_KEY);
+// Offline Simulators
+function getSimulatedCustomers(): Customer[] {
+  const saved = localStorage.getItem(SIMULATED_CUSTOMERS_KEY);
   if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
+    try { return JSON.parse(saved); } catch {}
   }
-  const initial = [
-    {
-      id: 1,
-      year: '2015',
-      make: 'Ford',
-      model: 'F-150',
-      engine: '3.5L V6 EcoBoost',
-      vin: '1FTFW1EF5FFA12345',
-      color: 'Shadow Black',
-      purchase_date: '2019-04-12',
-      purchase_mileage: 45000,
-      current_mileage: 98500,
-      notes: 'Shop utility and parts runner. Regularly serviced.'
-    },
-    {
-      id: 2,
-      year: '2018',
-      make: 'Honda',
-      model: 'Civic',
-      engine: '1.5L Turbo I4',
-      vin: '1HGFC2F70JA098765',
-      color: 'Rallye Red',
-      purchase_date: '2021-08-30',
-      purchase_mileage: 24000,
-      current_mileage: 52000,
-      notes: 'Lead technician\'s daily commuter.'
-    }
+  const initial: Customer[] = [
+    { id: 1, name: 'Sarah Connor', phone: '555-0199', email: 'sconnor@cyberdyne.net', address: '123 Resistance Way, Los Angeles, CA', notes: 'Loyal customer. Prefers phone.' },
+    { id: 2, name: 'John Doe', phone: '555-4321', email: 'johndoe@example.com', address: '456 Main St, Pasadena, CA', notes: 'Routine maintenance customer.' },
+    { id: 3, name: 'Miles Dyson', phone: '555-2099', email: 'mdyson@cyberdyne.net', address: '789 Cyberdyne Blvd, Sunnyvale, CA', notes: 'Corvette collector.' }
   ];
-  localStorage.setItem(SIMULATED_GARAGE_VEHICLES_KEY, JSON.stringify(initial));
+  localStorage.setItem(SIMULATED_CUSTOMERS_KEY, JSON.stringify(initial));
   return initial;
 }
 
-function saveSimulatedGarageVehicles(list: GarageVehicle[]) {
-  localStorage.setItem(SIMULATED_GARAGE_VEHICLES_KEY, JSON.stringify(list));
+function saveSimulatedCustomers(list: Customer[]) {
+  localStorage.setItem(SIMULATED_CUSTOMERS_KEY, JSON.stringify(list));
+}
+
+function getSimulatedVehicles(): CustomerVehicle[] {
+  const saved = localStorage.getItem(SIMULATED_VEHICLES_KEY);
+  if (saved) {
+    try { return JSON.parse(saved); } catch {}
+  }
+  const initial: CustomerVehicle[] = [
+    { id: 1, customer_id: 1, year: '1991', make: 'Chevrolet', model: 'Caprice', engine: '5.0L V8', vin: '1G1BL51E6MR123456', color: 'Midnight Blue', purchase_date: '1991-05-15', purchase_mileage: 0, current_mileage: 142000, notes: 'Heavy-duty suspension.', customer_name: 'Sarah Connor' },
+    { id: 2, customer_id: 2, year: '2019', make: 'Toyota', model: 'Tacoma', engine: '3.5L V6', vin: '5TFDZ5AN4KX987654', color: 'Cement Gray', purchase_date: '2019-10-10', purchase_mileage: 12, current_mileage: 68500, notes: 'Regular servicing.', customer_name: 'John Doe' },
+    { id: 3, customer_id: 3, year: '2011', make: 'Chevrolet', model: 'Corvette', engine: '6.2L V8 LS3', vin: '1G1YY2DW6B5100000', color: 'Torch Red', purchase_date: '2015-04-20', purchase_mileage: 12000, current_mileage: 31000, notes: 'Showroom condition.', customer_name: 'Miles Dyson' }
+  ];
+  localStorage.setItem(SIMULATED_VEHICLES_KEY, JSON.stringify(initial));
+  return initial;
+}
+
+function saveSimulatedVehicles(list: CustomerVehicle[]) {
+  localStorage.setItem(SIMULATED_VEHICLES_KEY, JSON.stringify(list));
 }
 
 function getSimulatedServiceHistory(): ServiceHistory[] {
   const saved = localStorage.getItem(SIMULATED_SERVICE_HISTORY_KEY);
   if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
+    try { return JSON.parse(saved); } catch {}
   }
-  const initial = [
-    {
-      id: 1,
-      vehicle_id: 1,
-      date: '2025-11-15',
-      mileage: 95000,
-      description: 'Routine Oil Change & Spark Plug Replacement',
-      parts_used: '6x Motorcraft Spark Plugs, 6qt 5W-30 Full Synthetic, Oil Filter',
-      cost: 145.50,
-      technician: 'David Miller',
-      notes: 'Plugs showed normal wear. Gapped to 0.030".'
-    },
-    {
-      id: 2,
-      vehicle_id: 1,
-      date: '2026-03-10',
-      mileage: 98000,
-      description: 'Front Brake Pads & Rotors Replacement',
-      parts_used: 'Heavy Duty Ceramic Front Brake Pads, 2x Premium Brake Rotors',
-      cost: 280.00,
-      technician: 'Marcus Vance',
-      notes: 'Rotors were below minimum thickness spec. Brakes bedded in properly.'
-    }
+  const initial: ServiceHistory[] = [
+    { id: 1, vehicle_id: 2, date: '2025-11-10', mileage: 58000, description: 'Routine Oil Service & Filter Replacement', parts_used: '7qt 0W-20 Full Synth, Oil Filter', cost: 59.99, technician: 'Marcus Vance', notes: 'Oil black but normal. Air filters checked clean.' },
+    { id: 2, vehicle_id: 3, date: '2026-06-24', mileage: 31000, description: 'Misfire diagnostic spark plug swap', parts_used: '8x NGK Iridium Plugs', cost: 161.92, technician: 'David Miller', notes: 'Scanned cylinder 5 misfire. Spark plugs swapped.' }
   ];
   localStorage.setItem(SIMULATED_SERVICE_HISTORY_KEY, JSON.stringify(initial));
   return initial;
@@ -111,43 +85,12 @@ function saveSimulatedServiceHistory(list: ServiceHistory[]) {
 function getSimulatedJobs(): Job[] {
   const saved = localStorage.getItem(SIMULATED_JOBS_KEY);
   if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
+    try { return JSON.parse(saved); } catch {}
   }
   const initial: Job[] = [
-    {
-      id: 1,
-      customer_name: 'Sarah Connor',
-      customer_phone: '555-0199',
-      customer_email: 'sconnor@cyberdyne.net',
-      vehicle_year: '1991',
-      vehicle_make: 'Chevrolet',
-      vehicle_model: 'Caprice',
-      vehicle_vin: '1G1BL51E6MR123456',
-      vehicle_mileage_in: 142000,
-      description: 'Suspension clunk over bumps. Check front end.',
-      notes: 'Inspect ball joints, control arm bushings, and tie rods. Customer requests phone call with estimate.',
-      status: 'In Progress',
-      estimated_completion: '2026-06-27'
-    },
-    {
-      id: 2,
-      customer_name: 'John Doe',
-      customer_phone: '555-4321',
-      customer_email: 'johndoe@example.com',
-      vehicle_year: '2019',
-      vehicle_make: 'Toyota',
-      vehicle_model: 'Tacoma',
-      vehicle_vin: '5TFDZ5AN4KX987654',
-      vehicle_mileage_in: 68500,
-      description: 'Transmission fluid flush & tire rotation.',
-      notes: 'Regular maintenance service. Tires currently at 5/32" tread depth.',
-      status: 'Pending',
-      estimated_completion: '2026-06-26'
-    }
+    { id: 1, customer_id: 1, vehicle_id: 1, description: 'Front suspension rebuild', diagnosis_notes: 'Inspect front end control arms, bushings, and tie rods for heavy wear.', labor_notes: 'Replace upper ball joints and sway bar links. Perform alignment.', status: 'In Progress', estimated_completion: '2026-06-27', labor_cost: 180.00, customer_name: 'Sarah Connor', customer_phone: '555-0199', customer_email: 'sconnor@cyberdyne.net', vehicle_year: '1991', vehicle_make: 'Chevrolet', vehicle_model: 'Caprice' },
+    { id: 2, customer_id: 2, vehicle_id: 2, description: 'Tire rotation & transmission flush', diagnosis_notes: 'ATF inspection. Check cabin filters.', labor_notes: 'Rotate tires, flush automatic transmission fluid. Replaced cabin filter.', status: 'Pending', estimated_completion: '2026-06-26', labor_cost: 110.00, customer_name: 'John Doe', customer_phone: '555-4321', customer_email: 'johndoe@example.com', vehicle_year: '2019', vehicle_make: 'Toyota', vehicle_model: 'Tacoma' },
+    { id: 3, customer_id: 3, vehicle_id: 3, description: 'Spark plug tune-up', diagnosis_notes: 'Missfire on cylinder 5 detected.', labor_notes: 'Scan ECU codes. Replace spark plugs on all cylinders.', status: 'Complete', estimated_completion: '2026-06-24', labor_cost: 90.00, customer_name: 'Miles Dyson', customer_phone: '555-2099', customer_email: 'mdyson@cyberdyne.net', vehicle_year: '2011', vehicle_make: 'Chevrolet', vehicle_model: 'Corvette' }
   ];
   localStorage.setItem(SIMULATED_JOBS_KEY, JSON.stringify(initial));
   return initial;
@@ -160,31 +103,13 @@ function saveSimulatedJobs(list: Job[]) {
 function getSimulatedJobParts(): JobPart[] {
   const saved = localStorage.getItem(SIMULATED_JOB_PARTS_KEY);
   if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
+    try { return JSON.parse(saved); } catch {}
   }
-  const initial = [
-    {
-      id: 1,
-      job_id: 1,
-      part_name: 'Front Upper Ball Joint',
-      part_number: 'K772',
-      quantity: 2,
-      unit_cost: 34.99,
-      notes: 'Moog Problem Solver'
-    },
-    {
-      id: 2,
-      job_id: 1,
-      part_name: 'Sway Bar Link Kit',
-      part_number: 'K8268',
-      quantity: 2,
-      unit_cost: 18.50,
-      notes: 'Front driver & passenger'
-    }
+  const initial: JobPart[] = [
+    { id: 1, job_id: 1, part_name: 'Front Upper Ball Joint', part_number: 'K772', quantity: 2, unit_cost: 34.99, notes: 'Moog Problem Solver' },
+    { id: 2, job_id: 1, part_name: 'Sway Bar Link Kit', part_number: 'K8268', quantity: 2, unit_cost: 18.50, notes: 'Front L/R Sway Bar' },
+    { id: 3, job_id: 2, part_name: 'Toyota Genuine WS Fluid', part_number: '08886-02305', quantity: 4, unit_cost: 14.25, notes: 'Transmission Fluid quarts' },
+    { id: 4, job_id: 3, part_name: 'NGK Iridium Spark Plugs', part_number: 'TR55IX', quantity: 8, unit_cost: 8.99, notes: 'Pre-gapped to 0.040"' }
   ];
   localStorage.setItem(SIMULATED_JOB_PARTS_KEY, JSON.stringify(initial));
   return initial;
@@ -194,14 +119,27 @@ function saveSimulatedJobParts(list: JobPart[]) {
   localStorage.setItem(SIMULATED_JOB_PARTS_KEY, JSON.stringify(list));
 }
 
+function getSimulatedAppointments(): Appointment[] {
+  const saved = localStorage.getItem(SIMULATED_APPOINTMENTS_KEY);
+  if (saved) {
+    try { return JSON.parse(saved); } catch {}
+  }
+  const initial: Appointment[] = [
+    { id: 1, title: 'Sarah Connor - Caprice Rebuild Drop-off', customer_id: 1, vehicle_id: 1, date: '2026-06-27', time: '08:30', duration_minutes: 60, notes: 'Morning key drop. Requesting loaner.', customer_name: 'Sarah Connor', customer_phone: '555-0199', vehicle_year: '1991', vehicle_make: 'Chevrolet', vehicle_model: 'Caprice' },
+    { id: 2, title: 'John Doe - Tacoma Service Wait', customer_id: 2, vehicle_id: 2, date: '2026-06-26', time: '13:00', duration_minutes: 90, notes: 'Wait in customer lounge.', customer_name: 'John Doe', customer_phone: '555-4321', vehicle_year: '2019', vehicle_make: 'Toyota', vehicle_model: 'Tacoma' }
+  ];
+  localStorage.setItem(SIMULATED_APPOINTMENTS_KEY, JSON.stringify(initial));
+  return initial;
+}
+
+function saveSimulatedAppointments(list: Appointment[]) {
+  localStorage.setItem(SIMULATED_APPOINTMENTS_KEY, JSON.stringify(list));
+}
+
 function getSimulatedGarage(): GarageItem[] {
   const saved = localStorage.getItem(SIMULATED_GARAGE_KEY);
   if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
+    try { return JSON.parse(saved); } catch {}
   }
   return [...MOCK_GARAGE];
 }
@@ -258,7 +196,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     if (error instanceof ApiError) {
       throw error;
     }
-    // Any other error thrown by fetch represents helper/host/server being unreachable, treat as isOffline: true
     throw new ApiError(
       error.message || "Can't reach the manual server — make sure it's running on Roscoe or your LAN IP.",
       true
@@ -273,7 +210,7 @@ export const api = {
       return await request<string[]>('/api/makes');
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — serving offline makes list.');
+        console.warn('API offline — returning MOCK_MAKES.');
         return MOCK_MAKES;
       }
       throw err;
@@ -286,7 +223,6 @@ export const api = {
       return await request<string[]>(`/api/years?make=${encodeURIComponent(make)}`);
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — serving offline years list for make:', make);
         return MOCK_YEARS[make] || [];
       }
       throw err;
@@ -305,7 +241,6 @@ export const api = {
       return await request<Vehicle[]>(`/api/vehicles?${params.toString()}`);
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — searching offline vehicles catalogs.');
         let results = [...MOCK_VEHICLES];
         if (make) {
           results = results.filter((v) => v.make.toLowerCase() === make.toLowerCase());
@@ -334,7 +269,6 @@ export const api = {
       return await request<GarageItem[]>('/api/garage');
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — serving offline simulated garage cache.');
         return getSimulatedGarage();
       }
       throw err;
@@ -351,10 +285,9 @@ export const api = {
       });
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — performing simulated bookmark addition.');
         const vehicle = MOCK_VEHICLES.find((v) => v.id === vehicleId);
         if (!vehicle) {
-          throw new ApiError('Requested vehicle profile not found in simulation indexes.', false);
+          throw new ApiError('Requested vehicle not found.', false);
         }
         const currentList = getSimulatedGarage();
         const maxId = currentList.reduce((max, item) => Math.max(max, item.garageId), 0);
@@ -378,7 +311,6 @@ export const api = {
       });
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — performing simulated bookmark removal.');
         const currentList = getSimulatedGarage();
         const updatedList = currentList.filter((item) => item.garageId !== garageId);
         saveSimulatedGarage(updatedList);
@@ -394,22 +326,16 @@ export const api = {
       return await request<PageResponse>(`/api/page?uri=${encodeURIComponent(uri)}`);
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — serving cached simulated page contents for URI:', uri);
-        
-        // Clean matching uri string (remove trailing backslash)
         const cleanUri = uri.trim().replace(/\/$/, '');
         if (MOCK_PAGES[cleanUri]) {
           return MOCK_PAGES[cleanUri];
         }
-        
-        // Return Table of Contents as fallback category
         return MOCK_TOC;
       }
       throw err;
     }
   },
 
-  // Helper to format image Proxy URL
   getImageUrl(src: string): string {
     const base = getApiBase();
     return `${base}/api/image?src=${encodeURIComponent(src)}`;
@@ -421,103 +347,239 @@ export const api = {
       return await request<DatabaseStats>('/api/stats');
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — serving offline simulated stats.');
         const manuals = MOCK_VEHICLES.length;
-        const vehicles = getSimulatedGarageVehicles().length;
-        const jobs = getSimulatedJobs().length;
+        const customers = getSimulatedCustomers().length;
+        const vehicles = getSimulatedVehicles().length;
+        const jobs = getSimulatedJobs().filter(j => j.status !== 'Complete' && j.status !== 'Cancelled').length;
         return {
           totalManuals: manuals,
-          totalGarageVehicles: vehicles,
-          totalJobs: jobs
+          totalCustomers: customers,
+          totalVehicles: vehicles,
+          activeJobs: jobs
         };
       }
       throw err;
     }
   },
 
-  // --- GARAGE VEHICLES ---
-  async getGarageVehicles(): Promise<GarageVehicle[]> {
+  // --- CUSTOMERS ---
+  async getCustomers(): Promise<Customer[]> {
     try {
-      return await request<GarageVehicle[]>('/api/garage-vehicles');
+      return await request<Customer[]>('/api/customers');
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — serving offline garage vehicles.');
-        return getSimulatedGarageVehicles();
+        const custs = getSimulatedCustomers();
+        const vehs = getSimulatedVehicles();
+        const history = getSimulatedServiceHistory();
+        return custs.map(c => {
+          const cVehs = vehs.filter(v => v.customer_id === c.id);
+          const vIds = cVehs.map(v => v.id);
+          const cHistory = history.filter(h => vIds.includes(h.vehicle_id));
+          const lastVisitDate = cHistory.length > 0 ? cHistory.sort((a,b)=>b.date.localeCompare(a.date))[0].date : undefined;
+          return {
+            ...c,
+            vehicle_count: cVehs.length,
+            last_visit: lastVisitDate
+          };
+        });
       }
       throw err;
     }
   },
 
-  async addGarageVehicle(vehicle: Omit<GarageVehicle, 'id'>): Promise<GarageVehicle> {
+  async addCustomer(customer: Omit<Customer, 'id'>): Promise<Customer> {
     try {
-      return await request<GarageVehicle>('/api/garage-vehicles', {
+      return await request<Customer>('/api/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(vehicle)
+        body: JSON.stringify(customer)
       });
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — simulating add garage vehicle.');
-        const list = getSimulatedGarageVehicles();
-        const nextId = list.reduce((max, item) => Math.max(max, item.id), 0) + 1;
-        const newItem: GarageVehicle = { ...vehicle, id: nextId };
-        saveSimulatedGarageVehicles([...list, newItem]);
+        const list = getSimulatedCustomers();
+        const nextId = list.reduce((max, c) => Math.max(max, c.id), 0) + 1;
+        const newItem: Customer = { ...customer, id: nextId };
+        saveSimulatedCustomers([...list, newItem]);
         return newItem;
       }
       throw err;
     }
   },
 
-  async updateGarageVehicle(id: number, vehicle: GarageVehicle): Promise<GarageVehicle> {
+  async updateCustomer(id: number, customer: Customer): Promise<Customer> {
     try {
-      return await request<GarageVehicle>(`/api/garage-vehicles/${id}`, {
+      return await request<Customer>(`/api/customers/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(vehicle)
+        body: JSON.stringify(customer)
       });
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — simulating update garage vehicle.');
-        const list = getSimulatedGarageVehicles();
-        const index = list.findIndex(item => item.id === id);
-        if (index === -1) throw new ApiError('Vehicle not found', false);
-        const updatedList = [...list];
-        updatedList[index] = vehicle;
-        saveSimulatedGarageVehicles(updatedList);
-        return vehicle;
+        const list = getSimulatedCustomers();
+        const idx = list.findIndex(c => c.id === id);
+        if (idx === -1) throw new Error('Customer not found');
+        const updated = [...list];
+        updated[idx] = customer;
+        saveSimulatedCustomers(updated);
+        return customer;
       }
       throw err;
     }
   },
 
-  async deleteGarageVehicle(id: number): Promise<{ success: boolean }> {
+  async deleteCustomer(id: number): Promise<{ success: boolean }> {
     try {
-      return await request<{ success: boolean }>(`/api/garage-vehicles/${id}`, {
+      return await request<{ success: boolean }>(`/api/customers/${id}`, {
         method: 'DELETE'
       });
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — simulating delete garage vehicle.');
-        const list = getSimulatedGarageVehicles();
-        const updatedList = list.filter(item => item.id !== id);
-        saveSimulatedGarageVehicles(updatedList);
-        // Clean service history for this vehicle
-        const historyList = getSimulatedServiceHistory();
-        saveSimulatedServiceHistory(historyList.filter(item => item.vehicle_id !== id));
+        const list = getSimulatedCustomers();
+        saveSimulatedCustomers(list.filter(c => c.id !== id));
+        // clean up associated vehicles and jobs in simulation
+        const vehicles = getSimulatedVehicles();
+        saveSimulatedVehicles(vehicles.filter(v => v.customer_id !== id));
+        const jobs = getSimulatedJobs();
+        saveSimulatedJobs(jobs.filter(j => j.customer_id !== id));
+        const appointments = getSimulatedAppointments();
+        saveSimulatedAppointments(appointments.filter(a => a.customer_id !== id));
         return { success: true };
       }
       throw err;
     }
   },
 
+  // --- VEHICLES ---
+  async getVehiclesAll(): Promise<CustomerVehicle[]> {
+    try {
+      return await request<CustomerVehicle[]>('/api/vehicles-all');
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        const vehs = getSimulatedVehicles();
+        const custs = getSimulatedCustomers();
+        const history = getSimulatedServiceHistory();
+        return vehs.map(v => {
+          const owner = custs.find(c => c.id === v.customer_id);
+          const vHistory = history.filter(h => h.vehicle_id === v.id);
+          const lastServiceDate = vHistory.length > 0 ? vHistory.sort((a,b)=>b.date.localeCompare(a.date))[0].date : undefined;
+          return {
+            ...v,
+            customer_name: owner ? owner.name : 'Unknown Owner',
+            customer_phone: owner ? owner.phone : '',
+            customer_email: owner ? owner.email : '',
+            last_service_date: lastServiceDate
+          };
+        });
+      }
+      throw err;
+    }
+  },
+
+  async getCustomerVehicles(customerId: number): Promise<CustomerVehicle[]> {
+    try {
+      return await request<CustomerVehicle[]>(`/api/customers/${customerId}/vehicles`);
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return getSimulatedVehicles().filter(v => v.customer_id === customerId);
+      }
+      throw err;
+    }
+  },
+
+  async addVehicle(vehicle: Omit<CustomerVehicle, 'id'>): Promise<CustomerVehicle> {
+    try {
+      return await request<CustomerVehicle>('/api/vehicles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(vehicle)
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        const list = getSimulatedVehicles();
+        const nextId = list.reduce((max, v) => Math.max(max, v.id), 0) + 1;
+        const owner = getSimulatedCustomers().find(c => c.id === vehicle.customer_id);
+        const newItem: CustomerVehicle = { 
+          ...vehicle, 
+          id: nextId,
+          customer_name: owner ? owner.name : 'Unknown'
+        };
+        saveSimulatedVehicles([...list, newItem]);
+        return newItem;
+      }
+      throw err;
+    }
+  },
+
+  async updateVehicle(id: number, vehicle: CustomerVehicle): Promise<CustomerVehicle> {
+    try {
+      return await request<CustomerVehicle>(`/api/vehicles/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(vehicle)
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        const list = getSimulatedVehicles();
+        const idx = list.findIndex(v => v.id === id);
+        if (idx === -1) throw new Error('Vehicle not found');
+        const updated = [...list];
+        updated[idx] = vehicle;
+        saveSimulatedVehicles(updated);
+        return vehicle;
+      }
+      throw err;
+    }
+  },
+
+  async deleteVehicle(id: number): Promise<{ success: boolean }> {
+    try {
+      return await request<{ success: boolean }>(`/api/vehicles/${id}`, {
+        method: 'DELETE'
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        const list = getSimulatedVehicles();
+        saveSimulatedVehicles(list.filter(v => v.id !== id));
+        // clean up histories and appointments in simulation
+        const history = getSimulatedServiceHistory();
+        saveSimulatedServiceHistory(history.filter(h => h.vehicle_id !== id));
+        const appointments = getSimulatedAppointments();
+        saveSimulatedAppointments(appointments.filter(a => a.vehicle_id !== id));
+        const jobs = getSimulatedJobs();
+        saveSimulatedJobs(jobs.filter(j => j.vehicle_id !== id));
+        return { success: true };
+      }
+      throw err;
+    }
+  },
+
+  // For backwards compatibility with old GarageView
+  async getGarageVehicles(): Promise<CustomerVehicle[]> {
+    return this.getVehiclesAll();
+  },
+  async addGarageVehicle(vehicle: any): Promise<CustomerVehicle> {
+    // Map to a default or first customer if not specified, to prevent breaks
+    const custs = getSimulatedCustomers();
+    const defaultCustId = custs.length > 0 ? custs[0].id : 1;
+    return this.addVehicle({
+      customer_id: vehicle.customer_id || defaultCustId,
+      ...vehicle
+    });
+  },
+  async updateGarageVehicle(id: number, vehicle: any): Promise<CustomerVehicle> {
+    return this.updateVehicle(id, vehicle);
+  },
+  async deleteGarageVehicle(id: number): Promise<{ success: boolean }> {
+    return this.deleteVehicle(id);
+  },
+
   // --- SERVICE HISTORY ---
   async getServiceHistory(vehicleId: number): Promise<ServiceHistory[]> {
     try {
-      return await request<ServiceHistory[]>(`/api/service-history/${vehicleId}`);
+      return await request<ServiceHistory[]>(`/api/vehicles/${vehicleId}/service-history`);
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — serving simulated service history.');
-        return getSimulatedServiceHistory().filter(item => item.vehicle_id === vehicleId);
+        return getSimulatedServiceHistory().filter(h => h.vehicle_id === vehicleId);
       }
       throw err;
     }
@@ -532,21 +594,19 @@ export const api = {
       });
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — simulating add service entry.');
         const list = getSimulatedServiceHistory();
-        const nextId = list.reduce((max, item) => Math.max(max, item.id), 0) + 1;
+        const nextId = list.reduce((max, h) => Math.max(max, h.id), 0) + 1;
         const newItem: ServiceHistory = { ...entry, id: nextId };
         saveSimulatedServiceHistory([...list, newItem]);
 
         // Max mileage synchronization
-        const vehicles = getSimulatedGarageVehicles();
-        const vIndex = vehicles.findIndex(v => v.id === entry.vehicle_id);
-        if (vIndex !== -1) {
-          const updatedVehicles = [...vehicles];
-          updatedVehicles[vIndex].current_mileage = Math.max(updatedVehicles[vIndex].current_mileage, entry.mileage);
-          saveSimulatedGarageVehicles(updatedVehicles);
+        const vehicles = getSimulatedVehicles();
+        const vIdx = vehicles.findIndex(v => v.id === entry.vehicle_id);
+        if (vIdx !== -1) {
+          const updated = [...vehicles];
+          updated[vIdx].current_mileage = Math.max(updated[vIdx].current_mileage, entry.mileage);
+          saveSimulatedVehicles(updated);
         }
-
         return newItem;
       }
       throw err;
@@ -562,23 +622,21 @@ export const api = {
       });
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — simulating update service entry.');
         const list = getSimulatedServiceHistory();
-        const index = list.findIndex(item => item.id === id);
-        if (index === -1) throw new ApiError('Service entry not found', false);
-        const updatedList = [...list];
-        updatedList[index] = entry;
-        saveSimulatedServiceHistory(updatedList);
+        const idx = list.findIndex(h => h.id === id);
+        if (idx === -1) throw new Error('Service history not found');
+        const updated = [...list];
+        updated[idx] = entry;
+        saveSimulatedServiceHistory(updated);
 
         // Max mileage synchronization
-        const vehicles = getSimulatedGarageVehicles();
-        const vIndex = vehicles.findIndex(v => v.id === entry.vehicle_id);
-        if (vIndex !== -1) {
+        const vehicles = getSimulatedVehicles();
+        const vIdx = vehicles.findIndex(v => v.id === entry.vehicle_id);
+        if (vIdx !== -1) {
           const updatedVehicles = [...vehicles];
-          updatedVehicles[vIndex].current_mileage = Math.max(updatedVehicles[vIndex].current_mileage, entry.mileage);
-          saveSimulatedGarageVehicles(updatedVehicles);
+          updatedVehicles[vIdx].current_mileage = Math.max(updatedVehicles[vIdx].current_mileage, entry.mileage);
+          saveSimulatedVehicles(updatedVehicles);
         }
-
         return entry;
       }
       throw err;
@@ -592,24 +650,67 @@ export const api = {
       });
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — simulating delete service entry.');
         const list = getSimulatedServiceHistory();
-        const updatedList = list.filter(item => item.id !== id);
-        saveSimulatedServiceHistory(updatedList);
+        saveSimulatedServiceHistory(list.filter(h => h.id !== id));
         return { success: true };
       }
       throw err;
     }
   },
 
-  // --- SHOP JOBS ---
+  // --- JOBS ---
   async getJobs(): Promise<Job[]> {
     try {
       return await request<Job[]>('/api/jobs');
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — serving simulated shop jobs.');
-        return getSimulatedJobs();
+        const jobs = getSimulatedJobs();
+        const custs = getSimulatedCustomers();
+        const vehs = getSimulatedVehicles();
+        return jobs.map(j => {
+          const owner = custs.find(c => c.id === j.customer_id);
+          const vehicle = vehs.find(v => v.id === j.vehicle_id);
+          return {
+            ...j,
+            customer_name: owner ? owner.name : 'Unknown',
+            customer_phone: owner ? owner.phone : '',
+            customer_email: owner ? owner.email : '',
+            vehicle_year: vehicle ? vehicle.year : '',
+            vehicle_make: vehicle ? vehicle.make : '',
+            vehicle_model: vehicle ? vehicle.model : '',
+            vehicle_vin: vehicle ? vehicle.vin : '',
+            vehicle_current_mileage: vehicle ? vehicle.current_mileage : 0
+          };
+        });
+      }
+      throw err;
+    }
+  },
+
+  async getJobDetail(id: number): Promise<Job> {
+    try {
+      return await request<Job>(`/api/jobs/${id}`);
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        const list = getSimulatedJobs();
+        const job = list.find(j => j.id === id);
+        if (!job) throw new Error('Job not found');
+        const owner = getSimulatedCustomers().find(c => c.id === job.customer_id);
+        const vehicle = getSimulatedVehicles().find(v => v.id === job.vehicle_id);
+        return {
+          ...job,
+          customer_name: owner ? owner.name : 'Unknown',
+          customer_phone: owner ? owner.phone : '',
+          customer_email: owner ? owner.email : '',
+          customer_address: owner ? owner.address : '',
+          vehicle_year: vehicle ? vehicle.year : '',
+          vehicle_make: vehicle ? vehicle.make : '',
+          vehicle_model: vehicle ? vehicle.model : '',
+          vehicle_vin: vehicle ? vehicle.vin : '',
+          vehicle_engine: vehicle ? vehicle.engine : '',
+          vehicle_color: vehicle ? vehicle.color : '',
+          vehicle_current_mileage: vehicle ? vehicle.current_mileage : 0
+        };
       }
       throw err;
     }
@@ -624,10 +725,18 @@ export const api = {
       });
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — simulating add job.');
         const list = getSimulatedJobs();
-        const nextId = list.reduce((max, item) => Math.max(max, item.id), 0) + 1;
-        const newItem: Job = { ...job, id: nextId, status: job.status || 'Pending' };
+        const nextId = list.reduce((max, j) => Math.max(max, j.id), 0) + 1;
+        const owner = getSimulatedCustomers().find(c => c.id === job.customer_id);
+        const vehicle = getSimulatedVehicles().find(v => v.id === job.vehicle_id);
+        const newItem: Job = { 
+          ...job, 
+          id: nextId,
+          customer_name: owner ? owner.name : 'Unknown',
+          vehicle_year: vehicle ? vehicle.year : '',
+          vehicle_make: vehicle ? vehicle.make : '',
+          vehicle_model: vehicle ? vehicle.model : ''
+        };
         saveSimulatedJobs([...list, newItem]);
         return newItem;
       }
@@ -644,13 +753,12 @@ export const api = {
       });
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — simulating update job.');
         const list = getSimulatedJobs();
-        const index = list.findIndex(item => item.id === id);
-        if (index === -1) throw new ApiError('Job not found', false);
-        const updatedList = [...list];
-        updatedList[index] = job;
-        saveSimulatedJobs(updatedList);
+        const idx = list.findIndex(j => j.id === id);
+        if (idx === -1) throw new Error('Job not found');
+        const updated = [...list];
+        updated[idx] = job;
+        saveSimulatedJobs(updated);
         return job;
       }
       throw err;
@@ -664,13 +772,11 @@ export const api = {
       });
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — simulating delete job.');
         const list = getSimulatedJobs();
-        const updatedList = list.filter(item => item.id !== id);
-        saveSimulatedJobs(updatedList);
-        // Clean parts for this job
-        const partsList = getSimulatedJobParts();
-        saveSimulatedJobParts(partsList.filter(item => item.job_id !== id));
+        saveSimulatedJobs(list.filter(j => j.id !== id));
+        // clean up associated parts in simulation
+        const parts = getSimulatedJobParts();
+        saveSimulatedJobParts(parts.filter(p => p.job_id !== id));
         return { success: true };
       }
       throw err;
@@ -683,8 +789,7 @@ export const api = {
       return await request<JobPart[]>(`/api/jobs/${jobId}/parts`);
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — serving simulated job parts.');
-        return getSimulatedJobParts().filter(item => item.job_id === jobId);
+        return getSimulatedJobParts().filter(p => p.job_id === jobId);
       }
       throw err;
     }
@@ -699,12 +804,32 @@ export const api = {
       });
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — simulating add job part.');
         const list = getSimulatedJobParts();
-        const nextId = list.reduce((max, item) => Math.max(max, item.id), 0) + 1;
+        const nextId = list.reduce((max, p) => Math.max(max, p.id), 0) + 1;
         const newItem: JobPart = { ...part, id: nextId, job_id: jobId };
         saveSimulatedJobParts([...list, newItem]);
         return newItem;
+      }
+      throw err;
+    }
+  },
+
+  async updateJobPart(jobId: number, partId: number, part: JobPart): Promise<JobPart> {
+    try {
+      return await request<JobPart>(`/api/jobs/${jobId}/parts/${partId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(part)
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        const list = getSimulatedJobParts();
+        const idx = list.findIndex(p => p.id === partId);
+        if (idx === -1) throw new Error('Part not found');
+        const updated = [...list];
+        updated[idx] = part;
+        saveSimulatedJobParts(updated);
+        return part;
       }
       throw err;
     }
@@ -717,14 +842,108 @@ export const api = {
       });
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
-        console.warn('API is offline — simulating delete job part.');
         const list = getSimulatedJobParts();
-        const updatedList = list.filter(item => item.id !== partId);
-        saveSimulatedJobParts(updatedList);
+        saveSimulatedJobParts(list.filter(p => p.id !== partId));
+        return { success: true };
+      }
+      throw err;
+    }
+  },
+
+  // --- APPOINTMENTS ---
+  async getAppointments(month?: string): Promise<Appointment[]> {
+    try {
+      const url = month ? `/api/appointments?month=${month}` : '/api/appointments';
+      return await request<Appointment[]>(url);
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        let appts = getSimulatedAppointments();
+        if (month) {
+          appts = appts.filter(a => a.date.startsWith(month));
+        }
+        const custs = getSimulatedCustomers();
+        const vehs = getSimulatedVehicles();
+        return appts.map(a => {
+          const owner = custs.find(c => c.id === a.customer_id);
+          const vehicle = vehs.find(v => v.id === a.vehicle_id);
+          return {
+            ...a,
+            customer_name: owner ? owner.name : 'Unknown',
+            customer_phone: owner ? owner.phone : '',
+            customer_email: owner ? owner.email : '',
+            vehicle_year: vehicle ? vehicle.year : '',
+            vehicle_make: vehicle ? vehicle.make : '',
+            vehicle_model: vehicle ? vehicle.model : '',
+            vehicle_engine: vehicle ? vehicle.engine : ''
+          };
+        });
+      }
+      throw err;
+    }
+  },
+
+  async addAppointment(appointment: Omit<Appointment, 'id'>): Promise<Appointment> {
+    try {
+      return await request<Appointment>('/api/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(appointment)
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        const list = getSimulatedAppointments();
+        const nextId = list.reduce((max, a) => Math.max(max, a.id), 0) + 1;
+        const owner = getSimulatedCustomers().find(c => c.id === appointment.customer_id);
+        const vehicle = getSimulatedVehicles().find(v => v.id === appointment.vehicle_id);
+        const newItem: Appointment = { 
+          ...appointment, 
+          id: nextId,
+          customer_name: owner ? owner.name : 'Unknown',
+          customer_phone: owner ? owner.phone : '',
+          vehicle_year: vehicle ? vehicle.year : '',
+          vehicle_make: vehicle ? vehicle.make : '',
+          vehicle_model: vehicle ? vehicle.model : ''
+        };
+        saveSimulatedAppointments([...list, newItem]);
+        return newItem;
+      }
+      throw err;
+    }
+  },
+
+  async updateAppointment(id: number, appointment: Appointment): Promise<Appointment> {
+    try {
+      return await request<Appointment>(`/api/appointments/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(appointment)
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        const list = getSimulatedAppointments();
+        const idx = list.findIndex(a => a.id === id);
+        if (idx === -1) throw new Error('Appointment not found');
+        const updated = [...list];
+        updated[idx] = appointment;
+        saveSimulatedAppointments(updated);
+        return appointment;
+      }
+      throw err;
+    }
+  },
+
+  async deleteAppointment(id: number): Promise<{ success: boolean }> {
+    try {
+      return await request<{ success: boolean }>(`/api/appointments/${id}`, {
+        method: 'DELETE'
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        const list = getSimulatedAppointments();
+        saveSimulatedAppointments(list.filter(a => a.id !== id));
         return { success: true };
       }
       throw err;
     }
   }
 };
-

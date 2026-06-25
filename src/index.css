@@ -4,11 +4,93 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  /* Bind CSS Theme variables to Tailwind classes */
+  --color-bg-theme: var(--bg);
+  --color-surface-theme: var(--surface);
+  --color-border-theme: var(--border);
+  --color-primary-theme: var(--primary);
+  --color-text-theme: var(--text);
+}
+
+/* 8 Themes Variables Definition */
+:root {
+  --bg: #0a0a0f;
+  --surface: #13141a;
+  --border: #1e2028;
+  --primary: #f59e0b;
+  --text: #f1f5f9;
+}
+
+.theme-ragnarok {
+  --bg: #0a0a0f;
+  --surface: #13141a;
+  --border: #1e2028;
+  --primary: #f59e0b;
+  --text: #f1f5f9;
+}
+
+.theme-midnight {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --border: #21262d;
+  --primary: #58a6ff;
+  --text: #e6edf3;
+}
+
+.theme-carbon {
+  --bg: #000000;
+  --surface: #111111;
+  --border: #222222;
+  --primary: #ef4444;
+  --text: #ffffff;
+}
+
+.theme-arctic {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --primary: #3b82f6;
+  --text: #0f172a;
+}
+
+.theme-forest {
+  --bg: #0a0f0a;
+  --surface: #111811;
+  --border: #1a2e1a;
+  --primary: #22c55e;
+  --text: #f0fdf4;
+}
+
+.theme-blood {
+  --bg: #0f0a00;
+  --surface: #1a1200;
+  --border: #2d2000;
+  --primary: #f97316;
+  --text: #fff7ed;
+}
+
+.theme-purple {
+  --bg: #0a0014;
+  --surface: #12001f;
+  --border: #1f0035;
+  --primary: #a855f7;
+  --text: #faf5ff;
+}
+
+.theme-gunmetal {
+  --bg: #0a0c0f;
+  --surface: #131720;
+  --border: #1e2533;
+  --primary: #06b6d4;
+  --text: #e2e8f0;
 }
 
 /* Custom styles for professional garage look */
 body {
   font-family: var(--font-sans);
+  background-color: var(--bg);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -20,16 +102,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #090d16; /* Slate 950 very dark */
+  background: var(--bg);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155; /* Slate 700 */
+  background: var(--border);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #f59e0b; /* Amber 500 */
+  background: var(--primary);
 }
 
 /* Tech-grid repeating pattern for workshop immersion */

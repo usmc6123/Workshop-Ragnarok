@@ -4,13 +4,16 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Vehicle, GarageItem } from './types';
-import { api, getApiBase } from './lib/api';
+import { Vehicle } from './types';
+import { api, getApiBase, setApiBase } from './lib/api';
+import Sidebar from './components/Sidebar';
 import DashboardView from './components/DashboardView';
 import BrowseView from './components/BrowseView';
 import ManualView from './components/ManualView';
-import GarageView from './components/GarageView';
+import CustomersView from './components/CustomersView';
+import VehiclesView from './components/VehiclesView';
 import JobsView from './components/JobsView';
+import CalendarView from './components/CalendarView';
 import SettingsView from './components/SettingsView';
 import NetworkSettingsModal from './components/NetworkSettingsModal';
 import BootSplashScreen from './components/BootSplashScreen';
@@ -18,10 +21,10 @@ import { LOGO_URL, BACKGROUND_URL } from './constants/branding';
 
 import { 
   Wrench, Home, Search, Server, Sun, Moon, AlertTriangle, PlayCircle, 
-  Wifi, HelpCircle, CheckSquare, Settings, Car, ClipboardList, LayoutDashboard
+  Wifi, HelpCircle, CheckSquare, Settings, Car, ClipboardList, LayoutDashboard, Menu
 } from 'lucide-react';
 
-type ViewType = 'dashboard' | 'browse' | 'garage' | 'jobs' | 'settings' | 'manual';
+type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'calendar' | 'manual-library' | 'settings' | 'manual';
 
 export default function App() {
   const [view, setView] = useState<ViewType>('dashboard');
@@ -53,8 +56,14 @@ export default function App() {
   // Refresh trackers to force reload garage queries
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Theme states defaults to dark mode
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  // Sidebar states
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
+
+  // Theme state: defaults to 'theme-ragnarok'
+  const [activeTheme, setActiveTheme] = useState(() => {
+    return localStorage.getItem('ragnarok_active_theme') || 'theme-ragnarok';
+  });
 
   // Network connection diagnostics
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
@@ -75,19 +84,14 @@ export default function App() {
     runServerDiagnostics();
   }, [currentApiEndpoint]);
 
-  // Synchronize CSS modes for HTML element
+  // Synchronize CSS modes for HTML documentElement and save to localStorage
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'dark') {
-      root.classList.remove('theme-light');
-      root.classList.add('theme-dark', 'bg-[#0a0a0f]');
-      document.body.style.backgroundColor = '#0a0a0f'; // rich black/navy
-    } else {
-      root.classList.remove('theme-dark', 'bg-[#0a0a0f]');
-      root.classList.add('theme-light', 'bg-slate-50');
-      document.body.style.backgroundColor = '#f8fafc'; // slate-50
-    }
-  }, [theme]);
+    // Clear previous theme classes
+    root.className = '';
+    root.classList.add(activeTheme);
+    localStorage.setItem('ragnarok_active_theme', activeTheme);
+  }, [activeTheme]);
 
   // Catch dynamic manual swappers from the child ManualView components
   useEffect(() => {
@@ -113,7 +117,7 @@ export default function App() {
 
   const handleNavBrowse = (initialSearch = '') => {
     setBrowseSearchQuery(initialSearch);
-    setView('browse');
+    setView('manual-library');
     setSelectedVehicle(null);
   };
 
@@ -129,9 +133,22 @@ export default function App() {
   };
 
   const handleApplyNewSettings = () => {
-    // Reload active states
     setCurrentApiEndpoint(getApiBase());
     setRefreshTrigger((prev) => prev + 1);
+  };
+
+  const getViewTitle = () => {
+    switch (view) {
+      case 'dashboard': return 'Workshop Dashboard';
+      case 'customers': return 'Clients & CRM Profiles';
+      case 'vehicles': return 'Vehicle Fleet Profiles';
+      case 'jobs': return 'Work Orders & Repairs';
+      case 'calendar': return 'Schedules & Intake';
+      case 'manual-library': return 'Service Manual Catalog';
+      case 'settings': return 'System Settings';
+      case 'manual': return 'Active Service Manual';
+      default: return 'Workshop Management';
+    }
   };
 
   if (showSplash) {
@@ -140,14 +157,10 @@ export default function App() {
 
   return (
     <div 
-      className={`min-h-screen flex flex-col font-sans transition-all duration-200 ${
-        theme === 'dark' ? 'text-slate-100 bg-[#0a0a0f]' : 'text-slate-900 bg-slate-50'
-      }`} 
+      className="min-h-screen flex text-text-theme bg-bg-theme transition-all duration-200" 
       id="application-container"
       style={{
-        backgroundImage: theme === 'dark' 
-          ? `linear-gradient(rgba(10, 10, 15, 0.91), rgba(10, 10, 15, 0.96)), url(${BACKGROUND_URL})`
-          : `linear-gradient(rgba(248, 250, 252, 0.92), rgba(248, 250, 252, 0.96)), url(${BACKGROUND_URL})`,
+        backgroundImage: `linear-gradient(rgba(10, 10, 15, 0.92), rgba(10, 10, 15, 0.97)), url(${BACKGROUND_URL})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundAttachment: 'fixed',
@@ -155,222 +168,149 @@ export default function App() {
       }}
     >
       
-      {/* Dynamic Master Utility Banner if manual server can't be reached */}
-      {serverOnline === false && (
-        <div 
-          className="bg-amber-500 text-slate-950 px-4 py-2 text-center text-xs font-bold flex items-center justify-center gap-2 select-none shadow shrink-0"
-          id="offline-banner"
-        >
-          <AlertTriangle className="w-4 h-4 shrink-0 text-slate-950" />
-          <span>Manual server is unreachable. Verify connection settings or host LAN address.</span>
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="underline hover:text-white font-mono text-[10px] uppercase ml-2 bg-slate-950/20 px-2 py-0.5 rounded transition"
-          >
-            Configure Address
-          </button>
-        </div>
-      )}
+      {/* 1. Left Navigation Sidebar */}
+      <Sidebar
+        currentView={view}
+        onChangeView={setView}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        mobileOpen={sidebarMobileOpen}
+        onToggleMobile={() => setSidebarMobileOpen(!sidebarMobileOpen)}
+      />
 
-      {/* Main App Bar Navbar */}
-      <header className={`sticky top-0 z-40 px-4 py-3 border-b flex items-center justify-between shadow-md shrink-0 select-none ${
-        theme === 'dark' ? 'bg-[#13141a] border-[#1e2028]' : 'bg-white border-slate-200'
-      }`} id="app-header">
+      {/* 2. Main Right pane wrapper */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         
-        {/* Brand Title block with Workshop Ragnarok styling */}
-        <div 
-          onClick={handleNavHome}
-          className="flex items-center gap-3 cursor-pointer hover:opacity-90 active:scale-98 transition"
-        >
-          {/* Tightly cropped circular version of the logo */}
-          <img 
-            src={LOGO_URL} 
-            alt="Workshop: Ragnarök Logo" 
-            className="w-8 h-8 md:w-9 md:h-9 object-cover rounded border border-[#1e2028] shrink-0 select-none"
-          />
-          <div>
-            <h1 className="text-sm md:text-base font-black tracking-wider text-slate-100 select-none flex items-center gap-1 leading-none uppercase">
-              WORKSHOP: <span className="text-amber-500">RAGNARÖK</span>
-            </h1>
-            <p className="text-[9px] text-slate-500 font-mono tracking-[0.15em] mt-0.5">
-              SERVICE INTERFACE
-            </p>
-          </div>
-        </div>
-
-        {/* Center navigation tabs (Five-tab workshop system deck) */}
-        <nav className="flex items-center gap-1 overflow-x-auto max-w-[50vw] sm:max-w-none no-scrollbar">
-          <button
-            onClick={() => setView('dashboard')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition ${
-              view === 'dashboard'
-                ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 bg-transparent hover:bg-[#1a1c24]'
-            }`}
-            id="tab-dashboard"
-          >
-            <LayoutDashboard className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Overview</span>
-          </button>
-
-          <button
-            onClick={() => handleNavBrowse('')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition ${
-              view === 'browse'
-                ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 bg-transparent hover:bg-[#1a1c24]'
-            }`}
-            id="tab-browse"
-          >
-            <Search className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Catalog</span>
-          </button>
-
-          <button
-            onClick={() => setView('garage')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition ${
-              view === 'garage'
-                ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 bg-transparent hover:bg-[#1a1c24]'
-            }`}
-            id="tab-garage"
-          >
-            <Car className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">My Garage</span>
-          </button>
-
-          <button
-            onClick={() => setView('jobs')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition ${
-              view === 'jobs'
-                ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 bg-transparent hover:bg-[#1a1c24]'
-            }`}
-            id="tab-jobs"
-          >
-            <ClipboardList className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Active Jobs</span>
-          </button>
-
-          <button
-            onClick={() => setView('settings')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition ${
-              view === 'settings'
-                ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 bg-transparent hover:bg-[#1a1c24]'
-            }`}
-            id="tab-settings"
-          >
-            <Settings className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Settings</span>
-          </button>
-        </nav>
-
-        {/* Right utility toolbar (Theme toggle, diagnostics indicators, Settings modal action) */}
-        <div className="flex items-center gap-2">
+        {/* Top Header Row Panel */}
+        <header className="sticky top-0 z-30 h-[64px] px-6 bg-surface-theme/90 backdrop-blur-md border-b border-border-theme flex items-center justify-between shadow-md shrink-0 select-none">
           
-          {/* LAN Host indicator widget */}
-          <div 
-            onClick={() => setSettingsOpen(true)}
-            className={`hidden md:flex items-center gap-2 rounded border px-3 py-1.5 text-[10px] font-mono cursor-pointer transition ${
-              serverOnline 
-                ? 'bg-green-950/15 border-green-800/30 text-green-400 hover:border-green-600' 
-                : 'bg-red-950/15 border-red-800/30 text-red-400 hover:border-red-600'
-            }`}
-            title="Configure LAN Server Address IP"
-          >
-            <Wifi className="w-3.5 h-3.5 shrink-0" />
-            <span>{currentApiEndpoint.replace(/^https?:\/\//, '')}</span>
+          <div className="flex items-center gap-4">
+            {/* Mobile Hamburger toggle */}
+            <button
+              onClick={() => setSidebarMobileOpen(!sidebarMobileOpen)}
+              className="md:hidden p-2 hover:bg-bg-theme rounded text-slate-400 hover:text-white transition"
+              id="sidebar-mobile-toggle"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
+            {/* Path indicator titles */}
+            <div className="text-left">
+              <h2 className="text-sm font-black tracking-wider text-slate-100 uppercase font-mono">
+                {getViewTitle()}
+              </h2>
+              <p className="hidden sm:block text-[9px] text-slate-500 font-mono tracking-widest mt-0.5 uppercase">
+                Workshop RAGNARÖK / {view === 'manual-library' ? 'manuals' : view}
+              </p>
+            </div>
           </div>
 
-          {/* Theme switcher */}
-          <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className={`p-2 rounded border transition ${
-              theme === 'dark' 
-                ? 'bg-[#13141a] border-[#1e2028] text-amber-500 hover:bg-[#1a1c24]' 
-                : 'bg-slate-100 border-slate-200 text-slate-650 hover:bg-slate-200'
-            }`}
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            aria-label="Theme toggle"
-          >
-            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
+          {/* Right Toolbar controls */}
+          <div className="flex items-center gap-3">
+            {/* Offline diagnostics warning */}
+            {serverOnline === false && (
+              <div 
+                onClick={() => setSettingsOpen(true)}
+                className="bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20 px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold flex items-center gap-1.5 cursor-pointer transition animate-pulse"
+                title="Manual server is unreachable. Click to configure connection address."
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span className="hidden lg:inline">Offline Mode Active</span>
+              </div>
+            )}
 
-          {/* Quick Connection setup cog */}
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className={`p-2 rounded border transition ${
-              theme === 'dark' ? 'bg-[#13141a] border-[#1e2028] text-slate-300 hover:text-white hover:bg-[#1a1c24]' : 'bg-slate-100 border-slate-200 text-slate-650'
-            }`}
-            title="Connection configuration Settings"
-            aria-label="Settings"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-        </div>
-      </header>
+            {/* Connection Diagnostics widget */}
+            <div 
+              onClick={() => setSettingsOpen(true)}
+              className={`hidden md:flex items-center gap-2 rounded-lg border px-3 py-1.5 text-[10px] font-mono cursor-pointer transition ${
+                serverOnline 
+                  ? 'bg-green-950/15 border-green-800/30 text-green-400 hover:border-green-600' 
+                  : 'bg-red-950/15 border-red-800/30 text-red-400 hover:border-red-600'
+              }`}
+              title="Configure API Server IP Host"
+            >
+              <Wifi className="w-3.5 h-3.5 shrink-0" />
+              <span>{currentApiEndpoint.replace(/^https?:\/\//, '')}</span>
+            </div>
 
-      {/* Main Interactive Screen Content */}
-      <div className="flex-1 flex flex-col min-w-0" id="main-content-viewport">
-        {view === 'dashboard' && (
-          <DashboardView
-            onSelectVehicle={handleSelectVehicle}
-            onNavigateToTab={(tab) => setView(tab)}
-            onNavigateToBrowseWithSearch={handleNavBrowse}
-            refreshTrigger={refreshTrigger}
-          />
-        )}
+            {/* Quick settings gear cog */}
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="p-2 rounded-lg border border-border-theme bg-bg-theme/40 hover:bg-bg-theme text-slate-350 hover:text-white transition cursor-pointer"
+              title="API Server settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
+        </header>
 
-        {view === 'browse' && (
-          <BrowseView 
-            selectedVehicle={selectedVehicle}
-            onSelectVehicle={handleSelectVehicle} 
-            onClearSelectedVehicle={() => setSelectedVehicle(null)}
-            initialSearch={browseSearchQuery}
-          />
-        )}
+        {/* 3. Main Viewport Container */}
+        <main className="flex-1 overflow-y-auto">
+          {view === 'dashboard' && (
+            <DashboardView
+              onSelectVehicle={handleSelectVehicle}
+              onNavigateToTab={(tab) => setView(tab as any)}
+              onNavigateToBrowseWithSearch={handleNavBrowse}
+              refreshTrigger={refreshTrigger}
+            />
+          )}
 
-        {view === 'garage' && (
-          <GarageView 
-            onNavigateToBrowse={handleNavBrowse}
-            refreshTrigger={refreshTrigger}
-          />
-        )}
+          {view === 'customers' && (
+            <CustomersView onNavigateToTab={(tab) => setView(tab as any)} />
+          )}
 
-        {view === 'jobs' && (
-          <JobsView 
-            refreshTrigger={refreshTrigger}
-          />
-        )}
+          {view === 'vehicles' && (
+            <VehiclesView 
+              onNavigateToManualWithSearch={(make, year, model) => handleNavBrowse(`${make} ${model}`)} 
+              refreshTrigger={refreshTrigger}
+            />
+          )}
 
-        {view === 'settings' && (
-          <SettingsView 
-            theme={theme}
-            setTheme={setTheme}
-            onSaveAddress={handleApplyNewSettings}
-          />
-        )}
+          {view === 'jobs' && (
+            <JobsView 
+              refreshTrigger={refreshTrigger}
+            />
+          )}
 
-        {view === 'manual' && selectedVehicle && (
-          <ManualView
-            vehicle={selectedVehicle}
-            onBackToDashboard={handleBackFromManual}
-            onRefreshGarage={() => setRefreshTrigger((prev) => prev + 1)}
-          />
+          {view === 'calendar' && (
+            <CalendarView />
+          )}
+
+          {view === 'manual-library' && (
+            <BrowseView 
+              selectedVehicle={selectedVehicle}
+              onSelectVehicle={handleSelectVehicle} 
+              onClearSelectedVehicle={() => setSelectedVehicle(null)}
+              initialSearch={browseSearchQuery}
+            />
+          )}
+
+          {view === 'settings' && (
+            <SettingsView 
+              activeTheme={activeTheme}
+              setActiveTheme={setActiveTheme}
+              onSaveAddress={handleApplyNewSettings}
+            />
+          )}
+
+          {view === 'manual' && selectedVehicle && (
+            <ManualView
+              vehicle={selectedVehicle}
+              onBackToDashboard={handleBackFromManual}
+              onRefreshGarage={() => setRefreshTrigger((prev) => prev + 1)}
+            />
+          )}
+        </main>
+
+        {/* Mini Embedded Footer copyright */}
+        {view !== 'manual' && (
+          <footer className="py-4 border-t border-border-theme/40 text-[10px] font-mono text-center text-slate-600 select-none">
+            RAGNARÖK AUTO WORKSHOP SUITE • LOCAL DISK PORT 3000
+          </footer>
         )}
       </div>
 
-      {/* Embedded footer */}
-      {view !== 'manual' && (
-        <span className={`text-[10px] font-mono text-center pb-5 select-none ${
-          theme === 'dark' ? 'text-slate-605 text-slate-500' : 'text-slate-400'
-        }`} id="app-footer-credit">
-          Service Manuals • Built for Offline Workshop Deployments
-        </span>
-      )}
-
-      {/* Connection configure Settings Modal wrapper */}
+      {/* Network Diagnostics configuration Dialog overlay */}
       <NetworkSettingsModal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}

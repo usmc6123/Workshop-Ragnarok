@@ -66,6 +66,41 @@ export type UnknownPage = {
 export type ParsedPage = CategoryPage | ContentPage | UnknownPage;
 export type PageResponse = ParsedPage; // alias for client compatibility
 
+// --- AUTO TECHNICIAN CRM TYPES ---
+
+export interface Customer {
+  id: number;
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  notes: string;
+  created_at?: string;
+  vehicle_count?: number;
+  last_visit?: string;
+}
+
+export interface CustomerVehicle {
+  id: number;
+  customer_id: number;
+  year: string;
+  make: string;
+  model: string;
+  engine: string;
+  vin: string;
+  color: string;
+  purchase_date: string;
+  purchase_mileage: number;
+  current_mileage: number;
+  notes: string;
+  created_at?: string;
+  customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
+  last_service_date?: string;
+}
+
+// For backwards-compatibility with old GarageView
 export interface GarageVehicle {
   id: number;
   year: string;
@@ -84,6 +119,7 @@ export interface GarageVehicle {
 export interface ServiceHistory {
   id: number;
   vehicle_id: number;
+  job_id?: number | null;
   date: string;
   mileage: number;
   description: string;
@@ -96,20 +132,29 @@ export interface ServiceHistory {
 
 export interface Job {
   id: number;
-  customer_name: string;
-  customer_phone: string;
-  customer_email: string;
-  vehicle_year: string;
-  vehicle_make: string;
-  vehicle_model: string;
-  vehicle_vin: string;
-  vehicle_mileage_in: number;
+  customer_id: number;
+  vehicle_id: number;
   description: string;
-  notes: string;
-  status: 'Pending' | 'In Progress' | 'Complete';
+  diagnosis_notes: string;
+  labor_notes: string;
+  status: 'Pending' | 'In Progress' | 'Complete' | 'Cancelled';
   estimated_completion: string;
+  actual_completion?: string;
+  labor_cost: number;
   created_at?: string;
   updated_at?: string;
+  // Joined Fields
+  customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
+  customer_address?: string;
+  vehicle_year?: string;
+  vehicle_make?: string;
+  vehicle_model?: string;
+  vehicle_vin?: string;
+  vehicle_engine?: string;
+  vehicle_color?: string;
+  vehicle_current_mileage?: number;
 }
 
 export interface JobPart {
@@ -122,9 +167,29 @@ export interface JobPart {
   notes: string;
 }
 
-export interface DatabaseStats {
-  totalManuals: number;
-  totalGarageVehicles: number;
-  totalJobs: number;
+export interface Appointment {
+  id: number;
+  title: string;
+  customer_id: number;
+  vehicle_id: number;
+  date: string;
+  time: string;
+  duration_minutes: number;
+  notes: string;
+  created_at?: string;
+  // Joined Fields
+  customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
+  vehicle_year?: string;
+  vehicle_make?: string;
+  vehicle_model?: string;
+  vehicle_engine?: string;
 }
 
+export interface DatabaseStats {
+  totalManuals: number;
+  totalCustomers: number;
+  totalVehicles: number;
+  activeJobs: number;
+}
