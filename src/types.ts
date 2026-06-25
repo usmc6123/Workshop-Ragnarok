@@ -65,3 +65,66 @@ export type UnknownPage = {
 
 export type ParsedPage = CategoryPage | ContentPage | UnknownPage;
 export type PageResponse = ParsedPage; // alias for client compatibility
+
+export interface GarageVehicle {
+  id: number;
+  year: string;
+  make: string;
+  model: string;
+  engine: string;
+  vin: string;
+  color: string;
+  purchase_date: string;
+  purchase_mileage: number;
+  current_mileage: number;
+  notes: string;
+  created_at?: string;
+}
+
+export interface ServiceHistory {
+  id: number;
+  vehicle_id: number;
+  date: string;
+  mileage: number;
+  description: string;
+  parts_used: string;
+  cost: number;
+  technician: string;
+  notes: string;
+  created_at?: string;
+}
+
+export interface Job {
+  id: number;
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string;
+  vehicle_year: string;
+  vehicle_make: string;
+  vehicle_model: string;
+  vehicle_vin: string;
+  vehicle_mileage_in: number;
+  description: string;
+  notes: string;
+  status: 'Pending' | 'In Progress' | 'Complete';
+  estimated_completion: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface JobPart {
+  id: number;
+  job_id: number;
+  part_name: string;
+  part_number: string;
+  quantity: number;
+  unit_cost: number;
+  notes: string;
+}
+
+export interface DatabaseStats {
+  totalManuals: number;
+  totalGarageVehicles: number;
+  totalJobs: number;
+}
+

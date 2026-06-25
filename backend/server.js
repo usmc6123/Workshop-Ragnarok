@@ -44,6 +44,70 @@ try {
       FOREIGN KEY (vehicleId) REFERENCES vehicles(id)
     )
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS garage_vehicles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      year TEXT,
+      make TEXT,
+      model TEXT,
+      engine TEXT,
+      vin TEXT,
+      color TEXT,
+      purchase_date TEXT,
+      purchase_mileage INTEGER,
+      current_mileage INTEGER,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS service_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vehicle_id INTEGER REFERENCES garage_vehicles(id),
+      date TEXT,
+      mileage INTEGER,
+      description TEXT,
+      parts_used TEXT,
+      cost REAL,
+      technician TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS jobs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_name TEXT,
+      customer_phone TEXT,
+      customer_email TEXT,
+      vehicle_year TEXT,
+      vehicle_make TEXT,
+      vehicle_model TEXT,
+      vehicle_vin TEXT,
+      vehicle_mileage_in INTEGER,
+      description TEXT,
+      notes TEXT,
+      status TEXT DEFAULT 'Pending',
+      estimated_completion TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS job_parts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id INTEGER REFERENCES jobs(id),
+      part_name TEXT,
+      part_number TEXT,
+      quantity INTEGER DEFAULT 1,
+      unit_cost REAL,
+      notes TEXT
+    )
+  `);
   console.log('Verified database schemas');
 } catch (err) {
   console.error('Failed to initialize SQLite database:', err);
@@ -403,6 +467,326 @@ app.get('/api/image', async (req, res) => {
   } catch (error) {
     console.error('Error proxying image:', error);
     res.status(500).send('Error proxying image');
+  }
+});
+
+// ==========================================
+// AUTO SHOP MANAGEMENT SYSTEM API ENDPOINTS
+// ==========================================
+
+// --- DATABASE STATS ---
+app.get('/api/stats', (req, res) => {
+  try {
+    let totalManuals = 300000;
+    if (isVehiclesTableReady()) {
+      const row = db.prepare('SELECT count(*) as count FROM vehicles').get();
+      totalManuals = row.count || 300000;
+    }
+    
+    let totalGarageVehicles = 0;
+    try {
+      const row = db.prepare('SELECT count(*) as count FROM garage_vehicles').get();
+      totalGarageVehicles = row.count || 0;
+    } catch (e) {
+      console.error(e);
+    }
+
+    let totalJobs = 0;
+    try {
+      const row = db.prepare('SELECT count(*) as count FROM jobs').get();
+      totalJobs = row.count || 0;
+    } catch (e) {
+      console.error(e);
+    }
+
+    res.json({
+      totalManuals,
+      totalGarageVehicles,
+      totalJobs
+    });
+  } catch (error) {
+    console.error('Error fetching database stats:', error);
+    res.status(500).json({ error: 'Database error fetching stats' });
+  }
+});
+
+// --- GARAGE VEHICLES ---
+app.get('/api/garage-vehicles', (req, res) => {
+  try {
+    const stmt = db.prepare('SELECT * FROM garage_vehicles ORDER BY created_at DESC');
+    const rows = stmt.all();
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching garage vehicles:', error);
+    res.status(500).json({ error: 'Database error fetching garage vehicles' });
+  }
+});
+
+app.post('/api/garage-vehicles', (req, res) => {
+  try {
+    const { year, make, model, engine, vin, color, purchase_date, purchase_mileage, current_mileage, notes } = req.body;
+    const stmt = db.prepare(`
+      INSERT INTO garage_vehicles (year, make, model, engine, vin, color, purchase_date, purchase_mileage, current_mileage, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const info = stmt.run(year, make, model, engine, vin, color, purchase_date, purchase_mileage || 0, current_mileage || 0, notes);
+    const inserted = db.prepare('SELECT * FROM garage_vehicles WHERE id = ?').get(info.lastInsertRowid);
+    res.json(inserted);
+  } catch (error) {
+    console.error('Error creating garage vehicle:', error);
+    res.status(500).json({ error: 'Database error creating garage vehicle' });
+  }
+});
+
+app.put('/api/garage-vehicles/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { year, make, model, engine, vin, color, purchase_date, purchase_mileage, current_mileage, notes } = req.body;
+    const stmt = db.prepare(`
+      UPDATE garage_vehicles
+      SET year = ?, make = ?, model = ?, engine = ?, vin = ?, color = ?, purchase_date = ?, purchase_mileage = ?, current_mileage = ?, notes = ?
+      WHERE id = ?
+    `);
+    const info = stmt.run(year, make, model, engine, vin, color, purchase_date, purchase_mileage || 0, current_mileage || 0, notes, id);
+    if (info.changes === 0) {
+      return res.status(404).json({ error: 'Garage vehicle not found' });
+    }
+    const updated = db.prepare('SELECT * FROM garage_vehicles WHERE id = ?').get(id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating garage vehicle:', error);
+    res.status(500).json({ error: 'Database error updating garage vehicle' });
+  }
+});
+
+app.delete('/api/garage-vehicles/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    db.prepare('DELETE FROM service_history WHERE vehicle_id = ?').run(id);
+    const stmt = db.prepare('DELETE FROM garage_vehicles WHERE id = ?');
+    const info = stmt.run(id);
+    if (info.changes === 0) {
+      return res.status(404).json({ error: 'Garage vehicle not found' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting garage vehicle:', error);
+    res.status(500).json({ error: 'Database error deleting garage vehicle' });
+  }
+});
+
+// --- SERVICE HISTORY ---
+app.get('/api/service-history/:vehicleId', (req, res) => {
+  try {
+    const { vehicleId } = req.params;
+    const stmt = db.prepare('SELECT * FROM service_history WHERE vehicle_id = ? ORDER BY date DESC, id DESC');
+    const rows = stmt.all(vehicleId);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching service history:', error);
+    res.status(500).json({ error: 'Database error fetching service history' });
+  }
+});
+
+app.post('/api/service-history', (req, res) => {
+  try {
+    const { vehicle_id, date, mileage, description, parts_used, cost, technician, notes } = req.body;
+    const stmt = db.prepare(`
+      INSERT INTO service_history (vehicle_id, date, mileage, description, parts_used, cost, technician, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const info = stmt.run(vehicle_id, date, mileage || 0, description, parts_used, cost || 0, technician, notes);
+    
+    if (mileage) {
+      db.prepare(`
+        UPDATE garage_vehicles
+        SET current_mileage = MAX(current_mileage, ?)
+        WHERE id = ?
+      `).run(mileage, vehicle_id);
+    }
+
+    const inserted = db.prepare('SELECT * FROM service_history WHERE id = ?').get(info.lastInsertRowid);
+    res.json(inserted);
+  } catch (error) {
+    console.error('Error creating service entry:', error);
+    res.status(500).json({ error: 'Database error creating service entry' });
+  }
+});
+
+app.put('/api/service-history/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { vehicle_id, date, mileage, description, parts_used, cost, technician, notes } = req.body;
+    const stmt = db.prepare(`
+      UPDATE service_history
+      SET vehicle_id = ?, date = ?, mileage = ?, description = ?, parts_used = ?, cost = ?, technician = ?, notes = ?
+      WHERE id = ?
+    `);
+    const info = stmt.run(vehicle_id, date, mileage || 0, description, parts_used, cost || 0, technician, notes, id);
+    if (info.changes === 0) {
+      return res.status(404).json({ error: 'Service entry not found' });
+    }
+
+    if (mileage && vehicle_id) {
+      db.prepare(`
+        UPDATE garage_vehicles
+        SET current_mileage = MAX(current_mileage, ?)
+        WHERE id = ?
+      `).run(mileage, vehicle_id);
+    }
+
+    const updated = db.prepare('SELECT * FROM service_history WHERE id = ?').get(id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating service entry:', error);
+    res.status(500).json({ error: 'Database error updating service entry' });
+  }
+});
+
+app.delete('/api/service-history/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const stmt = db.prepare('DELETE FROM service_history WHERE id = ?');
+    const info = stmt.run(id);
+    if (info.changes === 0) {
+      return res.status(404).json({ error: 'Service entry not found' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting service entry:', error);
+    res.status(500).json({ error: 'Database error deleting service entry' });
+  }
+});
+
+// --- SHOP JOBS ---
+app.get('/api/jobs', (req, res) => {
+  try {
+    const stmt = db.prepare('SELECT * FROM jobs ORDER BY created_at DESC');
+    const rows = stmt.all();
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching jobs:', error);
+    res.status(500).json({ error: 'Database error fetching jobs' });
+  }
+});
+
+app.post('/api/jobs', (req, res) => {
+  try {
+    const {
+      customer_name, customer_phone, customer_email,
+      vehicle_year, vehicle_make, vehicle_model, vehicle_vin, vehicle_mileage_in,
+      description, notes, status, estimated_completion
+    } = req.body;
+    const stmt = db.prepare(`
+      INSERT INTO jobs (
+        customer_name, customer_phone, customer_email,
+        vehicle_year, vehicle_make, vehicle_model, vehicle_vin, vehicle_mileage_in,
+        description, notes, status, estimated_completion
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const info = stmt.run(
+      customer_name, customer_phone, customer_email,
+      vehicle_year, vehicle_make, vehicle_model, vehicle_vin, vehicle_mileage_in || 0,
+      description, notes, status || 'Pending', estimated_completion
+    );
+    const inserted = db.prepare('SELECT * FROM jobs WHERE id = ?').get(info.lastInsertRowid);
+    res.json(inserted);
+  } catch (error) {
+    console.error('Error creating job:', error);
+    res.status(500).json({ error: 'Database error creating job' });
+  }
+});
+
+app.put('/api/jobs/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      customer_name, customer_phone, customer_email,
+      vehicle_year, vehicle_make, vehicle_model, vehicle_vin, vehicle_mileage_in,
+      description, notes, status, estimated_completion
+    } = req.body;
+    const stmt = db.prepare(`
+      UPDATE jobs
+      SET customer_name = ?, customer_phone = ?, customer_email = ?,
+          vehicle_year = ?, vehicle_make = ?, vehicle_model = ?, vehicle_vin = ?, vehicle_mileage_in = ?,
+          description = ?, notes = ?, status = ?, estimated_completion = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    const info = stmt.run(
+      customer_name, customer_phone, customer_email,
+      vehicle_year, vehicle_make, vehicle_model, vehicle_vin, vehicle_mileage_in || 0,
+      description, notes, status, estimated_completion, id
+    );
+    if (info.changes === 0) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+    const updated = db.prepare('SELECT * FROM jobs WHERE id = ?').get(id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating job:', error);
+    res.status(500).json({ error: 'Database error updating job' });
+  }
+});
+
+app.delete('/api/jobs/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    db.prepare('DELETE FROM job_parts WHERE job_id = ?').run(id);
+    const stmt = db.prepare('DELETE FROM jobs WHERE id = ?');
+    const info = stmt.run(id);
+    if (info.changes === 0) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting job:', error);
+    res.status(500).json({ error: 'Database error deleting job' });
+  }
+});
+
+// --- JOB PARTS ---
+app.get('/api/jobs/:jobId/parts', (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const stmt = db.prepare('SELECT * FROM job_parts WHERE job_id = ?');
+    const rows = stmt.all(jobId);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching job parts:', error);
+    res.status(500).json({ error: 'Database error fetching job parts' });
+  }
+});
+
+app.post('/api/jobs/:jobId/parts', (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { part_name, part_number, quantity, unit_cost, notes } = req.body;
+    const stmt = db.prepare(`
+      INSERT INTO job_parts (job_id, part_name, part_number, quantity, unit_cost, notes)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    const info = stmt.run(jobId, part_name, part_number, quantity || 1, unit_cost || 0, notes);
+    const inserted = db.prepare('SELECT * FROM job_parts WHERE id = ?').get(info.lastInsertRowid);
+    res.json(inserted);
+  } catch (error) {
+    console.error('Error adding job part:', error);
+    res.status(500).json({ error: 'Database error adding job part' });
+  }
+});
+
+app.delete('/api/jobs/:jobId/parts/:partId', (req, res) => {
+  try {
+    const { partId } = req.params;
+    const stmt = db.prepare('DELETE FROM job_parts WHERE id = ?');
+    const info = stmt.run(partId);
+    if (info.changes === 0) {
+      return res.status(404).json({ error: 'Job part not found' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error removing job part:', error);
+    res.status(500).json({ error: 'Database error removing job part' });
   }
 });
 

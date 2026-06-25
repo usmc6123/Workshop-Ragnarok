@@ -9,16 +9,19 @@ import { api, getApiBase } from './lib/api';
 import DashboardView from './components/DashboardView';
 import BrowseView from './components/BrowseView';
 import ManualView from './components/ManualView';
+import GarageView from './components/GarageView';
+import JobsView from './components/JobsView';
+import SettingsView from './components/SettingsView';
 import NetworkSettingsModal from './components/NetworkSettingsModal';
 import BootSplashScreen from './components/BootSplashScreen';
 import { LOGO_URL, BACKGROUND_URL } from './constants/branding';
 
 import { 
   Wrench, Home, Search, Server, Sun, Moon, AlertTriangle, PlayCircle, 
-  Wifi, HelpCircle, CheckSquare, Settings
+  Wifi, HelpCircle, CheckSquare, Settings, Car, ClipboardList, LayoutDashboard
 } from 'lucide-react';
 
-type ViewType = 'dashboard' | 'browse' | 'manual';
+type ViewType = 'dashboard' | 'browse' | 'garage' | 'jobs' | 'settings' | 'manual';
 
 export default function App() {
   const [view, setView] = useState<ViewType>('dashboard');
@@ -195,10 +198,10 @@ export default function App() {
           </div>
         </div>
 
-        {/* Center navigation tabs (Dashboard vs Catalog) */}
-        <nav className="flex items-center gap-1">
+        {/* Center navigation tabs (Five-tab workshop system deck) */}
+        <nav className="flex items-center gap-1 overflow-x-auto max-w-[50vw] sm:max-w-none no-scrollbar">
           <button
-            onClick={handleNavHome}
+            onClick={() => setView('dashboard')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition ${
               view === 'dashboard'
                 ? 'bg-amber-500 text-slate-950 shadow-sm'
@@ -206,8 +209,8 @@ export default function App() {
             }`}
             id="tab-dashboard"
           >
-            <Home className="w-3.5 h-3.5" />
-            <span>Garage</span>
+            <LayoutDashboard className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Overview</span>
           </button>
 
           <button
@@ -220,7 +223,46 @@ export default function App() {
             id="tab-browse"
           >
             <Search className="w-3.5 h-3.5" />
-            <span>Catalog</span>
+            <span className="hidden sm:inline">Catalog</span>
+          </button>
+
+          <button
+            onClick={() => setView('garage')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition ${
+              view === 'garage'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 bg-transparent hover:bg-[#1a1c24]'
+            }`}
+            id="tab-garage"
+          >
+            <Car className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">My Garage</span>
+          </button>
+
+          <button
+            onClick={() => setView('jobs')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition ${
+              view === 'jobs'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 bg-transparent hover:bg-[#1a1c24]'
+            }`}
+            id="tab-jobs"
+          >
+            <ClipboardList className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Active Jobs</span>
+          </button>
+
+          <button
+            onClick={() => setView('settings')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition ${
+              view === 'settings'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 bg-transparent hover:bg-[#1a1c24]'
+            }`}
+            id="tab-settings"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Settings</span>
           </button>
         </nav>
 
@@ -274,7 +316,8 @@ export default function App() {
         {view === 'dashboard' && (
           <DashboardView
             onSelectVehicle={handleSelectVehicle}
-            onNavigateToBrowse={handleNavBrowse}
+            onNavigateToTab={(tab) => setView(tab)}
+            onNavigateToBrowseWithSearch={handleNavBrowse}
             refreshTrigger={refreshTrigger}
           />
         )}
@@ -285,6 +328,27 @@ export default function App() {
             onSelectVehicle={handleSelectVehicle} 
             onClearSelectedVehicle={() => setSelectedVehicle(null)}
             initialSearch={browseSearchQuery}
+          />
+        )}
+
+        {view === 'garage' && (
+          <GarageView 
+            onNavigateToBrowse={handleNavBrowse}
+            refreshTrigger={refreshTrigger}
+          />
+        )}
+
+        {view === 'jobs' && (
+          <JobsView 
+            refreshTrigger={refreshTrigger}
+          />
+        )}
+
+        {view === 'settings' && (
+          <SettingsView 
+            theme={theme}
+            setTheme={setTheme}
+            onSaveAddress={handleApplyNewSettings}
           />
         )}
 
