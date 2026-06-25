@@ -2,7 +2,7 @@
 FROM node:18-slim AS frontend-builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm install --force
 COPY . .
 RUN npm run build
 
@@ -20,7 +20,7 @@ WORKDIR /app
 
 # Install backend dependencies
 COPY backend/package*.json ./
-RUN npm ci --only=production
+RUN npm install --only=production
 
 # Copy backend source files
 COPY backend/server.js ./
