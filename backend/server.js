@@ -430,7 +430,18 @@ app.get('/api/page', async (req, res) => {
     }
 
     // Category vs Content page detection
-    const hasCategoryLinks = $content.find('ul li a, ol li a').length > 0;
+    // Better detection: LEMON content pages have a specific ID wrapper or ARABICNUM lists
+    const isLemonContent = $content.find('div[id^="S"]').length > 0 || 
+                           $content.find('ol.ARABICNUM').length > 0;
+    const isCharmContent = $content.find('div.oxe-image, div.big-img').length > 0 ||
+                           ($content.find('b').length > 0 && $content.find('ul li a, ol li a').length === 0);
+
+    // Category pages: have nav links pointing to other manual pages, no content markers
+    const categoryLinks = $content.find('ul li a, ol li a').filter((i, el) => {
+      const href = $(el).attr('href') || '';
+      return !href.startsWith('#') && !href.startsWith('http') && href.length > 0;
+    });
+    const hasCategoryLinks = categoryLinks.length > 0 && !isLemonContent && !isCharmContent;
 
     if (hasCategoryLinks) {
       const tree = [];
@@ -487,49 +498,162 @@ app.get('/api/page', async (req, res) => {
         tree: tree
       });
     } else {
-      // Content page block parsing
       const blocks = [];
 
-      $content.find('h1, h2, h3, h4, p, img, ol, ul').each((idx, el) => {
-        const $el = $(el);
+      if (isLemonContent) {
+        // --- LEMON Content Parser ---
+        $content.find('h1, h2, p.PROC_HEAD, p.HEAD, p, img, ol.ARABICNUM, div.CAUTION, div.WARNING, div.NOTE').each((idx, el) => {
+          const $el = $(el);
 
-        // Avoid double parsing nested items
-        if ($el.closest('ol, ul').length > 0 && !$el.is('ol, ul')) {
-          return;
-        }
-        if ($el.closest('p').length > 0 && !$el.is('p')) {
-          return;
-        }
+          // Avoid double parsing nested items
+          if ($el.closest('ol.ARABICNUM, div.CAUTION, div.WARNING, div.NOTE').length > 0 && 
+              !$el.is('ol.ARABICNUM, div.CAUTION, div.WARNING, div.NOTE')) {
+            return;
+          }
+          if ($el.closest('p').length > 0 && !$el.is('p')) {
+            return;
+          }
 
-        const tagName = el.name.toLowerCase();
-        if (['h1', 'h2', 'h3', 'h4'].includes(tagName)) {
-          const text = $el.text().trim();
-          if (text) {
-            blocks.push({ type: 'heading', text });
-          }
-        } else if (tagName === 'p') {
-          const text = $el.text().trim();
-          if (text) {
-            blocks.push({ type: 'text', text });
-          }
-        } else if (tagName === 'img') {
-          const src = $el.attr('src');
-          if (src) {
-            blocks.push({ type: 'image', src });
-          }
-        } else if (['ol', 'ul'].includes(tagName)) {
-          const items = [];
-          $el.find('li').each((i, liEl) => {
-            const itemText = $(liEl).text().trim();
-            if (itemText) {
-              items.push(itemText);
+          const tagName = el.name.toLowerCase();
+          
+          if (['h1', 'h2'].includes(tagName) || $el.hasClass('PROC_HEAD') || $el.hasClass('HEAD')) {
+            const text = $el.text().trim();
+            if (text) {
+              blocks.push({ type: 'heading', text });
             }
-          });
-          if (items.length > 0) {
-            blocks.push({ type: 'steps', items });
+          } else if (tagName === 'p') {
+            const text = $el.text().trim();
+            if (text) {
+              blocks.push({ type: 'text', text });
+            }
+          } else if (tagName === 'img') {
+            const src = $el.attr('src');
+            if (src) {
+              blocks.push({ type: 'image', src });
+            }
+          } else if (tagName === 'ol' && $el.hasClass('ARABICNUM')) {
+            const items = [];
+            $el.find('li').each((i, liEl) => {
+              const itemText = $(liEl).text().trim();
+              if (itemText) {
+                items.push(itemText);
+              }
+            });
+            if (items.length > 0) {
+              blocks.push({ type: 'steps', items });
+            }
+          } else if ($el.hasClass('CAUTION')) {
+            let text = $el.text().trim();
+            text = text.replace(/^(CAUTION|caution)\s*:\s*/i, '').trim();
+            if (text) {
+              blocks.push({ type: 'text', text: `⚠️ CAUTION: ${text}` });
+            }
+          } else if ($el.hasClass('WARNING')) {
+            let text = $el.text().trim();
+            text = text.replace(/^(WARNING|warning)\s*:\s*/i, '').trim();
+            if (text) {
+              blocks.push({ type: 'text', text: `⛔ WARNING: ${text}` });
+            }
+          } else if ($el.hasClass('NOTE')) {
+            let text = $el.text().trim();
+            text = text.replace(/^(NOTE|note)\s*:\s*/i, '').trim();
+            if (text) {
+              blocks.push({ type: 'text', text: `📝 NOTE: ${text}` });
+            }
           }
+        });
+      } else {
+        // --- CHARM Content Parser ---
+        let currentSteps = [];
+        const childNodes = $content.contents();
+
+        childNodes.each((idx, node) => {
+          const $node = $(node);
+          
+          if (node.type === 'text') {
+            const text = node.data.trim();
+            if (text) {
+              if (currentSteps.length > 0) {
+                blocks.push({ type: 'steps', items: currentSteps });
+                currentSteps = [];
+              }
+              blocks.push({ type: 'text', text });
+            }
+          } else {
+            const tagName = node.name ? node.name.toLowerCase() : '';
+            
+            if (tagName === 'br') {
+              return;
+            }
+            
+            if (['h1', 'h2', 'h3', 'h4', 'b'].includes(tagName)) {
+              if (currentSteps.length > 0) {
+                blocks.push({ type: 'steps', items: currentSteps });
+                currentSteps = [];
+              }
+              const text = $node.text().trim();
+              if (text) {
+                blocks.push({ type: 'heading', text });
+              }
+            } else if (tagName === 'div' && ($node.hasClass('oxe-image') || $node.hasClass('big-img'))) {
+              if (currentSteps.length > 0) {
+                blocks.push({ type: 'steps', items: currentSteps });
+                currentSteps = [];
+              }
+              const img = $node.find('img');
+              const src = img.attr('src');
+              if (src) {
+                blocks.push({ type: 'image', src });
+              }
+            } else if (tagName === 'img') {
+              if (currentSteps.length > 0) {
+                blocks.push({ type: 'steps', items: currentSteps });
+                currentSteps = [];
+              }
+              const src = $node.attr('src');
+              if (src) {
+                blocks.push({ type: 'image', src });
+              }
+            } else if (tagName === 'span' && $node.hasClass('indent-2')) {
+              let stepText = '';
+              let next = node.nextSibling;
+              while (next && next.type === 'text' && !next.data.trim()) {
+                next = next.nextSibling;
+              }
+              if (next && next.name === 'span' && $(next).hasClass('indent-5')) {
+                stepText = $(next).text().trim();
+              } else if (next) {
+                stepText = $(next).text().trim();
+              }
+              
+              if (stepText) {
+                currentSteps.push(stepText);
+              }
+            } else if (tagName === 'span' && $node.hasClass('indent-5')) {
+              return;
+            } else {
+              const hasImgOrHeader = $node.find('img, h1, h2, h3, h4, b, div.oxe-image').length > 0;
+              if (!hasImgOrHeader) {
+                const text = $node.text().trim();
+                if ($node.hasClass('indent-right-align')) {
+                  return;
+                }
+                if (text) {
+                  if (currentSteps.length > 0) {
+                    blocks.push({ type: 'steps', items: currentSteps });
+                    currentSteps = [];
+                  }
+                  blocks.push({ type: 'text', text });
+                }
+              }
+            }
+          }
+        });
+
+        if (currentSteps.length > 0) {
+          blocks.push({ type: 'steps', items: currentSteps });
         }
-      });
+      }
 
       // Fallback text if empty
       if (blocks.length === 0) {
