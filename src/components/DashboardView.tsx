@@ -128,17 +128,17 @@ export default function DashboardView({
     <div className="space-y-6 max-w-7xl mx-auto px-4 py-6" id="dashboard-view-root">
       
       {/* Dashboard Hero Section */}
-      <div className="flex flex-col items-center justify-center text-center py-6 space-y-3" id="dashboard-hero">
+      <div className="flex flex-col sm:flex-row items-center gap-6 py-6 pb-8 border-b border-amber-500/10" id="dashboard-hero">
         <img 
           src="https://raw.githubusercontent.com/usmc6123/images/main/newlogo.jpg" 
           alt="Workshop Ragnarök Hero Logo" 
-          className="w-[120px] h-[120px] rounded-full object-cover border-2 border-amber-500/30 ring-2 ring-amber-500/50 shadow-lg shadow-amber-500/20"
+          className="w-[150px] h-[150px] rounded-full object-cover border-2 border-amber-500/30 ring-2 ring-amber-500/40 shadow-xl shadow-amber-500/20 shrink-0"
         />
-        <div>
+        <div className="text-center sm:text-left space-y-1">
           <h1 className="text-3xl font-black tracking-widest text-amber-500 uppercase font-mono">
             WORKSHOP: RAGNARÖK
           </h1>
-          <p className="text-xs font-mono tracking-widest text-slate-400 mt-1 uppercase">
+          <p className="text-sm font-mono tracking-wider text-slate-400 uppercase">
             Auto Shop Management System
           </p>
         </div>
