@@ -164,7 +164,7 @@ export default function App() {
       style={isManualOrLibrary ? {
         backgroundColor: '#0a0a0f',
       } : {
-        backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.75)), url('https://raw.githubusercontent.com/usmc6123/images/main/catbackground.jpg')`,
+        backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45)), url('https://raw.githubusercontent.com/usmc6123/images/main/catbackground.jpg')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundAttachment: 'fixed',
