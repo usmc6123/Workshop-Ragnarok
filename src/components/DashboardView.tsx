@@ -125,15 +125,24 @@ export default function DashboardView({
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-4 py-6" id="dashboard-view-root">
+    <div 
+      className="space-y-6 max-w-7xl mx-auto px-4 py-6 rounded-2xl overflow-hidden border border-border-theme/30 relative"
+      style={{
+        backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.75)), url('https://raw.githubusercontent.com/usmc6123/images/main/catbackground.jpg')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+      }}
+      id="dashboard-view-root"
+    >
       
       {/* 1. Overview Metrics Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="dashboard-stats-deck">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10" id="dashboard-stats-deck">
         
         {/* Total Customers */}
         <div 
           onClick={() => onNavigateToTab('customers')}
-          className="bg-surface-theme border border-border-theme hover:border-primary-theme/50 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-4 flex items-center justify-between transition-all duration-200 cursor-pointer shadow group"
+          className="bg-[#13141a]/95 backdrop-blur-xs border border-border-theme hover:border-primary-theme/50 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-4 flex items-center justify-between transition-all duration-200 cursor-pointer shadow group"
         >
           <div className="space-y-1">
             <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest block font-bold">
@@ -154,7 +163,7 @@ export default function DashboardView({
         {/* Active Jobs */}
         <div 
           onClick={() => onNavigateToTab('jobs')}
-          className="bg-surface-theme border border-border-theme hover:border-primary-theme/50 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-4 flex items-center justify-between transition-all duration-200 cursor-pointer shadow group"
+          className="bg-[#13141a]/95 backdrop-blur-xs border border-border-theme hover:border-primary-theme/50 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-4 flex items-center justify-between transition-all duration-200 cursor-pointer shadow group"
         >
           <div className="space-y-1">
             <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest block font-bold">
@@ -175,7 +184,7 @@ export default function DashboardView({
         {/* Vehicles in System */}
         <div 
           onClick={() => onNavigateToTab('vehicles')}
-          className="bg-surface-theme border border-border-theme hover:border-primary-theme/50 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-4 flex items-center justify-between transition-all duration-200 cursor-pointer shadow group"
+          className="bg-[#13141a]/95 backdrop-blur-xs border border-border-theme hover:border-primary-theme/50 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-4 flex items-center justify-between transition-all duration-200 cursor-pointer shadow group"
         >
           <div className="space-y-1">
             <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest block font-bold">
@@ -196,7 +205,7 @@ export default function DashboardView({
         {/* Indexed Service Manuals */}
         <div 
           onClick={() => onNavigateToTab('manual-library')}
-          className="bg-surface-theme border border-border-theme hover:border-primary-theme/50 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-4 flex items-center justify-between transition-all duration-200 cursor-pointer shadow group"
+          className="bg-[#13141a]/95 backdrop-blur-xs border border-border-theme hover:border-primary-theme/50 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-4 flex items-center justify-between transition-all duration-200 cursor-pointer shadow group"
         >
           <div className="space-y-1">
             <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest block font-bold">
@@ -217,7 +226,7 @@ export default function DashboardView({
       </div>
 
       {/* 2. Interactive Manual Search Utility */}
-      <div className="bg-surface-theme border border-border-theme rounded-xl p-5 space-y-4 shadow select-none text-left">
+      <div className="bg-[#13141a]/95 backdrop-blur-xs border border-border-theme rounded-xl p-5 space-y-4 shadow select-none text-left relative z-10">
         <div className="flex items-center gap-2">
           <Wrench className="w-4 h-4 text-primary-theme" />
           <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">
@@ -291,10 +300,10 @@ export default function DashboardView({
       </div>
 
       {/* 3. Three-column Overview Stack */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-left">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-left relative z-10">
         
         {/* Left Aspect: Recent Jobs List (Last 5) */}
-        <div className="lg:col-span-5 bg-surface-theme border border-border-theme rounded-xl p-5 space-y-4 shadow flex flex-col justify-between">
+        <div className="lg:col-span-5 bg-[#13141a]/95 backdrop-blur-xs border border-border-theme rounded-xl p-5 space-y-4 shadow flex flex-col justify-between">
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-border-theme pb-2">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-350 flex items-center gap-1.5">
@@ -360,7 +369,7 @@ export default function DashboardView({
         </div>
 
         {/* Mid Aspect: Upcoming Appointments (Next 3) */}
-        <div className="lg:col-span-4 bg-surface-theme border border-border-theme rounded-xl p-5 space-y-4 shadow flex flex-col justify-between">
+        <div className="lg:col-span-4 bg-[#13141a]/95 backdrop-blur-xs border border-border-theme rounded-xl p-5 space-y-4 shadow flex flex-col justify-between">
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-border-theme pb-2">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-350 flex items-center gap-1.5">
@@ -415,7 +424,7 @@ export default function DashboardView({
         </div>
 
         {/* Right Aspect: Recent Customers List (Last 5) */}
-        <div className="lg:col-span-3 bg-surface-theme border border-border-theme rounded-xl p-5 space-y-4 shadow flex flex-col justify-between">
+        <div className="lg:col-span-3 bg-[#13141a]/95 backdrop-blur-xs border border-border-theme rounded-xl p-5 space-y-4 shadow flex flex-col justify-between">
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-border-theme pb-2">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-355 flex items-center gap-1.5">
