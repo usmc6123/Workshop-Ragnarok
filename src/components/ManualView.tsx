@@ -469,15 +469,9 @@ export default function ManualView({
                 rootTree={rootCategoryPage.tree}
                 baseUri={vehicle.uriPath}
                 activeUri={currentUri}
-                onNavigateToContent={(contentPage, resolvedUri) => {
-                  setActivePage(contentPage);
+                onSelectUri={(resolvedUri) => {
                   setCurrentUri(resolvedUri);
                   setSidebarOpen(false); // Close mobile tray
-                }}
-                onNavigateToUnknown={(unknownPage, resolvedUri) => {
-                  setActivePage(unknownPage);
-                  setCurrentUri(resolvedUri);
-                  setSidebarOpen(false);
                 }}
               />
             ) : (
