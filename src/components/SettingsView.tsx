@@ -92,7 +92,7 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
         <div className="md:col-span-8 space-y-6">
           
           {/* Server Connection Form Card */}
-          <div className="bg-surface-theme border border-border-theme rounded-xl p-5 space-y-4 shadow-xl">
+          <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl">
             <h2 className="text-sm font-bold text-slate-200 uppercase flex items-center gap-2">
               <Server className="w-4 h-4 text-primary-theme" />
               API Server LAN Host Location
@@ -141,7 +141,7 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
           </div>
 
           {/* Theme customizer */}
-          <div className="bg-surface-theme border border-border-theme rounded-xl p-5 space-y-4 shadow-xl text-left">
+          <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl text-left">
             <h2 className="text-sm font-bold text-slate-200 uppercase flex items-center gap-2">
               <Sun className="w-4 h-4 text-primary-theme" />
               Workshop Display Theme
@@ -199,7 +199,7 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
 
         {/* Right Side: Database Stats Sidebar */}
         <div className="md:col-span-4 space-y-6">
-          <div className="bg-surface-theme border border-border-theme rounded-xl p-5 space-y-4 shadow-xl text-left">
+          <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl text-left">
             <div className="flex items-center justify-between border-b border-border-theme pb-2">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                 <Database className="w-4 h-4 text-primary-theme" />

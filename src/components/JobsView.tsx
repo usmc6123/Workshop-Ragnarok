@@ -353,7 +353,7 @@ export default function JobsView({ refreshTrigger }: JobsViewProps) {
                 <div
                   key={job.id}
                   onClick={() => handleSelectJob(job)}
-                  className="bg-gradient-to-b from-surface-theme to-bg-theme border border-border-theme hover:border-slate-700 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-5 flex flex-col justify-between transition-all duration-200 cursor-pointer group shadow-lg"
+                  className="bg-gradient-to-b from-[#13141a]/80 to-bg-theme/80 backdrop-blur-sm border border-[#1e2028] hover:border-slate-700 hover:border-l-primary-theme border-l-[3px] border-l-[#1e2028] rounded-xl p-5 flex flex-col justify-between transition-all duration-200 cursor-pointer group shadow-lg"
                   id={`job-ticket-card-${job.id}`}
                 >
                   <div className="space-y-3">
@@ -431,7 +431,7 @@ export default function JobsView({ refreshTrigger }: JobsViewProps) {
             <div className="lg:col-span-8 space-y-6">
               
               {/* Core Details Profile */}
-              <div className="bg-surface-theme border border-border-theme rounded-xl p-6 space-y-6 shadow-xl">
+              <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-6 space-y-6 shadow-xl">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-border-theme pb-4">
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2">
@@ -502,7 +502,7 @@ export default function JobsView({ refreshTrigger }: JobsViewProps) {
               </div>
 
               {/* Parts billing line items list */}
-              <div className="bg-surface-theme border border-border-theme rounded-xl p-6 space-y-6 shadow-xl">
+              <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-6 space-y-6 shadow-xl">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border-theme pb-3">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                     <Package className="w-4.5 h-4.5 text-primary-theme" />
@@ -631,7 +631,7 @@ export default function JobsView({ refreshTrigger }: JobsViewProps) {
             <div className="lg:col-span-4 space-y-6 select-none">
               
               {/* Status Update Card */}
-              <div className="bg-surface-theme border border-border-theme rounded-xl p-5 space-y-4 shadow-xl">
+              <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-350 font-sans border-b border-border-theme pb-2 text-left">
                   Job Status Control
                 </h3>
@@ -653,7 +653,7 @@ export default function JobsView({ refreshTrigger }: JobsViewProps) {
               </div>
 
               {/* Customer Coordinates Card */}
-              <div className="bg-surface-theme border border-border-theme rounded-xl p-5 space-y-4 shadow-xl text-left">
+              <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl text-left">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-355 border-b border-border-theme pb-2">
                   Client Contact Coordinates
                 </h3>

@@ -216,7 +216,7 @@ export default function CalendarView() {
         </div>
 
         {/* Month Selector Buttons */}
-        <div className="flex items-center gap-2 bg-surface-theme border border-border-theme rounded-xl p-1.5 self-start select-none">
+        <div className="flex items-center gap-2 bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-1.5 self-start select-none">
           <button 
             onClick={handlePrevMonth}
             className="p-2 hover:bg-bg-theme rounded text-slate-400 hover:text-white transition cursor-pointer"
@@ -241,7 +241,7 @@ export default function CalendarView() {
           <span>Synchronizing schedules calendar...</span>
         </div>
       ) : (
-        <div className="bg-surface-theme border border-border-theme rounded-xl overflow-hidden shadow-2xl">
+        <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl overflow-hidden shadow-2xl">
           
           {/* Day Headers row */}
           <div className="grid grid-cols-7 text-center font-mono text-[10px] font-black uppercase tracking-widest text-slate-500 bg-bg-theme/40 border-b border-border-theme py-3 select-none">

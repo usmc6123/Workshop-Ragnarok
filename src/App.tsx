@@ -155,12 +155,16 @@ export default function App() {
     return <BootSplashScreen onComplete={handleSplashComplete} />;
   }
 
+  const isManualOrLibrary = view === 'manual' || view === 'manual-library';
+
   return (
     <div 
       className="min-h-screen flex text-text-theme bg-bg-theme transition-all duration-200" 
       id="application-container"
-      style={{
-        backgroundImage: `linear-gradient(rgba(10, 10, 15, 0.92), rgba(10, 10, 15, 0.97)), url(${BACKGROUND_URL})`,
+      style={isManualOrLibrary ? {
+        backgroundColor: '#0a0a0f',
+      } : {
+        backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.75)), url('https://raw.githubusercontent.com/usmc6123/images/main/catbackground.jpg')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundAttachment: 'fixed',

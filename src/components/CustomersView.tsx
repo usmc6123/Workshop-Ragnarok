@@ -193,7 +193,7 @@ export default function CustomersView({ onNavigateToTab }: CustomersViewProps) {
               <p className="text-slate-500 text-xs mt-1">Refine your keyword search or add a new customer.</p>
             </div>
           ) : (
-            <div className="bg-surface-theme border border-border-theme rounded-xl overflow-hidden shadow-lg">
+            <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl overflow-hidden shadow-lg">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs select-none">
                   <thead>
@@ -267,7 +267,7 @@ export default function CustomersView({ onNavigateToTab }: CustomersViewProps) {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
             {/* Left Box: customer card details */}
-            <div className="lg:col-span-4 bg-surface-theme border border-border-theme rounded-xl p-5 space-y-5 shadow-lg">
+            <div className="lg:col-span-4 bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-5 shadow-lg">
               <div className="flex items-center justify-between border-b border-border-theme pb-3">
                 <div className="flex items-center gap-2">
                   <User className="w-4 h-4 text-primary-theme" />
@@ -346,7 +346,7 @@ export default function CustomersView({ onNavigateToTab }: CustomersViewProps) {
             <div className="lg:col-span-8 space-y-6">
               
               {/* Customer Vehicles Fleet Section */}
-              <div className="bg-surface-theme border border-border-theme rounded-xl p-5 space-y-4 shadow-lg">
+              <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-lg">
                 <div className="flex items-center justify-between border-b border-border-theme pb-2.5">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-350 flex items-center gap-1.5">
                     <Car className="w-4.5 h-4.5 text-primary-theme" />
@@ -396,7 +396,7 @@ export default function CustomersView({ onNavigateToTab }: CustomersViewProps) {
               </div>
 
               {/* Customer repair job histories */}
-              <div className="bg-surface-theme border border-border-theme rounded-xl p-5 space-y-4 shadow-lg">
+              <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-lg">
                 <div className="flex items-center justify-between border-b border-border-theme pb-2.5">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-350 flex items-center gap-1.5">
                     <ClipboardList className="w-4.5 h-4.5 text-primary-theme" />

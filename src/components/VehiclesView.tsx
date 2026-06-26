@@ -382,7 +382,7 @@ export default function VehiclesView({ onNavigateToManualWithSearch, onSelectVeh
                 <div
                   key={v.id}
                   onClick={() => handleSelectVehicle(v)}
-                  className="bg-gradient-to-b from-surface-theme to-bg-theme border border-border-theme hover:border-slate-700 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-5 flex flex-col justify-between transition-all duration-200 cursor-pointer group shadow-lg"
+                  className="bg-gradient-to-b from-[#13141a]/80 to-bg-theme/80 backdrop-blur-sm border border-[#1e2028] hover:border-slate-700 hover:border-l-primary-theme border-l-[3px] border-l-[#1e2028] rounded-xl p-5 flex flex-col justify-between transition-all duration-200 cursor-pointer group shadow-lg"
                   id={`vehicle-card-${v.id}`}
                 >
                   <div className="space-y-3 text-left">
@@ -456,7 +456,7 @@ export default function VehiclesView({ onNavigateToManualWithSearch, onSelectVeh
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
             {/* Left Box: Specifications details */}
-            <div className="lg:col-span-8 bg-surface-theme border border-border-theme rounded-xl p-6 space-y-6 shadow-xl">
+            <div className="lg:col-span-8 bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-6 space-y-6 shadow-xl">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-border-theme pb-4">
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
@@ -553,7 +553,7 @@ export default function VehiclesView({ onNavigateToManualWithSearch, onSelectVeh
 
             {/* Right Box: Linked Customer Contact Card & Saved Manuals */}
             <div className="lg:col-span-4 space-y-6">
-              <div className="bg-surface-theme border border-border-theme rounded-xl p-5 space-y-4 shadow-xl">
+              <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-350 border-b border-border-theme pb-2 flex items-center gap-1.5">
                   <User className="w-4 h-4 text-primary-theme" />
                   Linked Customer Account
@@ -593,7 +593,7 @@ export default function VehiclesView({ onNavigateToManualWithSearch, onSelectVeh
               </div>
 
               {/* Saved Manuals Section */}
-              <div className="bg-surface-theme border border-border-theme rounded-xl p-5 space-y-4 shadow-xl" id="saved-manuals-card">
+              <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl" id="saved-manuals-card">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-350 border-b border-border-theme pb-2 flex items-center gap-1.5">
                   <BookOpen className="w-4 h-4 text-primary-theme" />
                   Saved Procedures & Manuals ({savedManuals.length})
@@ -674,7 +674,7 @@ export default function VehiclesView({ onNavigateToManualWithSearch, onSelectVeh
                 {serviceHistory.map((sh) => (
                   <div
                     key={sh.id}
-                    className="bg-gradient-to-b from-surface-theme to-bg-theme border border-border-theme rounded-xl p-5 space-y-4 shadow"
+                    className="bg-gradient-to-b from-[#13141a]/80 to-bg-theme/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border-theme pb-2.5">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-300 font-mono">

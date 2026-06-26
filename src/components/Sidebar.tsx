@@ -47,7 +47,7 @@ export default function Sidebar({
       <aside 
         className={`
           fixed md:sticky top-0 left-0 bottom-0 z-40
-          bg-surface-theme border-r border-border-theme h-screen flex flex-col justify-between
+          bg-[#0d0e14] border-r border-border-theme h-screen flex flex-col justify-between
           transition-all duration-300 select-none text-text-theme
           ${collapsed ? 'w-[64px]' : 'w-[240px]'}
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
