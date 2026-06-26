@@ -15,7 +15,7 @@ interface TreeViewProps {
   rootTree: CategoryTreeNode[];
   baseUri: string;
   activeUri?: string;
-  onSelectUri: (uri: string) => void;
+  onSelectUri: (uri: string, node: CategoryTreeNode) => void;
 }
 
 // Map semantic icons based on common names
@@ -55,7 +55,7 @@ export default function TreeView({
   const [expandedNodes, setExpandedNodes] = useState<{ [key: string]: boolean }>({});
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Start with top level collapsed by default as requested for top-tier performance
+  // Reset states on rootTree change
   useEffect(() => {
     setExpandedNodes({});
     setSearchQuery('');
@@ -93,38 +93,44 @@ export default function TreeView({
   // Filter tree recursively based on search query
   const filteredTreeData = useMemo(() => {
     if (!searchQuery.trim()) {
-      return { tree: rootTree, isFiltered: false };
+      return { tree: rootTree, isFiltered: false, autoExpanded: new Set<string>() };
     }
 
     const query = searchQuery.toLowerCase();
+    const autoExpanded = new Set<string>();
     
-    function filterNodes(nodes: CategoryTreeNode[]): { filtered: CategoryTreeNode[]; anyMatch: boolean } {
-      let anyMatch = false;
+    function filterNodes(nodes: CategoryTreeNode[], parentPathKey: string): CategoryTreeNode[] {
       const filtered: CategoryTreeNode[] = [];
 
       for (const node of nodes) {
+        const pathKey = parentPathKey ? `${parentPathKey}/${node.title}` : node.title;
+
         if (node.type === 'category') {
-          const { filtered: childFiltered, anyMatch: childMatch } = filterNodes(node.children);
-          if (childMatch || node.title.toLowerCase().includes(query)) {
+          const childFiltered = filterNodes(node.children, pathKey);
+          const isMatch = node.title.toLowerCase().includes(query);
+          const hasMatchingChildren = childFiltered.length > 0;
+
+          if (isMatch || hasMatchingChildren) {
             filtered.push({
               ...node,
               children: childFiltered
             });
-            anyMatch = true;
+            if (hasMatchingChildren) {
+              autoExpanded.add(pathKey);
+            }
           }
         } else {
           // Leaf node (link)
           if (node.title.toLowerCase().includes(query)) {
             filtered.push(node);
-            anyMatch = true;
           }
         }
       }
-      return { filtered, anyMatch };
+      return filtered;
     }
 
-    const { filtered } = filterNodes(rootTree);
-    return { tree: filtered, isFiltered: true };
+    const filtered = filterNodes(rootTree, '');
+    return { tree: filtered, isFiltered: true, autoExpanded };
   }, [rootTree, searchQuery]);
 
   const isFiltered = filteredTreeData.isFiltered;
@@ -151,14 +157,14 @@ export default function TreeView({
       return;
     }
 
-    onSelectUri(resolvedUri);
+    onSelectUri(resolvedUri, node);
   };
 
   // Recursive Tree Node Renderer
   const renderNode = (node: CategoryTreeNode, index: number, depth: number, parentPathKey: string) => {
     const pathKey = parentPathKey ? `${parentPathKey}/${node.title}` : node.title;
     // Auto expand all when filtering to reveal search results
-    const isExpanded = isFiltered || !!expandedNodes[pathKey];
+    const isExpanded = isFiltered ? filteredTreeData.autoExpanded.has(pathKey) : !!expandedNodes[pathKey];
 
     if (node.type === 'category') {
       const childrenCount = node.children.length;
@@ -176,14 +182,14 @@ export default function TreeView({
             type="button"
             onClick={handleCategoryClick}
             style={{ paddingLeft: `${depth * 12 + 6}px` }}
-            className="w-full flex items-center justify-between text-left py-1 hover:bg-slate-800/40 text-slate-300 hover:text-slate-100 rounded transition duration-150 cursor-pointer group"
+            className="w-full flex items-center justify-between text-left py-1 hover:bg-slate-800/40 text-slate-350 hover:text-slate-100 rounded transition duration-150 cursor-pointer group"
           >
             <div className="flex items-center gap-1.5 min-w-0">
               <span className="shrink-0 text-slate-500 group-hover:text-amber-500 transition duration-150">
                 {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
               </span>
               <Folder className="w-3.5 h-3.5 text-amber-500/80 shrink-0" />
-              <span className="text-slate-205 text-xs font-semibold truncate leading-tight select-none">
+              <span className="text-slate-200 text-xs font-semibold truncate leading-tight select-none">
                 {node.title}
               </span>
             </div>
@@ -227,7 +233,7 @@ export default function TreeView({
           className={`w-full flex items-center justify-between text-left py-1 pr-1.5 rounded transition duration-150 border-l-2 ${
             isCurrentActive 
               ? 'bg-amber-500/10 border-l-amber-500 text-amber-400 font-bold shadow-xs'
-              : 'bg-transparent border-l-transparent hover:bg-slate-800/40 text-slate-400 hover:text-slate-250'
+              : 'bg-transparent border-l-transparent hover:bg-slate-800/40 text-slate-400 hover:text-slate-205'
           }`}
         >
           <div className="flex items-center gap-1.5 min-w-0">

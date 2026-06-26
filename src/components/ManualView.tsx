@@ -34,6 +34,12 @@ export default function ManualView({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [rootCategoryPage, setRootCategoryPage] = useState<CategoryPage | null>(null);
   const [loadingSidebar, setLoadingSidebar] = useState(true);
+
+  // Navigation Drill-Down State machine
+  const [navLevel, setNavLevel] = useState<'root' | 'section'>('root');
+  const [sectionTree, setSectionTree] = useState<any[]>([]);
+  const [sectionTitle, setSectionTitle] = useState<string>('');
+  const [sectionBaseUri, setSectionBaseUri] = useState<string>('');
   
   // Right content panel states
   const [activePage, setActivePage] = useState<PageResponse | null>(null);
@@ -300,36 +306,47 @@ export default function ManualView({
     return baseUri + href;
   };
 
-  const handleCategoryCardClick = async (node: any) => {
-    if (node.type === 'category') {
-      const virtualCategoryPage: CategoryPage = {
-        pageType: 'category',
-        title: node.title,
-        tree: node.children
-      };
-      const parentUri = currentUri.split('#')[0];
-      const virtualUri = `${parentUri}#${encodeURIComponent(node.title)}`;
-      setActivePage(virtualCategoryPage);
-      setCurrentUri(virtualUri);
-    } else {
-      const parentUri = currentUri.split('#')[0];
-      const resolvedUri = resolveHref(parentUri, node.href);
+  const handleSelectUri = async (resolvedUri: string, node: any) => {
+    if (navLevel === 'root') {
+      // Transition from root section list to the specific interactive chapter tree (e.g. Repair & Diagnosis)
       setLoadingActivePage(true);
       setErrorActivePage(null);
-      setCompletedSteps({});
       try {
         const response = await api.getPage(resolvedUri);
-        setActivePage(response);
-        setCurrentUri(resolvedUri);
+        if (response.pageType === 'category') {
+          setSectionTree(response.tree || []);
+          setSectionTitle(response.title || node.title);
+          setSectionBaseUri(resolvedUri);
+          setNavLevel('section');
+          
+          // Clear active page to welcome/placeholder state
+          setActivePage({
+            pageType: 'category',
+            title: response.title || node.title,
+            tree: []
+          });
+          setCurrentUri(resolvedUri);
+        } else {
+          setActivePage(response);
+          setCurrentUri(resolvedUri);
+        }
       } catch (err: any) {
-        setErrorActivePage(err.message || 'Failed to download procedure instructions.');
+        setErrorActivePage(err.message || 'Failed to load this chapter category.');
       } finally {
         setLoadingActivePage(false);
       }
+    } else {
+      // Selecting a leaf procedure document within the expanded tree
+      setCurrentUri(resolvedUri);
+      setSidebarOpen(false); // Close mobile menu drawer
     }
   };
 
   const alternativeSource = availableSources.find((v) => v.id !== vehicle.id);
+
+  const displayTree = navLevel === 'root' ? (rootCategoryPage?.tree || []) : sectionTree;
+  const displayTitle = navLevel === 'root' ? (rootCategoryPage?.title || vehicle.model) : sectionTitle;
+  const displayBaseUri = navLevel === 'root' ? vehicle.uriPath : sectionBaseUri;
 
   return (
     <div className="flex flex-col flex-1 h-[calc(100vh-64px)] overflow-hidden bg-[#0a0a0f]" id="manual-workspace">
@@ -463,17 +480,30 @@ export default function ManualView({
                 </button>
               </div>
             ) : rootCategoryPage ? (
-              /* Embed our recursive TreeView directly in the sidebar navigation stack */
-              <TreeView
-                rootTitle={rootCategoryPage.title || vehicle.model}
-                rootTree={rootCategoryPage.tree}
-                baseUri={vehicle.uriPath}
-                activeUri={currentUri}
-                onSelectUri={(resolvedUri) => {
-                  setCurrentUri(resolvedUri);
-                  setSidebarOpen(false); // Close mobile tray
-                }}
-              />
+              <div className="space-y-3">
+                {navLevel === 'section' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNavLevel('root');
+                      setActivePage(rootCategoryPage);
+                      setCurrentUri(vehicle.uriPath);
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-amber-500/10 hover:bg-amber-500 hover:text-slate-950 text-amber-400 hover:border-amber-500/30 border border-amber-500/10 rounded-lg text-xs font-bold uppercase tracking-wider transition duration-150 select-none cursor-pointer"
+                  >
+                    <ArrowLeft className="w-4 h-4 shrink-0" />
+                    <span>Back to Sections</span>
+                  </button>
+                )}
+
+                <TreeView
+                  rootTitle={displayTitle}
+                  rootTree={displayTree}
+                  baseUri={displayBaseUri}
+                  activeUri={currentUri}
+                  onSelectUri={handleSelectUri}
+                />
+              </div>
             ) : (
               <p className="text-xs text-slate-500 text-center py-6">
                 No active directories found in index.
