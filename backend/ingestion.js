@@ -74,9 +74,8 @@ try {
 let records = [];
 if (Array.isArray(dataset)) {
   records = dataset;
-} else if (dataset && dataset.vehicles && Array.isArray(dataset.vehicles)) {
-  records = dataset.vehicles;
 } else if (typeof dataset === 'object' && dataset !== null) {
+  // If structured as an object with key values, map to list
   records = Object.values(dataset);
 }
 
@@ -93,7 +92,7 @@ console.log('Starting atomic transaction ingest... ⚡');
 const startTime = Date.now();
 
 const insertStmt = db.prepare(`
-  INSERT OR IGNORE INTO vehicles (id, source, make, year, model, engine, uriPath, isComplete)
+  INSERT OR REPLACE INTO vehicles (id, source, make, year, model, engine, uriPath, isComplete)
   VALUES (:id, :source, :make, :year, :model, :engine, :uriPath, :isComplete)
 `);
 

@@ -144,55 +144,54 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
           <div className="bg-surface-theme border border-border-theme rounded-xl p-5 space-y-4 shadow-xl text-left">
             <h2 className="text-sm font-bold text-slate-200 uppercase flex items-center gap-2">
               <Sun className="w-4 h-4 text-primary-theme" />
-              Workshop Display Theme (8 Options)
+              Workshop Display Theme
             </h2>
             <p className="text-xs text-slate-400">
               Select a specialized color layout. Dark-ambient presets are highly recommended for eye safety and durability inside physical repair environments.
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="theme-selector-grid">
-              {availableThemes.map((t) => {
-                const isSelected = activeTheme === t.id;
+            <div className="space-y-3">
+              <div className="relative">
+                <select
+                  value={activeTheme}
+                  onChange={(e) => setActiveTheme(e.target.value)}
+                  className="w-full bg-bg-theme border border-border-theme text-slate-200 text-xs px-3.5 py-3 rounded-lg focus:border-primary-theme focus:outline-none cursor-pointer font-bold uppercase tracking-wider"
+                  id="theme-select-dropdown"
+                >
+                  {availableThemes.map((t) => (
+                    <option key={t.id} value={t.id} className="bg-[#13141a] text-slate-200 text-xs py-2">
+                      {t.name} ({t.desc})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Selected Theme Details Banner */}
+              {(() => {
+                const currentTheme = availableThemes.find(t => t.id === activeTheme) || availableThemes[0];
                 return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setActiveTheme(t.id)}
-                    className={`p-3.5 rounded-lg border text-left flex items-center gap-3 transition cursor-pointer select-none group relative ${
-                      isSelected
-                        ? 'border-primary-theme bg-primary-theme/5 shadow'
-                        : 'border-border-theme bg-bg-theme/40 hover:bg-bg-theme/80 hover:border-slate-700'
-                    }`}
-                  >
-                    {/* Visual Color Circle swatches */}
+                  <div className="flex items-center gap-3.5 bg-bg-theme/40 border border-border-theme/60 rounded-lg p-3 select-none">
                     <div className="flex gap-1 shrink-0">
                       <span 
-                        className="w-4 h-4 rounded-full border border-black/40 block" 
-                        style={{ backgroundColor: t.primaryColor }} 
+                        className="w-5 h-5 rounded-full border border-black/40 block shadow-sm" 
+                        style={{ backgroundColor: currentTheme.primaryColor }} 
                       />
                       <span 
-                        className="w-4 h-4 rounded-full border border-black/40 block -ml-2" 
-                        style={{ backgroundColor: t.bgColor }} 
+                        className="w-5 h-5 rounded-full border border-black/40 block -ml-2.5 shadow-lg" 
+                        style={{ backgroundColor: currentTheme.bgColor }} 
                       />
                     </div>
-
-                    <div className="min-w-0">
-                      <span className={`text-xs uppercase font-black tracking-wider block ${
-                        isSelected ? 'text-primary-theme' : 'text-slate-300 group-hover:text-white'
-                      }`}>
-                        {t.name}
+                    <div className="text-left">
+                      <span className="text-xs font-bold text-slate-200 block uppercase tracking-wider">
+                        {currentTheme.name}
                       </span>
-                      <span className="text-[10px] text-slate-500 block truncate">
-                        {t.desc}
-                      </span>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {currentTheme.desc}
+                      </p>
                     </div>
-
-                    {isSelected && (
-                      <span className="absolute top-2 right-2.5 w-1.5 h-1.5 rounded-full bg-primary-theme" />
-                    )}
-                  </button>
+                  </div>
                 );
-              })}
+              })()}
             </div>
           </div>
 
