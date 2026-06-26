@@ -74,20 +74,20 @@ export default function TreeView({
   // Helper to expand all categories recursively
   const handleExpandAll = () => {
     const newExpanded: { [key: string]: boolean } = {};
-    const recExpand = (nodes: CategoryTreeNode[], parentPathKey: string) => {
+    const recExpand = (nodes: CategoryTreeNode[], parentPathKey: string, currentBaseUri: string) => {
       nodes.forEach((node) => {
-        const resolvedUri = node.type === 'link' && node.href ? resolveHref(baseUri, node.href) : '';
+        const resolvedUri = node.type === 'link' && node.href ? resolveHref(currentBaseUri, node.href) : '';
         const dynamicChildrenList = (node.type === 'link' && resolvedUri && dynamicChildren && dynamicChildren[resolvedUri]) || null;
 
         if (node.type === 'category' || dynamicChildrenList) {
           const pathKey = parentPathKey ? `${parentPathKey}/${node.title}` : node.title;
           newExpanded[pathKey] = true;
           const children = node.type === 'category' ? node.children : dynamicChildrenList!;
-          recExpand(children, pathKey);
+          recExpand(children, pathKey, node.type === 'category' ? currentBaseUri : resolvedUri);
         }
       });
     };
-    recExpand(rootTree, '');
+    recExpand(rootTree, '', baseUri);
     setExpandedNodes(newExpanded);
   };
 
@@ -105,17 +105,18 @@ export default function TreeView({
     const query = searchQuery.toLowerCase();
     const autoExpanded = new Set<string>();
     
-    function filterNodes(nodes: CategoryTreeNode[], parentPathKey: string): CategoryTreeNode[] {
+    function filterNodes(nodes: CategoryTreeNode[], parentPathKey: string, currentBaseUri: string): CategoryTreeNode[] {
       const filtered: CategoryTreeNode[] = [];
 
       for (const node of nodes) {
         const pathKey = parentPathKey ? `${parentPathKey}/${node.title}` : node.title;
-        const resolvedUri = node.type === 'link' && node.href ? resolveHref(baseUri, node.href) : '';
+        const resolvedUri = node.type === 'link' && node.href ? resolveHref(currentBaseUri, node.href) : '';
         const dynamicChildrenList = (node.type === 'link' && resolvedUri && dynamicChildren && dynamicChildren[resolvedUri]) || null;
 
         if (node.type === 'category' || dynamicChildrenList) {
           const children = node.type === 'category' ? node.children : dynamicChildrenList!;
-          const childFiltered = filterNodes(children, pathKey);
+          const nextBaseUri = node.type === 'category' ? currentBaseUri : resolvedUri;
+          const childFiltered = filterNodes(children, pathKey, nextBaseUri);
           const isMatch = node.title.toLowerCase().includes(query);
           const hasMatchingChildren = childFiltered.length > 0;
 
@@ -139,7 +140,7 @@ export default function TreeView({
       return filtered;
     }
 
-    const filtered = filterNodes(rootTree, '');
+    const filtered = filterNodes(rootTree, '', baseUri);
     return { tree: filtered, isFiltered: true, autoExpanded };
   }, [rootTree, searchQuery, dynamicChildren, baseUri]);
 
@@ -147,10 +148,8 @@ export default function TreeView({
   const displayTree = filteredTreeData.tree;
 
   // Handle clicking leaf node links
-  const handleLinkClick = (node: CategoryTreeLink) => {
+  const handleLinkClick = (node: CategoryTreeLink, resolvedUri: string) => {
     if (!node.href) return; // Header label only
-
-    const resolvedUri = resolveHref(baseUri, node.href);
     
     // Check if it's a download or bundle link
     if (node.icon === '/icons/download.svg' || node.href.startsWith('/bundle/')) {
@@ -171,11 +170,11 @@ export default function TreeView({
   };
 
   // Recursive Tree Node Renderer
-  const renderNode = (node: CategoryTreeNode, index: number, depth: number, parentPathKey: string) => {
+  const renderNode = (node: CategoryTreeNode, index: number, depth: number, parentPathKey: string, currentBaseUri: string) => {
     const pathKey = parentPathKey ? `${parentPathKey}/${node.title}` : node.title;
 
     // Check if link node has dynamic children
-    const resolvedUri = node.type === 'link' && node.href ? resolveHref(baseUri, node.href) : '';
+    const resolvedUri = node.type === 'link' && node.href ? resolveHref(currentBaseUri, node.href) : '';
     const dynamicChildrenList = (node.type === 'link' && resolvedUri && dynamicChildren && dynamicChildren[resolvedUri]) || null;
 
     if (node.type === 'category' || dynamicChildrenList) {
@@ -217,7 +216,7 @@ export default function TreeView({
 
           {isExpanded && children.length > 0 && (
             <div className="space-y-0.5 border-l border-slate-800/60 ml-3 pl-1.5 animate-fade-in">
-              {children.map((child, i) => renderNode(child, i, depth + 1, pathKey))}
+              {children.map((child, i) => renderNode(child, i, depth + 1, pathKey, node.type === 'category' ? currentBaseUri : resolvedUri))}
             </div>
           )}
         </div>
@@ -244,7 +243,7 @@ export default function TreeView({
       return (
         <button
           type="button"
-          onClick={() => handleLinkClick(node)}
+          onClick={() => handleLinkClick(node, resolvedUri)}
           style={{ paddingLeft: `${depth * 12 + 16}px` }}
           className={`w-full flex items-center justify-between text-left py-1 pr-1.5 rounded transition duration-150 border-l-2 ${
             isCurrentActive 
@@ -320,7 +319,7 @@ export default function TreeView({
       <div className="flex-1 overflow-y-auto px-1 pr-1 min-h-0" id="tree-container">
         <div className="space-y-1 py-1" id="tree-level-list">
           {displayTree && displayTree.length > 0 ? (
-            displayTree.map((node, i) => renderNode(node, i, 0, ''))
+            displayTree.map((node, i) => renderNode(node, i, 0, '', baseUri))
           ) : (
             <div className="p-6 text-center text-slate-500 text-xs font-sans select-none">
               {isFiltered ? 'No matching chapters found.' : 'No active items found here.'}
