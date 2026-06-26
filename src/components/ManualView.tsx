@@ -772,6 +772,33 @@ export default function ManualView({
                             );
                           }
 
+                          if (block.type === 'table') {
+                            return (
+                              <div key={`table-${blockIdx}`} className="overflow-x-auto rounded-xl border border-[#1e2028] my-4">
+                                <table className="w-full text-sm">
+                                  {block.headers && block.headers.length > 0 && (
+                                    <thead className="bg-[#1a1c24]">
+                                      <tr>
+                                        {block.headers.map((h: string, i: number) => (
+                                          <th key={i} className="px-4 py-2 text-left text-amber-500 font-bold uppercase text-xs tracking-wider border-b border-[#1e2028]">{h}</th>
+                                        ))}
+                                      </tr>
+                                    </thead>
+                                  )}
+                                  <tbody>
+                                    {block.rows && block.rows.map((row: string[], i: number) => (
+                                      <tr key={i} className={i % 2 === 0 ? 'bg-[#13141a]' : 'bg-[#0f1015]'}>
+                                        {row.map((cell: string, j: number) => (
+                                          <td key={j} className="px-4 py-2 text-slate-300 border-b border-[#1e2028]/50">{cell}</td>
+                                        ))}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            );
+                          }
+
                           return null;
                         })
                       ) : (

@@ -47,7 +47,8 @@ export type ContentBlock =
   | { type: 'heading'; text: string }
   | { type: 'image'; src: string }
   | { type: 'steps'; items: string[] }
-  | { type: 'text'; text: string };
+  | { type: 'text'; text: string }
+  | { type: 'table'; headers: string[]; rows: string[][] };
 
 export type Block = ContentBlock; // alias for backward compatibility
 
