@@ -337,9 +337,12 @@ export default function ManualView({
       }
     } else {
       // Selecting a leaf procedure document within the expanded tree
-      setCurrentUri(resolvedUri);
-      loadActivePageDetails(resolvedUri);
       setSidebarOpen(false);
+      if (resolvedUri === currentUri) {
+        loadActivePageDetails(resolvedUri);
+      } else {
+        setCurrentUri(resolvedUri);
+      }
     }
   };
 
