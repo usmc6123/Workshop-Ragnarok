@@ -59,9 +59,9 @@ export default function Sidebar({
           <div className="p-4 border-b border-border-theme flex items-center justify-between gap-3 h-[64px] shrink-0">
             <div className="flex items-center gap-3 overflow-hidden cursor-pointer" onClick={() => onChangeView('dashboard')}>
               <img 
-                src={LOGO_URL} 
+                src="https://raw.githubusercontent.com/usmc6123/images/main/newlogo.jpg" 
                 alt="Workshop: Ragnarök Logo" 
-                className="w-8 h-8 rounded object-cover border border-border-theme shrink-0"
+                className={`${collapsed ? 'w-8 h-8' : 'w-10 h-10'} rounded-full object-cover border border-border-theme shrink-0`}
               />
               {!collapsed && (
                 <div className="animate-fade-in truncate">
