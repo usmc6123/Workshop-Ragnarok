@@ -16,6 +16,7 @@ interface TreeViewProps {
   baseUri: string;
   activeUri?: string;
   onSelectUri: (uri: string, node: CategoryTreeNode) => void;
+  dynamicChildren?: Record<string, CategoryTreeNode[]>;
 }
 
 // Map semantic icons based on common names
@@ -48,7 +49,8 @@ export default function TreeView({
   rootTree, 
   baseUri, 
   activeUri,
-  onSelectUri
+  onSelectUri,
+  dynamicChildren
 }: TreeViewProps) {
   
   // Tracking expanded categories by their unique pathKey
@@ -74,10 +76,14 @@ export default function TreeView({
     const newExpanded: { [key: string]: boolean } = {};
     const recExpand = (nodes: CategoryTreeNode[], parentPathKey: string) => {
       nodes.forEach((node) => {
-        if (node.type === 'category') {
+        const resolvedUri = node.type === 'link' && node.href ? resolveHref(baseUri, node.href) : '';
+        const dynamicChildrenList = (node.type === 'link' && resolvedUri && dynamicChildren && dynamicChildren[resolvedUri]) || null;
+
+        if (node.type === 'category' || dynamicChildrenList) {
           const pathKey = parentPathKey ? `${parentPathKey}/${node.title}` : node.title;
           newExpanded[pathKey] = true;
-          recExpand(node.children, pathKey);
+          const children = node.type === 'category' ? node.children : dynamicChildrenList!;
+          recExpand(children, pathKey);
         }
       });
     };
@@ -104,17 +110,21 @@ export default function TreeView({
 
       for (const node of nodes) {
         const pathKey = parentPathKey ? `${parentPathKey}/${node.title}` : node.title;
+        const resolvedUri = node.type === 'link' && node.href ? resolveHref(baseUri, node.href) : '';
+        const dynamicChildrenList = (node.type === 'link' && resolvedUri && dynamicChildren && dynamicChildren[resolvedUri]) || null;
 
-        if (node.type === 'category') {
-          const childFiltered = filterNodes(node.children, pathKey);
+        if (node.type === 'category' || dynamicChildrenList) {
+          const children = node.type === 'category' ? node.children : dynamicChildrenList!;
+          const childFiltered = filterNodes(children, pathKey);
           const isMatch = node.title.toLowerCase().includes(query);
           const hasMatchingChildren = childFiltered.length > 0;
 
           if (isMatch || hasMatchingChildren) {
             filtered.push({
               ...node,
+              type: 'category',
               children: childFiltered
-            });
+            } as any);
             if (hasMatchingChildren) {
               autoExpanded.add(pathKey);
             }
@@ -131,7 +141,7 @@ export default function TreeView({
 
     const filtered = filterNodes(rootTree, '');
     return { tree: filtered, isFiltered: true, autoExpanded };
-  }, [rootTree, searchQuery]);
+  }, [rootTree, searchQuery, dynamicChildren, baseUri]);
 
   const isFiltered = filteredTreeData.isFiltered;
   const displayTree = filteredTreeData.tree;
@@ -163,12 +173,19 @@ export default function TreeView({
   // Recursive Tree Node Renderer
   const renderNode = (node: CategoryTreeNode, index: number, depth: number, parentPathKey: string) => {
     const pathKey = parentPathKey ? `${parentPathKey}/${node.title}` : node.title;
-    // Auto expand all when filtering to reveal search results
-    const isExpanded = isFiltered ? filteredTreeData.autoExpanded.has(pathKey) : !!expandedNodes[pathKey];
 
-    if (node.type === 'category') {
-      const childrenCount = node.children.length;
+    // Check if link node has dynamic children
+    const resolvedUri = node.type === 'link' && node.href ? resolveHref(baseUri, node.href) : '';
+    const dynamicChildrenList = (node.type === 'link' && resolvedUri && dynamicChildren && dynamicChildren[resolvedUri]) || null;
+
+    if (node.type === 'category' || dynamicChildrenList) {
+      const children = node.type === 'category' ? node.children : dynamicChildrenList!;
+      const childrenCount = children.length;
       
+      const isExpanded = isFiltered 
+        ? filteredTreeData.autoExpanded.has(pathKey) 
+        : (expandedNodes[pathKey] !== undefined ? expandedNodes[pathKey] : (dynamicChildrenList ? true : false));
+
       const handleCategoryClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (!isFiltered) {
@@ -198,16 +215,15 @@ export default function TreeView({
             </span>
           </button>
 
-          {isExpanded && node.children.length > 0 && (
+          {isExpanded && children.length > 0 && (
             <div className="space-y-0.5 border-l border-slate-800/60 ml-3 pl-1.5 animate-fade-in">
-              {node.children.map((child, i) => renderNode(child, i, depth + 1, pathKey))}
+              {children.map((child, i) => renderNode(child, i, depth + 1, pathKey))}
             </div>
           )}
         </div>
       );
     } else {
       // Leaf link node
-      const resolvedUri = resolveHref(baseUri, node.href);
       const isCurrentActive = activeUri === resolvedUri;
       const LinkIcon = getSemanticIcon(node.icon);
       const hasHref = !!node.href;

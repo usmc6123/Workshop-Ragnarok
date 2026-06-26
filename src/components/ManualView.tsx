@@ -34,6 +34,7 @@ export default function ManualView({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [rootCategoryPage, setRootCategoryPage] = useState<CategoryPage | null>(null);
   const [loadingSidebar, setLoadingSidebar] = useState(true);
+  const [dynamicChildren, setDynamicChildren] = useState<Record<string, any[]>>({});
 
   // Navigation Drill-Down State machine
   const [navLevel, setNavLevel] = useState<'root' | 'section'>('root');
@@ -139,6 +140,7 @@ export default function ManualView({
   const loadSidebarTree = async () => {
     setLoadingSidebar(true);
     setErrorSidebar(null);
+    setDynamicChildren({});
     try {
       const pageData = await api.getPage(vehicle.uriPath);
       if (pageData.pageType === 'category') {
@@ -164,6 +166,11 @@ export default function ManualView({
     setCompletedSteps({}); // Reset checklists on page changes
     try {
       const data = await api.getPage(uri);
+      if (data.pageType === 'category') {
+        const firstNode = data.tree?.[0];
+        const children = (firstNode && 'children' in firstNode ? firstNode.children : null) || data.tree || [];
+        setDynamicChildren(prev => ({ ...prev, [uri]: children }));
+      }
       setActivePage(data);
     } catch (err: any) {
       setErrorActivePage(err.message || 'Failed to download procedure instructions.');
@@ -336,25 +343,9 @@ export default function ManualView({
         setLoadingActivePage(false);
       }
     } else {
-      // Selecting a node — fetch and show content or drill into sub-category
-      setSidebarOpen(false);
-      setLoadingActivePage(true);
-      try {
-        const pageData = await api.getPage(resolvedUri);
-        setCurrentUri(resolvedUri);
-        if (pageData.pageType === 'category' && pageData.tree && pageData.tree.length > 0) {
-          const children = pageData.tree[0]?.children || pageData.tree;
-          setSectionTree(children);
-          setSectionBaseUri(resolvedUri);
-          setActivePage({ pageType: 'category', title: pageData.title, tree: [] });
-        } else {
-          setActivePage(pageData);
-        }
-      } catch (err: any) {
-        setErrorActivePage(err.message || 'Failed to load page.');
-      } finally {
-        setLoadingActivePage(false);
-      }
+      // Selecting a leaf procedure document within the expanded tree
+      setCurrentUri(resolvedUri);
+      setSidebarOpen(false); // Close mobile menu drawer
     }
   };
 
@@ -504,6 +495,7 @@ export default function ManualView({
                       setNavLevel('root');
                       setActivePage(rootCategoryPage);
                       setCurrentUri(vehicle.uriPath);
+                      setDynamicChildren({});
                     }}
                     className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-amber-500/10 hover:bg-amber-500 hover:text-slate-950 text-amber-400 hover:border-amber-500/30 border border-amber-500/10 rounded-lg text-xs font-bold uppercase tracking-wider transition duration-150 select-none cursor-pointer"
                   >
@@ -518,6 +510,7 @@ export default function ManualView({
                   baseUri={displayBaseUri}
                   activeUri={currentUri}
                   onSelectUri={handleSelectUri}
+                  dynamicChildren={dynamicChildren}
                 />
               </div>
             ) : (
