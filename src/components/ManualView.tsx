@@ -338,7 +338,8 @@ export default function ManualView({
     } else {
       // Selecting a leaf procedure document within the expanded tree
       setCurrentUri(resolvedUri);
-      setSidebarOpen(false); // Close mobile menu drawer
+      loadActivePageDetails(resolvedUri);
+      setSidebarOpen(false);
     }
   };
 
