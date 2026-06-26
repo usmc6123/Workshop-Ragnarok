@@ -193,3 +193,15 @@ export interface DatabaseStats {
   totalVehicles: number;
   activeJobs: number;
 }
+
+export interface VehicleManual {
+  id: number;
+  garageVehicleId: number;
+  manualUri: string;
+  manualTitle: string;
+  manualMake: string;
+  manualYear: string;
+  manualModel: string;
+  manualEngine: string;
+  savedAt: string;
+}

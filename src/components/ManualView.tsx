@@ -58,6 +58,57 @@ export default function ManualView({
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [lightboxAlt, setLightboxAlt] = useState<string>('');
 
+  // Save to Vehicle state
+  const [garageVehicles, setGarageVehicles] = useState<any[]>([]);
+  const [showSaveToVehicleModal, setShowSaveToVehicleModal] = useState(false);
+  const [savingToVehicle, setSavingToVehicle] = useState(false);
+  const [selectedGarageVehicleId, setSelectedGarageVehicleId] = useState<number | ''>('');
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+
+  const handleOpenSaveToVehicleModal = async () => {
+    try {
+      const data = await api.getGarageVehicles();
+      setGarageVehicles(data);
+      if (data.length > 0) {
+        setSelectedGarageVehicleId(data[0].id);
+      }
+      setShowSaveToVehicleModal(true);
+      setSaveSuccessMessage(null);
+    } catch (err) {
+      console.error('Failed to load garage vehicles', err);
+      alert('Failed to load garage vehicles.');
+    }
+  };
+
+  const handleSaveToVehicleConfirm = async () => {
+    if (!selectedGarageVehicleId) {
+      alert('Please select a vehicle.');
+      return;
+    }
+    setSavingToVehicle(true);
+    try {
+      const payload = {
+        garageVehicleId: Number(selectedGarageVehicleId),
+        manualUri: currentUri,
+        manualTitle: activePage?.title || vehicle.model,
+        manualMake: vehicle.make,
+        manualYear: vehicle.year,
+        manualModel: vehicle.model,
+        manualEngine: vehicle.engine
+      };
+      await api.saveVehicleManual(payload);
+      setSaveSuccessMessage('Manual successfully saved to vehicle!');
+      setTimeout(() => {
+        setShowSaveToVehicleModal(false);
+        setSaveSuccessMessage(null);
+      }, 2000);
+    } catch (err: any) {
+      alert('Error saving manual to vehicle: ' + err.message);
+    } finally {
+      setSavingToVehicle(false);
+    }
+  };
+
   // 1. Resolve Garage bookmarks & companion manual alternatives
   const checkGarageAndAlternatives = async () => {
     try {
@@ -300,6 +351,16 @@ export default function ManualView({
           >
             {garageStatus.isSaved ? <Star className="w-4 h-4 fill-amber-500 text-amber-500" /> : <StarOff className="w-4 h-4" />}
             <span className="hidden sm:inline">{garageStatus.isSaved ? 'Saved' : 'Save Garage'}</span>
+          </button>
+
+          {/* Save to Vehicle Button */}
+          <button
+            onClick={handleOpenSaveToVehicleModal}
+            className="flex items-center gap-1.5 rounded text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 border bg-[#0a0a0f] border-[#1e2028] text-slate-400 hover:border-slate-700 hover:text-white transition cursor-pointer"
+            title="Save manual page directly to a specific vehicle profile"
+          >
+            <FolderPlus className="w-4 h-4 text-primary-theme" />
+            <span className="hidden sm:inline">Save to Vehicle</span>
           </button>
 
           {/* Mobile drawer toggle */}
@@ -693,6 +754,70 @@ export default function ManualView({
               >
                 {savingGarage ? 'Saving...' : 'Pin in Garage'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save to Vehicle dialog modal */}
+      {showSaveToVehicleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in" id="save-to-vehicle-modal">
+          <div className="w-full max-w-sm rounded-xl border border-[#1e2028] bg-[#13141a] text-slate-100 overflow-hidden shadow-2xl">
+            <div className="bg-[#1a1c24] border-b border-[#1e2028] p-4 flex items-center gap-2">
+              <FolderPlus className="w-4.5 h-4.5 text-amber-500" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200 font-mono">Save Manual to Vehicle</h3>
+            </div>
+            
+            <div className="p-4 space-y-4">
+              {saveSuccessMessage ? (
+                <div className="bg-green-950/20 border border-green-800/30 p-4 text-center text-green-300 text-xs flex items-center justify-center gap-2 font-medium rounded-lg shadow-sm">
+                  <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
+                  <span>{saveSuccessMessage}</span>
+                </div>
+              ) : garageVehicles.length === 0 ? (
+                <div className="py-6 text-center space-y-2">
+                  <p className="text-xs text-slate-400">No registered vehicles found in your garage.</p>
+                  <p className="text-[10px] text-slate-500 leading-relaxed">Please register a vehicle first in the Vehicles or Garage tabs.</p>
+                </div>
+              ) : (
+                <div className="space-y-1.5 text-left">
+                  <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">
+                    Select Vehicle Profile
+                  </label>
+                  <select
+                    value={selectedGarageVehicleId}
+                    onChange={(e) => setSelectedGarageVehicleId(e.target.value ? Number(e.target.value) : '')}
+                    className="w-full rounded bg-[#0a0a0f] border border-[#1e2028] text-slate-205 text-text-theme text-sm px-3.5 py-2.5 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/20 cursor-pointer"
+                  >
+                    {garageVehicles.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.year} {v.make} {v.model} ({v.customer_name || 'Personal'})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">This links the active manual page directly to the vehicle's diagnostic profile.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-[#1a1c24] p-3.5 border-t border-[#1e2028] flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowSaveToVehicleModal(false)}
+                className="px-4 py-2 text-xs font-semibold tracking-wider text-slate-400 uppercase hover:text-slate-200 cursor-pointer"
+              >
+                Close
+              </button>
+              {garageVehicles.length > 0 && !saveSuccessMessage && (
+                <button
+                  type="button"
+                  onClick={handleSaveToVehicleConfirm}
+                  disabled={savingToVehicle}
+                  className="rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {savingToVehicle ? 'Saving...' : 'Link to Profile'}
+                </button>
+              )}
             </div>
           </div>
         </div>

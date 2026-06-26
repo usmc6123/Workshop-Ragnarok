@@ -262,6 +262,7 @@ export default function App() {
           {view === 'vehicles' && (
             <VehiclesView 
               onNavigateToManualWithSearch={(make, year, model) => handleNavBrowse(`${make} ${model}`)} 
+              onSelectVehicle={handleSelectVehicle}
               refreshTrigger={refreshTrigger}
             />
           )}

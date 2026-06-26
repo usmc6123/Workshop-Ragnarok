@@ -139,6 +139,22 @@ try {
     )
   `);
 
+  // 7. Create Vehicle Manuals Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS vehicle_manuals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      garage_vehicle_id INTEGER NOT NULL REFERENCES customer_vehicles(id) ON DELETE CASCADE,
+      manual_uri TEXT NOT NULL,
+      manual_title TEXT,
+      manual_make TEXT,
+      manual_year TEXT,
+      manual_model TEXT,
+      manual_engine TEXT,
+      saved_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(garage_vehicle_id, manual_uri)
+    )
+  `);
+
   // Seed initial CRM data if table is completely empty
   const customerCount = db.prepare('SELECT count(*) as count FROM customers').get().count;
   if (customerCount === 0) {
@@ -819,6 +835,78 @@ app.delete('/api/service-history/:id', (req, res) => {
   } catch (error) {
     console.error('Error deleting service entry:', error);
     res.status(500).json({ error: 'Database error deleting service entry' });
+  }
+});
+
+// --- VEHICLE MANUALS ---
+app.get('/api/vehicle-manuals/:garageVehicleId', (req, res) => {
+  try {
+    const { garageVehicleId } = req.params;
+    const stmt = db.prepare('SELECT * FROM vehicle_manuals WHERE garage_vehicle_id = ? ORDER BY saved_at DESC');
+    const rows = stmt.all(garageVehicleId);
+    
+    // Map snake_case SQLite fields to camelCase for the frontend
+    const mapped = rows.map(r => ({
+      id: r.id,
+      garageVehicleId: r.garage_vehicle_id,
+      manualUri: r.manual_uri,
+      manualTitle: r.manual_title,
+      manualMake: r.manual_make,
+      manualYear: r.manual_year,
+      manualModel: r.manual_model,
+      manualEngine: r.manual_engine,
+      savedAt: r.saved_at
+    }));
+    res.json(mapped);
+  } catch (error) {
+    console.error('Error fetching vehicle manuals:', error);
+    res.status(500).json({ error: 'Database error fetching vehicle manuals' });
+  }
+});
+
+app.post('/api/vehicle-manuals', (req, res) => {
+  try {
+    const { garageVehicleId, manualUri, manualTitle, manualMake, manualYear, manualModel, manualEngine } = req.body;
+    if (!garageVehicleId || !manualUri) {
+      return res.status(400).json({ error: 'garageVehicleId and manualUri are required' });
+    }
+    const stmt = db.prepare(`
+      INSERT OR REPLACE INTO vehicle_manuals (garage_vehicle_id, manual_uri, manual_title, manual_make, manual_year, manual_model, manual_engine)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const info = stmt.run(garageVehicleId, manualUri, manualTitle || '', manualMake || '', manualYear || '', manualModel || '', manualEngine || '');
+    const id = info.lastInsertRowid;
+    
+    const saved = db.prepare('SELECT * FROM vehicle_manuals WHERE id = ?').get(id);
+    res.json({
+      id: saved.id,
+      garageVehicleId: saved.garage_vehicle_id,
+      manualUri: saved.manual_uri,
+      manualTitle: saved.manual_title,
+      manualMake: saved.manual_make,
+      manualYear: saved.manual_year,
+      manualModel: saved.manual_model,
+      manualEngine: saved.manual_engine,
+      savedAt: saved.saved_at
+    });
+  } catch (error) {
+    console.error('Error saving vehicle manual:', error);
+    res.status(500).json({ error: 'Database error saving vehicle manual' });
+  }
+});
+
+app.delete('/api/vehicle-manuals/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const stmt = db.prepare('DELETE FROM vehicle_manuals WHERE id = ?');
+    const info = stmt.run(id);
+    if (info.changes === 0) {
+      return res.status(404).json({ error: 'Vehicle manual not found' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting vehicle manual:', error);
+    res.status(500).json({ error: 'Database error deleting vehicle manual' });
   }
 });
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Customer, CustomerVehicle, ServiceHistory } from '../types';
+import { Customer, CustomerVehicle, ServiceHistory, Vehicle, VehicleManual } from '../types';
 import { api } from '../lib/api';
 import { 
   Car, Plus, Search, Edit2, Trash2, ArrowLeft, BookOpen, Calendar, 
@@ -8,10 +8,11 @@ import {
 
 interface VehiclesViewProps {
   onNavigateToManualWithSearch: (make: string, year: string, model: string) => void;
+  onSelectVehicle?: (vehicle: Vehicle) => void;
   refreshTrigger: number;
 }
 
-export default function VehiclesView({ onNavigateToManualWithSearch, refreshTrigger }: VehiclesViewProps) {
+export default function VehiclesView({ onNavigateToManualWithSearch, onSelectVehicle, refreshTrigger }: VehiclesViewProps) {
   const [vehicles, setVehicles] = useState<CustomerVehicle[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<CustomerVehicle | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -21,6 +22,10 @@ export default function VehiclesView({ onNavigateToManualWithSearch, refreshTrig
   const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Saved Manuals State
+  const [savedManuals, setSavedManuals] = useState<VehicleManual[]>([]);
+  const [manualsLoading, setManualsLoading] = useState(false);
 
   // Modals state
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
@@ -103,11 +108,54 @@ export default function VehiclesView({ onNavigateToManualWithSearch, refreshTrig
     }
   };
 
+  const fetchSavedManuals = async (garageVehicleId: number) => {
+    setManualsLoading(true);
+    try {
+      const data = await api.getVehicleManuals(garageVehicleId);
+      setSavedManuals(data);
+    } catch (err) {
+      console.error('Failed to load saved manuals:', err);
+    } finally {
+      setManualsLoading(false);
+    }
+  };
+
+  const handleDeleteSavedManual = async (manualId: number) => {
+    if (!window.confirm('Are you sure you want to remove this saved manual from this vehicle?')) return;
+    try {
+      await api.deleteVehicleManual(manualId);
+      if (selectedVehicle) {
+        fetchSavedManuals(selectedVehicle.id);
+      }
+    } catch (err: any) {
+      alert('Failed to delete saved manual: ' + err.message);
+    }
+  };
+
+  const handleOpenSavedManual = (manual: VehicleManual) => {
+    if (onSelectVehicle) {
+      const vehicleToOpen: Vehicle = {
+        id: -1,
+        source: 'lemon',
+        make: manual.manualMake,
+        year: manual.manualYear,
+        model: manual.manualModel,
+        engine: manual.manualEngine,
+        uriPath: manual.manualUri,
+        isComplete: 1
+      };
+      onSelectVehicle(vehicleToOpen);
+    } else {
+      onNavigateToManualWithSearch(manual.manualMake, manual.manualYear, manual.manualModel);
+    }
+  };
+
   const handleSelectVehicle = (vehicle: CustomerVehicle) => {
     setSelectedVehicle(vehicle);
     setProfileMileage(vehicle.current_mileage.toString());
     setProfileNotes(vehicle.notes || '');
     fetchServiceHistory(vehicle.id);
+    fetchSavedManuals(vehicle.id);
   };
 
   const handleSaveProfileEdits = async () => {
@@ -503,43 +551,94 @@ export default function VehiclesView({ onNavigateToManualWithSearch, refreshTrig
               </div>
             </div>
 
-            {/* Right Box: Linked Customer Contact Card */}
-            <div className="lg:col-span-4 bg-surface-theme border border-border-theme rounded-xl p-5 space-y-4 shadow-xl">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-350 border-b border-border-theme pb-2 flex items-center gap-1.5">
-                <User className="w-4 h-4 text-primary-theme" />
-                Linked Customer Account
-              </h3>
+            {/* Right Box: Linked Customer Contact Card & Saved Manuals */}
+            <div className="lg:col-span-4 space-y-6">
+              <div className="bg-surface-theme border border-border-theme rounded-xl p-5 space-y-4 shadow-xl">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-350 border-b border-border-theme pb-2 flex items-center gap-1.5">
+                  <User className="w-4 h-4 text-primary-theme" />
+                  Linked Customer Account
+                </h3>
 
-              <div className="space-y-3.5 text-xs">
-                <div className="flex items-start gap-2.5">
-                  <User className="w-4 h-4 text-primary-theme shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-[9px] font-mono text-slate-500 uppercase block">Client Name</span>
-                    <span className="text-xs text-slate-200 font-bold block">
-                      {selectedVehicle.customer_name || 'Unassigned Customer'}
-                    </span>
+                <div className="space-y-3.5 text-xs">
+                  <div className="flex items-start gap-2.5">
+                    <User className="w-4 h-4 text-primary-theme shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[9px] font-mono text-slate-500 uppercase block">Client Name</span>
+                      <span className="text-xs text-slate-200 font-bold block">
+                        {selectedVehicle.customer_name || 'Unassigned Customer'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 border-t border-border-theme/40 pt-2.5">
+                    <Phone className="w-4 h-4 text-primary-theme shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[9px] font-mono text-slate-500 uppercase block">Telephone Number</span>
+                      <a href={`tel:${selectedVehicle.customer_phone}`} className="text-xs text-slate-200 hover:text-primary-theme font-mono block underline">
+                        {selectedVehicle.customer_phone || 'N/A'}
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 border-t border-border-theme/40 pt-2.5">
+                    <Mail className="w-4 h-4 text-primary-theme shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[9px] font-mono text-slate-500 uppercase block">Email Address</span>
+                      <a href={`mailto:${selectedVehicle.customer_email}`} className="text-xs text-slate-200 hover:text-primary-theme font-mono block underline truncate max-w-[180px]">
+                        {selectedVehicle.customer_email || 'N/A'}
+                      </a>
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="flex items-start gap-2.5 border-t border-border-theme/40 pt-2.5">
-                  <Phone className="w-4 h-4 text-primary-theme shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-[9px] font-mono text-slate-500 uppercase block">Telephone Number</span>
-                    <a href={`tel:${selectedVehicle.customer_phone}`} className="text-xs text-slate-200 hover:text-primary-theme font-mono block underline">
-                      {selectedVehicle.customer_phone || 'N/A'}
-                    </a>
-                  </div>
-                </div>
+              {/* Saved Manuals Section */}
+              <div className="bg-surface-theme border border-border-theme rounded-xl p-5 space-y-4 shadow-xl" id="saved-manuals-card">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-350 border-b border-border-theme pb-2 flex items-center gap-1.5">
+                  <BookOpen className="w-4 h-4 text-primary-theme" />
+                  Saved Procedures & Manuals ({savedManuals.length})
+                </h3>
 
-                <div className="flex items-start gap-2.5 border-t border-border-theme/40 pt-2.5">
-                  <Mail className="w-4 h-4 text-primary-theme shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-[9px] font-mono text-slate-500 uppercase block">Email Address</span>
-                    <a href={`mailto:${selectedVehicle.customer_email}`} className="text-xs text-slate-200 hover:text-primary-theme font-mono block underline truncate max-w-[180px]">
-                      {selectedVehicle.customer_email || 'N/A'}
-                    </a>
+                {manualsLoading ? (
+                  <div className="py-4 text-center text-slate-500 text-xs flex items-center justify-center gap-2">
+                    <Wrench className="w-4 h-4 animate-spin text-primary-theme" />
+                    <span>Loading saved manuals...</span>
                   </div>
-                </div>
+                ) : savedManuals.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-4">
+                    No manuals saved yet. Browse the Manual Library and save manuals to this vehicle.
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {savedManuals.map((manual) => (
+                      <div key={manual.id} className="bg-bg-theme border border-border-theme rounded-lg p-3 space-y-2 text-left relative group">
+                        <div className="pr-6">
+                          <h4 className="text-xs font-bold text-slate-200 leading-snug line-clamp-2">
+                            {manual.manualTitle}
+                          </h4>
+                          <span className="text-[9px] font-mono text-slate-500 uppercase block mt-1">
+                            {manual.manualYear} {manual.manualMake} {manual.manualModel}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 pt-1">
+                          <button
+                            onClick={() => handleOpenSavedManual(manual)}
+                            className="bg-primary-theme/10 hover:bg-primary-theme hover:text-slate-950 border border-primary-theme/20 text-primary-theme text-[10px] font-mono uppercase tracking-wider font-extrabold px-2.5 py-1 rounded transition duration-155 cursor-pointer"
+                          >
+                            Open Manual
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSavedManual(manual.id)}
+                            className="text-slate-500 hover:text-red-400 p-1 rounded hover:bg-surface-theme transition cursor-pointer"
+                            title="Remove manual link"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

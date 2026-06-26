@@ -5,7 +5,7 @@
 
 import { 
   Vehicle, GarageItem, PageResponse, Customer, CustomerVehicle, 
-  ServiceHistory, Job, JobPart, Appointment, DatabaseStats 
+  ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual
 } from '../types';
 
 import { 
@@ -27,6 +27,22 @@ const SIMULATED_SERVICE_HISTORY_KEY = 'ragnarok_simulated_service_history_v1';
 const SIMULATED_JOBS_KEY = 'ragnarok_simulated_jobs_v1';
 const SIMULATED_JOB_PARTS_KEY = 'ragnarok_simulated_job_parts_v1';
 const SIMULATED_APPOINTMENTS_KEY = 'ragnarok_simulated_appointments_v1';
+const SIMULATED_VEHICLE_MANUALS_KEY = 'ragnarok_simulated_vehicle_manuals_v1';
+
+// Offline Simulators
+function getSimulatedVehicleManuals(): VehicleManual[] {
+  const saved = localStorage.getItem(SIMULATED_VEHICLE_MANUALS_KEY);
+  if (saved) {
+    try { return JSON.parse(saved); } catch {}
+  }
+  const initial: VehicleManual[] = [];
+  localStorage.setItem(SIMULATED_VEHICLE_MANUALS_KEY, JSON.stringify(initial));
+  return initial;
+}
+
+function saveSimulatedVehicleManuals(list: VehicleManual[]) {
+  localStorage.setItem(SIMULATED_VEHICLE_MANUALS_KEY, JSON.stringify(list));
+}
 
 // Offline Simulators
 function getSimulatedCustomers(): Customer[] {
@@ -942,6 +958,58 @@ export const api = {
         const list = getSimulatedAppointments();
         saveSimulatedAppointments(list.filter(a => a.id !== id));
         return { success: true };
+      }
+      throw err;
+    }
+  },
+
+  async getVehicleManuals(garageVehicleId: number): Promise<VehicleManual[]> {
+    try {
+      return await request<VehicleManual[]>(`/api/vehicle-manuals/${garageVehicleId}`);
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        console.warn('API is offline — serving simulated vehicle manuals.');
+        return getSimulatedVehicleManuals().filter(m => m.garageVehicleId === garageVehicleId);
+      }
+      throw err;
+    }
+  },
+
+  async saveVehicleManual(data: { garageVehicleId: number, manualUri: string, manualTitle: string, manualMake: string, manualYear: string, manualModel: string, manualEngine: string }): Promise<VehicleManual> {
+    try {
+      return await request<VehicleManual>('/api/vehicle-manuals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        console.warn('API is offline — simulating save vehicle manual.');
+        const list = getSimulatedVehicleManuals();
+        const nextId = list.reduce((max, item) => Math.max(max, item.id), 0) + 1;
+        const newItem: VehicleManual = {
+          id: nextId,
+          ...data,
+          savedAt: new Date().toISOString()
+        };
+        saveSimulatedVehicleManuals([...list, newItem]);
+        return newItem;
+      }
+      throw err;
+    }
+  },
+
+  async deleteVehicleManual(id: number): Promise<void> {
+    try {
+      await request<void>(`/api/vehicle-manuals/${id}`, {
+        method: 'DELETE'
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        console.warn('API is offline — simulating delete vehicle manual.');
+        const list = getSimulatedVehicleManuals();
+        saveSimulatedVehicleManuals(list.filter(m => m.id !== id));
+        return;
       }
       throw err;
     }

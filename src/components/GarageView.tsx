@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { GarageVehicle, ServiceHistory } from '../types';
+import { GarageVehicle, ServiceHistory, Vehicle, VehicleManual } from '../types';
 import { api } from '../lib/api';
 import { 
   Car, Plus, Trash2, Edit2, BookOpen, Calendar, Milestone, 
@@ -14,16 +14,21 @@ import {
 
 interface GarageViewProps {
   onNavigateToBrowse: (make: string, year: string, model: string) => void;
+  onSelectVehicle?: (vehicle: Vehicle) => void;
   refreshTrigger: number;
 }
 
-export default function GarageView({ onNavigateToBrowse, refreshTrigger }: GarageViewProps) {
+export default function GarageView({ onNavigateToBrowse, onSelectVehicle, refreshTrigger }: GarageViewProps) {
   const [vehicles, setVehicles] = useState<GarageVehicle[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<GarageVehicle | null>(null);
   const [serviceHistory, setServiceHistory] = useState<ServiceHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Saved Manuals State
+  const [savedManuals, setSavedManuals] = useState<VehicleManual[]>([]);
+  const [manualsLoading, setManualsLoading] = useState(false);
 
   // Modals state
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
@@ -95,11 +100,54 @@ export default function GarageView({ onNavigateToBrowse, refreshTrigger }: Garag
     }
   };
 
+  const fetchSavedManuals = async (garageVehicleId: number) => {
+    setManualsLoading(true);
+    try {
+      const data = await api.getVehicleManuals(garageVehicleId);
+      setSavedManuals(data);
+    } catch (err) {
+      console.error('Failed to load saved manuals:', err);
+    } finally {
+      setManualsLoading(false);
+    }
+  };
+
+  const handleDeleteSavedManual = async (manualId: number) => {
+    if (!window.confirm('Are you sure you want to remove this saved manual from this vehicle?')) return;
+    try {
+      await api.deleteVehicleManual(manualId);
+      if (selectedVehicle) {
+        fetchSavedManuals(selectedVehicle.id);
+      }
+    } catch (err: any) {
+      alert('Failed to delete saved manual: ' + err.message);
+    }
+  };
+
+  const handleOpenSavedManual = (manual: VehicleManual) => {
+    if (onSelectVehicle) {
+      const vehicleToOpen: Vehicle = {
+        id: -1,
+        source: 'lemon',
+        make: manual.manualMake,
+        year: manual.manualYear,
+        model: manual.manualModel,
+        engine: manual.manualEngine,
+        uriPath: manual.manualUri,
+        isComplete: 1
+      };
+      onSelectVehicle(vehicleToOpen);
+    } else {
+      onNavigateToBrowse(manual.manualMake, manual.manualYear, manual.manualModel);
+    }
+  };
+
   const handleSelectVehicle = (vehicle: GarageVehicle) => {
     setSelectedVehicle(vehicle);
     setProfileMileage(vehicle.current_mileage.toString());
     setProfileNotes(vehicle.notes);
     fetchServiceHistory(vehicle.id);
+    fetchSavedManuals(vehicle.id);
   };
 
   // Profile Save inline edits
@@ -476,20 +524,71 @@ export default function GarageView({ onNavigateToBrowse, refreshTrigger }: Garag
               </div>
             </div>
 
-            {/* Right Box: Status Sidebar / Photo Placeholder */}
-            <div className="lg:col-span-4 bg-[#13141a] border border-[#1e2028] rounded-xl p-6 text-center space-y-4 shadow-xl">
-              <div className="bg-[#0a0a0f] border border-[#1e2028] h-40 rounded-lg flex flex-col items-center justify-center text-slate-650 text-slate-500 select-none">
-                <Car className="w-12 h-12 text-slate-750 mb-2" />
-                <span className="text-[10px] font-mono tracking-wider uppercase">Stable Photo Placeholder</span>
-              </div>
-              <div className="text-left text-xs text-slate-400 space-y-2 leading-relaxed bg-[#0a0a0f]/50 p-4 border border-[#1e2028] rounded-lg">
-                <div className="flex items-center gap-1.5 text-amber-500 font-bold uppercase tracking-wider text-[10px] font-mono">
-                  <Info className="w-4 h-4" />
-                  <span>Workshop Diagnostics</span>
+            {/* Right Box: Status Sidebar / Photo Placeholder & Saved Manuals */}
+            <div className="lg:col-span-4 space-y-6">
+              <div className="bg-[#13141a] border border-[#1e2028] rounded-xl p-6 text-center space-y-4 shadow-xl">
+                <div className="bg-[#0a0a0f] border border-[#1e2028] h-40 rounded-lg flex flex-col items-center justify-center text-slate-650 text-slate-500 select-none">
+                  <Car className="w-12 h-12 text-slate-750 mb-2" />
+                  <span className="text-[10px] font-mono tracking-wider uppercase">Stable Photo Placeholder</span>
                 </div>
-                <p>
-                  Keep this vehicle record updated to synchronize maintenance periods, estimated mileage increases, and parts lists. Use the left button to find technical procedures.
-                </p>
+                <div className="text-left text-xs text-slate-400 space-y-2 leading-relaxed bg-[#0a0a0f]/50 p-4 border border-[#1e2028] rounded-lg">
+                  <div className="flex items-center gap-1.5 text-amber-500 font-bold uppercase tracking-wider text-[10px] font-mono">
+                    <Info className="w-4 h-4" />
+                    <span>Workshop Diagnostics</span>
+                  </div>
+                  <p>
+                    Keep this vehicle record updated to synchronize maintenance periods, estimated mileage increases, and parts lists. Use the left button to find technical procedures.
+                  </p>
+                </div>
+              </div>
+
+              {/* Saved Manuals Section */}
+              <div className="bg-[#13141a] border border-[#1e2028] rounded-xl p-6 space-y-4 shadow-xl" id="saved-manuals-card-garage">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-350 border-b border-[#1e2028] pb-2 flex items-center gap-1.5">
+                  <BookOpen className="w-4 h-4 text-amber-500" />
+                  Saved Procedures & Manuals ({savedManuals.length})
+                </h3>
+
+                {manualsLoading ? (
+                  <div className="py-4 text-center text-slate-500 text-xs flex items-center justify-center gap-2">
+                    <Wrench className="w-4 h-4 animate-spin text-amber-500" />
+                    <span>Loading saved manuals...</span>
+                  </div>
+                ) : savedManuals.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-4">
+                    No manuals saved yet. Browse the Manual Library and save manuals to this vehicle.
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {savedManuals.map((manual) => (
+                      <div key={manual.id} className="bg-[#0a0a0f] border border-[#1e2028] rounded-lg p-3 space-y-2 text-left relative group">
+                        <div className="pr-6">
+                          <h4 className="text-xs font-bold text-slate-200 leading-snug line-clamp-2">
+                            {manual.manualTitle}
+                          </h4>
+                          <span className="text-[9px] font-mono text-slate-500 uppercase block mt-1">
+                            {manual.manualYear} {manual.manualMake} {manual.manualModel}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 pt-1">
+                          <button
+                            onClick={() => handleOpenSavedManual(manual)}
+                            className="bg-amber-500/10 hover:bg-amber-500 hover:text-slate-950 border border-amber-500/20 text-amber-400 text-[10px] font-mono uppercase tracking-wider font-extrabold px-2.5 py-1 rounded transition duration-155 cursor-pointer"
+                          >
+                            Open Manual
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSavedManual(manual.id)}
+                            className="text-slate-500 hover:text-red-400 p-1 rounded hover:bg-[#13141a] transition cursor-pointer"
+                            title="Remove manual link"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
