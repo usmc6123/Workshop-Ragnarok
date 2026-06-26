@@ -502,7 +502,7 @@ app.get('/api/page', async (req, res) => {
 
       if (isLemonContent) {
         // --- LEMON Content Parser ---
-        $content.find('h1, h2, p.PROC_HEAD, p.HEAD, p, img, ol.ARABICNUM, div.CAUTION, div.WARNING, div.NOTE').each((idx, el) => {
+        $content.find('h1, h2, p.PROC_HEAD, p.HEAD, p, img, ol.ARABICNUM, div.CAUTION, div.WARNING, div.NOTE, table').each((idx, el) => {
           const $el = $(el);
 
           // Avoid double parsing nested items
@@ -560,6 +560,17 @@ app.get('/api/page', async (req, res) => {
             if (text) {
               blocks.push({ type: 'text', text: `📝 NOTE: ${text}` });
             }
+          } else if (el.name && el.name.toLowerCase() === 'table') {
+            if ($el.closest('table').length > 0 && !$el.is('table')) return;
+            const headers = [];
+            const rows = [];
+            $el.find('thead tr th').each((i, th) => headers.push($(th).text().trim()));
+            $el.find('tbody tr').each((i, trEl) => {
+              const cells = [];
+              $(trEl).find('td').each((j, tdEl) => cells.push($(tdEl).text().trim()));
+              if (cells.some(c => c)) rows.push(cells);
+            });
+            if (rows.length > 0) blocks.push({ type: 'table', headers, rows });
           }
         });
       } else {
