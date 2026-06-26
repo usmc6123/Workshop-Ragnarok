@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Vehicle, GarageItem, CategoryPage, ContentPage, PageResponse, Block } from '../types';
-import { api } from '../lib/api';
+import { api, getApiBase } from '../lib/api';
 import Lightbox from './Lightbox';
 import TreeView from './TreeView';
 import { 
@@ -176,6 +176,19 @@ export default function ManualView({
     }
   };
 
+  const goUpOneLevel = () => {
+    if (currentUri === vehicle.uriPath) return;
+    const cleanUri = currentUri.trim().replace(/^\/|\/$/g, '');
+    const segments = cleanUri.split('/').filter(Boolean);
+    if (segments.length <= 3) {
+      setCurrentUri(vehicle.uriPath);
+      return;
+    }
+    segments.pop();
+    const parentUri = '/' + segments.join('/') + '/';
+    setCurrentUri(parentUri);
+  };
+
   // Form custom path trail
   const renderBreadcrumbs = () => {
     const cleanUri = currentUri.trim().replace(/^\/|\/$/g, '');
@@ -183,36 +196,41 @@ export default function ManualView({
     const accumPaths: { label: string; uri: string }[] = [];
     let cumulative = '';
     
-    segments.forEach((seg) => {
+    segments.forEach((seg, idx) => {
       cumulative += '/' + seg;
-      accumPaths.push({ label: decodeURIComponent(seg), uri: cumulative + '/' });
+      let label = decodeURIComponent(seg);
+      if (idx === 2) {
+        label = label.replace(/\s*\(.*\)/g, '').trim();
+      }
+      accumPaths.push({ label, uri: cumulative + '/' });
     });
 
     return (
-      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400 font-sans font-medium mb-4 bg-[#13141a] rounded-lg px-3 py-2 border border-[#1e2028]">
+      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400 font-sans font-medium mb-4 bg-surface-theme rounded-lg px-3 py-2 border border-border-theme">
         <button
           onClick={() => setCurrentUri(vehicle.uriPath)}
-          className="hover:text-amber-500 transition-colors uppercase font-mono tracking-wider font-extrabold text-[10px]"
+          className="hover:text-primary-theme transition-colors uppercase font-mono tracking-wider font-extrabold text-[10px] text-slate-300"
         >
-          ROOT INDEX
+          Root
         </button>
         
         {accumPaths.map((path, idx) => {
           const isModelNode = idx <= 2;
           const isLast = idx === accumPaths.length - 1;
+          const targetUri = isModelNode ? vehicle.uriPath : path.uri;
 
           return (
             <React.Fragment key={path.uri}>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-655 text-slate-500 shrink-0" />
+              <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
               {isLast ? (
-                <span className="text-amber-500 font-semibold truncate max-w-[160px] md:max-w-xs">
+                <span className="text-primary-theme font-semibold truncate max-w-[160px] md:max-w-xs">
                   {path.label}
                 </span>
               ) : (
                 <button
                   type="button"
-                  onClick={() => setCurrentUri(isModelNode ? vehicle.uriPath : path.uri)}
-                  className="hover:text-amber-500 transition truncate max-w-[120px] md:max-w-xs text-slate-350"
+                  onClick={() => setCurrentUri(targetUri)}
+                  className="hover:text-primary-theme transition truncate max-w-[120px] md:max-w-xs text-slate-300 font-bold"
                 >
                   {path.label}
                 </button>
@@ -385,7 +403,17 @@ export default function ManualView({
         <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#0a0a0f]" id="manual-viewer-stage">
           
           {/* Breadcrumbs Row */}
-          <div className="px-4 md:px-6 pt-4 text-xs font-sans shrink-0">
+          <div className="px-4 md:px-6 pt-4 text-xs font-sans shrink-0 space-y-2 text-left">
+            {currentUri !== vehicle.uriPath && (
+              <button
+                type="button"
+                onClick={goUpOneLevel}
+                className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-300 hover:text-white transition bg-surface-theme border border-border-theme hover:border-slate-700 rounded-lg px-3 py-1.5 shadow select-none cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 text-primary-theme" />
+                <span>← Back</span>
+              </button>
+            )}
             {renderBreadcrumbs()}
           </div>
 
@@ -565,7 +593,8 @@ export default function ManualView({
 
                           // Image diagrams centered with lightbox on click
                           if (block.type === 'image') {
-                            const proxiedSrc = api.getImageUrl(block.src);
+                            const apiBase = getApiBase();
+                            const proxiedSrc = `${apiBase}/api/image?src=${block.src}`;
                             
                             return (
                               <div 
