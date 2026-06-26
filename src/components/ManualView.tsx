@@ -11,7 +11,7 @@ import TreeView from './TreeView';
 import { 
   ArrowLeft, Star, StarOff, Menu, X, ChevronRight, FolderPlus, 
   HelpCircle, Eye, AlertCircle, CheckCircle, RefreshCw, Compass, 
-  CheckSquare, Square, Info, ShieldAlert, Wrench
+  CheckSquare, Square, Info, ShieldAlert, Wrench, Folder, ClipboardList, Sliders, Hammer, FileText
 } from 'lucide-react';
 
 interface ManualViewProps {
@@ -293,6 +293,42 @@ export default function ManualView({
     );
   };
 
+  const resolveHref = (baseUri: string, href: string): string => {
+    if (href.startsWith('/')) {
+      return href;
+    }
+    return baseUri + href;
+  };
+
+  const handleCategoryCardClick = async (node: any) => {
+    if (node.type === 'category') {
+      const virtualCategoryPage: CategoryPage = {
+        pageType: 'category',
+        title: node.title,
+        tree: node.children
+      };
+      const parentUri = currentUri.split('#')[0];
+      const virtualUri = `${parentUri}#${encodeURIComponent(node.title)}`;
+      setActivePage(virtualCategoryPage);
+      setCurrentUri(virtualUri);
+    } else {
+      const parentUri = currentUri.split('#')[0];
+      const resolvedUri = resolveHref(parentUri, node.href);
+      setLoadingActivePage(true);
+      setErrorActivePage(null);
+      setCompletedSteps({});
+      try {
+        const response = await api.getPage(resolvedUri);
+        setActivePage(response);
+        setCurrentUri(resolvedUri);
+      } catch (err: any) {
+        setErrorActivePage(err.message || 'Failed to download procedure instructions.');
+      } finally {
+        setLoadingActivePage(false);
+      }
+    }
+  };
+
   const alternativeSource = availableSources.find((v) => v.id !== vehicle.id);
 
   return (
@@ -377,11 +413,11 @@ export default function ManualView({
       {/* 2. Main Sidebar & Stage Screen Container */}
       <div className="flex-1 flex overflow-hidden relative">
         
-        {/* Left Aspect: Fixed Index Directory Sidebar (280px wide) */}
+        {/* Left Aspect: Fixed Index Directory Sidebar (320px wide) */}
         <aside 
           className={`
             absolute md:static top-0 bottom-0 left-0 z-40
-            w-[280px] shrink-0 border-r border-[#1e2028] bg-[#0d0e14] flex flex-col h-full
+            w-[320px] shrink-0 border-r border-[#1e2028] bg-[#0d0e14] flex flex-col h-full
             transform md:translate-x-0 transition-transform duration-200 ease-in-out
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
           `}
@@ -506,14 +542,69 @@ export default function ManualView({
             ) : activePage ? (
               <div className="max-w-3xl mx-auto space-y-6 animate-fade-in" id="active-document-canvas">
                 
-                {/* 2A. When active selection is a folder category (welcome state) */}
+                {/* 2A. When active selection is a folder category (browsable visual category portal) */}
                 {activePage.pageType === 'category' ? (
-                  <div className="flex flex-col items-center justify-center text-center py-24 px-6 space-y-4 max-w-md mx-auto h-full" id="manual-welcome-pane">
-                    <Wrench className="w-12 h-12 text-amber-500/80 animate-pulse" />
-                    <h3 className="text-slate-200 font-bold text-base uppercase">Manual Workspace Ready</h3>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      Select a specific repair chapter, wiring diagram, or testing procedure from the left directory sidebar to start viewing instructions.
-                    </p>
+                  <div className="space-y-6" id="manual-welcome-pane">
+                    <div className="border-b border-[#1e2028] pb-4 text-left">
+                      <span className="text-[10px] text-amber-500 font-mono tracking-widest font-semibold uppercase">
+                        DIRECTORY PORTAL • BROWSE INDEX
+                      </span>
+                      <h2 className="text-xl md:text-2xl font-black text-slate-100 tracking-tight mt-1 leading-snug">
+                        {activePage.title || 'Table of Contents'}
+                      </h2>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Select a category folder to drill down, or choose a diagnostic/repair procedure page below to open the manual.
+                      </p>
+                    </div>
+
+                    {activePage.tree && activePage.tree.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4" id="category-portal-grid">
+                        {activePage.tree.map((node, idx) => {
+                          const isFolder = node.type === 'category';
+                          
+                          // Resolve semantic icon
+                          let IconComp = FileText;
+                          if (isFolder) {
+                            IconComp = Folder;
+                          } else if (node.icon) {
+                            const path = node.icon.toLowerCase();
+                            if (path.includes('service-and-repair') || path.includes('repair')) IconComp = Wrench;
+                            else if (path.includes('diagram')) IconComp = Image;
+                            else if (path.includes('specification') || path.includes('spec')) IconComp = ClipboardList;
+                            else if (path.includes('testing') || path.includes('inspection') || path.includes('test')) IconComp = CheckSquare;
+                            else if (path.includes('location')) IconComp = Compass;
+                            else if (path.includes('bulletin') || path.includes('tsb')) IconComp = Info;
+                            else if (path.includes('adjustment')) IconComp = Sliders;
+                            else if (path.includes('tools')) IconComp = Hammer;
+                            else if (path.includes('precaution')) IconComp = ShieldAlert;
+                          }
+
+                          return (
+                            <button
+                              key={`card-${node.title}-${idx}`}
+                              type="button"
+                              onClick={() => handleCategoryCardClick(node)}
+                              className="bg-[#13141a] border border-[#1e2028] hover:border-amber-500/80 rounded-xl p-5 text-left flex flex-col justify-between transition-all duration-200 cursor-pointer shadow-md hover:shadow-amber-500/5 group min-h-[140px]"
+                            >
+                              <div>
+                                <IconComp className={`w-6 h-6 mb-3 shrink-0 transition-transform group-hover:scale-110 duration-150 ${isFolder ? 'text-amber-500/90' : 'text-primary-theme'}`} />
+                                <span className="text-sm font-bold text-slate-200 group-hover:text-amber-400 transition-colors duration-150 leading-snug line-clamp-2">
+                                  {node.title}
+                                </span>
+                              </div>
+                              <span className={`text-[9px] font-mono uppercase tracking-wider mt-4 block font-extrabold flex items-center gap-1 ${isFolder ? 'text-slate-500 group-hover:text-amber-500/80' : 'text-amber-500/70 group-hover:text-amber-400'}`}>
+                                {isFolder ? `Browse Category (${node.children.length} items)` : 'Open Procedure'}
+                                <ChevronRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="py-16 text-center border border-dashed border-[#1e2028] rounded-xl bg-[#13141a]/40 max-w-md mx-auto">
+                        <p className="text-slate-400 text-sm">This category is currently empty.</p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   
