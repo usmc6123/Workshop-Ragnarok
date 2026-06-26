@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { CategoryTreeNode, CategoryTreeLink, ContentPage, UnknownPage, PageResponse, CategoryPage } from '../types';
+import { CategoryTreeNode, CategoryTreeLink, PageResponse } from '../types';
 import { api, getApiBase } from '../lib/api';
 import { 
   Folder, ChevronRight, ChevronDown, FileText, Search, X, Loader2, 
@@ -80,9 +80,8 @@ export default function TreeView({
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [searchResults, setSearchResults] = useState<FoundItem[]>([]);
 
-  // Synchronize state with incoming root tree
+  // Pre-expand first level categories on mount
   useEffect(() => {
-    // Pre-expand first level categories on mount
     const initialExpanded: { [key: string]: boolean } = {};
     rootTree.forEach((node) => {
       if (node.type === 'category') {
@@ -139,8 +138,31 @@ export default function TreeView({
     }));
   };
 
+  // Helper to expand all categories recursively
+  const handleExpandAll = () => {
+    const newExpanded: { [key: string]: boolean } = {};
+    const recExpand = (nodes: CategoryTreeNode[], parentPathKey: string) => {
+      nodes.forEach((node) => {
+        if (node.type === 'category') {
+          const pathKey = parentPathKey ? `${parentPathKey}/${node.title}` : node.title;
+          newExpanded[pathKey] = true;
+          recExpand(node.children, pathKey);
+        }
+      });
+    };
+    recExpand(rootTree, '');
+    setExpandedNodes(newExpanded);
+  };
+
+  // Helper to collapse all categories
+  const handleCollapseAll = () => {
+    setExpandedNodes({});
+  };
+
   // Fetch document page link click
   const handleLinkClick = async (node: CategoryTreeLink, currentBaseUri: string) => {
+    if (!node.href) return; // Ignore links with empty href
+
     if (node.icon === '/icons/download.svg' || node.href.startsWith('/bundle/')) {
       const resolvedUrl = resolveHref(currentBaseUri, node.href);
       const downloadOrigin = getLemonDownloadOrigin();
@@ -172,7 +194,7 @@ export default function TreeView({
 
   const isSearching = searchQuery.trim() !== '';
 
-  // Recursive Tree Node Renderer
+  // Recursive Tree Node Renderer (Inline nested elements, perfect sidebar file-browser feel)
   const renderNode = (node: CategoryTreeNode, index: number, depth: number, parentPathKey: string, currentBaseUri: string) => {
     const pathKey = parentPathKey ? `${parentPathKey}/${node.title}` : node.title;
     const isExpanded = !!expandedNodes[pathKey];
@@ -180,49 +202,42 @@ export default function TreeView({
     if (node.type === 'category') {
       const childrenCount = node.children.length;
       
-      const handleCategoryClick = () => {
+      const handleCategoryClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
         toggleExpand(pathKey);
-        
-        // Also update the main right-hand stage to browse this category's children
-        const virtualCategoryPage: CategoryPage = {
-          pageType: 'category',
-          title: node.title,
-          tree: node.children
-        };
-        const virtualUri = `${currentBaseUri}#${encodeURIComponent(pathKey)}`;
-        onNavigateToContent(virtualCategoryPage, virtualUri);
       };
 
       return (
-        <div key={`cat-${pathKey}-${index}`} className="space-y-1">
+        <div key={`cat-${pathKey}-${index}`} className="space-y-0.5">
           <button
             type="button"
             onClick={handleCategoryClick}
-            style={{ paddingLeft: `${depth * 12 + 8}px` }}
-            className="w-full flex items-center justify-between text-left py-1.5 pr-2 bg-transparent hover:bg-slate-800/40 text-slate-300 hover:text-white rounded transition duration-150 cursor-pointer group"
+            style={{ paddingLeft: `${depth * 10 + 6}px` }}
+            className="w-full flex items-center justify-between text-left py-1 hover:bg-slate-800/40 text-slate-350 hover:text-slate-100 rounded transition duration-150 cursor-pointer group"
           >
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0">
               <span className="shrink-0 text-slate-500 group-hover:text-amber-500 transition duration-150">
                 {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
               </span>
-              <Folder className="w-4 h-4 text-amber-500/80 shrink-0" />
-              <span className="text-slate-200 text-xs font-semibold truncate">
+              <Folder className="w-3.5 h-3.5 text-amber-500/80 shrink-0" />
+              <span className="text-slate-200 text-xs font-semibold truncate leading-tight select-none">
                 {node.title}
               </span>
             </div>
-            <span className="text-[9px] font-mono bg-bg-theme border border-border-theme px-1.5 py-0.5 rounded text-slate-500 select-none">
+            <span className="text-[8px] font-mono bg-bg-theme border border-border-theme px-1.5 py-0.2 rounded text-slate-500 select-none scale-90">
               {childrenCount}
             </span>
           </button>
 
           {isExpanded && (
-            <div className="space-y-0.5 border-l border-slate-800/60 ml-3.5 pl-1 animate-fade-in">
+            <div className="space-y-0.5 border-l border-slate-800/60 ml-3 pl-1.5 animate-fade-in">
               {node.children.map((child, i) => renderNode(child, i, depth + 1, pathKey, currentBaseUri))}
             </div>
           )}
         </div>
       );
     } else {
+      // Leaf link node
       const resolvedUri = resolveHref(currentBaseUri, node.href);
       const isCurrentActive = activeUri === resolvedUri;
       const isLoading = fetchingUri === resolvedUri;
@@ -234,23 +249,23 @@ export default function TreeView({
           type="button"
           disabled={fetchingUri !== null}
           onClick={() => handleLinkClick(node, currentBaseUri)}
-          style={{ paddingLeft: `${depth * 12 + 20}px` }}
-          className={`w-full flex items-center justify-between text-left py-1.5 pr-2 rounded transition duration-150 disabled:opacity-60 disabled:cursor-not-allowed group ${
+          style={{ paddingLeft: `${depth * 10 + 20}px` }}
+          className={`w-full flex items-center justify-between text-left py-1 pr-1.5 rounded transition duration-150 disabled:opacity-60 disabled:cursor-not-allowed group border-l-2 ${
             isCurrentActive 
-              ? 'bg-amber-500/10 border-l-2 border-l-amber-500 pl-1.5 text-amber-400 font-semibold'
-              : 'bg-transparent border-l-2 border-l-transparent hover:bg-slate-800/40 text-slate-400 hover:text-slate-200'
+              ? 'bg-amber-500/10 border-l-amber-500 text-amber-400 font-bold'
+              : 'bg-transparent border-l-transparent hover:bg-slate-800/40 text-slate-400 hover:text-slate-200'
           }`}
         >
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
             <LinkIcon className={`w-3.5 h-3.5 shrink-0 ${
               isLoading ? 'text-amber-500 animate-spin' : isCurrentActive ? 'text-amber-400' : 'text-slate-500 group-hover:text-amber-500 transition duration-150'
             }`} />
-            <span className="text-xs truncate font-sans">
+            <span className="text-xs truncate font-sans font-medium leading-tight">
               {node.title}
             </span>
           </div>
           {isLoading && (
-            <Loader2 className="w-3 h-3 text-amber-500 animate-spin shrink-0" />
+            <Loader2 className="w-3 h-3 text-amber-500 animate-spin shrink-0 ml-1" />
           )}
         </button>
       );
@@ -258,13 +273,32 @@ export default function TreeView({
   };
 
   return (
-    <div className="w-full h-full flex flex-col space-y-4" id="category-tree-panel">
+    <div className="w-full h-full flex flex-col space-y-3.5" id="category-tree-panel">
       
       {/* 1. Directory Search Input */}
-      <div className="space-y-1 select-none shrink-0 px-1">
-        <label className="block text-[9px] font-mono tracking-widest uppercase text-amber-500 font-bold">
-          Chapter Filter
-        </label>
+      <div className="space-y-2 select-none shrink-0 px-1">
+        <div className="flex items-center justify-between">
+          <label className="block text-[9px] font-mono tracking-widest uppercase text-amber-500 font-bold">
+            Chapter Directory
+          </label>
+          <div className="flex items-center gap-1.5 text-[9px] font-mono font-bold uppercase text-slate-500">
+            <button 
+              type="button" 
+              onClick={handleExpandAll}
+              className="hover:text-amber-500 transition cursor-pointer"
+            >
+              Expand All
+            </button>
+            <span>•</span>
+            <button 
+              type="button" 
+              onClick={handleCollapseAll}
+              className="hover:text-amber-500 transition cursor-pointer"
+            >
+              Collapse
+            </button>
+          </div>
+        </div>
         <div className="relative">
           <input
             type="text"
@@ -299,7 +333,7 @@ export default function TreeView({
       )}
 
       {/* 2. Content Directory Tree */}
-      <div className="flex-1 overflow-y-auto px-1 pr-2 min-h-0" id="tree-container">
+      <div className="flex-1 overflow-y-auto px-1 pr-1 min-h-0" id="tree-container">
         {!isSearching ? (
           <div className="space-y-1 py-1" id="tree-level-list">
             {rootTree && rootTree.length > 0 ? (
