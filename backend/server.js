@@ -411,6 +411,9 @@ app.get('/api/page', async (req, res) => {
 
     const response = await fetch(targetUrl);
     if (!response.ok) {
+      if (response.status === 404) {
+        return res.json({ pageType: 'unknown', title: 'Page Not Available', blocks: [], message: 'This procedure is not available in the current database.' });
+      }
       throw new Error(`lemon-server responded with status ${response.status}`);
     }
 
