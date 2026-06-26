@@ -79,7 +79,6 @@ if (Array.isArray(dataset)) {
 } else if (typeof dataset === 'object' && dataset !== null) {
   records = Object.values(dataset);
 }
-
 const totalRecords = records.length;
 console.log(`Loaded ${totalRecords.toLocaleString()} entries from dataset index file.`);
 
