@@ -338,11 +338,16 @@ export default function ManualView({
     } else {
       // Selecting a leaf procedure document within the expanded tree
       setSidebarOpen(false);
-      if (resolvedUri === currentUri) {
-        loadActivePageDetails(resolvedUri);
+      const pageData = await api.getPage(resolvedUri);
+      if (pageData.pageType === 'category' && pageData.tree && pageData.tree.length > 0) {
+        // It's actually a sub-category — merge its children into the section tree
+        setSectionTree(pageData.tree[0]?.children || pageData.tree);
+        setSectionBaseUri(resolvedUri);
+        setActivePage({ pageType: 'category', title: pageData.title, tree: [] });
       } else {
-        setCurrentUri(resolvedUri);
+        setActivePage(pageData);
       }
+      setCurrentUri(resolvedUri);
     }
   };
 
