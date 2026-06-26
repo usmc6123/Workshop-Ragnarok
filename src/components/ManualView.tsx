@@ -336,9 +336,25 @@ export default function ManualView({
         setLoadingActivePage(false);
       }
     } else {
-      // Selecting a leaf procedure document within the expanded tree
-      setCurrentUri(resolvedUri);
-      setSidebarOpen(false); // Close mobile menu drawer
+      // Selecting a node — fetch and show content or drill into sub-category
+      setSidebarOpen(false);
+      setLoadingActivePage(true);
+      try {
+        const pageData = await api.getPage(resolvedUri);
+        setCurrentUri(resolvedUri);
+        if (pageData.pageType === 'category' && pageData.tree && pageData.tree.length > 0) {
+          const children = pageData.tree[0]?.children || pageData.tree;
+          setSectionTree(children);
+          setSectionBaseUri(resolvedUri);
+          setActivePage({ pageType: 'category', title: pageData.title, tree: [] });
+        } else {
+          setActivePage(pageData);
+        }
+      } catch (err: any) {
+        setErrorActivePage(err.message || 'Failed to load page.');
+      } finally {
+        setLoadingActivePage(false);
+      }
     }
   };
 
