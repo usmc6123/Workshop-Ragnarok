@@ -93,7 +93,7 @@ console.log('Starting atomic transaction ingest... ⚡');
 const startTime = Date.now();
 
 const insertStmt = db.prepare(`
-  INSERT OR REPLACE INTO vehicles (id, source, make, year, model, engine, uriPath, isComplete)
+  INSERT OR IGNORE INTO vehicles (id, source, make, year, model, engine, uriPath, isComplete)
   VALUES (:id, :source, :make, :year, :model, :engine, :uriPath, :isComplete)
 `);
 
