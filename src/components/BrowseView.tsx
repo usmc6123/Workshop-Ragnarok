@@ -150,74 +150,7 @@ export function getDrivetrainBadge(drivetrain: string) {
   }
 }
 
-export function getClientSideSearchResults(query: string, data: Vehicle[]): Vehicle[] {
-  const trimmed = query.trim().toLowerCase();
-  if (!trimmed) return [];
 
-  // Split query into individual search tokens
-  const queryParts = trimmed.split(/\s+/).filter(Boolean);
-
-  return data.map(vehicle => {
-    const makeLower = vehicle.make.toLowerCase();
-    const modelLower = vehicle.model.toLowerCase();
-    const yearLower = vehicle.year.toLowerCase();
-    const engineLower = vehicle.engine ? vehicle.engine.toLowerCase() : '';
-
-    let matches = true;
-    let score = 0;
-
-    for (const part of queryParts) {
-      let partMatched = false;
-
-      // Check aliases for make
-      let matchedByAlias = false;
-      if (part === 'chevy' && (makeLower.includes('chevrolet') || makeLower.includes('chevy'))) matchedByAlias = true;
-      if (part === 'chevrolet' && (makeLower.includes('chevrolet') || makeLower.includes('chevy'))) matchedByAlias = true;
-      if (part === 'vw' && (makeLower.includes('volkswagen') || makeLower.includes('vw'))) matchedByAlias = true;
-      if (part === 'volkswagen' && (makeLower.includes('volkswagen') || makeLower.includes('vw'))) matchedByAlias = true;
-      if (part === 'benz' && (makeLower.includes('mercedes benz') || makeLower.includes('mercedes') || makeLower.includes('benz'))) matchedByAlias = true;
-      if (part === 'mercedes' && (makeLower.includes('mercedes benz') || makeLower.includes('mercedes') || makeLower.includes('benz'))) matchedByAlias = true;
-      if (part === 'dodge' && (makeLower.includes('dodge and ram') || makeLower.includes('dodge') || makeLower.includes('ram'))) matchedByAlias = true;
-      if (part === 'ram' && (makeLower.includes('dodge and ram') || makeLower.includes('dodge') || makeLower.includes('ram'))) matchedByAlias = true;
-
-      if (matchedByAlias) {
-        partMatched = true;
-        score += 100;
-      }
-
-      // Exact or partial fields checks
-      if (makeLower.includes(part)) {
-        partMatched = true;
-        if (makeLower === part) score += 200;
-        else score += 80;
-      }
-      if (modelLower.includes(part)) {
-        partMatched = true;
-        if (modelLower === part) score += 50;
-        else score += 30;
-      }
-      if (yearLower.includes(part)) {
-        partMatched = true;
-        if (yearLower === part) score += 15;
-        else score += 10;
-      }
-      if (engineLower.includes(part)) {
-        partMatched = true;
-        score += 5;
-      }
-
-      if (!partMatched) {
-        matches = false;
-        break;
-      }
-    }
-
-    return { vehicle, matches, score };
-  })
-  .filter(item => item.matches)
-  .sort((a, b) => b.score - a.score)
-  .map(item => item.vehicle);
-}
 
 export default function BrowseView({ 
   onSelectVehicle, 
@@ -240,7 +173,6 @@ export default function BrowseView({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [allCatalogVehicles, setAllCatalogVehicles] = useState<Vehicle[]>([]);
   const [drivetrainFilter, setDrivetrainFilter] = useState('ALL');
   const [engineFilter, setEngineFilter] = useState('ALL');
 
@@ -264,7 +196,7 @@ export default function BrowseView({
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize and load all makes, all vehicles & recently viewed on mount
+  // Initialize and load all makes & recently viewed on mount
   useEffect(() => {
     const fetchMakes = async () => {
       setLoading(true);
@@ -280,16 +212,6 @@ export default function BrowseView({
       }
     };
     fetchMakes();
-
-    const fetchAllVehicles = async () => {
-      try {
-        const list = await api.getVehicles(undefined, undefined, undefined, 2500);
-        setAllCatalogVehicles(list);
-      } catch (e) {
-        console.error('Failed to pre-fetch catalog vehicles', e);
-      }
-    };
-    fetchAllVehicles();
 
     const stored = localStorage.getItem('recently_viewed_makes');
     if (stored) {
@@ -322,7 +244,7 @@ export default function BrowseView({
       if (!selectedMake || !selectedYear) { setVehicles([]); return; }
       setLoading(true); setError(null);
       try {
-        const fetchedVehicles = await api.getVehicles(selectedMake, selectedYear, undefined, 100);
+        const fetchedVehicles = await api.getVehicles(selectedMake, selectedYear, undefined, 500);
         setVehicles(fetchedVehicles);
       } catch (err: any) {
         setError(err.message || 'Failed to load vehicles list.');
@@ -337,22 +259,14 @@ export default function BrowseView({
     setLoading(true);
     debounceTimerRef.current = setTimeout(async () => {
       try {
-        let results: Vehicle[] = [];
-        if (allCatalogVehicles && allCatalogVehicles.length > 0) {
-          results = getClientSideSearchResults(searchTerm, allCatalogVehicles);
-        } else {
-          // Fallback if not loaded yet
-          const fetched = await api.getVehicles(undefined, undefined, undefined, 2500);
-          setAllCatalogVehicles(fetched);
-          results = getClientSideSearchResults(searchTerm, fetched);
-        }
+        const results = await api.getVehicles(undefined, undefined, searchTerm.trim(), 100);
         setSearchResults(results);
       } catch (err: any) {
         console.error('Flat search failed', err);
       } finally { setLoading(false); }
-    }, 200);
+    }, 300);
     return () => { if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current); };
-  }, [searchTerm, allCatalogVehicles]);
+  }, [searchTerm]);
 
   const handleSelectMake = (make: string) => {
     setSelectedMake(make);
