@@ -247,6 +247,7 @@ export default function VehiclesView({ onNavigateToManualWithSearch, onSelectVeh
     }
     try {
       await api.deleteVehicle(id);
+      setVehicles(prev => prev.filter(v => v.id !== id));
       setSelectedVehicle(null);
       fetchVehicles();
     } catch (err: any) {

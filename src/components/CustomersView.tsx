@@ -125,6 +125,7 @@ export default function CustomersView({ onNavigateToTab }: CustomersViewProps) {
     }
     try {
       await api.deleteCustomer(id);
+      setCustomers(prev => prev.filter(c => c.id !== id));
       setSelectedCustomer(null);
       fetchCustomers();
     } catch (err: any) {
