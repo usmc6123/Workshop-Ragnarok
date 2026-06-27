@@ -233,7 +233,7 @@ export default function TreeView({
           <div
             key={`header-${node.title}-${index}`}
             style={{ paddingLeft: `${depth * 12 + 16}px` }}
-            className="py-1 pr-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500 select-none cursor-default font-mono"
+            className="py-1 pr-1.5 text-[11px] font-bold uppercase tracking-widest text-amber-500 select-none cursor-default font-mono"
           >
             {node.title}
           </div>
