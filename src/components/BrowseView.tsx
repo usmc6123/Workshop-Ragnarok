@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Vehicle } from '../types';
 import { api } from '../lib/api';
-import { Search, Car, RefreshCw, AlertTriangle, BookOpen, ChevronRight, ArrowLeft, ChevronDown, History } from 'lucide-react';
+import { Wrench, Car, RefreshCw, AlertTriangle, BookOpen, ChevronRight, ArrowLeft, ChevronDown, History } from 'lucide-react';
 
 interface BrowseViewProps {
   onSelectVehicle?: (vehicle: Vehicle) => void;
@@ -20,36 +20,42 @@ const NATIONALITIES = [
     id: 'american',
     name: 'AMERICAN',
     emoji: '🇺🇸',
+    accentColor: '#ef4444',
     makes: ["Ford", "GM", "Chevrolet", "Dodge and RAM", "Jeep", "Chrysler", "Buick", "Cadillac", "Lincoln", "Mercury", "Pontiac", "Oldsmobile", "Saturn", "Plymouth", "GMC", "Hummer", "Tesla", "Rivian", "American Motors", "Eagle", "Geo", "General Motors", "SRT"]
   },
   {
     id: 'japanese',
     name: 'JAPANESE',
     emoji: '🇯🇵',
+    accentColor: '#f97316',
     makes: ["Toyota", "Honda", "Nissan-Datsun", "Mazda", "Subaru", "Mitsubishi", "Suzuki", "Isuzu", "Infiniti", "Lexus", "Acura", "Scion", "Daihatsu"]
   },
   {
     id: 'german',
     name: 'GERMAN',
     emoji: '🇩🇪',
+    accentColor: '#eab308',
     makes: ["BMW", "Mercedes Benz", "Audi", "Volkswagen", "Porsche", "Mini", "Smart", "Opel"]
   },
   {
     id: 'korean',
     name: 'KOREAN',
     emoji: '🇰🇷',
+    accentColor: '#3b82f6',
     makes: ["Hyundai", "Kia", "Genesis", "Daewoo"]
   },
   {
     id: 'european',
     name: 'EUROPEAN',
     emoji: '🇬🇧',
+    accentColor: '#8b5cf6',
     makes: ["Land Rover", "Jaguar", "Volvo", "Saab", "Triumph", "Austin", "MG", "Sterling", "Lancia", "Fiat", "Alfa Romeo", "Renault", "Peugeot", "Merkur"]
   },
   {
     id: 'commercial',
     name: 'COMMERCIAL',
     emoji: '🚛',
+    accentColor: '#10b981',
     makes: ["Freightliner", "International", "UD", "Workhorse"]
   }
 ];
@@ -85,7 +91,6 @@ export default function BrowseView({
   onClearSelectedVehicle
 }: BrowseViewProps) {
   
-  // Drill-down states
   const [makes, setMakes] = useState<string[]>([]);
   const [years, setYears] = useState<string[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -93,21 +98,18 @@ export default function BrowseView({
   const [selectedMake, setSelectedMake] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
   
-  // Search and Loading states
   const [searchTerm, setSearchTerm] = useState(initialSearch || '');
   const [searchResults, setSearchResults] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Collapsible section state (false = expanded, true = collapsed)
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
-
-  // Recently viewed makes
+  const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [hoveredMake, setHoveredMake] = useState<string | null>(null);
   const [recentlyViewed, setRecentlyViewed] = useState<string[]>([]);
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize and load all makes & recently viewed on mount
   useEffect(() => {
     const fetchMakes = async () => {
       setLoading(true);
@@ -124,7 +126,6 @@ export default function BrowseView({
     };
     fetchMakes();
 
-    // Load recently viewed
     const stored = localStorage.getItem('recently_viewed_makes');
     if (stored) {
       try {
@@ -133,67 +134,41 @@ export default function BrowseView({
         console.error('Failed to parse recently viewed', e);
       }
     } else {
-      // Default placeholder list matching mockup if empty
       setRecentlyViewed(['BMW', 'Tesla', 'Toyota', 'Ford']);
     }
   }, []);
 
-  // Fetch years when make is selected
   useEffect(() => {
     const fetchYears = async () => {
-      if (!selectedMake) {
-        setYears([]);
-        setSelectedYear('');
-        return;
-      }
-      setLoading(true);
-      setError(null);
+      if (!selectedMake) { setYears([]); setSelectedYear(''); return; }
+      setLoading(true); setError(null);
       try {
         const fetchedYears = await api.getYears(selectedMake);
-        setYears(fetchedYears.sort((a, b) => b.localeCompare(a))); // Newest first
+        setYears(fetchedYears.sort((a, b) => b.localeCompare(a)));
       } catch (err: any) {
-        console.error('Failed to load years list', err);
         setError(err.message || 'Failed to load years list.');
-      } finally {
-        setLoading(false);
-      }
+      } finally { setLoading(false); }
     };
     fetchYears();
   }, [selectedMake]);
 
-  // Fetch vehicles when year is selected
   useEffect(() => {
     const fetchVehicles = async () => {
-      if (!selectedMake || !selectedYear) {
-        setVehicles([]);
-        return;
-      }
-      setLoading(true);
-      setError(null);
+      if (!selectedMake || !selectedYear) { setVehicles([]); return; }
+      setLoading(true); setError(null);
       try {
         const fetchedVehicles = await api.getVehicles(selectedMake, selectedYear, undefined, 100);
         setVehicles(fetchedVehicles);
       } catch (err: any) {
-        console.error('Failed to load vehicles list', err);
         setError(err.message || 'Failed to load vehicles list.');
-      } finally {
-        setLoading(false);
-      }
+      } finally { setLoading(false); }
     };
     fetchVehicles();
   }, [selectedMake, selectedYear]);
 
-  // Debounced flat search across all manuals
   useEffect(() => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    if (!searchTerm.trim()) {
-      setSearchResults([]);
-      return;
-    }
-
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    if (!searchTerm.trim()) { setSearchResults([]); return; }
     setLoading(true);
     debounceTimerRef.current = setTimeout(async () => {
       try {
@@ -201,22 +176,15 @@ export default function BrowseView({
         setSearchResults(results);
       } catch (err: any) {
         console.error('Flat search failed', err);
-      } finally {
-        setLoading(false);
-      }
+      } finally { setLoading(false); }
     }, 300);
-
-    return () => {
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    };
+    return () => { if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current); };
   }, [searchTerm]);
 
   const handleSelectMake = (make: string) => {
     setSelectedMake(make);
     setSelectedYear('');
-    setSearchTerm(''); // Clear search on select make to view its years list
-
-    // Update recently viewed
+    setSearchTerm('');
     setRecentlyViewed(prev => {
       const filtered = prev.filter(m => m.toLowerCase() !== make.toLowerCase());
       const updated = [make, ...filtered].slice(0, 5);
@@ -226,73 +194,50 @@ export default function BrowseView({
   };
 
   const handleSelectVehicle = (vehicle: Vehicle) => {
-    // Add vehicle make to recently viewed as well
     if (vehicle.make) {
       handleSelectMake(vehicle.make);
-      // Reset selectedMake since we are directly opening the manual
       setSelectedMake('');
       setSelectedYear('');
     }
-    if (onSelectVehicle) {
-      onSelectVehicle(vehicle);
-    }
+    if (onSelectVehicle) onSelectVehicle(vehicle);
   };
 
-  // Back button navigation handler
   const handleGoBack = () => {
-    if (selectedYear) {
-      setSelectedYear('');
-    } else if (selectedMake) {
-      setSelectedMake('');
-    }
+    if (selectedYear) setSelectedYear('');
+    else if (selectedMake) setSelectedMake('');
   };
 
   const toggleSection = (sectionId: string) => {
-    setCollapsedSections(prev => ({
-      ...prev,
-      [sectionId]: !prev[sectionId]
-    }));
+    setCollapsedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
   };
 
   const scrollToSection = (sectionId: string) => {
+    setActiveFilter(sectionId);
     if (sectionId === 'all') {
-      const element = document.getElementById('all-makes-container');
-      element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById('all-makes-container')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else {
       const element = document.getElementById(`section-${sectionId}`);
       element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Expand section if collapsed
-      if (collapsedSections[sectionId]) {
-        toggleSection(sectionId);
-      }
+      if (collapsedSections[sectionId]) toggleSection(sectionId);
     }
   };
 
-  // Compute dynamic Other nationality makes
-  const definedMakesLower = new Set(
-    NATIONALITIES.flatMap(n => n.makes.map(m => m.toLowerCase()))
-  );
+  const definedMakesLower = new Set(NATIONALITIES.flatMap(n => n.makes.map(m => m.toLowerCase())));
   const otherMakes = makes.filter(m => !definedMakesLower.has(m.toLowerCase()));
 
-  // Filter makes for group display based on search query
-  const getFilteredGroupMakes = (groupMakes: string[]) => {
-    return groupMakes.filter(m => 
-      m.toLowerCase().includes(searchTerm.toLowerCase()) && makes.includes(m)
-    );
-  };
+  const getFilteredGroupMakes = (groupMakes: string[]) =>
+    groupMakes.filter(m => m.toLowerCase().includes(searchTerm.toLowerCase()) && makes.includes(m));
 
-  const filteredOtherMakes = otherMakes.filter(m => 
-    m.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredOtherMakes = otherMakes.filter(m => m.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-6 py-6 text-left font-sans" id="browse-view-root">
+    <div className="space-y-6 max-w-7xl mx-auto px-6 py-6 text-left font-sans select-none" id="browse-view-root">
       
       {/* 1. Header Row */}
-      <div className="flex items-center justify-between gap-4 border-b border-amber-500/10 pb-4">
+      <div className="flex items-center justify-between gap-4 border-b border-amber-500/15 pb-4">
         <div className="flex flex-col">
           <h1 className="text-2xl md:text-3xl font-black text-slate-100 tracking-wider flex items-center gap-3 font-mono">
-            <Car className="w-6 h-6 text-amber-500" />
+            <Wrench className="w-6 h-6 text-amber-500" />
             SERVICE MANUAL CATALOG
           </h1>
           <span className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mt-0.5">
@@ -300,14 +245,13 @@ export default function BrowseView({
           </span>
         </div>
 
-        {/* Total Manufacturers active Badge */}
         <div className="flex items-center gap-1.5 bg-amber-500/5 border border-amber-500/20 rounded-full px-3.5 py-1.5 font-mono text-[10px] text-amber-400 font-extrabold select-none">
           <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-          <span>{makes.length} manufacturers active</span>
+          <span>{makes.length} MANUFACTURERS ACTIVE</span>
         </div>
       </div>
 
-      {/* 2. Global Large Search Bar & Filters Section */}
+      {/* 2. Search Bar & Filter Pills */}
       <div className="space-y-4">
         <div className="relative">
           <input
@@ -315,10 +259,10 @@ export default function BrowseView({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search for car make, model, or year... e.g., Toyota Camry, 2018 Ford"
-            className="w-full rounded-full bg-[#111115] border border-amber-500/30 focus:border-amber-500 pl-12 pr-16 py-3.5 text-sm md:text-base text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-4 focus:ring-amber-500/5 transition duration-200 font-sans font-medium"
+            className="w-full rounded-full bg-black/50 border border-amber-500/30 focus:border-amber-500 pl-12 pr-16 py-3.5 text-sm md:text-base text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-4 focus:ring-amber-500/5 transition duration-200 font-sans font-medium"
             id="browse-keyword-input"
           />
-          <Search className="absolute left-4 top-4 w-5 h-5 text-slate-500" />
+          <Wrench className="absolute left-4 top-4 w-4 h-4 text-amber-500" />
           {searchTerm && (
             <button
               type="button"
@@ -330,25 +274,25 @@ export default function BrowseView({
           )}
         </div>
 
-        {/* Filter Pills with Flags */}
         {!selectedMake && (
-          <div className="flex flex-wrap gap-2.5 pt-1 select-none">
+          <div className="flex flex-wrap gap-2 pt-1 select-none">
             <button
               type="button"
               onClick={() => scrollToSection('all')}
-              className="px-4 py-2 bg-amber-500 text-[#0a0a0f] font-mono text-[11px] font-black uppercase rounded-full transition duration-150 cursor-pointer shadow-lg shadow-amber-500/10"
+              className={`px-4 py-1.5 font-mono text-[11px] font-black uppercase rounded-full transition duration-150 cursor-pointer ${activeFilter === 'all' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/25' : 'bg-black/40 text-slate-300 border border-white/10 hover:border-amber-500/40 hover:text-amber-400'}`}
             >
               ALL
             </button>
             {NATIONALITIES.map((nat) => {
               const groupFilteredMakes = getFilteredGroupMakes(nat.makes);
               if (searchTerm.trim() && groupFilteredMakes.length === 0) return null;
+              const isActive = activeFilter === nat.id;
               return (
                 <button
                   key={nat.id}
                   type="button"
                   onClick={() => scrollToSection(nat.id)}
-                  className="px-4 py-2 bg-[#111115] hover:bg-[#1a1a22] border border-amber-500/20 hover:border-amber-500/50 text-slate-300 hover:text-amber-400 font-mono text-[11px] font-bold uppercase rounded-full transition duration-150 cursor-pointer flex items-center gap-1.5"
+                  className={`px-4 py-1.5 font-mono text-[11px] font-bold uppercase rounded-full transition duration-150 cursor-pointer flex items-center gap-1.5 ${isActive ? 'bg-amber-50 text-black shadow-lg shadow-white/15' : 'bg-black/40 text-slate-300 border border-white/10 hover:border-amber-500/40 hover:text-amber-400'}`}
                 >
                   <span className="text-xs leading-none">{nat.emoji}</span>
                   <span>{nat.name}</span>
@@ -359,7 +303,7 @@ export default function BrowseView({
               <button
                 type="button"
                 onClick={() => scrollToSection('other')}
-                className="px-4 py-2 bg-[#111115] hover:bg-[#1a1a22] border border-amber-500/20 hover:border-amber-500/50 text-slate-300 hover:text-amber-400 font-mono text-[11px] font-bold uppercase rounded-full transition duration-150 cursor-pointer flex items-center gap-1.5"
+                className={`px-4 py-1.5 font-mono text-[11px] font-bold uppercase rounded-full transition duration-150 cursor-pointer flex items-center gap-1.5 ${activeFilter === 'other' ? 'bg-amber-50 text-black shadow-lg shadow-white/15' : 'bg-black/40 text-slate-300 border border-white/10 hover:border-amber-500/40 hover:text-amber-400'}`}
               >
                 <span>🌍</span>
                 <span>OTHER</span>
@@ -369,16 +313,17 @@ export default function BrowseView({
         )}
       </div>
 
-      {/* Loader / Errors view */}
+      {/* Loader */}
       {loading && (
-        <div className="py-20 flex flex-col items-center justify-center space-y-3">
+        <div className="py-20 flex flex-col items-center justify-center space-y-3 bg-black/30 backdrop-blur-sm border border-white/5 rounded-xl">
           <RefreshCw className="w-8 h-8 text-amber-500 animate-spin" />
           <p className="text-slate-400 text-sm font-mono">Syncing catalog data...</p>
         </div>
       )}
 
+      {/* Error */}
       {error && !loading && (
-        <div className="rounded-xl border border-red-900/30 bg-red-950/10 p-10 text-center space-y-3 max-w-2xl mx-auto">
+        <div className="rounded-xl border border-red-900/30 bg-red-950/10 p-10 text-center space-y-3 max-w-2xl mx-auto backdrop-blur-sm">
           <AlertTriangle className="w-10 h-10 text-red-500 mx-auto" />
           <div>
             <p className="text-red-200 font-bold uppercase text-sm">Connection Interrupted</p>
@@ -386,13 +331,9 @@ export default function BrowseView({
           </div>
           <button
             onClick={() => {
-              if (selectedYear) {
-                setSelectedYear(selectedYear); // Retrigger
-              } else if (selectedMake) {
-                setSelectedMake(selectedMake);
-              } else {
-                setMakes([]); // Reset & retrigger
-              }
+              if (selectedYear) setSelectedYear(selectedYear);
+              else if (selectedMake) setSelectedMake(selectedMake);
+              else setMakes([]);
             }}
             className="px-4 py-2 rounded-lg bg-surface-theme border border-border-theme text-slate-202 hover:text-white text-xs font-bold uppercase tracking-wider transition cursor-pointer"
           >
@@ -405,120 +346,63 @@ export default function BrowseView({
       {!loading && !error && (
         <div className="space-y-6" id="all-makes-container">
           
-          {/* SEARCH TERM IS ACTIVE */}
+          {/* SEARCH RESULTS */}
           {searchTerm.trim() ? (
-            <div className="space-y-6">
-              
-              {/* Flat Search Results List */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 border-b border-[#1e2028] pb-2">
-                  <BookOpen className="w-4.5 h-4.5 text-amber-500" />
-                  <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">
-                    Procedure & Model Keyword Matches ({searchResults.length})
-                  </h3>
-                </div>
-
-                {searchResults.length === 0 ? (
-                  <div className="py-10 text-center border border-dashed border-[#1e2028] rounded-xl bg-[#111115]/40 max-w-xl mx-auto">
-                    <p className="text-slate-450 text-xs">No model manual pages matched this specific keyword sequence.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {searchResults.map((v) => (
-                      <div
-                        key={v.id}
-                        className="bg-gradient-to-b from-[#111115] to-[#0a0a0f] border border-[#1e2028] hover:border-amber-500/40 hover:border-l-amber-500 border-l-[3px] border-l-border-theme rounded-xl p-4 flex items-center justify-between gap-4 transition-all duration-200 group"
-                        id={`vehicle-catalog-row-${v.id}`}
-                      >
-                        <div className="space-y-1 min-w-0 text-left">
-                          <span className="text-[9px] font-mono font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded select-none">
-                            {v.year}
-                          </span>
-                          <h4 className="text-xs md:text-sm font-extrabold text-slate-200 truncate group-hover:text-amber-400 transition-colors leading-tight">
-                            {v.make} {v.model}
-                          </h4>
-                          <p className="text-[11px] text-slate-400 font-mono truncate">{v.engine}</p>
-                        </div>
-
-                        <div className="flex flex-col items-end gap-2 shrink-0">
-                          <span className={`text-[8px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border select-none ${
-                            v.source === 'lemon'
-                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                              : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
-                          }`}>
-                            {v.source} manual
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleSelectVehicle(v)}
-                            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-1.5 px-3.5 rounded-lg text-[10px] uppercase tracking-wider transition-all duration-150 active:scale-95 cursor-pointer flex items-center gap-1.5 shadow"
-                          >
-                            <BookOpen className="w-3.5 h-3.5" />
-                            Open Manual
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 border-b border-white/10 pb-2">
+                <BookOpen className="w-4 h-4 text-amber-500" />
+                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">
+                  Procedure & Model Keyword Matches ({searchResults.length})
+                </h3>
               </div>
-
+              {searchResults.length === 0 ? (
+                <div className="py-10 text-center border border-dashed border-white/10 rounded-xl bg-black/40 backdrop-blur-sm max-w-xl mx-auto">
+                  <p className="text-slate-400 text-xs">No model manual pages matched this specific keyword sequence.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {searchResults.map((v) => (
+                    <div
+                      key={v.id}
+                      className="bg-black/40 backdrop-blur-sm border border-white/10 hover:border-amber-500/40 hover:border-l-amber-500 border-l-[3px] border-l-transparent rounded-xl p-4 flex items-center justify-between gap-4 transition-all duration-200 group"
+                    >
+                      <div className="space-y-1 min-w-0 text-left">
+                        <span className="text-[9px] font-mono font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded select-none">
+                          {v.year}
+                        </span>
+                        <h4 className="text-xs md:text-sm font-extrabold text-slate-200 truncate group-hover:text-amber-400 transition-colors leading-tight">
+                          {v.make} {v.model}
+                        </h4>
+                        <p className="text-[11px] text-slate-400 font-mono truncate">{v.engine}</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        <span className={`text-[8px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border select-none ${v.source === 'lemon' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'}`}>
+                          {v.source} manual
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectVehicle(v)}
+                          className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-1.5 px-3.5 rounded-lg text-[10px] uppercase tracking-wider transition-all duration-150 active:scale-95 cursor-pointer flex items-center gap-1.5 shadow"
+                        >
+                          <BookOpen className="w-3.5 h-3.5" />
+                          Open Manual
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ) : null}
 
-          {/* DRILL-DOWN BROWSER (Mockup exact grouped style) */}
+          {/* DRILL-DOWN */}
           <div className="space-y-6">
-            
-            {/* Navigation Breadcrumb / Back Button Row */}
-            {selectedMake && (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1e2028] pb-3">
-                <nav aria-label="Catalog Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400 font-sans font-medium">
-                  <button
-                    onClick={() => { setSelectedMake(''); setSelectedYear(''); }}
-                    className={`hover:text-amber-500 transition-colors uppercase font-mono tracking-wider font-extrabold text-[10px] ${!selectedMake ? 'text-amber-500' : 'text-slate-400'}`}
-                  >
-                    All Makes
-                  </button>
 
-                  {selectedMake && (
-                    <>
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                      <button
-                        onClick={() => { setSelectedMake(selectedMake); setSelectedYear(''); }}
-                        className={`hover:text-amber-500 transition-colors uppercase font-mono tracking-wider font-extrabold text-[10px] ${!selectedYear ? 'text-amber-500' : 'text-slate-400'}`}
-                      >
-                        {selectedMake}
-                      </button>
-                    </>
-                  )}
-
-                  {selectedYear && (
-                    <>
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                      <span className="text-amber-400 font-semibold uppercase font-mono tracking-wider font-extrabold text-[10px]">
-                        {selectedYear}
-                      </span>
-                    </>
-                  )}
-                </nav>
-
-                {/* Back Button */}
-                <button
-                  type="button"
-                  onClick={handleGoBack}
-                  className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-300 hover:text-white transition bg-surface-theme border border-border-theme hover:border-slate-700 rounded-lg px-3.5 py-1.5 shadow select-none cursor-pointer self-start sm:self-auto"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5 text-amber-500" />
-                  <span>← Back</span>
-                </button>
-              </div>
-            )}
-
-            {/* VIEW 1: MAKES LIST WITH NATION GROUPINGS */}
+            {/* VIEW 1: MAKES GRID */}
             {!selectedMake && (
               <div className="space-y-6">
                 
-                {/* 1A. Recently Viewed makes (Beautiful Cards row) */}
+                {/* Recently Viewed */}
                 {recentlyViewed.length > 0 && (
                   <div className="space-y-3 text-left">
                     <h3 className="text-xs md:text-sm font-mono font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
@@ -527,15 +411,20 @@ export default function BrowseView({
                     <div className="flex flex-wrap gap-4 select-none">
                       {recentlyViewed.map((make) => {
                         const logoUrl = MAKE_LOGOS[make.toLowerCase()];
+                        const isHovered = hoveredMake === `recent-${make}`;
                         return (
                           <button
                             key={`recent-${make}`}
                             type="button"
                             onClick={() => handleSelectMake(make)}
+                            onMouseEnter={() => setHoveredMake(`recent-${make}`)}
+                            onMouseLeave={() => setHoveredMake(null)}
                             className="flex flex-col items-center gap-1.5 group cursor-pointer"
                           >
-                            {/* Rounded glow card for brand emblem */}
-                            <div className="w-16 h-16 rounded-xl bg-[#111116] border border-amber-500/20 group-hover:border-amber-500/50 group-hover:shadow-lg group-hover:shadow-amber-500/10 flex items-center justify-center p-3 transition-all duration-150">
+                            <div 
+                              className="w-16 h-16 rounded-xl bg-black/50 border border-white/10 flex items-center justify-center p-3 transition-all duration-150"
+                              style={isHovered ? { boxShadow: '0 0 12px #f59e0b55', borderColor: '#f59e0b' } : {}}
+                            >
                               {logoUrl ? (
                                 <img 
                                   src={logoUrl} 
@@ -549,7 +438,7 @@ export default function BrowseView({
                                 </span>
                               )}
                             </div>
-                            <span className="text-[10px] text-slate-450 group-hover:text-white font-medium text-center select-none truncate max-w-[64px]">
+                            <span className="text-[10px] text-slate-400 group-hover:text-white font-medium text-center select-none truncate max-w-[64px]">
                               {make}
                             </span>
                           </button>
@@ -559,7 +448,7 @@ export default function BrowseView({
                   </div>
                 )}
 
-                {/* 1B. 3-Column Responsive Grid of Collapsible National Groups */}
+                {/* Nationality Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   
                   {NATIONALITIES.map((nat) => {
@@ -571,107 +460,127 @@ export default function BrowseView({
                       <div
                         key={nat.id}
                         id={`section-${nat.id}`}
-                        className="bg-[#111116] border border-amber-500/10 hover:border-amber-500/20 rounded-xl overflow-hidden transition duration-150 flex flex-col h-full"
+                        className="bg-black/40 backdrop-blur-sm border border-white/5 rounded-xl overflow-hidden transition duration-150 flex flex-col h-full"
+                        style={{ borderLeft: `4px solid ${nat.accentColor}` }}
                       >
-                        {/* Group Header collapsible bar */}
                         <div
                           onClick={() => toggleSection(nat.id)}
-                          className="px-4 py-3 bg-[#16161c] hover:bg-slate-800/25 border-b border-amber-500/10 flex items-center justify-between cursor-pointer select-none shrink-0"
+                          className="px-4 py-3 bg-black/30 hover:bg-black/50 border-b border-white/5 flex items-center justify-between cursor-pointer select-none shrink-0"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="text-sm leading-none">{nat.emoji}</span>
-                            <h3 className="text-xs font-mono font-black tracking-widest text-slate-200">
-                              {nat.name}
-                            </h3>
+                            <span className="text-2xl leading-none">{nat.emoji}</span>
+                            <div className="flex flex-col text-left">
+                              <h3 className="text-xs font-mono font-black tracking-widest text-slate-200">
+                                {nat.name}
+                              </h3>
+                              <span className="text-[9px] font-mono text-slate-500 font-bold">
+                                {groupMakes.length} MANUFACTURERS
+                              </span>
+                            </div>
                           </div>
-                          <button
-                            type="button"
-                            className="text-slate-400 hover:text-white p-0.5"
-                          >
+                          <button type="button" className="text-slate-400 hover:text-white p-0.5">
                             {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                           </button>
                         </div>
 
-                        {/* List of makes inside (compact pills with amber outline exactly like mockup) */}
                         {!isCollapsed && (
-                          <div className="p-4 flex flex-wrap gap-2 overflow-y-auto max-h-[180px] scrollbar-thin">
-                            {groupMakes.map((make) => (
-                              <button
-                                key={make}
-                                type="button"
-                                onClick={() => handleSelectMake(make)}
-                                className="border border-amber-500/25 bg-amber-500/5 hover:bg-amber-500/15 text-amber-200/90 hover:text-amber-400 py-1.5 px-3 rounded-lg text-xs font-mono font-bold uppercase transition duration-150 cursor-pointer text-center select-none shadow"
-                              >
-                                {make}
-                              </button>
-                            ))}
+                          <div className="p-4 flex flex-wrap gap-2 overflow-y-auto max-h-[220px] scrollbar-thin">
+                            {groupMakes.map((make) => {
+                              const isHovered = hoveredMake === `${nat.id}-${make}`;
+                              return (
+                                <button
+                                  key={make}
+                                  type="button"
+                                  onClick={() => handleSelectMake(make)}
+                                  onMouseEnter={() => setHoveredMake(`${nat.id}-${make}`)}
+                                  onMouseLeave={() => setHoveredMake(null)}
+                                  style={isHovered ? { boxShadow: `0 0 8px ${nat.accentColor}66`, borderColor: nat.accentColor } : { borderColor: 'rgba(255,255,255,0.08)' }}
+                                  className="border bg-black/60 text-slate-300 py-1.5 px-3 rounded-lg text-xs font-mono font-bold uppercase transition duration-150 cursor-pointer text-center select-none"
+                                >
+                                  {make}
+                                </button>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
                     );
                   })}
 
-                  {/* Other / Miscellaneous group */}
+                  {/* Other */}
                   {filteredOtherMakes.length > 0 && (
                     <div
                       id="section-other"
-                      className="bg-[#111116] border border-amber-500/10 hover:border-amber-500/20 rounded-xl overflow-hidden transition duration-150 flex flex-col h-full"
+                      className="bg-black/40 backdrop-blur-sm border border-white/5 rounded-xl overflow-hidden transition duration-150 flex flex-col h-full"
+                      style={{ borderLeft: '4px solid #6b7280' }}
                     >
                       <div
                         onClick={() => toggleSection('other')}
-                        className="px-4 py-3 bg-[#16161c] hover:bg-slate-800/25 border-b border-amber-500/10 flex items-center justify-between cursor-pointer select-none shrink-0"
+                        className="px-4 py-3 bg-black/30 hover:bg-black/50 border-b border-white/5 flex items-center justify-between cursor-pointer select-none shrink-0"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-sm leading-none">🌍</span>
-                          <h3 className="text-xs font-mono font-black tracking-widest text-slate-200">
-                            OTHER
-                          </h3>
+                          <span className="text-2xl leading-none">🌍</span>
+                          <div className="flex flex-col text-left">
+                            <h3 className="text-xs font-mono font-black tracking-widest text-slate-200">OTHER</h3>
+                            <span className="text-[9px] font-mono text-slate-500 font-bold">{filteredOtherMakes.length} MANUFACTURERS</span>
+                          </div>
                         </div>
-                        <button
-                          type="button"
-                          className="text-slate-400 hover:text-white p-0.5"
-                        >
+                        <button type="button" className="text-slate-400 hover:text-white p-0.5">
                           {collapsedSections['other'] ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                         </button>
                       </div>
-
                       {!collapsedSections['other'] && (
-                        <div className="p-4 flex flex-wrap gap-2 overflow-y-auto max-h-[180px] scrollbar-thin">
-                          {filteredOtherMakes.map((make) => (
-                            <button
-                              key={make}
-                              type="button"
-                              onClick={() => handleSelectMake(make)}
-                              className="border border-amber-500/25 bg-amber-500/5 hover:bg-amber-500/15 text-amber-200/90 hover:text-amber-400 py-1.5 px-3 rounded-lg text-xs font-mono font-bold uppercase transition duration-150 cursor-pointer text-center select-none shadow"
-                            >
-                              {make}
-                            </button>
-                          ))}
+                        <div className="p-4 flex flex-wrap gap-2 overflow-y-auto max-h-[220px] scrollbar-thin">
+                          {filteredOtherMakes.map((make) => {
+                            const isHovered = hoveredMake === `other-${make}`;
+                            return (
+                              <button
+                                key={make}
+                                type="button"
+                                onClick={() => handleSelectMake(make)}
+                                onMouseEnter={() => setHoveredMake(`other-${make}`)}
+                                onMouseLeave={() => setHoveredMake(null)}
+                                style={isHovered ? { boxShadow: '0 0 8px #6b728066', borderColor: '#6b7280' } : { borderColor: 'rgba(255,255,255,0.08)' }}
+                                className="border bg-black/60 text-slate-300 py-1.5 px-3 rounded-lg text-xs font-mono font-bold uppercase transition duration-150 cursor-pointer text-center select-none"
+                              >
+                                {make}
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
                   )}
-
                 </div>
               </div>
             )}
 
-            {/* VIEW 2: YEARS LIST */}
+            {/* VIEW 2: YEARS */}
             {selectedMake && !selectedYear && (
-              <div className="space-y-4">
-                <h3 className="text-xs font-mono font-extrabold uppercase tracking-widest text-slate-400 border-l-2 border-amber-500 pl-3">
-                  Select Model Year for {selectedMake}
-                </h3>
+              <div className="space-y-4 bg-black/40 backdrop-blur-sm border border-white/5 rounded-xl p-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-mono font-extrabold uppercase tracking-widest text-slate-300 border-l-2 border-amber-500 pl-3">
+                    Select Model Year for {selectedMake}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={handleGoBack}
+                    className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-300 hover:text-white transition bg-black/40 border border-white/10 hover:border-slate-700 rounded-lg px-3.5 py-1.5 cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5 text-amber-500" />
+                    Back
+                  </button>
+                </div>
                 {years.length === 0 ? (
                   <p className="text-xs text-slate-500 italic py-6">No release years found for this manufacturer.</p>
                 ) : (
-                  <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-8 gap-3" id="years-catalog-grid">
+                  <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-8 gap-3">
                     {years.map((year) => (
                       <button
                         key={year}
                         type="button"
                         onClick={() => setSelectedYear(year)}
-                        className="bg-gradient-to-b from-surface-theme to-bg-theme border border-border-theme hover:border-amber-500 text-slate-200 hover:text-amber-400 font-mono font-bold text-xs py-4 px-2 rounded-lg text-center transition-all duration-150 cursor-pointer block"
+                        className="bg-black/50 border border-white/10 hover:border-amber-500 text-slate-200 hover:text-amber-400 font-mono font-bold text-xs py-4 px-2 rounded-lg text-center transition-all duration-150 cursor-pointer block"
                       >
                         {year}
                       </button>
@@ -681,23 +590,32 @@ export default function BrowseView({
               </div>
             )}
 
-            {/* VIEW 3: MODELS LIST */}
+            {/* VIEW 3: MODELS */}
             {selectedMake && selectedYear && (
-              <div className="space-y-4">
-                <h3 className="text-xs font-mono font-extrabold uppercase tracking-widest text-slate-400 border-l-2 border-amber-500 pl-3">
-                  Browse Service Manuals for {selectedYear} {selectedMake}
-                </h3>
-                
+              <div className="space-y-4 bg-black/40 backdrop-blur-sm border border-white/5 rounded-xl p-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-mono font-extrabold uppercase tracking-widest text-slate-300 border-l-2 border-amber-500 pl-3">
+                    Browse Service Manuals for {selectedYear} {selectedMake}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={handleGoBack}
+                    className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-300 hover:text-white transition bg-black/40 border border-white/10 hover:border-slate-700 rounded-lg px-3.5 py-1.5 cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5 text-amber-500" />
+                    Back
+                  </button>
+                </div>
                 {vehicles.length === 0 ? (
-                  <div className="py-12 text-center border border-dashed border-border-theme rounded-xl text-slate-500 text-xs">
+                  <div className="py-12 text-center border border-dashed border-white/10 rounded-xl text-slate-500 text-xs">
                     No model variants indexed for this combination yet.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="vehicles-catalog-list">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {vehicles.map((v) => (
                       <div
                         key={v.id}
-                        className="bg-gradient-to-b from-[#111116] to-[#0a0a0f] border border-border-theme hover:border-slate-700 hover:border-l-amber-500 border-l-[3px] border-l-border-theme rounded-xl p-5 flex items-center justify-between gap-4 transition-all duration-200 group"
+                        className="bg-black/50 border border-white/10 hover:border-amber-500/50 hover:border-l-amber-500 border-l-[3px] border-l-transparent rounded-xl p-5 flex items-center justify-between gap-4 transition-all duration-200 group"
                       >
                         <div className="space-y-1.5 text-left min-w-0">
                           <span className="text-[10px] font-mono text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded select-none">
@@ -708,13 +626,8 @@ export default function BrowseView({
                           </h4>
                           <p className="text-xs text-slate-400 font-mono truncate">{v.engine}</p>
                         </div>
-
                         <div className="flex flex-col items-end gap-2.5 shrink-0">
-                          <span className={`text-[8px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border select-none ${
-                            v.source === 'lemon'
-                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                              : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
-                          }`}>
+                          <span className={`text-[8px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border select-none ${v.source === 'lemon' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'}`}>
                             {v.source} manual
                           </span>
                           <button
@@ -734,10 +647,8 @@ export default function BrowseView({
             )}
 
           </div>
-
         </div>
       )}
-
     </div>
   );
 }
