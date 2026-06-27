@@ -772,24 +772,28 @@ export default function ManualView({
                             );
                           }
 
-                          if (block.type === 'table') {
+                           if (block.type === 'table') {
+                            const hasHeaders = block.headers && block.headers.length > 0;
+                            const tableHeaders = hasHeaders ? block.headers : (block.rows && block.rows.length > 0 ? block.rows[0] : []);
+                            const tableRows = hasHeaders ? block.rows : (block.rows && block.rows.length > 1 ? block.rows.slice(1) : (block.rows || []));
+
                             return (
-                              <div key={`table-${blockIdx}`} className="overflow-x-auto rounded-xl border border-[#1e2028] my-4">
-                                <table className="w-full text-sm">
-                                  {block.headers && block.headers.length > 0 && (
-                                    <thead className="bg-[#1a1c24]">
+                              <div key={`table-${blockIdx}`} className="overflow-x-auto rounded-xl border border-[#1e2028] my-6 font-mono text-xs">
+                                <table className="w-full text-left border-collapse bg-[#0c0d12]">
+                                  {tableHeaders && tableHeaders.length > 0 && (
+                                    <thead className="bg-[#1a1c24] border-b border-amber-500/30">
                                       <tr>
-                                        {block.headers.map((h: string, i: number) => (
-                                          <th key={i} className="px-4 py-2 text-left text-amber-500 font-bold uppercase text-xs tracking-wider border-b border-[#1e2028]">{h}</th>
+                                        {tableHeaders.map((h: string, i: number) => (
+                                          <th key={i} className="px-4 py-3 text-left text-amber-500 font-bold uppercase tracking-wider">{h}</th>
                                         ))}
                                       </tr>
                                     </thead>
                                   )}
                                   <tbody>
-                                    {block.rows && block.rows.map((row: string[], i: number) => (
-                                      <tr key={i} className={i % 2 === 0 ? 'bg-[#13141a]' : 'bg-[#0f1015]'}>
+                                    {tableRows && tableRows.map((row: string[], i: number) => (
+                                      <tr key={i} className={`border-b border-[#1e2028]/40 hover:bg-[#1a1c24]/30 transition-colors ${i % 2 === 0 ? 'bg-[#13141a]' : 'bg-[#0a0a0f]'}`}>
                                         {row.map((cell: string, j: number) => (
-                                          <td key={j} className="px-4 py-2 text-slate-300 border-b border-[#1e2028]/50">{cell}</td>
+                                          <td key={j} className="px-4 py-2.5 text-slate-300">{cell}</td>
                                         ))}
                                       </tr>
                                     ))}

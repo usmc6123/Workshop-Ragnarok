@@ -502,7 +502,7 @@ app.get('/api/page', async (req, res) => {
 
       if (isLemonContent) {
         // --- LEMON Content Parser ---
-        $content.find('h1, h2, p.PROC_HEAD, p.HEAD, p, img, ol.ARABICNUM, div.CAUTION, div.WARNING, div.NOTE').each((idx, el) => {
+        $content.find('h1, h2, p.PROC_HEAD, p.HEAD, p, img, ol.ARABICNUM, div.CAUTION, div.WARNING, div.NOTE, table.clsArticleTable').each((idx, el) => {
           const $el = $(el);
 
           // Avoid double parsing nested items
@@ -515,6 +515,21 @@ app.get('/api/page', async (req, res) => {
           }
 
           const tagName = el.name.toLowerCase();
+          
+          if (tagName === 'table') {
+            const rows = [];
+            $el.find('tr').each((i, row) => {
+              const cells = [];
+              $(row).find('th, td').each((j, cell) => {
+                cells.push($(cell).text().trim());
+              });
+              if (cells.length > 0) rows.push(cells);
+            });
+            if (rows.length > 0) {
+              blocks.push({ type: 'table', rows });
+            }
+            return;
+          }
           
           if (['h1', 'h2'].includes(tagName) || $el.hasClass('PROC_HEAD') || $el.hasClass('HEAD')) {
             const text = $el.text().trim();
