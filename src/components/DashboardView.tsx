@@ -34,17 +34,18 @@ export default function DashboardView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Manual Quick Search states
+  // Universal Search States & Setup
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedMake, setSelectedMake] = useState('');
-  const [makes, setMakes] = useState<string[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [vehicleResults, setVehicleResults] = useState<Vehicle[]>([]);
+  const [procedureResults, setProcedureResults] = useState<{ title: string; href: string; vehicle: Vehicle }[]>([]);
+  
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadDashboardData();
-    loadMakes();
   }, [refreshTrigger]);
 
   const loadDashboardData = async () => {
@@ -68,12 +69,6 @@ export default function DashboardView({
       setUpcomingAppointments(upcoming);
 
       // 4. Fetch Recent Customers
-      const custs = await api.getGarageVehicles(); // wait, let's fetch real customers
-      const allCusts = await api.getGarage() ? await api.getGarage() : []; // we have api.getMakes etc.
-      // Wait, do we have an API for customers? Let's check api.ts!
-      // Oh! In `src/lib/api.ts` we should define customer endpoints first.
-      // Let's call them anyway as we will add them to `src/lib/api.ts` next.
-      // Let's implement getting customers.
       try {
         const cData = await (api as any).getCustomers();
         setRecentCustomers(cData.slice(0, 5)); // show last 5 customers
@@ -89,39 +84,177 @@ export default function DashboardView({
     }
   };
 
-  const loadMakes = async () => {
-    try {
-      const list = await api.getMakes();
-      setMakes(list.sort().slice(0, 30)); // limit makes dropdown on dashboard for speed
-    } catch (err) {
-      console.error('Failed to load makes:', err);
-    }
-  };
-
-  // Trigger search on typing
+  // Close dropdown on click outside or escape key
   useEffect(() => {
-    if (!searchTerm && !selectedMake) {
-      setVehicles([]);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setDropdownOpen(false);
+      }
+    };
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Debounced search trigger
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setVehicleResults([]);
+      setProcedureResults([]);
+      setDropdownOpen(false);
       return;
     }
     const timer = setTimeout(() => {
-      executeSearch(selectedMake, searchTerm);
+      executeSearch(searchTerm);
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchTerm, selectedMake]);
+  }, [searchTerm]);
 
-  const executeSearch = async (make: string, query: string) => {
+  const ALIAS_MAP: { [key: string]: string } = {
+    chevy: 'Chevrolet',
+    vw: 'Volkswagen',
+    benz: 'Mercedes Benz',
+    dodge: 'Dodge and RAM',
+    ram: 'Dodge and RAM'
+  };
+
+  const PROCEDURE_KEYWORDS = new Set([
+    'head', 'gasket', 'gaskets', 'torque', 'spec', 'specs', 'specification', 'specifications',
+    'timing', 'chain', 'chains', 'inspection', 'calibration',
+    'valve', 'valves', 'clearance', 'correction', 'setup', 'shimming', 'shim', 'shims',
+    'cooling', 'system', 'systems', 'bleeding', 'coolant',
+    'oil', 'pressure', 'relief', 'diagnostics', 'diagnostic',
+    'obd', 'obd2', 'obdii', 'multi-diagnostic', 'codes', 'code', 'guide',
+    'spark', 'plug', 'plugs', 'brake', 'brakes', 'pad', 'pads', 'rotor', 'rotors',
+    'fluid', 'fluids', 'repair', 'manual', 'manuals', 'procedure', 'procedures', 'chapter', 'chapters',
+    'service', 'maintenance', 'inspection'
+  ]);
+
+  const ALL_PROCEDURES = [
+    { 
+      title: "Head Gasket Service & Specifications", 
+      href: "/engine/head-gasket", 
+      keywords: ["head", "gasket", "torque", "specifications", "spec", "spark", "plug", "plugs", "cylinder"] 
+    },
+    { 
+      title: "Timing Chain Inspection & Calibration", 
+      href: "/engine/timing-chain", 
+      keywords: ["timing", "chain", "inspection", "calibration", "camshaft", "crankshaft"] 
+    },
+    { 
+      title: "Valve Clearance Correction Setup", 
+      href: "/engine/valve-clearance", 
+      keywords: ["valve", "clearance", "correction", "setup", "shimming", "shim", "shims", "intake", "exhaust"] 
+    },
+    { 
+      title: "Cooling System Bleeding Procedure", 
+      href: "/fluids/cooling", 
+      keywords: ["cooling", "system", "bleeding", "coolant", "radiator", "fluid"] 
+    },
+    { 
+      title: "Oil Pressure Relief Valve Diagnostics", 
+      href: "/fluids/oil-flow", 
+      keywords: ["oil", "pressure", "relief", "valve", "diagnostics", "fluid"] 
+    },
+    { 
+      title: "OBD-II Multi-Diagnostic Codes Guide", 
+      href: "/electrical/obd-codes", 
+      keywords: ["obd", "obd2", "obdii", "diagnostic", "codes", "code", "guide", "brake", "brakes", "pad", "pads", "sensor"] 
+    }
+  ];
+
+  const getExpandedTokens = (query: string): string[] => {
+    const rawTokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const tokens: string[] = [];
+    rawTokens.forEach(t => {
+      const clean = t.replace(/[^a-z0-9]/g, '');
+      if (ALIAS_MAP[clean]) {
+        tokens.push(...ALIAS_MAP[clean].toLowerCase().split(/\s+/));
+      } else {
+        tokens.push(t);
+      }
+    });
+    return tokens;
+  };
+
+  const executeSearch = async (query: string) => {
+    if (!query.trim()) return;
     setSearchLoading(true);
     setSearchError(null);
+    setDropdownOpen(true);
     try {
-      const data = await api.getVehicles(make || undefined, undefined, query || undefined, 6);
-      setVehicles(data);
+      // 1. Fetch all vehicles to support flexible client-side multi-token matching
+      const allVehicles = await api.getVehicles(undefined, undefined, undefined, 200);
+
+      // 2. Expand aliases
+      const tokens = getExpandedTokens(query);
+      if (tokens.length === 0) {
+        setVehicleResults([]);
+        setProcedureResults([]);
+        return;
+      }
+
+      // 3. Split tokens into vehicle properties and procedure keywords
+      const vehicleTokens = tokens.filter(t => !PROCEDURE_KEYWORDS.has(t));
+      const procedureTokens = tokens.filter(t => PROCEDURE_KEYWORDS.has(t));
+
+      // 4. Find matching vehicles
+      const matchedVehs = allVehicles.filter(v => {
+        const searchFields = [v.make, v.model, v.year, v.engine].map(s => s.toLowerCase());
+        const tokensToMatch = vehicleTokens.length > 0 ? vehicleTokens : tokens;
+        return tokensToMatch.every(token => 
+          searchFields.some(field => field.includes(token))
+        );
+      });
+
+      // 5. Match procedures for each matched vehicle
+      const matchedProcs: { title: string; href: string; vehicle: Vehicle }[] = [];
+      
+      matchedVehs.forEach(v => {
+        let filteredProcs = ALL_PROCEDURES;
+        if (procedureTokens.length > 0) {
+          filteredProcs = ALL_PROCEDURES.filter(p => {
+            const searchStr = (p.title + ' ' + p.keywords.join(' ')).toLowerCase();
+            return procedureTokens.some(token => searchStr.includes(token));
+          });
+        }
+
+        filteredProcs.forEach(p => {
+          matchedProcs.push({
+            title: p.title,
+            href: p.href,
+            vehicle: v
+          });
+        });
+      });
+
+      setVehicleResults(matchedVehs.slice(0, 8));
+      setProcedureResults(matchedProcs.slice(0, 8));
     } catch (err: any) {
+      console.error('Search error:', err);
       setSearchError(err.message || 'Search lookup failed.');
-      setVehicles([]);
+      setVehicleResults([]);
+      setProcedureResults([]);
     } finally {
       setSearchLoading(false);
     }
+  };
+
+  const handleSelectProcedure = (proc: { title: string; href: string; vehicle: Vehicle }) => {
+    const modifiedVehicle: Vehicle = {
+      ...proc.vehicle,
+      uriPath: proc.href
+    };
+    onSelectVehicle(modifiedVehicle);
+    setDropdownOpen(false);
   };
 
   return (
@@ -234,7 +367,7 @@ export default function DashboardView({
       </div>
 
       {/* 2. Interactive Manual Search Utility */}
-      <div className="bg-[#13141a]/80 backdrop-blur-sm border border-border-theme rounded-xl p-5 space-y-4 shadow select-none text-left relative z-10">
+      <div className="bg-[#13141a]/80 backdrop-blur-sm border border-border-theme rounded-xl p-5 space-y-4 shadow select-none text-left relative z-40" ref={dropdownRef}>
         <div className="flex items-center gap-2">
           <Wrench className="w-4 h-4 text-primary-theme" />
           <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">
@@ -242,65 +375,133 @@ export default function DashboardView({
           </span>
         </div>
 
-        <div className="bg-bg-theme border border-border-theme rounded-xl p-2.5 flex flex-col sm:flex-row gap-2.5">
-          {/* Keyword Field */}
-          <div className="relative flex-1">
-            <input
-              type="text"
-              placeholder="Search makes, models, or manual chapters... e.g. Corvette, Tacoma, Spark plug"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full rounded-lg bg-surface-theme border border-border-theme focus:border-primary-theme pl-10 pr-4 py-2 text-xs text-text-theme placeholder-slate-500 focus:outline-none transition"
-              id="dashboard-quick-search-input"
-            />
-            <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-500" />
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search make, model, year, engine, or manual chapter (e.g. '2018 Chevy spark plug', 'Ford 2021 brake')..."
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setDropdownOpen(true);
+            }}
+            onFocus={() => {
+              if (searchTerm.trim()) {
+                setDropdownOpen(true);
+              }
+            }}
+            className="w-full rounded-lg bg-surface-theme border border-border-theme focus:border-primary-theme pl-10 pr-20 py-2.5 text-xs text-text-theme placeholder-slate-500 focus:outline-none transition"
+            id="dashboard-quick-search-input"
+          />
+          <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
+          
+          <div className="absolute right-3 top-2.5 flex items-center gap-2">
+            {searchLoading && (
+              <RefreshCw className="w-3.5 h-3.5 text-primary-theme animate-spin" />
+            )}
+            {searchTerm && (
+              <button 
+                onClick={() => {
+                  setSearchTerm('');
+                  setVehicleResults([]);
+                  setProcedureResults([]);
+                  setDropdownOpen(false);
+                }}
+                className="text-slate-550 hover:text-slate-300 text-[10px] font-mono uppercase font-bold"
+              >
+                Clear
+              </button>
+            )}
           </div>
-
-          {/* Make Filter Dropdown */}
-          <select
-            value={selectedMake}
-            onChange={(e) => setSelectedMake(e.target.value)}
-            className="bg-surface-theme border border-border-theme hover:border-slate-700 rounded-lg px-4 py-2 text-xs text-text-theme focus:outline-none focus:border-primary-theme cursor-pointer transition md:w-52"
-          >
-            <option value="">All Manufacturers</option>
-            {makes.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
         </div>
 
-        {/* Live Search dropdown overlay details */}
-        {(searchTerm || selectedMake) && (
-          <div className="space-y-3.5 animate-fade-in border-t border-border-theme pt-4 text-left" id="dashboard-live-search-results">
-            <div className="flex items-center justify-between text-xs text-slate-500 font-mono">
-              <span>MATCHING MANUAL BLUEPRINTS ({vehicles.length})</span>
-              {searchLoading && <RefreshCw className="w-3.5 h-3.5 text-primary-theme animate-spin" />}
-            </div>
-
-            {searchError ? (
-              <p className="text-xs text-red-400 font-mono">Failed to communicate with manuals catalog server.</p>
-            ) : vehicles.length === 0 ? (
-              <p className="text-xs text-slate-500 italic py-2">No exact match manuals found. Try adjusting keywords.</p>
+        {/* Live Search dropdown overlay */}
+        {dropdownOpen && searchTerm.trim() && (
+          <div 
+            className="absolute left-0 right-0 mt-2 bg-[#101116]/95 backdrop-blur-md border border-border-theme rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in text-left" 
+            id="dashboard-universal-search-dropdown"
+          >
+            {searchLoading && vehicleResults.length === 0 && procedureResults.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-xs font-mono flex flex-col items-center justify-center gap-2">
+                <RefreshCw className="w-5 h-5 text-primary-theme animate-spin" />
+                <span>Searching diagnostics database...</span>
+              </div>
+            ) : vehicleResults.length === 0 && procedureResults.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-xs font-mono">
+                No results found for <span className="text-amber-500 font-bold">"{searchTerm}"</span>
+              </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {vehicles.map((v) => (
-                  <div
-                    key={v.id}
-                    onClick={() => onSelectVehicle(v)}
-                    className="bg-bg-theme border border-border-theme hover:border-slate-700 rounded-lg p-3 flex items-center justify-between gap-3 transition cursor-pointer group"
-                  >
-                    <div className="min-w-0">
-                      <span className="text-[9px] font-mono text-primary-theme font-bold block">
-                        {v.year}
-                      </span>
-                      <h4 className="text-xs font-bold text-text-theme group-hover:text-primary-theme truncate">
-                        {v.make} {v.model}
-                      </h4>
-                      <p className="text-[10px] text-slate-400 truncate">{v.engine}</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border-theme/40 max-h-[380px] overflow-y-auto">
+                {/* VEHICLES SECTION */}
+                <div className="p-4 space-y-2.5">
+                  <span className="text-[10px] font-mono font-black tracking-widest text-slate-500 uppercase flex items-center gap-1.5 border-b border-border-theme/20 pb-1.5">
+                    <Car className="w-3.5 h-3.5 text-primary-theme" />
+                    VEHICLES ({vehicleResults.length})
+                  </span>
+                  
+                  {vehicleResults.length === 0 ? (
+                    <p className="text-[11px] text-slate-500 italic py-2 pl-1">No matching vehicles.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {vehicleResults.map((v) => (
+                        <button
+                          key={`veh-${v.id}`}
+                          onClick={() => {
+                            onSelectVehicle(v);
+                            setDropdownOpen(false);
+                          }}
+                          className="w-full text-left bg-transparent hover:bg-white/5 rounded-lg p-2 flex items-center justify-between gap-3 transition group border border-transparent hover:border-border-theme/30 cursor-pointer"
+                        >
+                          <div className="min-w-0 text-left">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-mono font-black text-amber-500 bg-amber-500/10 border border-amber-500/20 px-1 py-0.2 rounded">
+                                {v.year}
+                              </span>
+                              <span className="text-xs font-bold text-text-theme group-hover:text-primary-theme transition-colors truncate">
+                                {v.make} {v.model}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                              {v.engine}
+                            </p>
+                          </div>
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-primary-theme transition-colors" />
+                        </button>
+                      ))}
                     </div>
-                    <BookOpen className="w-4 h-4 text-slate-500 group-hover:text-primary-theme transition-colors shrink-0" />
-                  </div>
-                ))}
+                  )}
+                </div>
+
+                {/* PROCEDURES SECTION */}
+                <div className="p-4 space-y-2.5">
+                  <span className="text-[10px] font-mono font-black tracking-widest text-slate-500 uppercase flex items-center gap-1.5 border-b border-border-theme/20 pb-1.5">
+                    <Wrench className="w-3.5 h-3.5 text-primary-theme" />
+                    PROCEDURES ({procedureResults.length})
+                  </span>
+
+                  {procedureResults.length === 0 ? (
+                    <p className="text-[11px] text-slate-500 italic py-2 pl-1">No matching chapters or procedures.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {procedureResults.map((p, idx) => (
+                        <button
+                          key={`proc-${idx}`}
+                          onClick={() => handleSelectProcedure(p)}
+                          className="w-full text-left bg-transparent hover:bg-white/5 rounded-lg p-2 flex items-center justify-between gap-3 transition group border border-transparent hover:border-border-theme/30 cursor-pointer"
+                        >
+                          <div className="min-w-0 flex-1 text-left">
+                            <h4 className="text-xs font-bold text-slate-200 group-hover:text-primary-theme transition-colors truncate">
+                              {p.title}
+                            </h4>
+                            <p className="text-[10px] text-slate-400 mt-0.5 truncate">
+                              Vehicle: <span className="text-slate-300">{p.vehicle.year} {p.vehicle.make} {p.vehicle.model}</span>
+                            </p>
+                          </div>
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-primary-theme transition-colors shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
