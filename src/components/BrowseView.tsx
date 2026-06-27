@@ -72,7 +72,7 @@ const MAKE_LOGOS: Record<string, string> = {
   'audi': 'https://logo.clearbit.com/audi.com',
   'volkswagen': 'https://logo.clearbit.com/volkswagen.com',
   'jeep': 'https://logo.clearbit.com/jeep.com',
-  'dodge and ram': 'https://logo.clearbit.com/ramtrucks.com',
+  'dodge and ram': 'https://logo.clearbit.com/dodge.com',
   'gmc': 'https://logo.clearbit.com/gmc.com',
   'hyundai': 'https://logo.clearbit.com/hyundai.com',
   'kia': 'https://logo.clearbit.com/kia.com',
@@ -82,6 +82,15 @@ const MAKE_LOGOS: Record<string, string> = {
   'porsche': 'https://logo.clearbit.com/porsche.com',
   'volvo': 'https://logo.clearbit.com/volvocars.com',
   'land rover': 'https://logo.clearbit.com/landrover.com',
+  'genesis': 'https://logo.clearbit.com/genesis.com',
+  'cadillac': 'https://logo.clearbit.com/cadillac.com',
+  'buick': 'https://logo.clearbit.com/buick.com',
+  'lincoln': 'https://logo.clearbit.com/lincoln.com',
+  'infiniti': 'https://logo.clearbit.com/infinitiusa.com',
+  'acura': 'https://logo.clearbit.com/acura.com',
+  'mitsubishi': 'https://logo.clearbit.com/mitsubishi-motors.com',
+  'alfa romeo': 'https://logo.clearbit.com/alfaromeo.com',
+  'jaguar': 'https://logo.clearbit.com/jaguar.com',
 };
 
 export default function BrowseView({ 
@@ -461,7 +470,7 @@ export default function BrowseView({
                                   referrerPolicy="no-referrer"
                                 />
                               ) : (
-                                <span className="font-mono text-base font-black tracking-wider text-amber-500 group-hover:text-amber-400">
+                                <span className="font-mono text-2xl font-black tracking-wider text-amber-500 group-hover:text-amber-400 select-none">
                                   {make.substring(0, 2).toUpperCase()}
                                 </span>
                               )}
@@ -517,7 +526,7 @@ export default function BrowseView({
 
                         {/* List of makes inside (compact pills with accent outline glow) */}
                         {!isCollapsed && (
-                          <div className="p-4 flex flex-wrap gap-2 overflow-y-auto max-h-[220px] scrollbar-thin">
+                          <div className="p-4 flex flex-wrap gap-2">
                             {groupMakes.map((make) => {
                               const isHovered = hoveredMake === `${nat.id}-${make}`;
                               return (
@@ -528,7 +537,7 @@ export default function BrowseView({
                                   onMouseEnter={() => setHoveredMake(`${nat.id}-${make}`)}
                                   onMouseLeave={() => setHoveredMake(null)}
                                   style={isHovered ? { boxShadow: `0 0 8px ${nat.accentColor}66`, borderColor: nat.accentColor } : { borderColor: 'rgba(255, 255, 255, 0.08)' }}
-                                  className="border bg-black/60 text-slate-300 py-1.5 px-3 rounded-lg text-xs font-mono font-bold uppercase transition duration-150 cursor-pointer text-center select-none shadow"
+                                  className="border bg-black/60 text-slate-300 py-2 px-4 rounded-lg text-sm font-mono font-bold uppercase transition duration-150 cursor-pointer text-center select-none shadow"
                                 >
                                   {make}
                                 </button>
@@ -571,7 +580,7 @@ export default function BrowseView({
                       </div>
 
                       {!collapsedSections['other'] && (
-                        <div className="p-4 flex flex-wrap gap-2 overflow-y-auto max-h-[220px] scrollbar-thin">
+                        <div className="p-4 flex flex-wrap gap-2">
                           {filteredOtherMakes.map((make) => {
                             const isHovered = hoveredMake === `other-${make}`;
                             return (
@@ -582,7 +591,7 @@ export default function BrowseView({
                                 onMouseEnter={() => setHoveredMake(`other-${make}`)}
                                 onMouseLeave={() => setHoveredMake(null)}
                                 style={isHovered ? { boxShadow: `0 0 8px #6b728066`, borderColor: '#6b7280' } : { borderColor: 'rgba(255, 255, 255, 0.08)' }}
-                                className="border bg-black/60 text-slate-300 py-1.5 px-3 rounded-lg text-xs font-mono font-bold uppercase transition duration-150 cursor-pointer text-center select-none shadow"
+                                className="border bg-black/60 text-slate-300 py-2 px-4 rounded-lg text-sm font-mono font-bold uppercase transition duration-150 cursor-pointer text-center select-none shadow"
                               >
                                 {make}
                               </button>

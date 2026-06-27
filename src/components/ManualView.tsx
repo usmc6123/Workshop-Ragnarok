@@ -666,11 +666,11 @@ export default function ManualView({
       {/* 2. Main Sidebar & Stage Screen Container */}
       <div className="flex-1 flex overflow-hidden relative">
         
-        {/* Left Aspect: Fixed Index Directory Sidebar (320px wide) */}
+        {/* Left Aspect: Fixed Index Directory Sidebar (520px wide) */}
         <aside 
           className={`
             absolute md:static top-0 bottom-0 left-0 z-40
-            w-[480px] max-w-full shrink-0 border-r border-[#1e2028] bg-[#0d0e14] flex flex-col h-full
+            w-[520px] max-w-full shrink-0 border-r border-[#1e2028] bg-[#0d0e14] flex flex-col h-full
             transform md:translate-x-0 transition-transform duration-200 ease-in-out
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
           `}
@@ -777,7 +777,7 @@ export default function ManualView({
           </div>
 
           {/* Core scrollable content container */}
-          <div className="flex-1 overflow-y-auto px-4 md:px-6 pb-16">
+          <div className="flex-1 overflow-y-auto px-6 md:px-12 py-8 pb-20">
             
             {loadingActivePage ? (
               <div className="py-24 flex flex-col items-center justify-center space-y-4">
@@ -802,7 +802,7 @@ export default function ManualView({
                 </button>
               </div>
             ) : activePage ? (
-              <div className="max-w-5xl mx-auto space-y-6 animate-fade-in" id="active-document-canvas">
+              <div className="max-w-6xl mx-auto space-y-8 animate-fade-in" id="active-document-canvas">
                 
                 {/* 2A. When active selection is a folder category (welcome / select a procedure state) */}
                 {activePage.pageType === 'category' ? (
@@ -859,7 +859,7 @@ export default function ManualView({
                             return (
                               <h3 
                                 key={`heading-${blockIdx}`}
-                                className="text-base md:text-lg font-extrabold text-amber-400 uppercase tracking-wider border-l-2 border-amber-500 pl-3 pt-0.5 mt-8"
+                                className="text-lg md:text-xl font-extrabold text-amber-400 uppercase tracking-wider border-l-2 border-amber-500 pl-4 pt-1 mt-10 leading-relaxed"
                               >
                                 {block.text}
                               </h3>
@@ -981,7 +981,7 @@ export default function ManualView({
                             return (
                               <div 
                                 key={`image-${blockIdx}`}
-                                className="group relative rounded-xl overflow-hidden border border-[#1e2028] bg-[#13141a] p-2 text-center max-w-2xl mx-auto cursor-zoom-in shadow-lg"
+                                className="group relative rounded-xl overflow-hidden border border-[#1e2028] bg-[#13141a] p-3 text-center max-w-3xl mx-auto cursor-zoom-in shadow-lg"
                                 onClick={() => {
                                   setLightboxSrc(proxiedSrc);
                                   setLightboxAlt(activePage.title);
@@ -991,10 +991,10 @@ export default function ManualView({
                                   src={proxiedSrc}
                                   alt={activePage.title}
                                   referrerPolicy="no-referrer"
-                                  className="max-h-96 object-contain rounded-lg mx-auto filter bg-[#020204]/70 pointer-events-none group-hover:brightness-105 duration-150"
+                                  className="max-h-[520px] object-contain rounded-lg mx-auto filter bg-[#020204]/70 pointer-events-none group-hover:brightness-105 duration-150"
                                 />
-                                <div className="absolute inset-2 bg-black/40 backdrop-blur-xs opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-all text-xs gap-1.5 font-mono uppercase tracking-wider font-bold select-none rounded-lg">
-                                  <Eye className="w-4 h-4 text-amber-500" />
+                                <div className="absolute inset-2 bg-black/40 backdrop-blur-xs opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-all text-sm gap-1.5 font-mono uppercase tracking-wider font-bold select-none rounded-lg">
+                                  <Eye className="w-5 h-5 text-amber-500" />
                                   <span>Zoom Diagram Blueprint</span>
                                 </div>
                               </div>
@@ -1007,13 +1007,13 @@ export default function ManualView({
                             const tableRows = hasHeaders ? block.rows : (block.rows && block.rows.length > 1 ? block.rows.slice(1) : (block.rows || []));
 
                             return (
-                              <div key={`table-${blockIdx}`} className="overflow-x-auto rounded-xl border border-[#1e2028] my-6 font-mono text-xs">
+                              <div key={`table-${blockIdx}`} className="overflow-x-auto rounded-xl border border-[#1e2028] my-8 font-mono text-sm">
                                 <table className="w-full text-left border-collapse bg-[#0c0d12]">
                                   {tableHeaders && tableHeaders.length > 0 && (
                                     <thead className="bg-[#1a1c24] border-b border-amber-500/30">
                                       <tr>
                                         {tableHeaders.map((h: string, i: number) => (
-                                          <th key={i} className="px-4 py-3 text-left text-amber-500 font-bold uppercase tracking-wider">{h}</th>
+                                          <th key={i} className="px-5 py-4 text-left text-amber-500 font-bold uppercase tracking-wider text-xs md:text-sm">{h}</th>
                                         ))}
                                       </tr>
                                     </thead>
@@ -1022,7 +1022,7 @@ export default function ManualView({
                                     {tableRows && tableRows.map((row: string[], i: number) => (
                                       <tr key={i} className={`border-b border-[#1e2028]/40 hover:bg-[#1a1c24]/30 transition-colors ${i % 2 === 0 ? 'bg-[#13141a]' : 'bg-[#0a0a0f]'}`}>
                                         {row.map((cell: string, j: number) => (
-                                          <td key={j} className="px-4 py-2.5 text-slate-300">{cell}</td>
+                                          <td key={j} className="px-5 py-3.5 text-slate-300">{cell}</td>
                                         ))}
                                       </tr>
                                     ))}
@@ -1174,6 +1174,42 @@ export default function ManualView({
           </div>
         </div>
       )}
+
+      {/* Prominent Search/Filter Style Overrides */}
+      <style>{`
+        #tree-search-input {
+          padding-top: 0.75rem !important;
+          padding-bottom: 0.75rem !important;
+          padding-left: 2.5rem !important;
+          padding-right: 2.5rem !important;
+          font-size: 0.875rem !important; /* text-sm */
+          line-height: 1.25rem !important;
+          border-color: #3f3f46 !important; /* border-zinc-700 */
+          background-color: #0c0d12 !important;
+          width: 100% !important;
+          border-radius: 0.5rem !important;
+        }
+        #tree-search-input:focus {
+          border-color: #f59e0b !important; /* border-amber-500 */
+          box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2) !important;
+        }
+        #category-tree-panel .relative svg {
+          top: 0.95rem !important;
+          left: 0.85rem !important;
+          width: 1.125rem !important;
+          height: 1.125rem !important;
+        }
+        #category-tree-panel .relative button {
+          top: 0.75rem !important;
+          right: 0.75rem !important;
+        }
+        #category-tree-panel .relative button svg {
+          top: auto !important;
+          left: auto !important;
+          width: 0.875rem !important;
+          height: 0.875rem !important;
+        }
+      `}</style>
 
     </div>
   );
