@@ -156,20 +156,35 @@ export default function App() {
   }
 
   const isManualOrLibrary = view === 'manual' || view === 'manual-library';
+  const isManualLibrary = view === 'manual-library';
+
+  const getBackgroundStyle = () => {
+    if (isManualLibrary) {
+      return {
+        backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55)), url('https://raw.githubusercontent.com/usmc6123/images/main/carmanualsbackground.jpg')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+        backgroundRepeat: 'no-repeat',
+      };
+    }
+    if (view === 'manual') {
+      return { backgroundColor: '#0a0a0f' };
+    }
+    return {
+      backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45)), url('https://raw.githubusercontent.com/usmc6123/images/main/catbackground.jpg')`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundAttachment: 'fixed',
+      backgroundRepeat: 'no-repeat',
+    };
+  };
 
   return (
     <div 
       className="min-h-screen flex text-text-theme bg-bg-theme transition-all duration-200" 
       id="application-container"
-      style={isManualOrLibrary ? {
-        backgroundColor: '#0a0a0f',
-      } : {
-        backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45)), url('https://raw.githubusercontent.com/usmc6123/images/main/catbackground.jpg')`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed',
-        backgroundRepeat: 'no-repeat',
-      }}
+      style={getBackgroundStyle()}
     >
       
       {/* 1. Left Navigation Sidebar */}
