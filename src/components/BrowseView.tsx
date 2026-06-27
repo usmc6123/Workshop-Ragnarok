@@ -93,6 +93,132 @@ const MAKE_LOGOS: Record<string, string> = {
   'jaguar': 'https://logo.clearbit.com/jaguar.com',
 };
 
+export function parseDrivetrain(model: string): string {
+  const m = model.toUpperCase();
+  if (m.includes('AWD')) return 'AWD';
+  if (m.includes('4WD') || m.includes('4X4')) return '4WD';
+  if (m.includes('RWD')) return 'RWD';
+  if (m.includes('FWD')) return 'FWD';
+  
+  const lower = model.toLowerCase();
+  if (lower.includes('mustang') || lower.includes('corvette') || lower.includes('camaro') || lower.includes('charger') || lower.includes('challenger') || lower.includes('miata') || lower.includes('brz')) {
+    return 'RWD';
+  }
+  if (lower.includes('silverado') || lower.includes('tacoma') || lower.includes('f-150') || lower.includes('f150') || lower.includes('tundra') || lower.includes('ram') || lower.includes('sierra') || lower.includes('wrangler') || lower.includes('land cruiser')) {
+    return '4WD';
+  }
+  if (lower.includes('explorer') || lower.includes('subaru') || lower.includes('outback') || lower.includes('forester') || lower.includes('cr-v') || lower.includes('crv') || lower.includes('rav4') || lower.includes('rav-4')) {
+    return 'AWD';
+  }
+  return 'FWD';
+}
+
+export function parseEngineType(engine: string): string {
+  if (!engine) return 'Other';
+  const e = engine.toUpperCase();
+  if (e.includes('V8')) return 'V8';
+  if (e.includes('V6')) return 'V6';
+  if (e.includes('I4') || e.includes('L4') || e.includes('2.0L') || e.includes('2.4L') || e.includes('1.8L') || e.includes('1.5L') || e.includes('4-CYL')) return 'I4';
+  if (e.includes('I6') || e.includes('L6') || e.includes('6-CYL') || e.includes('3.0L')) return 'I6';
+  if (e.includes('V12')) return 'V12';
+  if (e.includes('V10')) return 'V10';
+  if (e.includes('H4') || e.includes('F4') || e.includes('BOXER')) return 'H4';
+  if (e.includes('ELECTRIC') || e.includes('EV') || e.includes('BEV') || e.includes('DUAL MOTOR')) return 'EV';
+  
+  const cylinderMatch = e.match(/(\d)\s*-?\s*CYL/);
+  if (cylinderMatch) {
+    const cyl = cylinderMatch[1];
+    if (cyl === '4') return 'I4';
+    if (cyl === '6') return 'V6';
+    if (cyl === '8') return 'V8';
+  }
+  return 'Other';
+}
+
+export function getDrivetrainBadge(drivetrain: string) {
+  switch (drivetrain) {
+    case 'FWD':
+      return 'bg-blue-500/10 text-blue-400 border border-blue-500/25';
+    case 'AWD':
+      return 'bg-green-500/10 text-green-400 border border-green-500/25';
+    case 'RWD':
+      return 'bg-amber-500/10 text-amber-400 border border-amber-500/25';
+    case '4WD':
+      return 'bg-purple-500/10 text-purple-400 border border-purple-500/25';
+    default:
+      return 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/25';
+  }
+}
+
+export function getClientSideSearchResults(query: string, data: Vehicle[]): Vehicle[] {
+  const trimmed = query.trim().toLowerCase();
+  if (!trimmed) return [];
+
+  // Split query into individual search tokens
+  const queryParts = trimmed.split(/\s+/).filter(Boolean);
+
+  return data.map(vehicle => {
+    const makeLower = vehicle.make.toLowerCase();
+    const modelLower = vehicle.model.toLowerCase();
+    const yearLower = vehicle.year.toLowerCase();
+    const engineLower = vehicle.engine ? vehicle.engine.toLowerCase() : '';
+
+    let matches = true;
+    let score = 0;
+
+    for (const part of queryParts) {
+      let partMatched = false;
+
+      // Check aliases for make
+      let matchedByAlias = false;
+      if (part === 'chevy' && (makeLower.includes('chevrolet') || makeLower.includes('chevy'))) matchedByAlias = true;
+      if (part === 'chevrolet' && (makeLower.includes('chevrolet') || makeLower.includes('chevy'))) matchedByAlias = true;
+      if (part === 'vw' && (makeLower.includes('volkswagen') || makeLower.includes('vw'))) matchedByAlias = true;
+      if (part === 'volkswagen' && (makeLower.includes('volkswagen') || makeLower.includes('vw'))) matchedByAlias = true;
+      if (part === 'benz' && (makeLower.includes('mercedes benz') || makeLower.includes('mercedes') || makeLower.includes('benz'))) matchedByAlias = true;
+      if (part === 'mercedes' && (makeLower.includes('mercedes benz') || makeLower.includes('mercedes') || makeLower.includes('benz'))) matchedByAlias = true;
+      if (part === 'dodge' && (makeLower.includes('dodge and ram') || makeLower.includes('dodge') || makeLower.includes('ram'))) matchedByAlias = true;
+      if (part === 'ram' && (makeLower.includes('dodge and ram') || makeLower.includes('dodge') || makeLower.includes('ram'))) matchedByAlias = true;
+
+      if (matchedByAlias) {
+        partMatched = true;
+        score += 100;
+      }
+
+      // Exact or partial fields checks
+      if (makeLower.includes(part)) {
+        partMatched = true;
+        if (makeLower === part) score += 200;
+        else score += 80;
+      }
+      if (modelLower.includes(part)) {
+        partMatched = true;
+        if (modelLower === part) score += 50;
+        else score += 30;
+      }
+      if (yearLower.includes(part)) {
+        partMatched = true;
+        if (yearLower === part) score += 15;
+        else score += 10;
+      }
+      if (engineLower.includes(part)) {
+        partMatched = true;
+        score += 5;
+      }
+
+      if (!partMatched) {
+        matches = false;
+        break;
+      }
+    }
+
+    return { vehicle, matches, score };
+  })
+  .filter(item => item.matches)
+  .sort((a, b) => b.score - a.score)
+  .map(item => item.vehicle);
+}
+
 export default function BrowseView({ 
   onSelectVehicle, 
   initialSearch,
@@ -114,6 +240,16 @@ export default function BrowseView({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [allCatalogVehicles, setAllCatalogVehicles] = useState<Vehicle[]>([]);
+  const [drivetrainFilter, setDrivetrainFilter] = useState('ALL');
+  const [engineFilter, setEngineFilter] = useState('ALL');
+
+  // Reset filters when selected vehicle/make/year changes
+  useEffect(() => {
+    setDrivetrainFilter('ALL');
+    setEngineFilter('ALL');
+  }, [selectedMake, selectedYear]);
+
   // Collapsible section state (false = expanded, true = collapsed)
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
@@ -128,7 +264,7 @@ export default function BrowseView({
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize and load all makes & recently viewed on mount
+  // Initialize and load all makes, all vehicles & recently viewed on mount
   useEffect(() => {
     const fetchMakes = async () => {
       setLoading(true);
@@ -144,6 +280,16 @@ export default function BrowseView({
       }
     };
     fetchMakes();
+
+    const fetchAllVehicles = async () => {
+      try {
+        const list = await api.getVehicles(undefined, undefined, undefined, 2500);
+        setAllCatalogVehicles(list);
+      } catch (e) {
+        console.error('Failed to pre-fetch catalog vehicles', e);
+      }
+    };
+    fetchAllVehicles();
 
     const stored = localStorage.getItem('recently_viewed_makes');
     if (stored) {
@@ -191,14 +337,22 @@ export default function BrowseView({
     setLoading(true);
     debounceTimerRef.current = setTimeout(async () => {
       try {
-        const results = await api.getVehicles(undefined, undefined, searchTerm.trim(), 100);
+        let results: Vehicle[] = [];
+        if (allCatalogVehicles && allCatalogVehicles.length > 0) {
+          results = getClientSideSearchResults(searchTerm, allCatalogVehicles);
+        } else {
+          // Fallback if not loaded yet
+          const fetched = await api.getVehicles(undefined, undefined, undefined, 2500);
+          setAllCatalogVehicles(fetched);
+          results = getClientSideSearchResults(searchTerm, fetched);
+        }
         setSearchResults(results);
       } catch (err: any) {
         console.error('Flat search failed', err);
       } finally { setLoading(false); }
-    }, 300);
+    }, 200);
     return () => { if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current); };
-  }, [searchTerm]);
+  }, [searchTerm, allCatalogVehicles]);
 
   const handleSelectMake = (make: string) => {
     setSelectedMake(make);
@@ -293,45 +447,6 @@ export default function BrowseView({
             </button>
           )}
         </div>
-
-        {/* Filter Pills with Flags */}
-        {!selectedMake && (
-          <div className="flex flex-wrap gap-2 pt-1 select-none">
-            <button
-              type="button"
-              onClick={() => scrollToSection('all')}
-              className={`px-4 py-1.5 font-mono text-[11px] font-black uppercase rounded-full transition duration-150 cursor-pointer ${activeFilter === 'all' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/25' : 'bg-black/40 text-slate-300 border border-white/10 hover:border-amber-500/40 hover:text-amber-400'}`}
-            >
-              ALL
-            </button>
-            {NATIONALITIES.map((nat) => {
-              const groupFilteredMakes = getFilteredGroupMakes(nat.makes);
-              if (searchTerm.trim() && groupFilteredMakes.length === 0) return null;
-              const isActive = activeFilter === nat.id;
-              return (
-                <button
-                  key={nat.id}
-                  type="button"
-                  onClick={() => scrollToSection(nat.id)}
-                  className={`px-4 py-1.5 font-mono text-[11px] font-bold uppercase rounded-full transition duration-150 cursor-pointer flex items-center gap-1.5 ${isActive ? 'bg-amber-50 text-black shadow-lg shadow-white/15' : 'bg-black/40 text-slate-300 border border-white/10 hover:border-amber-500/40 hover:text-amber-400'}`}
-                >
-                  <span className="text-xs leading-none">{nat.emoji}</span>
-                  <span>{nat.name}</span>
-                </button>
-              );
-            })}
-            {filteredOtherMakes.length > 0 && (
-              <button
-                type="button"
-                onClick={() => scrollToSection('other')}
-                className={`px-4 py-1.5 font-mono text-[11px] font-bold uppercase rounded-full transition duration-150 cursor-pointer flex items-center gap-1.5 ${activeFilter === 'other' ? 'bg-amber-50 text-black shadow-lg shadow-white/15' : 'bg-black/40 text-slate-300 border border-white/10 hover:border-amber-500/40 hover:text-amber-400'}`}
-              >
-                <span>🌍</span>
-                <span>OTHER</span>
-              </button>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Loader / Errors view */}
@@ -438,53 +553,6 @@ export default function BrowseView({
             {!selectedMake && (
               <div className="space-y-6">
                 
-                {/* 1A. Recently Viewed makes */}
-                {recentlyViewed.length > 0 && (
-                  <div className="space-y-3 text-left">
-                    <h3 className="text-xs md:text-sm font-mono font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                      Recently Viewed
-                    </h3>
-                    <div className="flex flex-wrap gap-4 select-none">
-                      {recentlyViewed.map((make) => {
-                        const logoUrl = MAKE_LOGOS[make.toLowerCase()];
-                        const isHovered = hoveredMake === `recent-${make}`;
-                        return (
-                          <button
-                            key={`recent-${make}`}
-                            type="button"
-                            onClick={() => handleSelectMake(make)}
-                            onMouseEnter={() => setHoveredMake(`recent-${make}`)}
-                            onMouseLeave={() => setHoveredMake(null)}
-                            className="flex flex-col items-center gap-1.5 group cursor-pointer"
-                          >
-                            {/* Rounded glow card for brand emblem */}
-                            <div 
-                              className="w-16 h-16 rounded-xl bg-black/50 border border-white/10 flex items-center justify-center p-3 transition-all duration-150"
-                              style={isHovered ? { boxShadow: `0 0 12px #f59e0b55`, borderColor: '#f59e0b' } : {}}
-                            >
-                              {logoUrl ? (
-                                <img 
-                                  src={logoUrl} 
-                                  alt={`${make} Logo`} 
-                                  className="w-full h-full object-contain filter brightness-90 group-hover:brightness-100 transition-all"
-                                  referrerPolicy="no-referrer"
-                                />
-                              ) : (
-                                <span className="font-mono text-2xl font-black tracking-wider text-amber-500 group-hover:text-amber-400 select-none">
-                                  {make.substring(0, 2).toUpperCase()}
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[10px] text-slate-400 group-hover:text-white font-medium text-center select-none truncate max-w-[64px]">
-                              {make}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
                 {/* 1B. 3-Column Responsive Grid of Collapsible National Groups */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   
@@ -608,80 +676,191 @@ export default function BrowseView({
 
             {/* VIEW 2: YEARS LIST */}
             {selectedMake && !selectedYear && (
-              <div className="space-y-4 bg-black/40 backdrop-blur-sm border border-white/5 rounded-xl p-6">
-                <h3 className="text-xs font-mono font-extrabold uppercase tracking-widest text-slate-300 border-l-2 border-amber-500 pl-3">
-                  Select Model Year for {selectedMake}
-                </h3>
-                {years.length === 0 ? (
-                  <p className="text-xs text-slate-500 italic py-6">No release years found for this manufacturer.</p>
-                ) : (
-                  <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-8 gap-3" id="years-catalog-grid">
-                    {years.map((year) => (
-                      <button
-                        key={year}
-                        type="button"
-                        onClick={() => setSelectedYear(year)}
-                        className="bg-black/50 border border-white/10 hover:border-amber-500 text-slate-200 hover:text-amber-400 font-mono font-bold text-xs py-4 px-2 rounded-lg text-center transition-all duration-150 cursor-pointer block"
-                      >
-                        {year}
-                      </button>
-                    ))}
-                  </div>
-                )}
+              <div className="space-y-4">
+                <div className="flex justify-start">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMake('')}
+                    className="px-3.5 py-1.5 rounded-full text-xs font-mono font-extrabold uppercase tracking-wider transition-all duration-150 cursor-pointer bg-black/60 hover:bg-white/5 text-slate-300 border border-white/10 flex items-center gap-1.5 hover:text-white"
+                  >
+                    <span className="text-amber-500 font-black">←</span> Back to Makes
+                  </button>
+                </div>
+                <div className="space-y-4 bg-black/40 backdrop-blur-sm border border-white/5 rounded-xl p-6 w-full">
+                  <h3 className="text-xs font-mono font-extrabold uppercase tracking-widest text-slate-300 border-l-2 border-amber-500 pl-3">
+                    Select Model Year for {selectedMake}
+                  </h3>
+                  {years.length === 0 ? (
+                    <p className="text-xs text-slate-500 italic py-6">No release years found for this manufacturer.</p>
+                  ) : (
+                    <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-8 gap-3" id="years-catalog-grid">
+                      {years.map((year) => (
+                        <button
+                          key={year}
+                          type="button"
+                          onClick={() => setSelectedYear(year)}
+                          className="bg-black/50 border border-white/10 hover:border-amber-500 text-slate-200 hover:text-amber-400 font-mono font-bold text-xs py-4 px-2 rounded-lg text-center transition-all duration-150 cursor-pointer block"
+                        >
+                          {year}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
             {/* VIEW 3: MODELS LIST */}
-            {selectedMake && selectedYear && (
-              <div className="space-y-4 bg-black/40 backdrop-blur-sm border border-white/5 rounded-xl p-6">
-                <h3 className="text-xs font-mono font-extrabold uppercase tracking-widest text-slate-300 border-l-2 border-amber-500 pl-3">
-                  Browse Service Manuals for {selectedYear} {selectedMake}
-                </h3>
-                
-                {vehicles.length === 0 ? (
-                  <div className="py-12 text-center border border-dashed border-white/10 rounded-xl text-slate-500 text-xs">
-                    No model variants indexed for this combination yet.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="vehicles-catalog-list">
-                    {vehicles.map((v) => (
-                      <div
-                        key={v.id}
-                        className="bg-black/50 border border-white/10 hover:border-amber-500/50 hover:border-l-amber-500 border-l-[3px] border-l-border-theme rounded-xl p-5 flex items-center justify-between gap-4 transition-all duration-200 group"
-                      >
-                        <div className="space-y-1.5 text-left min-w-0">
-                          <span className="text-[10px] font-mono text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded select-none">
-                            {v.year}
-                          </span>
-                          <h4 className="text-sm font-bold text-slate-100 truncate group-hover:text-amber-400 transition-colors leading-tight">
-                            {v.make} {v.model}
-                          </h4>
-                          <p className="text-xs text-slate-400 font-mono truncate">{v.engine}</p>
-                        </div>
+            {selectedMake && selectedYear && (() => {
+              const uniqueEngines = Array.from(new Set(vehicles.map(v => parseEngineType(v.engine))))
+                .filter(Boolean)
+                .sort();
 
-                        <div className="flex flex-col items-end gap-2.5 shrink-0">
-                          <span className={`text-[8px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border select-none ${
-                            v.source === 'lemon'
-                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                              : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
-                          }`}>
-                            {v.source} manual
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleSelectVehicle(v)}
-                            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-1.5 px-4 rounded-lg text-xs uppercase tracking-wider transition-all duration-150 cursor-pointer flex items-center gap-1.5 shadow"
-                          >
-                            <BookOpen className="w-3.5 h-3.5" />
-                            Open Manual
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+              const filteredVehicles = vehicles.filter(v => {
+                const dt = parseDrivetrain(v.model);
+                const eng = parseEngineType(v.engine);
+                const matchDt = drivetrainFilter === 'ALL' || dt === drivetrainFilter;
+                const matchEng = engineFilter === 'ALL' || eng === engineFilter;
+                return matchDt && matchEng;
+              });
+
+              return (
+                <div className="space-y-4">
+                  <div className="flex justify-start">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedYear('')}
+                      className="px-3.5 py-1.5 rounded-full text-xs font-mono font-extrabold uppercase tracking-wider transition-all duration-150 cursor-pointer bg-black/60 hover:bg-white/5 text-slate-300 border border-white/10 flex items-center gap-1.5 hover:text-white"
+                    >
+                      <span className="text-amber-500 font-black">←</span> Back to Years
+                    </button>
                   </div>
-                )}
+                  <div className="space-y-4 bg-black/40 backdrop-blur-sm border border-white/5 rounded-xl p-6 animate-fade-in w-full">
+                    <h3 className="text-xs font-mono font-extrabold uppercase tracking-widest text-slate-300 border-l-2 border-amber-500 pl-3">
+                      Browse Service Manuals for {selectedYear} {selectedMake}
+                    </h3>
+
+                  {/* Filter bar at top */}
+                  <div className="flex flex-col gap-3.5 border-b border-white/5 pb-5 mb-5">
+                    {/* Drivetrain Filters */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <span className="text-[10px] font-mono font-bold tracking-wider text-slate-400 uppercase w-28 shrink-0">DRIVETRAIN:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {['ALL', 'FWD', 'AWD', 'RWD', '4WD'].map((dt) => (
+                          <button
+                            key={dt}
+                            type="button"
+                            onClick={() => setDrivetrainFilter(dt)}
+                            className={`px-3.5 py-1.5 rounded-full text-xs font-mono font-bold uppercase transition-all duration-150 cursor-pointer ${
+                              drivetrainFilter === dt
+                                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 font-extrabold'
+                                : 'bg-black/60 hover:bg-white/5 text-slate-400 border border-white/5 hover:text-slate-200'
+                            }`}
+                          >
+                            {dt}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Engine Filters */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <span className="text-[10px] font-mono font-bold tracking-wider text-slate-400 uppercase w-28 shrink-0">ENGINE TYPE:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {['ALL', ...uniqueEngines].map((eng) => (
+                          <button
+                            key={eng}
+                            type="button"
+                            onClick={() => setEngineFilter(eng)}
+                            className={`px-3.5 py-1.5 rounded-full text-xs font-mono font-bold uppercase transition-all duration-150 cursor-pointer ${
+                              engineFilter === eng
+                                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 font-extrabold'
+                                : 'bg-black/60 hover:bg-white/5 text-slate-400 border border-white/5 hover:text-slate-200'
+                            }`}
+                          >
+                            {eng}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {filteredVehicles.length === 0 ? (
+                    <div className="py-12 text-center border border-dashed border-white/10 rounded-xl text-slate-500 text-xs">
+                      No model variants match the selected filters.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border border-white/5 bg-[#07080c]" id="vehicles-catalog-list">
+                      <table className="w-full text-left border-collapse table-auto">
+                        <thead className="bg-[#101118] border-b border-white/5 font-mono text-[10px] tracking-widest text-slate-400 uppercase">
+                          <tr>
+                            <th className="px-4 py-3 font-extrabold">YEAR</th>
+                            <th className="px-4 py-3 font-extrabold">MODEL</th>
+                            <th className="px-4 py-3 font-extrabold">ENGINE</th>
+                            <th className="px-4 py-3 font-extrabold">DRIVETRAIN</th>
+                            <th className="px-4 py-3 font-extrabold text-right">ACTION</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {filteredVehicles.map((v, idx) => {
+                            const dt = parseDrivetrain(v.model);
+                            const engType = parseEngineType(v.engine);
+                            return (
+                              <tr 
+                                key={v.id} 
+                                className={`transition-colors duration-150 group ${
+                                  idx % 2 === 0 ? 'bg-[#0b0c11]' : 'bg-[#07080c]'
+                                } hover:bg-white/5`}
+                              >
+                                {/* Year badge */}
+                                <td className="px-4 py-2 font-mono whitespace-nowrap">
+                                  <span className="text-xs text-amber-500 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded font-extrabold select-none">
+                                    {v.year}
+                                  </span>
+                                </td>
+
+                                {/* Model name */}
+                                <td className="px-4 py-2 font-sans font-extrabold text-base md:text-lg text-white uppercase tracking-wide">
+                                  {v.make} {v.model}
+                                </td>
+
+                                {/* Engine spec */}
+                                <td className="px-4 py-2 font-mono text-xs text-slate-300">
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{v.engine}</span>
+                                    <span className="text-slate-500 text-[10px] font-bold">[{engType}]</span>
+                                  </div>
+                                </td>
+
+                                {/* Drivetrain badge */}
+                                <td className="px-4 py-2 whitespace-nowrap">
+                                  <span className={`text-[10px] font-mono font-extrabold px-2.5 py-0.5 rounded-full ${getDrivetrainBadge(dt)}`}>
+                                    {dt}
+                                  </span>
+                                </td>
+
+                                {/* OPEN MANUAL button */}
+                                <td className="px-4 py-2 text-right whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSelectVehicle(v)}
+                                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold py-1 px-3.5 rounded-lg text-xs uppercase tracking-wider transition-all duration-150 cursor-pointer inline-flex items-center gap-1.5 shadow"
+                                  >
+                                    <BookOpen className="w-3.5 h-3.5" />
+                                    <span>OPEN MANUAL</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
+            );
+            })()}
 
           </div>
 
