@@ -3,12 +3,11 @@
  * SPDX-License-Identifier: Apache-2.5
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DatabaseStats } from '../types';
 import { api, getApiBase, setApiBase } from '../lib/api';
 import { 
-  Settings, Server, Sun, Moon, Database, Sparkles, Wrench, Wifi,
-  RefreshCw, AlertTriangle, CheckSquare, Info, ShieldCheck, Cpu
+  Settings, Server, Sun, Database, RefreshCw, AlertTriangle, Info, ShieldCheck, Cpu, ChevronDown
 } from 'lucide-react';
 
 interface SettingsViewProps {
@@ -23,21 +22,35 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
   const [addressInput, setAddressInput] = useState(getApiBase());
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
   const [testErrorMessage, setTestErrorMessage] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const availableThemes = [
-    { id: 'theme-ragnarok', name: 'Ragnarök Dark', primaryColor: '#f59e0b', bgColor: '#0a0a0f', desc: 'Default industrial orange / amber' },
-    { id: 'theme-midnight', name: 'Midnight Steel', primaryColor: '#58a6ff', bgColor: '#0d1117', desc: 'Oceanic blue / dark slate' },
-    { id: 'theme-carbon', name: 'Carbon Black', primaryColor: '#ef4444', bgColor: '#000000', desc: 'Pure stealth black with red highlights' },
-    { id: 'theme-arctic', name: 'Arctic White', primaryColor: '#3b82f6', bgColor: '#f8fafc', desc: 'High-contrast light garage theme' },
-    { id: 'theme-forest', name: 'Forest Green', primaryColor: '#22c55e', bgColor: '#0a0f0a', desc: 'Overland green & charcoal' },
-    { id: 'theme-blood', name: 'Blood Orange', primaryColor: '#f97316', bgColor: '#0f0a00', desc: 'Crimson / heavy duty hot gold' },
-    { id: 'theme-purple', name: 'Royal Purple', primaryColor: '#a855f7', bgColor: '#0a0014', desc: 'Specialized diagnostic neon purple' },
-    { id: 'theme-gunmetal', name: 'Gunmetal', primaryColor: '#06b6d4', bgColor: '#0a0c0f', desc: 'Tactical cyan / heavy alloy' },
+    { id: 'theme-ragnarok', name: 'Ragnarök Dark', colors: ['#0a0a0f', '#f59e0b', '#1e2028', '#d97706'], desc: 'Default industrial orange / amber' },
+    { id: 'theme-midnight', name: 'Midnight Steel', colors: ['#0a0f1e', '#3b82f6', '#1e2535', '#1d4ed8'], desc: 'Oceanic blue / dark slate' },
+    { id: 'theme-carbon', name: 'Carbon Black', colors: ['#000000', '#ef4444', '#111111', '#dc2626'], desc: 'Pure stealth black with red highlights' },
+    { id: 'theme-arctic', name: 'Arctic White', colors: ['#f8fafc', '#0ea5e9', '#e2e8f0', '#0284c7'], desc: 'High-contrast light garage theme' },
+    { id: 'theme-forest', name: 'Forest Green', colors: ['#0a1a0a', '#22c55e', '#1a2e1a', '#16a34a'], desc: 'Overland green & charcoal' },
+    { id: 'theme-blood', name: 'Blood Orange', colors: ['#1a0500', '#f97316', '#2d0a00', '#ea580c'], desc: 'Crimson / heavy duty hot gold' },
+    { id: 'theme-purple', name: 'Royal Purple', colors: ['#0f0a1e', '#a855f7', '#1e1535', '#9333ea'], desc: 'Specialized diagnostic neon purple' },
+    { id: 'theme-gunmetal', name: 'Gunmetal', colors: ['#0a0f14', '#06b6d4', '#141e28', '#0891b2'], desc: 'Tactical cyan / heavy alloy' },
   ];
 
   useEffect(() => {
     fetchStats();
-  }, []);
+
+    // Close custom dropdown when clicking outside
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [dropdownRef]);
 
   const fetchStats = async () => {
     setStatsLoading(true);
@@ -72,6 +85,8 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
       setTestErrorMessage(err.message || 'Server did not respond to ping test.');
     }
   };
+
+  const currentTheme = availableThemes.find(t => t.id === activeTheme) || availableThemes[0];
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto px-4 py-6" id="settings-view-root">
@@ -151,47 +166,95 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
             </p>
 
             <div className="space-y-3">
-              <div className="relative">
-                <select
-                  value={activeTheme}
-                  onChange={(e) => setActiveTheme(e.target.value)}
-                  className="w-full bg-bg-theme border border-border-theme text-slate-200 text-xs px-3.5 py-3 rounded-lg focus:border-primary-theme focus:outline-none cursor-pointer font-bold uppercase tracking-wider"
+              {/* Custom Dropdown Theme Swatch Selector */}
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  className="w-full flex items-center justify-between bg-bg-theme border border-border-theme hover:border-amber-500/50 text-slate-200 text-xs px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/10 transition-all duration-150 cursor-pointer font-bold uppercase tracking-wider"
                   id="theme-select-dropdown"
                 >
-                  {availableThemes.map((t) => (
-                    <option key={t.id} value={t.id} className="bg-[#13141a] text-slate-200 text-xs py-2">
-                      {t.name} ({t.desc})
-                    </option>
-                  ))}
-                </select>
+                  <div className="flex items-center gap-3">
+                    {/* Swatch color circles */}
+                    <div className="flex gap-0.5 shrink-0">
+                      {currentTheme.colors.map((c, idx) => (
+                        <span 
+                          key={idx} 
+                          className="w-3.5 h-3.5 rounded-sm border border-black/30 block shadow-sm" 
+                          style={{ backgroundColor: c }} 
+                        />
+                      ))}
+                    </div>
+                    <span className="text-slate-200 font-extrabold">{currentTheme.name}</span>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-150 ${dropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {dropdownOpen && (
+                  <div className="absolute left-0 right-0 mt-1.5 bg-[#13141a] border border-[#1e2028] rounded-xl shadow-2xl z-50 max-h-80 overflow-y-auto animate-fade-in divide-y divide-[#1e2028] outline-none">
+                    {availableThemes.map((t) => {
+                      const isSelected = t.id === activeTheme;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveTheme(t.id);
+                            setDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between text-left p-3 hover:bg-slate-800/40 transition duration-150 cursor-pointer ${isSelected ? 'bg-amber-500/5' : ''}`}
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-3">
+                              {/* Theme color swatch cells */}
+                              <div className="flex gap-0.5 shrink-0">
+                                {t.colors.map((c, idx) => (
+                                  <span 
+                                    key={idx} 
+                                    className="w-3.5 h-3.5 rounded-sm border border-black/30 block shadow-sm" 
+                                    style={{ backgroundColor: c }} 
+                                  />
+                                ))}
+                              </div>
+                              <span className={`text-xs font-black uppercase tracking-wider ${isSelected ? 'text-amber-400' : 'text-slate-200'}`}>
+                                {t.name}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 normal-case font-normal font-sans pl-1">
+                              {t.desc}
+                            </p>
+                          </div>
+                          {isSelected && (
+                            <span className="w-2 h-2 rounded-full bg-amber-500 mr-2 animate-pulse" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Selected Theme Details Banner */}
-              {(() => {
-                const currentTheme = availableThemes.find(t => t.id === activeTheme) || availableThemes[0];
-                return (
-                  <div className="flex items-center gap-3.5 bg-bg-theme/40 border border-border-theme/60 rounded-lg p-3 select-none">
-                    <div className="flex gap-1 shrink-0">
-                      <span 
-                        className="w-5 h-5 rounded-full border border-black/40 block shadow-sm" 
-                        style={{ backgroundColor: currentTheme.primaryColor }} 
-                      />
-                      <span 
-                        className="w-5 h-5 rounded-full border border-black/40 block -ml-2.5 shadow-lg" 
-                        style={{ backgroundColor: currentTheme.bgColor }} 
-                      />
-                    </div>
-                    <div className="text-left">
-                      <span className="text-xs font-bold text-slate-200 block uppercase tracking-wider">
-                        {currentTheme.name}
-                      </span>
-                      <p className="text-[10px] text-slate-400 mt-0.5">
-                        {currentTheme.desc}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })()}
+              <div className="flex items-center gap-3.5 bg-bg-theme/40 border border-border-theme/60 rounded-lg p-3.5 select-none">
+                <div className="flex gap-0.5 shrink-0">
+                  {currentTheme.colors.map((c, idx) => (
+                    <span 
+                      key={idx} 
+                      className="w-5 h-5 rounded-sm border border-black/45 block shadow-md" 
+                      style={{ backgroundColor: c }} 
+                    />
+                  ))}
+                </div>
+                <div className="text-left">
+                  <span className="text-xs font-bold text-slate-200 block uppercase tracking-wider">
+                    {currentTheme.name} SELECTED
+                  </span>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    {currentTheme.desc}
+                  </p>
+                </div>
+              </div>
+
             </div>
           </div>
 
