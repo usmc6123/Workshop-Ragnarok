@@ -258,20 +258,20 @@ export default function DashboardView({
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-4 py-6" id="dashboard-view-root">
+    <div className="space-y-6 max-w-6xl mx-auto px-4 py-6" id="dashboard-view-root">
       
       {/* Dashboard Hero Section */}
-      <div className="flex flex-col sm:flex-row items-center gap-6 py-6 pb-8 border-b border-amber-500/10" id="dashboard-hero">
+      <div className="flex flex-col sm:flex-row items-center gap-6 py-5 pb-6 border-b border-amber-500/10" id="dashboard-hero">
         <img 
           src="https://raw.githubusercontent.com/usmc6123/images/main/newlogo.jpg" 
           alt="Workshop Ragnarök Hero Logo" 
-          className="w-[150px] h-[150px] rounded-full object-cover border-2 border-amber-500/30 ring-2 ring-amber-500/40 shadow-xl shadow-amber-500/20 shrink-0"
+          className="w-[120px] h-[120px] rounded-full object-cover border-2 border-amber-500/30 ring-2 ring-amber-500/40 shadow-xl shadow-amber-500/20 shrink-0"
         />
         <div className="text-center sm:text-left space-y-1">
-          <h1 className="text-3xl font-black tracking-widest text-amber-500 uppercase font-mono">
+          <h1 className="text-3xl sm:text-4xl font-black tracking-widest text-amber-500 uppercase font-mono">
             WORKSHOP: RAGNARÖK
           </h1>
-          <p className="text-sm font-mono tracking-wider text-slate-400 uppercase">
+          <p className="text-sm sm:text-base font-mono tracking-wider text-slate-400 uppercase">
             Auto Shop Management System
           </p>
         </div>
@@ -283,13 +283,13 @@ export default function DashboardView({
         {/* Total Customers */}
         <div 
           onClick={() => onNavigateToTab('customers')}
-          className="bg-[#13141a]/80 backdrop-blur-sm border border-border-theme hover:border-primary-theme/50 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-4 flex items-center justify-between transition-all duration-200 cursor-pointer shadow group"
+          className="bg-[#13141a]/80 backdrop-blur-sm border border-border-theme hover:border-primary-theme/50 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-5 flex items-center justify-between transition-all duration-200 cursor-pointer shadow group min-h-[110px]"
         >
           <div className="space-y-1">
             <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest block font-bold">
               Total Customers
             </span>
-            <span className="text-2xl font-black text-white font-mono block group-hover:text-primary-theme transition-colors">
+            <span className="text-3xl font-black text-white font-mono block group-hover:text-primary-theme transition-colors">
               {stats?.totalCustomers || 0}
             </span>
             <span className="text-[10px] text-slate-400 font-sans block">
@@ -304,13 +304,13 @@ export default function DashboardView({
         {/* Active Jobs */}
         <div 
           onClick={() => onNavigateToTab('jobs')}
-          className="bg-[#13141a]/80 backdrop-blur-sm border border-border-theme hover:border-primary-theme/50 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-4 flex items-center justify-between transition-all duration-200 cursor-pointer shadow group"
+          className="bg-[#13141a]/80 backdrop-blur-sm border border-border-theme hover:border-primary-theme/50 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-5 flex items-center justify-between transition-all duration-200 cursor-pointer shadow group min-h-[110px]"
         >
           <div className="space-y-1">
             <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest block font-bold">
               Active Jobs
             </span>
-            <span className="text-2xl font-black text-white font-mono block group-hover:text-primary-theme transition-colors">
+            <span className="text-3xl font-black text-white font-mono block group-hover:text-primary-theme transition-colors">
               {stats?.activeJobs || 0}
             </span>
             <span className="text-[10px] text-slate-400 font-sans block">
@@ -325,13 +325,13 @@ export default function DashboardView({
         {/* Vehicles in System */}
         <div 
           onClick={() => onNavigateToTab('vehicles')}
-          className="bg-[#13141a]/80 backdrop-blur-sm border border-border-theme hover:border-primary-theme/50 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-4 flex items-center justify-between transition-all duration-200 cursor-pointer shadow group"
+          className="bg-[#13141a]/80 backdrop-blur-sm border border-border-theme hover:border-primary-theme/50 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-5 flex items-center justify-between transition-all duration-200 cursor-pointer shadow group min-h-[110px]"
         >
           <div className="space-y-1">
             <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest block font-bold">
               Vehicles Registered
             </span>
-            <span className="text-2xl font-black text-white font-mono block group-hover:text-primary-theme transition-colors">
+            <span className="text-3xl font-black text-white font-mono block group-hover:text-primary-theme transition-colors">
               {stats?.totalVehicles || 0}
             </span>
             <span className="text-[10px] text-slate-400 font-sans block">
@@ -346,16 +346,16 @@ export default function DashboardView({
         {/* Indexed Service Manuals */}
         <div 
           onClick={() => onNavigateToTab('manual-library')}
-          className="bg-[#13141a]/80 backdrop-blur-sm border border-border-theme hover:border-primary-theme/50 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-4 flex items-center justify-between transition-all duration-200 cursor-pointer shadow group"
+          className="bg-[#13141a]/80 backdrop-blur-sm border border-border-theme hover:border-primary-theme/50 hover:border-l-primary-theme border-l-[3px] border-l-border-theme rounded-xl p-5 flex items-center justify-between transition-all duration-200 cursor-pointer shadow group min-h-[110px]"
         >
           <div className="space-y-1">
             <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest block font-bold">
               Manuals Available
             </span>
-            <span className="text-2xl font-black text-white font-mono block group-hover:text-primary-theme transition-colors">
+            <span className="text-3xl font-black text-white font-mono block group-hover:text-primary-theme transition-colors">
               {stats?.totalManuals?.toLocaleString() || '300,000+'}
             </span>
-            <span className="text-[10px] text-slate-400 font-sans block">
+            <span className="text-[10px] text-slate-450 font-sans block">
               Indexed manual manuals
             </span>
           </div>
@@ -370,7 +370,7 @@ export default function DashboardView({
       <div className="bg-[#13141a]/80 backdrop-blur-sm border border-border-theme rounded-xl p-5 space-y-4 shadow select-none text-left relative z-40" ref={dropdownRef}>
         <div className="flex items-center gap-2">
           <Wrench className="w-4 h-4 text-primary-theme" />
-          <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">
+          <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-350">
             Quick Diagnostic Library Lookup
           </span>
         </div>
@@ -389,12 +389,12 @@ export default function DashboardView({
                 setDropdownOpen(true);
               }
             }}
-            className="w-full rounded-lg bg-surface-theme border border-border-theme focus:border-primary-theme pl-10 pr-20 py-2.5 text-xs text-text-theme placeholder-slate-500 focus:outline-none transition"
+            className="w-full rounded-lg bg-surface-theme border border-border-theme focus:border-primary-theme pl-10 pr-20 py-2.5 text-xs text-text-theme placeholder-slate-500 focus:outline-none transition-all shadow-inner"
             id="dashboard-quick-search-input"
           />
-          <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           
-          <div className="absolute right-3 top-2.5 flex items-center gap-2">
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
             {searchLoading && (
               <RefreshCw className="w-3.5 h-3.5 text-primary-theme animate-spin" />
             )}
@@ -406,7 +406,7 @@ export default function DashboardView({
                   setProcedureResults([]);
                   setDropdownOpen(false);
                 }}
-                className="text-slate-550 hover:text-slate-300 text-[10px] font-mono uppercase font-bold"
+                className="text-slate-500 hover:text-slate-300 text-[10px] font-mono uppercase font-bold transition-colors"
               >
                 Clear
               </button>
@@ -417,16 +417,16 @@ export default function DashboardView({
         {/* Live Search dropdown overlay */}
         {dropdownOpen && searchTerm.trim() && (
           <div 
-            className="absolute left-0 right-0 mt-2 bg-[#101116]/95 backdrop-blur-md border border-border-theme rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in text-left" 
+            className="absolute left-0 right-0 mt-2 bg-[#101116]/98 backdrop-blur-md border border-border-theme rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in text-left" 
             id="dashboard-universal-search-dropdown"
           >
             {searchLoading && vehicleResults.length === 0 && procedureResults.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs font-mono flex flex-col items-center justify-center gap-2">
+              <div className="p-8 text-center text-slate-450 text-xs font-mono flex flex-col items-center justify-center gap-2.5">
                 <RefreshCw className="w-5 h-5 text-primary-theme animate-spin" />
                 <span>Searching diagnostics database...</span>
               </div>
             ) : vehicleResults.length === 0 && procedureResults.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs font-mono">
+              <div className="p-8 text-center text-slate-450 text-xs font-mono">
                 No results found for <span className="text-amber-500 font-bold">"{searchTerm}"</span>
               </div>
             ) : (
@@ -449,7 +449,7 @@ export default function DashboardView({
                             onSelectVehicle(v);
                             setDropdownOpen(false);
                           }}
-                          className="w-full text-left bg-transparent hover:bg-white/5 rounded-lg p-2 flex items-center justify-between gap-3 transition group border border-transparent hover:border-border-theme/30 cursor-pointer"
+                          className="w-full text-left bg-transparent hover:bg-white/5 rounded-lg p-2.5 flex items-center justify-between gap-2.5 transition group border border-transparent hover:border-border-theme/30 cursor-pointer"
                         >
                           <div className="min-w-0 text-left">
                             <div className="flex items-center gap-1.5">
@@ -460,7 +460,7 @@ export default function DashboardView({
                                 {v.make} {v.model}
                               </span>
                             </div>
-                            <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                            <p className="text-[10px] text-slate-450 truncate mt-0.5">
                               {v.engine}
                             </p>
                           </div>
@@ -486,13 +486,13 @@ export default function DashboardView({
                         <button
                           key={`proc-${idx}`}
                           onClick={() => handleSelectProcedure(p)}
-                          className="w-full text-left bg-transparent hover:bg-white/5 rounded-lg p-2 flex items-center justify-between gap-3 transition group border border-transparent hover:border-border-theme/30 cursor-pointer"
+                          className="w-full text-left bg-transparent hover:bg-white/5 rounded-lg p-2.5 flex items-center justify-between gap-2.5 transition group border border-transparent hover:border-border-theme/30 cursor-pointer"
                         >
                           <div className="min-w-0 flex-1 text-left">
-                            <h4 className="text-xs font-bold text-slate-200 group-hover:text-primary-theme transition-colors truncate">
+                            <h4 className="text-xs font-bold text-slate-100 group-hover:text-primary-theme transition-colors truncate">
                               {p.title}
                             </h4>
-                            <p className="text-[10px] text-slate-400 mt-0.5 truncate">
+                            <p className="text-[10px] text-slate-450 mt-0.5 truncate">
                               Vehicle: <span className="text-slate-300">{p.vehicle.year} {p.vehicle.make} {p.vehicle.model}</span>
                             </p>
                           </div>
@@ -506,31 +506,29 @@ export default function DashboardView({
             )}
           </div>
         )}
-      </div>
-
-      {/* 3. Three-column Overview Stack */}
+      </div>      {/* 3. Three-column Overview Stack */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-left relative z-10">
         
         {/* Left Aspect: Recent Jobs List (Last 5) */}
-        <div className="lg:col-span-5 bg-[#13141a]/80 backdrop-blur-sm border border-border-theme rounded-xl p-5 space-y-4 shadow flex flex-col justify-between">
+        <div className="lg:col-span-5 bg-[#13141a]/80 backdrop-blur-sm border border-border-theme rounded-xl p-5 space-y-4 shadow flex flex-col justify-between min-h-[480px]">
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-border-theme pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-350 flex items-center gap-1.5">
+              <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-350 flex items-center gap-1.5">
                 <Activity className="w-4 h-4 text-primary-theme" />
                 Recent Repair Orders (Last 5)
               </h3>
               <button
                 onClick={() => onNavigateToTab('jobs')}
-                className="text-[10px] font-bold text-primary-theme hover:text-primary-theme/80 uppercase tracking-widest font-mono"
+                className="text-[10px] font-bold text-primary-theme hover:text-primary-theme/80 uppercase tracking-widest font-mono transition-colors"
               >
                 View All
               </button>
             </div>
 
             {loading ? (
-              <div className="py-12 text-center text-slate-500 text-xs">Querying open tickets...</div>
+              <div className="py-12 text-center text-slate-450 text-xs font-mono">Querying open tickets...</div>
             ) : recentJobs.length === 0 ? (
-              <div className="py-16 text-center text-slate-500 text-xs">
+              <div className="py-16 text-center text-slate-450 text-xs font-mono">
                 No active service orders currently.
               </div>
             ) : (
@@ -539,13 +537,13 @@ export default function DashboardView({
                   <div
                     key={job.id}
                     onClick={() => onNavigateToTab('jobs')}
-                    className="bg-bg-theme/60 hover:bg-bg-theme border border-border-theme hover:border-slate-700 p-3 rounded-lg cursor-pointer transition space-y-2"
+                    className="bg-bg-theme/60 hover:bg-bg-theme border border-border-theme hover:border-slate-600 p-3 rounded-lg cursor-pointer transition-all duration-200 space-y-2 shadow-md hover:shadow-lg"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-mono text-slate-500 uppercase">
+                      <span className="text-[9px] font-mono text-slate-400 uppercase tracking-wider">
                         Ticket #{job.id.toString().padStart(4, '0')}
                       </span>
-                      <span className={`text-[8px] font-mono uppercase px-1.5 py-0.5 rounded border ${
+                      <span className={`text-[8px] font-mono uppercase px-1.5 py-0.5 rounded border font-bold ${
                         job.status === 'Complete'
                           ? 'bg-green-950/20 text-green-400 border-green-800/30'
                           : job.status === 'In Progress'
@@ -560,7 +558,7 @@ export default function DashboardView({
                       <h4 className="text-xs font-bold text-slate-200">
                         {job.vehicle_year} {job.vehicle_make} {job.vehicle_model}
                       </h4>
-                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">{job.description}</p>
+                      <p className="text-[10px] text-slate-450 mt-0.5 truncate">{job.description}</p>
                     </div>
                   </div>
                 ))}
@@ -570,33 +568,33 @@ export default function DashboardView({
 
           <button
             onClick={() => onNavigateToTab('jobs')}
-            className="w-full mt-4 bg-bg-theme hover:bg-surface-theme text-slate-300 hover:text-white border border-border-theme py-2 px-4 rounded-lg text-xs font-bold uppercase tracking-wider transition text-center cursor-pointer flex items-center justify-center gap-1"
+            className="w-full mt-4 bg-bg-theme hover:bg-surface-theme text-slate-300 hover:text-white border border-border-theme py-2.5 px-4 rounded-lg text-xs font-bold uppercase tracking-wider transition text-center cursor-pointer flex items-center justify-center gap-1 shadow-sm"
           >
             <span>Go to Active Jobs Queue</span>
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
         {/* Mid Aspect: Upcoming Appointments (Next 3) */}
-        <div className="lg:col-span-4 bg-[#13141a]/80 backdrop-blur-sm border border-border-theme rounded-xl p-5 space-y-4 shadow flex flex-col justify-between">
+        <div className="lg:col-span-4 bg-[#13141a]/80 backdrop-blur-sm border border-border-theme rounded-xl p-5 space-y-4 shadow flex flex-col justify-between min-h-[480px]">
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-border-theme pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-350 flex items-center gap-1.5">
+              <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-355 flex items-center gap-1.5">
                 <Calendar className="w-4 h-4 text-primary-theme" />
                 Upcoming Appointments (Next 3)
               </h3>
               <button
                 onClick={() => onNavigateToTab('calendar')}
-                className="text-[10px] font-bold text-primary-theme hover:text-primary-theme/80 uppercase tracking-widest font-mono"
+                className="text-[10px] font-bold text-primary-theme hover:text-primary-theme/80 uppercase tracking-widest font-mono transition-colors"
               >
                 Go to Calendar
               </button>
             </div>
 
             {loading ? (
-              <div className="py-12 text-center text-slate-500 text-xs">Querying appointment registry...</div>
+              <div className="py-12 text-center text-slate-450 text-xs font-mono">Querying appointment registry...</div>
             ) : upcomingAppointments.length === 0 ? (
-              <div className="py-16 text-center text-slate-500 text-xs italic">
+              <div className="py-16 text-center text-slate-455 text-xs font-mono italic">
                 No upcoming appointments scheduled.
               </div>
             ) : (
@@ -605,11 +603,11 @@ export default function DashboardView({
                   <div
                     key={appt.id}
                     onClick={() => onNavigateToTab('calendar')}
-                    className="bg-bg-theme/60 hover:bg-bg-theme border border-border-theme p-3 rounded-lg cursor-pointer transition space-y-1.5"
+                    className="bg-bg-theme/60 hover:bg-bg-theme border border-border-theme hover:border-slate-600 p-3 rounded-lg cursor-pointer transition-all duration-200 space-y-1.5 shadow-md hover:shadow-lg"
                   >
                     <div className="flex items-center justify-between text-[10px] font-mono">
                       <span className="text-primary-theme font-bold">{appt.date}</span>
-                      <span className="text-slate-500">{appt.time}</span>
+                      <span className="text-slate-400">{appt.time}</span>
                     </div>
                     <div>
                       <h4 className="text-xs font-bold text-slate-200 truncate">{appt.title}</h4>
@@ -625,48 +623,48 @@ export default function DashboardView({
 
           <button
             onClick={() => onNavigateToTab('calendar')}
-            className="w-full mt-4 bg-bg-theme hover:bg-surface-theme text-slate-300 hover:text-white border border-border-theme py-2 px-4 rounded-lg text-xs font-bold uppercase tracking-wider transition text-center cursor-pointer flex items-center justify-center gap-1"
+            className="w-full mt-4 bg-bg-theme hover:bg-surface-theme text-slate-300 hover:text-white border border-border-theme py-2.5 px-4 rounded-lg text-xs font-bold uppercase tracking-wider transition text-center cursor-pointer flex items-center justify-center gap-1 shadow-sm"
           >
             <span>Create Appointment</span>
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
         {/* Right Aspect: Recent Customers List (Last 5) */}
-        <div className="lg:col-span-3 bg-[#13141a]/80 backdrop-blur-sm border border-border-theme rounded-xl p-5 space-y-4 shadow flex flex-col justify-between">
+        <div className="lg:col-span-3 bg-[#13141a]/80 backdrop-blur-sm border border-border-theme rounded-xl p-5 space-y-4 shadow flex flex-col justify-between min-h-[480px]">
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-border-theme pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-355 flex items-center gap-1.5">
+              <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-350 flex items-center gap-1.5">
                 <Users className="w-4 h-4 text-primary-theme" />
                 Recent Clients
               </h3>
               <button
                 onClick={() => onNavigateToTab('customers')}
-                className="text-[10px] font-bold text-primary-theme hover:text-primary-theme/80 uppercase tracking-widest font-mono"
+                className="text-[10px] font-bold text-primary-theme hover:text-primary-theme/80 uppercase tracking-widest font-mono transition-colors"
               >
                 CRM List
               </button>
             </div>
 
             {loading ? (
-              <div className="py-12 text-center text-slate-500 text-xs">Querying database...</div>
+              <div className="py-12 text-center text-slate-450 text-xs font-mono">Querying database...</div>
             ) : recentCustomers.length === 0 ? (
-              <div className="py-16 text-center text-slate-500 text-xs italic">
+              <div className="py-16 text-center text-slate-455 text-xs font-mono italic">
                 No registered customers yet.
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {recentCustomers.map((c) => (
                   <div
                     key={c.id}
                     onClick={() => onNavigateToTab('customers')}
-                    className="bg-bg-theme/40 hover:bg-bg-theme p-2.5 rounded-lg border border-border-theme cursor-pointer transition flex items-center justify-between gap-2"
+                    className="bg-bg-theme/40 hover:bg-bg-theme p-2.5 rounded-lg border border-border-theme cursor-pointer transition-all duration-200 flex items-center justify-between gap-2.5 shadow-sm hover:shadow-md"
                   >
                     <div className="min-w-0">
                       <h4 className="text-xs font-bold text-slate-200 truncate">{c.name}</h4>
-                      <p className="text-[10px] text-slate-400 truncate">{c.phone || 'No phone'}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">{c.phone || 'No phone'}</p>
                     </div>
-                    <ChevronRight className="w-4.5 h-4.5 text-slate-600 shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-slate-500 hover:text-primary-theme shrink-0 transition-colors" />
                   </div>
                 ))}
               </div>
@@ -675,10 +673,10 @@ export default function DashboardView({
 
           <button
             onClick={() => onNavigateToTab('customers')}
-            className="w-full mt-4 bg-bg-theme hover:bg-surface-theme text-slate-300 hover:text-white border border-border-theme py-2 px-4 rounded-lg text-xs font-bold uppercase tracking-wider transition text-center cursor-pointer flex items-center justify-center gap-1"
+            className="w-full mt-4 bg-bg-theme hover:bg-surface-theme text-slate-300 hover:text-white border border-border-theme py-2.5 px-4 rounded-lg text-xs font-bold uppercase tracking-wider transition text-center cursor-pointer flex items-center justify-center gap-1 shadow-sm"
           >
             <span>Manage Customers</span>
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
