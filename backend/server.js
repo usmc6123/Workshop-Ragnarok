@@ -306,9 +306,16 @@ app.get('/api/vehicles', (req, res) => {
       params.push(year);
     }
     if (q) {
-      conditions.push('(make LIKE ? OR model LIKE ? OR year LIKE ? OR engine LIKE ?)');
-      const searchPattern = `%${q}%`;
-      params.push(searchPattern, searchPattern, searchPattern, searchPattern);
+      const aliases = {
+        'chevy': 'chevrolet', 'vw': 'volkswagen', 'benz': 'mercedes',
+        'ram': 'dodge', 'dodge': 'dodge and ram', 'merc': 'mercedes'
+      };
+      const tokens = q.toLowerCase().trim().split(/\s+/).map(t => aliases[t] || t);
+      for (const token of tokens) {
+        conditions.push('(LOWER(make) LIKE ? OR LOWER(model) LIKE ? OR LOWER(year) LIKE ? OR LOWER(engine) LIKE ?)');
+        const p = `%${token}%`;
+        params.push(p, p, p, p);
+      }
     }
 
     if (conditions.length > 0) {
