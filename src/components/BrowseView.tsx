@@ -91,6 +91,7 @@ export default function BrowseView({
   onClearSelectedVehicle
 }: BrowseViewProps) {
   
+  // Drill-down states
   const [makes, setMakes] = useState<string[]>([]);
   const [years, setYears] = useState<string[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -98,18 +99,27 @@ export default function BrowseView({
   const [selectedMake, setSelectedMake] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
   
+  // Search and Loading states
   const [searchTerm, setSearchTerm] = useState(initialSearch || '');
   const [searchResults, setSearchResults] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Collapsible section state (false = expanded, true = collapsed)
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
+  // Active filter pill
   const [activeFilter, setActiveFilter] = useState<string>('all');
+
+  // Hovered make state for dynamic accent glows
   const [hoveredMake, setHoveredMake] = useState<string | null>(null);
+
+  // Recently viewed makes
   const [recentlyViewed, setRecentlyViewed] = useState<string[]>([]);
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Initialize and load all makes & recently viewed on mount
   useEffect(() => {
     const fetchMakes = async () => {
       setLoading(true);
@@ -245,13 +255,14 @@ export default function BrowseView({
           </span>
         </div>
 
+        {/* Total Manufacturers active Badge */}
         <div className="flex items-center gap-1.5 bg-amber-500/5 border border-amber-500/20 rounded-full px-3.5 py-1.5 font-mono text-[10px] text-amber-400 font-extrabold select-none">
           <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
           <span>{makes.length} MANUFACTURERS ACTIVE</span>
         </div>
       </div>
 
-      {/* 2. Search Bar & Filter Pills */}
+      {/* 2. Global Large Search Bar & Filters Section */}
       <div className="space-y-4">
         <div className="relative">
           <input
@@ -262,7 +273,7 @@ export default function BrowseView({
             className="w-full rounded-full bg-black/50 border border-amber-500/30 focus:border-amber-500 pl-12 pr-16 py-3.5 text-sm md:text-base text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-4 focus:ring-amber-500/5 transition duration-200 font-sans font-medium"
             id="browse-keyword-input"
           />
-          <Wrench className="absolute left-4 top-4 w-4 h-4 text-amber-500" />
+          <Wrench className="absolute left-4 top-4.5 w-4.5 h-4.5 text-amber-500" />
           {searchTerm && (
             <button
               type="button"
@@ -274,6 +285,7 @@ export default function BrowseView({
           )}
         </div>
 
+        {/* Filter Pills with Flags */}
         {!selectedMake && (
           <div className="flex flex-wrap gap-2 pt-1 select-none">
             <button
@@ -313,7 +325,7 @@ export default function BrowseView({
         )}
       </div>
 
-      {/* Loader */}
+      {/* Loader / Errors view */}
       {loading && (
         <div className="py-20 flex flex-col items-center justify-center space-y-3 bg-black/30 backdrop-blur-sm border border-white/5 rounded-xl">
           <RefreshCw className="w-8 h-8 text-amber-500 animate-spin" />
@@ -321,7 +333,6 @@ export default function BrowseView({
         </div>
       )}
 
-      {/* Error */}
       {error && !loading && (
         <div className="rounded-xl border border-red-900/30 bg-red-950/10 p-10 text-center space-y-3 max-w-2xl mx-auto backdrop-blur-sm">
           <AlertTriangle className="w-10 h-10 text-red-500 mx-auto" />
@@ -331,9 +342,13 @@ export default function BrowseView({
           </div>
           <button
             onClick={() => {
-              if (selectedYear) setSelectedYear(selectedYear);
-              else if (selectedMake) setSelectedMake(selectedMake);
-              else setMakes([]);
+              if (selectedYear) {
+                setSelectedYear(selectedYear);
+              } else if (selectedMake) {
+                setSelectedMake(selectedMake);
+              } else {
+                setMakes([]);
+              }
             }}
             className="px-4 py-2 rounded-lg bg-surface-theme border border-border-theme text-slate-202 hover:text-white text-xs font-bold uppercase tracking-wider transition cursor-pointer"
           >
@@ -346,63 +361,75 @@ export default function BrowseView({
       {!loading && !error && (
         <div className="space-y-6" id="all-makes-container">
           
-          {/* SEARCH RESULTS */}
+          {/* SEARCH TERM IS ACTIVE */}
           {searchTerm.trim() ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 border-b border-white/10 pb-2">
-                <BookOpen className="w-4 h-4 text-amber-500" />
-                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">
-                  Procedure & Model Keyword Matches ({searchResults.length})
-                </h3>
+            <div className="space-y-6">
+              
+              {/* Flat Search Results List */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 border-b border-white/10 pb-2">
+                  <BookOpen className="w-4.5 h-4.5 text-amber-500" />
+                  <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">
+                    Procedure & Model Keyword Matches ({searchResults.length})
+                  </h3>
+                </div>
+
+                {searchResults.length === 0 ? (
+                  <div className="py-10 text-center border border-dashed border-white/10 rounded-xl bg-black/40 backdrop-blur-sm max-w-xl mx-auto">
+                    <p className="text-slate-400 text-xs">No model manual pages matched this specific keyword sequence.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {searchResults.map((v) => (
+                      <div
+                        key={v.id}
+                        className="bg-black/40 backdrop-blur-sm border border-white/10 hover:border-amber-500/40 hover:border-l-amber-500 border-l-[3px] border-l-border-theme rounded-xl p-4 flex items-center justify-between gap-4 transition-all duration-200 group"
+                        id={`vehicle-catalog-row-${v.id}`}
+                      >
+                        <div className="space-y-1 min-w-0 text-left">
+                          <span className="text-[9px] font-mono font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded select-none">
+                            {v.year}
+                          </span>
+                          <h4 className="text-xs md:text-sm font-extrabold text-slate-200 truncate group-hover:text-amber-400 transition-colors leading-tight">
+                            {v.make} {v.model}
+                          </h4>
+                          <p className="text-[11px] text-slate-400 font-mono truncate">{v.engine}</p>
+                        </div>
+
+                        <div className="flex flex-col items-end gap-2 shrink-0">
+                          <span className={`text-[8px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border select-none ${
+                            v.source === 'lemon'
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                          }`}>
+                            {v.source} manual
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectVehicle(v)}
+                            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-1.5 px-3.5 rounded-lg text-[10px] uppercase tracking-wider transition-all duration-150 active:scale-95 cursor-pointer flex items-center gap-1.5 shadow"
+                          >
+                            <BookOpen className="w-3.5 h-3.5" />
+                            Open Manual
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              {searchResults.length === 0 ? (
-                <div className="py-10 text-center border border-dashed border-white/10 rounded-xl bg-black/40 backdrop-blur-sm max-w-xl mx-auto">
-                  <p className="text-slate-400 text-xs">No model manual pages matched this specific keyword sequence.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {searchResults.map((v) => (
-                    <div
-                      key={v.id}
-                      className="bg-black/40 backdrop-blur-sm border border-white/10 hover:border-amber-500/40 hover:border-l-amber-500 border-l-[3px] border-l-transparent rounded-xl p-4 flex items-center justify-between gap-4 transition-all duration-200 group"
-                    >
-                      <div className="space-y-1 min-w-0 text-left">
-                        <span className="text-[9px] font-mono font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded select-none">
-                          {v.year}
-                        </span>
-                        <h4 className="text-xs md:text-sm font-extrabold text-slate-200 truncate group-hover:text-amber-400 transition-colors leading-tight">
-                          {v.make} {v.model}
-                        </h4>
-                        <p className="text-[11px] text-slate-400 font-mono truncate">{v.engine}</p>
-                      </div>
-                      <div className="flex flex-col items-end gap-2 shrink-0">
-                        <span className={`text-[8px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border select-none ${v.source === 'lemon' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'}`}>
-                          {v.source} manual
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleSelectVehicle(v)}
-                          className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-1.5 px-3.5 rounded-lg text-[10px] uppercase tracking-wider transition-all duration-150 active:scale-95 cursor-pointer flex items-center gap-1.5 shadow"
-                        >
-                          <BookOpen className="w-3.5 h-3.5" />
-                          Open Manual
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+
             </div>
           ) : null}
 
-          {/* DRILL-DOWN */}
+          {/* DRILL-DOWN BROWSER */}
           <div className="space-y-6">
 
-            {/* VIEW 1: MAKES GRID */}
+            {/* VIEW 1: MAKES LIST WITH NATION GROUPINGS */}
             {!selectedMake && (
               <div className="space-y-6">
                 
-                {/* Recently Viewed */}
+                {/* 1A. Recently Viewed makes */}
                 {recentlyViewed.length > 0 && (
                   <div className="space-y-3 text-left">
                     <h3 className="text-xs md:text-sm font-mono font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
@@ -421,9 +448,10 @@ export default function BrowseView({
                             onMouseLeave={() => setHoveredMake(null)}
                             className="flex flex-col items-center gap-1.5 group cursor-pointer"
                           >
+                            {/* Rounded glow card for brand emblem */}
                             <div 
                               className="w-16 h-16 rounded-xl bg-black/50 border border-white/10 flex items-center justify-center p-3 transition-all duration-150"
-                              style={isHovered ? { boxShadow: '0 0 12px #f59e0b55', borderColor: '#f59e0b' } : {}}
+                              style={isHovered ? { boxShadow: `0 0 12px #f59e0b55`, borderColor: '#f59e0b' } : {}}
                             >
                               {logoUrl ? (
                                 <img 
@@ -448,7 +476,7 @@ export default function BrowseView({
                   </div>
                 )}
 
-                {/* Nationality Grid */}
+                {/* 1B. 3-Column Responsive Grid of Collapsible National Groups */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   
                   {NATIONALITIES.map((nat) => {
@@ -463,9 +491,10 @@ export default function BrowseView({
                         className="bg-black/40 backdrop-blur-sm border border-white/5 rounded-xl overflow-hidden transition duration-150 flex flex-col h-full"
                         style={{ borderLeft: `4px solid ${nat.accentColor}` }}
                       >
+                        {/* Group Header collapsible bar */}
                         <div
                           onClick={() => toggleSection(nat.id)}
-                          className="px-4 py-3 bg-black/30 hover:bg-black/50 border-b border-white/5 flex items-center justify-between cursor-pointer select-none shrink-0"
+                          className="px-4 py-3 bg-[#111116] hover:bg-slate-800/25 border-b border-white/5 flex items-center justify-between cursor-pointer select-none shrink-0"
                         >
                           <div className="flex items-center gap-2">
                             <span className="text-2xl leading-none">{nat.emoji}</span>
@@ -478,11 +507,15 @@ export default function BrowseView({
                               </span>
                             </div>
                           </div>
-                          <button type="button" className="text-slate-400 hover:text-white p-0.5">
+                          <button
+                            type="button"
+                            className="text-slate-400 hover:text-white p-0.5"
+                          >
                             {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                           </button>
                         </div>
 
+                        {/* List of makes inside (compact pills with accent outline glow) */}
                         {!isCollapsed && (
                           <div className="p-4 flex flex-wrap gap-2 overflow-y-auto max-h-[220px] scrollbar-thin">
                             {groupMakes.map((make) => {
@@ -494,8 +527,8 @@ export default function BrowseView({
                                   onClick={() => handleSelectMake(make)}
                                   onMouseEnter={() => setHoveredMake(`${nat.id}-${make}`)}
                                   onMouseLeave={() => setHoveredMake(null)}
-                                  style={isHovered ? { boxShadow: `0 0 8px ${nat.accentColor}66`, borderColor: nat.accentColor } : { borderColor: 'rgba(255,255,255,0.08)' }}
-                                  className="border bg-black/60 text-slate-300 py-1.5 px-3 rounded-lg text-xs font-mono font-bold uppercase transition duration-150 cursor-pointer text-center select-none"
+                                  style={isHovered ? { boxShadow: `0 0 8px ${nat.accentColor}66`, borderColor: nat.accentColor } : { borderColor: 'rgba(255, 255, 255, 0.08)' }}
+                                  className="border bg-black/60 text-slate-300 py-1.5 px-3 rounded-lg text-xs font-mono font-bold uppercase transition duration-150 cursor-pointer text-center select-none shadow"
                                 >
                                   {make}
                                 </button>
@@ -507,7 +540,7 @@ export default function BrowseView({
                     );
                   })}
 
-                  {/* Other */}
+                  {/* Other / Miscellaneous group */}
                   {filteredOtherMakes.length > 0 && (
                     <div
                       id="section-other"
@@ -516,19 +549,27 @@ export default function BrowseView({
                     >
                       <div
                         onClick={() => toggleSection('other')}
-                        className="px-4 py-3 bg-black/30 hover:bg-black/50 border-b border-white/5 flex items-center justify-between cursor-pointer select-none shrink-0"
+                        className="px-4 py-3 bg-[#111116] hover:bg-slate-800/25 border-b border-white/5 flex items-center justify-between cursor-pointer select-none shrink-0"
                       >
                         <div className="flex items-center gap-2">
                           <span className="text-2xl leading-none">🌍</span>
                           <div className="flex flex-col text-left">
-                            <h3 className="text-xs font-mono font-black tracking-widest text-slate-200">OTHER</h3>
-                            <span className="text-[9px] font-mono text-slate-500 font-bold">{filteredOtherMakes.length} MANUFACTURERS</span>
+                            <h3 className="text-xs font-mono font-black tracking-widest text-slate-200">
+                              OTHER
+                            </h3>
+                            <span className="text-[9px] font-mono text-slate-500 font-bold">
+                              {filteredOtherMakes.length} MANUFACTURERS
+                            </span>
                           </div>
                         </div>
-                        <button type="button" className="text-slate-400 hover:text-white p-0.5">
+                        <button
+                          type="button"
+                          className="text-slate-400 hover:text-white p-0.5"
+                        >
                           {collapsedSections['other'] ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                         </button>
                       </div>
+
                       {!collapsedSections['other'] && (
                         <div className="p-4 flex flex-wrap gap-2 overflow-y-auto max-h-[220px] scrollbar-thin">
                           {filteredOtherMakes.map((make) => {
@@ -540,8 +581,8 @@ export default function BrowseView({
                                 onClick={() => handleSelectMake(make)}
                                 onMouseEnter={() => setHoveredMake(`other-${make}`)}
                                 onMouseLeave={() => setHoveredMake(null)}
-                                style={isHovered ? { boxShadow: '0 0 8px #6b728066', borderColor: '#6b7280' } : { borderColor: 'rgba(255,255,255,0.08)' }}
-                                className="border bg-black/60 text-slate-300 py-1.5 px-3 rounded-lg text-xs font-mono font-bold uppercase transition duration-150 cursor-pointer text-center select-none"
+                                style={isHovered ? { boxShadow: `0 0 8px #6b728066`, borderColor: '#6b7280' } : { borderColor: 'rgba(255, 255, 255, 0.08)' }}
+                                className="border bg-black/60 text-slate-300 py-1.5 px-3 rounded-lg text-xs font-mono font-bold uppercase transition duration-150 cursor-pointer text-center select-none shadow"
                               >
                                 {make}
                               </button>
@@ -551,30 +592,21 @@ export default function BrowseView({
                       )}
                     </div>
                   )}
+
                 </div>
               </div>
             )}
 
-            {/* VIEW 2: YEARS */}
+            {/* VIEW 2: YEARS LIST */}
             {selectedMake && !selectedYear && (
               <div className="space-y-4 bg-black/40 backdrop-blur-sm border border-white/5 rounded-xl p-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-mono font-extrabold uppercase tracking-widest text-slate-300 border-l-2 border-amber-500 pl-3">
-                    Select Model Year for {selectedMake}
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={handleGoBack}
-                    className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-300 hover:text-white transition bg-black/40 border border-white/10 hover:border-slate-700 rounded-lg px-3.5 py-1.5 cursor-pointer"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5 text-amber-500" />
-                    Back
-                  </button>
-                </div>
+                <h3 className="text-xs font-mono font-extrabold uppercase tracking-widest text-slate-300 border-l-2 border-amber-500 pl-3">
+                  Select Model Year for {selectedMake}
+                </h3>
                 {years.length === 0 ? (
                   <p className="text-xs text-slate-500 italic py-6">No release years found for this manufacturer.</p>
                 ) : (
-                  <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-8 gap-3">
+                  <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-8 gap-3" id="years-catalog-grid">
                     {years.map((year) => (
                       <button
                         key={year}
@@ -590,32 +622,23 @@ export default function BrowseView({
               </div>
             )}
 
-            {/* VIEW 3: MODELS */}
+            {/* VIEW 3: MODELS LIST */}
             {selectedMake && selectedYear && (
               <div className="space-y-4 bg-black/40 backdrop-blur-sm border border-white/5 rounded-xl p-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-mono font-extrabold uppercase tracking-widest text-slate-300 border-l-2 border-amber-500 pl-3">
-                    Browse Service Manuals for {selectedYear} {selectedMake}
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={handleGoBack}
-                    className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-300 hover:text-white transition bg-black/40 border border-white/10 hover:border-slate-700 rounded-lg px-3.5 py-1.5 cursor-pointer"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5 text-amber-500" />
-                    Back
-                  </button>
-                </div>
+                <h3 className="text-xs font-mono font-extrabold uppercase tracking-widest text-slate-300 border-l-2 border-amber-500 pl-3">
+                  Browse Service Manuals for {selectedYear} {selectedMake}
+                </h3>
+                
                 {vehicles.length === 0 ? (
                   <div className="py-12 text-center border border-dashed border-white/10 rounded-xl text-slate-500 text-xs">
                     No model variants indexed for this combination yet.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="vehicles-catalog-list">
                     {vehicles.map((v) => (
                       <div
                         key={v.id}
-                        className="bg-black/50 border border-white/10 hover:border-amber-500/50 hover:border-l-amber-500 border-l-[3px] border-l-transparent rounded-xl p-5 flex items-center justify-between gap-4 transition-all duration-200 group"
+                        className="bg-black/50 border border-white/10 hover:border-amber-500/50 hover:border-l-amber-500 border-l-[3px] border-l-border-theme rounded-xl p-5 flex items-center justify-between gap-4 transition-all duration-200 group"
                       >
                         <div className="space-y-1.5 text-left min-w-0">
                           <span className="text-[10px] font-mono text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded select-none">
@@ -626,8 +649,13 @@ export default function BrowseView({
                           </h4>
                           <p className="text-xs text-slate-400 font-mono truncate">{v.engine}</p>
                         </div>
+
                         <div className="flex flex-col items-end gap-2.5 shrink-0">
-                          <span className={`text-[8px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border select-none ${v.source === 'lemon' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'}`}>
+                          <span className={`text-[8px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border select-none ${
+                            v.source === 'lemon'
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                          }`}>
                             {v.source} manual
                           </span>
                           <button
@@ -647,8 +675,10 @@ export default function BrowseView({
             )}
 
           </div>
+
         </div>
       )}
+
     </div>
   );
 }
