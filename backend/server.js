@@ -544,9 +544,29 @@ app.get('/api/page', async (req, res) => {
               blocks.push({ type: 'heading', text });
             }
           } else if (tagName === 'p') {
-            const text = $el.text().trim();
-            if (text) {
-              blocks.push({ type: 'text', text });
+            const hasLinks = $el.find('a').length > 0;
+            if (hasLinks) {
+              const childNodes = $el.contents();
+              childNodes.each((cIdx, child) => {
+                const $child = $(child);
+                if (child.type === 'tag' && child.name.toLowerCase() === 'a') {
+                  const linkText = $child.text().trim();
+                  const href = $child.attr('href') || '';
+                  if (linkText) {
+                    blocks.push({ type: 'link', text: linkText, href });
+                  }
+                } else {
+                  const textContent = $child.text();
+                  if (textContent.trim()) {
+                    blocks.push({ type: 'text', text: textContent.trim() });
+                  }
+                }
+              });
+            } else {
+              const text = $el.text().trim();
+              if (text) {
+                blocks.push({ type: 'text', text });
+              }
             }
           } else if (tagName === 'img') {
             const src = $el.attr('src');

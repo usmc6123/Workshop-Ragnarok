@@ -853,6 +853,23 @@ export default function ManualView({
                     <div className="space-y-6">
                       {activePage.blocks && activePage.blocks.length > 0 ? (
                         activePage.blocks.map((block: Block, blockIdx: number) => {
+                          const blockAsAny = block as any;
+
+                          if (blockAsAny.type === 'link') {
+                            return (
+                              <button
+                                key={`link-${blockIdx}`}
+                                type="button"
+                                onClick={() => {
+                                  loadActivePageDetails(blockAsAny.href);
+                                  setCurrentUri(blockAsAny.href);
+                                }}
+                                className="inline-block text-base leading-relaxed text-amber-500 hover:text-amber-400 font-bold hover:underline transition-colors cursor-pointer text-left font-sans my-1"
+                              >
+                                {blockAsAny.text}
+                              </button>
+                            );
+                          }
                           
                           // H1/H2 Headings styled in bold amber
                           if (block.type === 'heading') {
