@@ -242,7 +242,7 @@ export default function VehiclesView({ onNavigateToManualWithSearch, onSelectVeh
   };
 
   const handleDeleteVehicle = async (id: number) => {
-    if (!window.confirm('Delete this vehicle record and all associated service logs permanently?')) {
+    if (!window.confirm('Are you sure you want to delete this?')) {
       return;
     }
     try {

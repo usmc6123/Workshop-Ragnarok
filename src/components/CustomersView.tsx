@@ -120,7 +120,7 @@ export default function CustomersView({ onNavigateToTab }: CustomersViewProps) {
   };
 
   const handleDeleteCustomer = async (id: number) => {
-    if (!window.confirm('Are you sure you want to permanently delete this customer account? This will also remove all their registered vehicles, service histories, and job files.')) {
+    if (!window.confirm('Are you sure you want to delete this?')) {
       return;
     }
     try {
