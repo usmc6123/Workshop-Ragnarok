@@ -870,6 +870,22 @@ export default function ManualView({
                               </button>
                             );
                           }
+
+                          if (blockAsAny.type === 'internalLink') {
+                            return (
+                              <button
+                                key={`internalLink-${blockIdx}`}
+                                type="button"
+                                onClick={() => {
+                                  loadActivePageDetails(blockAsAny.href);
+                                  setCurrentUri(blockAsAny.href);
+                                }}
+                                className="inline-block text-base leading-relaxed text-amber-500 hover:text-amber-400 font-bold hover:underline transition-colors cursor-pointer text-left font-sans my-1"
+                              >
+                                {blockAsAny.text}
+                              </button>
+                            );
+                          }
                           
                           // H1/H2 Headings styled in bold amber
                           if (block.type === 'heading') {
@@ -884,14 +900,14 @@ export default function ManualView({
                           }
 
                           // Descriptive content text
-                          if (block.type === 'text') {
-                            const text = block.text;
+                          if (block.type === 'text' || blockAsAny.type === 'paragraph') {
+                            const text = blockAsAny.text;
                             // check if block mentions torque to highlight
                             const hasTorque = /[\d.]+[\s]*(?:Nm|N-m|N·m|lb-ft|lb-in|foot-pounds|torque|spec)/i.test(text);
                             
                             return (
                               <p 
-                                key={`text-${blockIdx}`}
+                                key={`${blockAsAny.type}-${blockIdx}`}
                                 className={`text-base leading-relaxed text-slate-300 font-sans ${
                                   hasTorque 
                                     ? 'bg-amber-500/5 border border-amber-500/10 p-4 rounded-lg text-amber-250 font-semibold font-mono'

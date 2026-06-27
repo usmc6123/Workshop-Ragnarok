@@ -551,14 +551,19 @@ app.get('/api/page', async (req, res) => {
                 const $child = $(child);
                 if (child.type === 'tag' && child.name.toLowerCase() === 'a') {
                   const linkText = $child.text().trim();
-                  const href = $child.attr('href') || '';
+                  let href = $child.attr('href') || '';
+                  if (href.startsWith('/hyperlink/')) {
+                    href = href.substring(10);
+                  } else if (href.startsWith('hyperlink/')) {
+                    href = '/' + href.substring(10);
+                  }
                   if (linkText) {
-                    blocks.push({ type: 'link', text: linkText, href });
+                    blocks.push({ type: 'internalLink', text: linkText, href });
                   }
                 } else {
-                  const textContent = $child.text();
-                  if (textContent.trim()) {
-                    blocks.push({ type: 'text', text: textContent.trim() });
+                  const textContent = $child.text().trim();
+                  if (textContent) {
+                    blocks.push({ type: 'paragraph', text: textContent });
                   }
                 }
               });
