@@ -201,7 +201,7 @@ export default function CalendarView() {
   ];
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-4 py-6" id="calendar-view-container">
+    <div className="space-y-6 w-full lg:w-[65vw] mx-auto px-4 py-6" id="calendar-view-container">
       
       {/* Header Panel */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border-theme pb-4">
@@ -265,7 +265,7 @@ export default function CalendarView() {
                   key={idx}
                   onClick={() => handleDayClick(cell.dateStr)}
                   className={`
-                    min-h-[100px] p-2 flex flex-col justify-between transition cursor-pointer group text-left
+                    min-h-[140px] p-2 flex flex-col justify-between transition cursor-pointer group text-left
                     ${cell.isCurrentMonth ? 'bg-transparent' : 'bg-bg-theme/10 opacity-30'}
                     ${isToday ? 'bg-primary-theme/5 border border-primary-theme/30' : 'hover:bg-bg-theme/30'}
                   `}
