@@ -988,6 +988,11 @@ app.get('/api/page', async (req, res) => {
         }
       }
 
+      console.log('[PAGE DEBUG] pageType:', pageType, '| blocks count:', blocks.length);
+      if (blocks.length > 0) {
+        console.log('[PAGE DEBUG] first 3 blocks:', JSON.stringify(blocks.slice(0, 3)));
+      }
+
       return res.json({
         pageType: pageType === 'unknown' ? 'content' : pageType,
         title: title,
