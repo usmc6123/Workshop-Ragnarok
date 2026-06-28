@@ -21,7 +21,7 @@ const NATIONALITIES = [
     name: 'AMERICAN',
     emoji: '🇺🇸',
     accentColor: '#ef4444',
-    makes: ["Ford", "GM", "Chevrolet", "Dodge and RAM", "Jeep", "Chrysler", "Buick", "Cadillac", "Lincoln", "Mercury", "Pontiac", "Oldsmobile", "Saturn", "Plymouth", "GMC", "Hummer", "Tesla", "Rivian", "American Motors", "Eagle", "Geo", "General Motors", "SRT"]
+    makes: ["Ford", "GM", "Chevrolet", "Dodge and Ram", "Jeep", "Chrysler", "Buick", "Cadillac", "Lincoln", "Mercury", "Pontiac", "Oldsmobile", "Saturn", "Plymouth", "GMC", "Hummer", "Tesla", "Rivian", "American Motors", "Eagle", "Geo", "General Motors", "SRT"]
   },
   {
     id: 'japanese',
@@ -57,6 +57,13 @@ const NATIONALITIES = [
     emoji: '🚛',
     accentColor: '#10b981',
     makes: ["Freightliner", "International", "UD", "Workhorse"]
+  },
+  {
+    id: 'other',
+    name: 'OTHER',
+    emoji: '🌍',
+    accentColor: '#6b7280',
+    makes: ["VinFast", "Yugo", "ZAP", "Checker"]
   }
 ];
 
@@ -471,7 +478,9 @@ export default function BrowseView({
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   
                   {NATIONALITIES.map((nat) => {
-                    const groupMakes = getFilteredGroupMakes(nat.makes);
+                    const groupMakes = nat.id === 'other'
+                      ? [...getFilteredGroupMakes(nat.makes), ...filteredOtherMakes]
+                      : getFilteredGroupMakes(nat.makes);
                     if (groupMakes.length === 0) return null;
                     const isCollapsed = !!collapsedSections[nat.id];
 
@@ -530,59 +539,6 @@ export default function BrowseView({
                       </div>
                     );
                   })}
-
-                  {/* Other / Miscellaneous group */}
-                  {filteredOtherMakes.length > 0 && (
-                    <div
-                      id="section-other"
-                      className="bg-black/40 backdrop-blur-sm border border-white/5 rounded-xl overflow-hidden transition duration-150 flex flex-col h-full"
-                      style={{ borderLeft: '4px solid #6b7280' }}
-                    >
-                      <div
-                        onClick={() => toggleSection('other')}
-                        className="px-4 py-3 bg-[#111116] hover:bg-slate-800/25 border-b border-white/5 flex items-center justify-between cursor-pointer select-none shrink-0"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="text-2xl leading-none">🌍</span>
-                          <div className="flex flex-col text-left">
-                            <h3 className="text-xs font-mono font-black tracking-widest text-slate-200">
-                              OTHER
-                            </h3>
-                            <span className="text-[9px] font-mono text-slate-500 font-bold">
-                              {filteredOtherMakes.length} MANUFACTURERS
-                            </span>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          className="text-slate-400 hover:text-white p-0.5"
-                        >
-                          {collapsedSections['other'] ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </button>
-                      </div>
-
-                      {!collapsedSections['other'] && (
-                        <div className="p-4 flex flex-wrap gap-2">
-                          {filteredOtherMakes.map((make) => {
-                            const isHovered = hoveredMake === `other-${make}`;
-                            return (
-                              <button
-                                key={make}
-                                type="button"
-                                onClick={() => handleSelectMake(make)}
-                                onMouseEnter={() => setHoveredMake(`other-${make}`)}
-                                onMouseLeave={() => setHoveredMake(null)}
-                                style={isHovered ? { boxShadow: `0 0 8px #6b728066`, borderColor: '#6b7280' } : { borderColor: 'rgba(255, 255, 255, 0.08)' }}
-                                className="border bg-black/60 text-slate-300 py-2 px-4 rounded-lg text-sm font-mono font-bold uppercase transition duration-150 cursor-pointer text-center select-none shadow"
-                              >
-                                {make}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
 
                 </div>
               </div>
