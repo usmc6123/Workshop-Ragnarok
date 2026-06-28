@@ -549,21 +549,25 @@ app.get('/api/page', async (req, res) => {
               const childNodes = $el.contents();
               childNodes.each((cIdx, child) => {
                 const $child = $(child);
-                if (child.type === 'tag' && child.name.toLowerCase() === 'a') {
+                if (child.type === 'tag' && child.name && child.name.toLowerCase() === 'a') {
                   const linkText = $child.text().trim();
                   let href = $child.attr('href') || '';
-                  if (href.startsWith('/hyperlink/')) {
-                    href = href.substring(10);
-                  } else if (href.startsWith('hyperlink/')) {
-                    href = '/' + href.substring(10);
+                  let cleanHref = href;
+                  if (cleanHref.startsWith('/hyperlink/')) {
+                    cleanHref = cleanHref.substring(11);
+                  } else if (cleanHref.startsWith('hyperlink/')) {
+                    cleanHref = cleanHref.substring(10);
+                  }
+                  if (!cleanHref.startsWith('/')) {
+                    cleanHref = '/' + cleanHref;
                   }
                   if (linkText) {
-                    blocks.push({ type: 'internalLink', text: linkText, href });
+                    blocks.push({ type: 'internalLink', text: linkText, href: cleanHref });
                   }
                 } else {
-                  const textContent = $child.text().trim();
-                  if (textContent) {
-                    blocks.push({ type: 'paragraph', text: textContent });
+                  const textContent = (child.type === 'text') ? child.data : $child.text();
+                  if (textContent && textContent.trim()) {
+                    blocks.push({ type: 'paragraph', text: textContent.trim() });
                   }
                 }
               });
