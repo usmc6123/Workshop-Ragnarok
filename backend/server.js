@@ -606,8 +606,6 @@ app.get('/api/page', async (req, res) => {
 
     const html = await response.text();
     const $ = cheerio.load(html);
-    const $fullPage = $;
-    const hasMainDiv = $('div.main').length > 0;
 
     // Target div.main, fallback to body
     let $content = $('div.main');
@@ -623,9 +621,9 @@ app.get('/api/page', async (req, res) => {
 
     // Category vs Content page detection
     // Better detection: LEMON content pages have a specific ID wrapper or ARABICNUM lists
-    const isLemonContent = hasMainDiv || 
-                           $content.find('div[id^="S"]').length > 0 || 
-                           $content.find('ol.ARABICNUM').length > 0;
+    const isLemonContent = $content.find('div[id^="S"]').length > 0 || 
+                           $content.find('ol.ARABICNUM').length > 0 ||
+                           $content.find('div.main').length > 0;
 
     const isCharmContent = !isLemonContent && (
                            $content.find('div.oxe-image, div.big-img').length > 0 ||
