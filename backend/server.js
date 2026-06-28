@@ -16,7 +16,7 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 4000;
 const LEMON_SERVER_URL = process.env.LEMON_SERVER_URL || 'http://lemon-server:8080';
 const DB_PATH = process.env.DB_PATH || '/data/db/workshop.db';
 
