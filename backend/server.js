@@ -738,10 +738,21 @@ app.get('/api/page', async (req, res) => {
             const src = $node.attr('src');
             if (src) blocks.push({ type: 'image', src });
           } else if (tagName === 'span') {
-            const text = $node.text().trim();
-            if (text && !/^\s*$/.test(text)) {
-              currentParts.push({ type: 'text', text });
-            }
+            $node.contents().each((i, child) => {
+              const $child = $(child);
+              const childTag = child.name ? child.name.toLowerCase() : '';
+              if (child.type === 'text') {
+                const text = child.data ? child.data.trim() : '';
+                if (text) currentParts.push({ type: 'text', text });
+              } else if (childTag === 'a') {
+                const linkText = $child.text().trim();
+                let href = $child.attr('href') || '';
+                if (href.startsWith('/hyperlink/')) href = href.substring(11);
+                else if (href.startsWith('hyperlink/')) href = href.substring(10);
+                if (!href.startsWith('/')) href = '/' + href;
+                if (linkText) currentParts.push({ type: 'internalLink', text: linkText, href });
+              }
+            });
           }
         });
         
