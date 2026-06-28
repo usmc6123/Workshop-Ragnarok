@@ -24,7 +24,8 @@ RUN npm ci --only=production
 
 # Copy backend source files
 COPY backend/server.js ./
-COPY backend/ingestion.js ./
+COPY backend/ingestion.js ./ 
+COPY backend/middleware ./middleware
 COPY backend/middleware ./middleware
 
 # Copy compiled frontend from Stage 1 into backend's public folder
