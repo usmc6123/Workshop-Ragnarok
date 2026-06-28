@@ -28,11 +28,10 @@ COPY backend/ingestion.js ./
 COPY backend/middleware ./middleware
 
 # Copy compiled frontend from Stage 1 into backend's public folder
-COPY --from=frontend-builder /app/dist ./dist
+COPY --from=frontend-builder /app/dist ./public
 
 # Set default environment configuration
 ENV PORT=4000
-ENV NODE_ENV=production
 ENV LEMON_SERVER_URL=http://lemon-server:8080
 ENV DB_PATH=/data/db/workshop.db
 

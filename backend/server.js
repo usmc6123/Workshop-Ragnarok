@@ -1615,6 +1615,7 @@ async function initServer() {
     });
     app.use(vite.middlewares);
   } else {
+    // PRODUCTION PATH - DO NOT CHANGE - must be 'dist' not '../dist'
     const distPath = path.join(__dirname, 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res, next) => {
