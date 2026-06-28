@@ -622,9 +622,13 @@ app.get('/api/page', async (req, res) => {
     // Category vs Content page detection
     // Better detection: LEMON content pages have a specific ID wrapper or ARABICNUM lists
     const isLemonContent = $content.find('div[id^="S"]').length > 0 || 
-                           $content.find('ol.ARABICNUM').length > 0;
-    const isCharmContent = $content.find('div.oxe-image, div.big-img').length > 0 ||
-                           ($content.find('b').length > 0 && $content.find('ul li a, ol li a').length === 0);
+                           $content.find('ol.ARABICNUM').length > 0 ||
+                           $content.find('div.main').length > 0;
+
+    const isCharmContent = !isLemonContent && (
+                           $content.find('div.oxe-image, div.big-img').length > 0 ||
+                           ($content.find('b').length > 0 && 
+                            $content.find('ul li a, ol li a').length === 0));
 
     // Category pages: have nav links pointing to other manual pages, no content markers
     const categoryLinks = $content.find('ul li a, ol li a').filter((i, el) => {
