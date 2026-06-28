@@ -864,7 +864,7 @@ export default function ManualView({
                                   loadActivePageDetails(blockAsAny.href);
                                   setCurrentUri(blockAsAny.href);
                                 }}
-                                className="inline-block text-base leading-relaxed text-amber-500 hover:text-amber-400 font-bold hover:underline transition-colors cursor-pointer text-left font-sans my-1"
+                                className="inline-block text-base leading-relaxed text-amber-400 hover:text-amber-300 font-bold underline transition-colors cursor-pointer text-left font-sans my-1"
                               >
                                 {blockAsAny.text}
                               </button>
@@ -880,7 +880,7 @@ export default function ManualView({
                                   loadActivePageDetails(blockAsAny.href);
                                   setCurrentUri(blockAsAny.href);
                                 }}
-                                className="inline-block text-base leading-relaxed text-amber-500 hover:text-amber-400 font-bold hover:underline transition-colors cursor-pointer text-left font-sans my-1"
+                                className="inline-block text-base leading-relaxed text-amber-400 hover:text-amber-300 font-bold underline transition-colors cursor-pointer text-left font-sans my-1"
                               >
                                 {blockAsAny.text}
                               </button>
@@ -901,9 +901,14 @@ export default function ManualView({
 
                           // Descriptive content text
                           if (block.type === 'text' || blockAsAny.type === 'paragraph') {
-                            const text = blockAsAny.text;
-                            // check if block mentions torque to highlight
-                            const hasTorque = /[\d.]+[\s]*(?:Nm|N-m|N·m|lb-ft|lb-in|foot-pounds|torque|spec)/i.test(text);
+                            const text = blockAsAny.text || '';
+                            const parts = blockAsAny.parts;
+                            
+                            const fullText = parts 
+                              ? parts.map((p: any) => p.text || '').join('') 
+                              : text;
+                              
+                            const hasTorque = /[\d.]+[\s]*(?:Nm|N-m|N·m|lb-ft|lb-in|foot-pounds|torque|spec)/i.test(fullText);
                             
                             return (
                               <p 
@@ -914,7 +919,28 @@ export default function ManualView({
                                     : ''
                                 }`}
                               >
-                                {text}
+                                {parts ? (
+                                  parts.map((part: any, pIdx: number) => {
+                                    if (part.type === 'internalLink') {
+                                      return (
+                                        <button
+                                          key={`part-link-${pIdx}`}
+                                          type="button"
+                                          onClick={() => {
+                                            loadActivePageDetails(part.href);
+                                            setCurrentUri(part.href);
+                                          }}
+                                          className="text-amber-400 hover:text-amber-300 underline cursor-pointer bg-transparent border-none p-0 inline font-bold"
+                                        >
+                                          {part.text}
+                                        </button>
+                                      );
+                                    }
+                                    return <span key={`part-text-${pIdx}`}>{part.text}</span>;
+                                  })
+                                ) : (
+                                  text
+                                )}
                               </p>
                             );
                           }

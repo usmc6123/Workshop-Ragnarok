@@ -16,7 +16,7 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = 3000;
 const LEMON_SERVER_URL = process.env.LEMON_SERVER_URL || 'http://lemon-server:8080';
 const DB_PATH = process.env.DB_PATH || '/data/db/workshop.db';
 
@@ -880,40 +880,28 @@ app.get('/api/page', async (req, res) => {
 
       if (pageType === 'unknown' && $content.length > 0) {
         // Fallback parser for generic LEMON page
-        const childNodes = $content.contents();
-        childNodes.each((idx, node) => {
+        let currentParts = [];
+
+        const flushCurrentParts = () => {
+          if (currentParts.length > 0) {
+            // Simplify if only one part of type 'text'
+            if (currentParts.length === 1 && currentParts[0].type === 'text') {
+              blocks.push({ type: 'paragraph', text: currentParts[0].text });
+            } else {
+              blocks.push({ type: 'paragraph', parts: currentParts });
+            }
+            currentParts = [];
+          }
+        };
+
+        const processInlineNode = (node, partsList) => {
           const $node = $(node);
           const tagName = node.name ? node.name.toLowerCase() : '';
 
           if (node.type === 'text') {
             const text = node.data;
             if (text && text.trim()) {
-              blocks.push({ type: 'paragraph', text: text.trim() });
-            }
-          } else if (tagName === 'h1') {
-            const text = $node.text().trim();
-            if (text) {
-              blocks.push({ type: 'heading', text });
-            }
-          } else if (tagName === 'b') {
-            const text = $node.text().trim();
-            if (text) {
-              blocks.push({ type: 'heading', text });
-            }
-          } else if (tagName === 'br') {
-            // skip
-          } else if (tagName === 'span') {
-            const text = $node.text();
-            const trimmed = text.trim();
-            const match = trimmed.match(/^(\d+)\.\s*(.*)$/);
-            if (match) {
-              const N = parseInt(match[1], 10);
-              const stepText = match[2].trim();
-              blocks.push({ type: 'step', number: N, text: stepText });
-            } else if (!trimmed || /^\s*$/.test(text)) {
-              // skip
-            } else {
-              blocks.push({ type: 'paragraph', text: trimmed });
+              partsList.push({ type: 'text', text: text.replace(/\s+/g, ' ') });
             }
           } else if (tagName === 'a') {
             const linkText = $node.text().trim();
@@ -927,10 +915,65 @@ app.get('/api/page', async (req, res) => {
               href = '/' + href;
             }
             if (linkText) {
-              blocks.push({ type: 'internalLink', text: linkText, href });
+              partsList.push({ type: 'internalLink', text: linkText, href });
+            }
+          } else if (tagName === 'span') {
+            const text = $node.text();
+            const trimmed = text.trim();
+            const match = trimmed.match(/^(\d+)\.\s*(.*)$/);
+            if (!match && trimmed && !/^\s*$/.test(text)) {
+              partsList.push({ type: 'text', text: text.replace(/\s+/g, ' ') });
             }
           }
+        };
+
+        const childNodes = $content.contents();
+        childNodes.each((idx, node) => {
+          const $node = $(node);
+          const tagName = node.name ? node.name.toLowerCase() : '';
+
+          let isStepSpan = false;
+          if (tagName === 'span') {
+            const trimmed = $node.text().trim();
+            if (trimmed.match(/^(\d+)\.\s*(.*)$/)) {
+              isStepSpan = true;
+            }
+          }
+
+          if (tagName === 'h1' || tagName === 'b') {
+            flushCurrentParts();
+            const text = $node.text().trim();
+            if (text) {
+              blocks.push({ type: 'heading', text });
+            }
+          } else if (tagName === 'br') {
+            flushCurrentParts();
+          } else if (isStepSpan) {
+            flushCurrentParts();
+            const trimmed = $node.text().trim();
+            const match = trimmed.match(/^(\d+)\.\s*(.*)$/);
+            const N = parseInt(match[1], 10);
+            const stepText = match[2].trim();
+            blocks.push({ type: 'step', number: N, text: stepText });
+          } else if (tagName === 'p') {
+            flushCurrentParts();
+            const pParts = [];
+            $node.contents().each((pIdx, pNode) => {
+              processInlineNode(pNode, pParts);
+            });
+            if (pParts.length > 0) {
+              if (pParts.length === 1 && pParts[0].type === 'text') {
+                blocks.push({ type: 'paragraph', text: pParts[0].text });
+              } else {
+                blocks.push({ type: 'paragraph', parts: pParts });
+              }
+            }
+          } else {
+            processInlineNode(node, currentParts);
+          }
         });
+
+        flushCurrentParts();
 
         if (blocks.length > 0) {
           pageType = 'lemon';
@@ -1563,34 +1606,41 @@ app.delete('/api/appointments/:id', (req, res) => {
   }
 });
 
-// Serve React build from the /public folder
-const publicPath = path.join(__dirname, 'public');
-app.use(express.static(publicPath));
-
-// Fallback for SPA routing - all non-API paths resolve to index.html
-app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api/')) {
-    return next();
-  }
-  const indexPath = path.join(publicPath, 'index.html');
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
+async function initServer() {
+  if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = require('vite');
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa'
+    });
+    app.use(vite.middlewares);
   } else {
-    res.status(404).send('Front-end client build not found in /public folder. Please ensure the frontend is compiled.');
+    const distPath = path.join(__dirname, '../dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api/')) {
+        return next();
+      }
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
   }
-});
 
-// Fallback error handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Internal Server Error' });
-});
+  // Fallback error handler
+  app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ error: 'Internal Server Error' });
+  });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`=========================================`);
-  console.log(`Workshop: Ragnarök homelab backend up!   `);
-  console.log(`Listening on http://0.0.0.0:${PORT}       `);
-  console.log(`Database source: ${DB_PATH}              `);
-  console.log(`Lemon server URL: ${LEMON_SERVER_URL}    `);
-  console.log(`=========================================`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`=========================================`);
+    console.log(`Workshop: Ragnarök homelab backend up!   `);
+    console.log(`Listening on http://0.0.0.0:${PORT}       `);
+    console.log(`Database source: ${DB_PATH}              `);
+    console.log(`Lemon server URL: ${LEMON_SERVER_URL}    `);
+    console.log(`=========================================`);
+  });
+}
+
+initServer().catch(err => {
+  console.error('Failed to start unified server:', err);
 });

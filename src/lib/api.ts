@@ -18,7 +18,7 @@ import {
 } from './mockData';
 
 const STORAGE_KEY = 'car_manual_api_base';
-const DEFAULT_API_BASE = 'http://localhost:4000';
+const DEFAULT_API_BASE = '';
 
 const SIMULATED_GARAGE_KEY = 'ragnarok_simulated_garage_v1';
 const SIMULATED_CUSTOMERS_KEY = 'ragnarok_simulated_customers_v1';
@@ -166,6 +166,10 @@ function saveSimulatedGarage(list: GarageItem[]) {
 
 export function getApiBase(): string {
   const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved && (saved.trim() === 'http://localhost:4000' || saved.trim() === 'http://localhost:3000')) {
+    localStorage.removeItem(STORAGE_KEY);
+    return DEFAULT_API_BASE;
+  }
   return saved ? saved.trim() : DEFAULT_API_BASE;
 }
 
