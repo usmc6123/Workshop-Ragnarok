@@ -4,7 +4,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'workshop-ragnarok-secret';
 function authMiddleware(req, res, next) {
   // Allow login route to bypass auth
   const cleanPath = req.path;
-  if (cleanPath === '/auth/login' || cleanPath === '/api/auth/login') {
+  if (cleanPath === '/auth/login' || 
+      cleanPath === '/api/auth/login' ||
+      cleanPath.startsWith('/api/image') ||
+      cleanPath.startsWith('/image')) {
     return next();
   }
 
