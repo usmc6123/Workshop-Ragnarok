@@ -694,173 +694,58 @@ app.get('/api/page', async (req, res) => {
       if (isLemonContent) {
         pageType = 'content';
         // --- LEMON Content Parser ---
-        $content.find('h1, h2, p.PROC_HEAD, p.HEAD, p, a, span, img, ol.ARABICNUM, div.CAUTION, div.WARNING, div.NOTE, table.clsArticleTable').each((idx, el) => {
-          const $el = $(el);
-
-          // Avoid double parsing nested items
-          if ($el.closest('ol.ARABICNUM, div.CAUTION, div.WARNING, div.NOTE').length > 0 && 
-              !$el.is('ol.ARABICNUM, div.CAUTION, div.WARNING, div.NOTE')) {
-            return;
+        const mainDiv = $content.find('div.main');
+        const targetEl = mainDiv.length > 0 ? mainDiv : $content;
+        
+        let currentParts = [];
+        
+        const flushParts = () => {
+          if (currentParts.length === 0) return;
+          if (currentParts.length === 1 && currentParts[0].type === 'text') {
+            blocks.push({ type: 'paragraph', text: currentParts[0].text });
+          } else {
+            blocks.push({ type: 'paragraph', parts: currentParts });
           }
-          if ($el.closest('p').length > 0 && !$el.is('p')) {
-            return;
-          }
-
-          const tagName = el.name.toLowerCase();
+          currentParts = [];
+        };
+        
+        targetEl.contents().each((idx, node) => {
+          const $node = $(node);
+          const tagName = node.name ? node.name.toLowerCase() : '';
           
-          if (tagName === 'table') {
-            const rows = [];
-            $el.find('tr').each((i, row) => {
-              const cells = [];
-              $(row).find('th, td').each((j, cell) => {
-                cells.push($(cell).text().trim());
-              });
-              if (cells.length > 0) rows.push(cells);
-            });
-            if (rows.length > 0) {
-              blocks.push({ type: 'table', rows });
-            }
-            return;
-          }
-          
-          if (['h1', 'h2'].includes(tagName) || $el.hasClass('PROC_HEAD') || $el.hasClass('HEAD')) {
-            const text = $el.text().trim();
-            if (text) {
-              blocks.push({ type: 'heading', text });
-            }
-          } else if (tagName === 'p') {
-            const partsArray = [];
-            $el.contents().each((cIdx, child) => {
-              if (child.type === 'text') {
-                if (child.data) {
-                  partsArray.push({ type: 'text', text: child.data });
-                }
-              } else if (child.type === 'tag' && child.name && child.name.toLowerCase() === 'a') {
-                const $child = $(child);
-                const linkText = $child.text().trim();
-                let href = $child.attr('href') || $child.attr('HREF') || '';
-                console.log('[HREF DEBUG]', 'text:', linkText, 'raw href:', href);
-                if (href.startsWith('/hyperlink/')) {
-                  href = href.substring(11);
-                } else if (href.startsWith('hyperlink/')) {
-                  href = href.substring(10);
-                } else if (!href || href === '#' || href.startsWith('javascript:')) {
-                  const pathText = linkText.toLowerCase()
-                    .trim()
-                    .replace(/[^a-z0-9]+/g, '-')
-                    .replace(/^-+|-+$/g, '');
-                  href = '/' + pathText;
-                }
-                if (!href.startsWith('/')) {
-                  href = '/' + href;
-                }
-                if (linkText) {
-                  partsArray.push({ type: 'internalLink', text: linkText, href });
-                }
-              }
-            });
-
-            const hasInternalLink = partsArray.some(p => p.type === 'internalLink');
-            if (partsArray.length > 1 || hasInternalLink) {
-              blocks.push({ type: 'paragraph', parts: partsArray });
-            } else if (partsArray.length === 1) {
-              blocks.push({ type: 'paragraph', text: partsArray[0].text });
-            }
+          if (node.type === 'text') {
+            const text = node.data ? node.data.trim() : '';
+            if (text) currentParts.push({ type: 'text', text });
+          } else if (tagName === 'br') {
+            flushParts();
           } else if (tagName === 'a') {
-            const linkText = $el.text().trim();
-            let href = $el.attr('href') || $el.attr('HREF') || '';
-            console.log('[HREF DEBUG]', 'text:', linkText, 'raw href:', href);
-            if (href.startsWith('/hyperlink/')) {
-              href = href.substring(11);
-            } else if (href.startsWith('hyperlink/')) {
-              href = href.substring(10);
-            } else if (!href || href === '#' || href.startsWith('javascript:')) {
-              const pathText = linkText.toLowerCase()
-                .trim()
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/^-+|-+$/g, '');
-              href = '/' + pathText;
-            }
-            if (!href.startsWith('/')) {
-              href = '/' + href;
-            }
-            if (linkText) {
-              blocks.push({ type: 'internalLink', text: linkText, href });
-            }
-          } else if (tagName === 'span') {
-            const spanParts = [];
-            $el.contents().each((i, child) => {
-              if (child.type === 'text' && child.data && child.data.trim()) {
-                spanParts.push({ type: 'text', text: child.data });
-              } else if (child.name && child.name.toLowerCase() === 'a') {
-                const $child = $(child);
-                const linkText = $child.text().trim();
-                let href = $child.attr('href') || $child.attr('HREF') || '';
-                console.log('[HREF DEBUG]', 'text:', linkText, 'raw href:', href);
-                if (href.startsWith('/hyperlink/')) {
-                  href = href.substring(11);
-                } else if (href.startsWith('hyperlink/')) {
-                  href = href.substring(10);
-                } else if (!href || href === '#' || href.startsWith('javascript:')) {
-                  const pathText = linkText.toLowerCase()
-                    .trim()
-                    .replace(/[^a-z0-9]+/g, '-')
-                    .replace(/^-+|-+$/g, '');
-                  href = '/' + pathText;
-                }
-                if (!href.startsWith('/')) {
-                  href = '/' + href;
-                }
-                if (linkText) {
-                  spanParts.push({ type: 'internalLink', text: linkText, href });
-                }
-              }
-            });
-            if (spanParts.some(p => p.type === 'internalLink')) {
-              if (spanParts.length > 1) {
-                blocks.push({ type: 'paragraph', parts: spanParts });
-              } else {
-                blocks.push({ type: 'internalLink', text: spanParts[0].text, href: spanParts[0].href });
-              }
-            } else if (spanParts.length === 1 && spanParts[0].text) {
-              blocks.push({ type: 'paragraph', text: spanParts[0].text });
-            }
+            const linkText = $node.text().trim();
+            let href = $node.attr('href') || '';
+            if (href.startsWith('/hyperlink/')) href = href.substring(11);
+            else if (href.startsWith('hyperlink/')) href = href.substring(10);
+            if (!href.startsWith('/')) href = '/' + href;
+            if (linkText) currentParts.push({ type: 'internalLink', text: linkText, href });
+          } else if (tagName === 'h1' || tagName === 'h2') {
+            flushParts();
+            const text = $node.text().trim();
+            if (text) blocks.push({ type: 'heading', text });
+          } else if (tagName === 'b') {
+            flushParts();
+            const text = $node.text().trim();
+            if (text) blocks.push({ type: 'heading', text });
           } else if (tagName === 'img') {
-            const src = $el.attr('src');
-            if (src) {
-              blocks.push({ type: 'image', src });
-            }
-          } else if (tagName === 'ol' && $el.hasClass('ARABICNUM')) {
-            const items = [];
-            $el.find('li').each((i, liEl) => {
-              const itemText = $(liEl).text().trim();
-              if (itemText) {
-                items.push(itemText);
-              }
-            });
-            if (items.length > 0) {
-              blocks.push({ type: 'steps', items });
-            }
-          } else if ($el.hasClass('CAUTION')) {
-            let text = $el.text().trim();
-            text = text.replace(/^(CAUTION|caution)\s*:\s*/i, '').trim();
-            if (text) {
-              blocks.push({ type: 'text', text: `⚠️ CAUTION: ${text}` });
-            }
-          } else if ($el.hasClass('WARNING')) {
-            let text = $el.text().trim();
-            text = text.replace(/^(WARNING|warning)\s*:\s*/i, '').trim();
-            if (text) {
-              blocks.push({ type: 'text', text: `⛔ WARNING: ${text}` });
-            }
-          } else if ($el.hasClass('NOTE')) {
-            let text = $el.text().trim();
-            text = text.replace(/^(NOTE|note)\s*:\s*/i, '').trim();
-            if (text) {
-              blocks.push({ type: 'text', text: `📝 NOTE: ${text}` });
+            flushParts();
+            const src = $node.attr('src');
+            if (src) blocks.push({ type: 'image', src });
+          } else if (tagName === 'span') {
+            const text = $node.text().trim();
+            if (text && !/^\s*$/.test(text)) {
+              currentParts.push({ type: 'text', text });
             }
           }
         });
+        
+        flushParts();
       } else if (isCharmContent) {
         pageType = 'content';
         // --- CHARM Content Parser ---
