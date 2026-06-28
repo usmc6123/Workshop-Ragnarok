@@ -33,86 +33,53 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
     <div 
       className="min-h-screen flex flex-col items-center justify-center bg-cover bg-center px-4 relative select-none overflow-hidden py-12"
       style={{
-        backgroundImage: `radial-gradient(circle at center, rgba(245, 158, 11, 0.15) 0%, rgba(10, 10, 12, 0.98) 100%), url('https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&q=80&w=1600')`,
-        backgroundBlendMode: 'multiply'
+        backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.35)), url('https://raw.githubusercontent.com/usmc6123/images/main/loginpagebackground.jpg')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
       }}
     >
-      {/* Decorative cyber grid lines to match industrial digital interface look */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(245,158,11,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(245,158,11,0.015)_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none" />
-
       <div className="w-full max-w-[420px] relative z-10 flex flex-col items-center">
         
         {/* Neon Glowing Logo Ring Container */}
-        <div className="relative inline-flex items-center justify-center mb-6">
-          {/* Outer glowing neon ring */}
-          <div className="absolute inset-0 rounded-full border-4 border-[#ff9900] shadow-[0_0_20px_#ff9900,0_0_40px_#f59e0b,inset_0_0_15px_#ff9900]" />
+        <div className="relative inline-flex items-center justify-center mb-5">
+          {/* Subtle amber glowing outer ring */}
+          <div className="absolute inset-0 rounded-full border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.5),inset_0_0_10px_rgba(245,158,11,0.25)]" />
           {/* Inner ring & Logo */}
-          <div className="relative p-1 bg-black/30 rounded-full overflow-hidden">
+          <div className="relative p-0.5 bg-black/40 rounded-full overflow-hidden">
             <img 
               src="https://raw.githubusercontent.com/usmc6123/images/main/newlogo.jpg" 
               alt="Ragnarök Logo" 
-              className="w-[140px] h-[140px] rounded-full object-cover relative z-10"
+              className="w-20 h-20 rounded-full object-cover relative z-10"
               referrerPolicy="no-referrer"
             />
           </div>
         </div>
 
         {/* Brand Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-5xl font-black tracking-[0.25em] text-[#ffb300] drop-shadow-[0_0_15px_rgba(255,179,0,0.8)] font-sans uppercase">
+        <div className="text-center mb-6">
+          <h1 className="text-4xl font-black tracking-[0.25em] text-[#ff9900] drop-shadow-[0_0_10px_rgba(255,153,0,0.7)] font-sans uppercase">
             RAGNARÖK
           </h1>
-          <p className="text-white font-mono tracking-widest text-xs uppercase mt-3">
+          <p className="text-gray-300 font-mono tracking-wider text-xs uppercase mt-2">
             Workshop Service Manual Library
           </p>
         </div>
 
-        {/* Card Body - Dark Brushed Metal Plate */}
-        <div className="w-full relative bg-gradient-to-b from-[#2c2e33] to-[#181a1c] border-2 border-[#121315] rounded-[24px] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden">
-          {/* Inner brushed metal bezel edge highlights */}
-          <div className="absolute inset-[1px] rounded-[22px] border border-white/5 pointer-events-none" />
+        {/* Card Body - Dark Translucent Panel with Backdrop Blur */}
+        <div className="w-full relative bg-[#0a0a0f]/75 backdrop-blur-md border border-amber-500/20 rounded-2xl p-8 shadow-[0_0_20px_rgba(245,158,11,0.15),0_15px_35px_rgba(0,0,0,0.6)] overflow-hidden">
           
-          {/* Top Amber Accent plate with tiny rivets */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-3.5 bg-gradient-to-r from-amber-500 to-amber-600 rounded-b-xl border-x-2 border-b-2 border-amber-700 shadow-[0_2px_10px_rgba(245,158,11,0.4)] flex justify-around items-center px-6">
-            <span className="w-1.5 h-1.5 rounded-full bg-black/40" />
-            <span className="w-1.5 h-1.5 rounded-full bg-black/40" />
-          </div>
-
-          {/* Bottom Amber Accent plate with tiny rivets */}
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-48 h-3.5 bg-gradient-to-r from-amber-500 to-amber-600 rounded-t-xl border-x-2 border-t-2 border-amber-700 shadow-[0_-2px_10px_rgba(245,158,11,0.4)] flex justify-around items-center px-6">
-            <span className="w-1.5 h-1.5 rounded-full bg-black/40" />
-            <span className="w-1.5 h-1.5 rounded-full bg-black/40" />
-          </div>
-
-          {/* 4 Corner Rivets / Bolts */}
-          {/* Top Left Bolt */}
-          <div className="absolute top-4 left-4 w-6 h-6 rounded-full bg-gradient-to-br from-[#737882] via-[#3d3f44] to-[#191a1c] border border-black/70 shadow-[inset_1px_1px_1px_rgba(255,255,255,0.2),2px_2px_4px_rgba(0,0,0,0.6)] flex items-center justify-center">
-            <div className="w-3.5 h-[2px] bg-[#121315]/80 rounded-sm rotate-45" />
-          </div>
-          {/* Top Right Bolt */}
-          <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-gradient-to-br from-[#737882] via-[#3d3f44] to-[#191a1c] border border-black/70 shadow-[inset_1px_1px_1px_rgba(255,255,255,0.2),2px_2px_4px_rgba(0,0,0,0.6)] flex items-center justify-center">
-            <div className="w-3.5 h-[2px] bg-[#121315]/80 rounded-sm -rotate-45" />
-          </div>
-          {/* Bottom Left Bolt */}
-          <div className="absolute bottom-4 left-4 w-6 h-6 rounded-full bg-gradient-to-br from-[#737882] via-[#3d3f44] to-[#191a1c] border border-black/70 shadow-[inset_1px_1px_1px_rgba(255,255,255,0.2),2px_2px_4px_rgba(0,0,0,0.6)] flex items-center justify-center">
-            <div className="w-3.5 h-[2px] bg-[#121315]/80 rounded-sm -rotate-12" />
-          </div>
-          {/* Bottom Right Bolt */}
-          <div className="absolute bottom-4 right-4 w-6 h-6 rounded-full bg-gradient-to-br from-[#737882] via-[#3d3f44] to-[#191a1c] border border-black/70 shadow-[inset_1px_1px_1px_rgba(255,255,255,0.2),2px_2px_4px_rgba(0,0,0,0.6)] flex items-center justify-center">
-            <div className="w-3.5 h-[2px] bg-[#121315]/80 rounded-sm rotate-[70deg]" />
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6 mt-4">
+          <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
-              <div className="bg-red-950/20 border border-red-900/40 text-red-400 p-3.5 rounded-lg text-xs font-mono flex items-center gap-2">
+              <div className="bg-red-950/40 border border-red-900/50 text-red-400 p-3.5 rounded-lg text-xs font-mono flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
                 {error}
               </div>
             )}
 
             <div>
-              <label className="block text-white font-mono text-sm uppercase tracking-wider mb-2 font-medium">
-                Username
+              <label className="block text-amber-500 font-mono text-[10px] uppercase tracking-widest mb-2 font-bold">
+                USERNAME
               </label>
               <input
                 type="text"
@@ -120,13 +87,13 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter username"
-                className="block w-full px-4 py-3.5 bg-[#111215] border border-slate-700/60 rounded-lg text-sm font-mono text-white placeholder-neutral-600 focus:outline-none focus:border-amber-500/50 transition duration-200"
+                className="block w-full px-4 py-3 bg-black/40 border border-neutral-850 rounded-lg text-sm font-mono text-white placeholder-neutral-600 focus:outline-none focus:border-amber-500/60 focus:ring-1 focus:ring-amber-500/40 transition duration-200"
               />
             </div>
 
             <div>
-              <label className="block text-white font-mono text-sm uppercase tracking-wider mb-2 font-medium">
-                Password
+              <label className="block text-amber-500 font-mono text-[10px] uppercase tracking-widest mb-2 font-bold">
+                PASSWORD
               </label>
               <div className="relative">
                 <input
@@ -135,12 +102,12 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
-                  className="block w-full pl-4 pr-12 py-3.5 bg-[#111215] border border-slate-700/60 rounded-lg text-sm font-mono text-white placeholder-neutral-600 focus:outline-none focus:border-amber-500/50 transition duration-200"
+                  className="block w-full pl-4 pr-12 py-3 bg-black/40 border border-neutral-850 rounded-lg text-sm font-mono text-white placeholder-neutral-600 focus:outline-none focus:border-amber-500/60 focus:ring-1 focus:ring-amber-500/40 transition duration-200"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-neutral-500 hover:text-amber-500/80 transition"
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-neutral-500 hover:text-amber-500 transition"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -150,7 +117,7 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-[#ff9900] hover:bg-[#e68a00] active:bg-[#cc7a00] text-black font-black text-lg uppercase rounded-lg tracking-[0.2em] transition duration-200 shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 active:from-amber-600 active:to-orange-600 text-black font-black text-base uppercase rounded-lg tracking-[0.2em] transition duration-200 shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transform hover:scale-[1.01] active:scale-[0.99]"
             >
               {loading ? (
                 <>
@@ -162,12 +129,12 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
               )}
             </button>
           </form>
-
-          {/* Footer inside the card to match Variation 1 precisely */}
-          <p className="text-center text-[9px] font-mono text-neutral-500 mt-6 tracking-wider uppercase">
-            AUTHORIZED HOMELAB PERSONNEL ONLY • SYS_ID 4000
-          </p>
         </div>
+
+        {/* Footer below the card as requested */}
+        <p className="text-center text-[9px] font-mono text-neutral-500 mt-6 tracking-wider uppercase select-none">
+          AUTHORIZED HOMELAB PERSONNEL ONLY • SYS_ID 4000
+        </p>
       </div>
     </div>
   );
