@@ -28,7 +28,7 @@ COPY backend/ingestion.js ./
 COPY backend/middleware ./middleware
 
 # Copy compiled frontend from Stage 1 into backend's public folder
-COPY --from=frontend-builder /app/dist ./public
+COPY --from=frontend-builder /app/dist ./dist
 
 # Set default environment configuration
 ENV PORT=4000
