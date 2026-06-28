@@ -682,7 +682,7 @@ app.get('/api/page', async (req, res) => {
       if (isLemonContent) {
         pageType = 'content';
         // --- LEMON Content Parser ---
-        $content.find('h1, h2, p.PROC_HEAD, p.HEAD, p, img, ol.ARABICNUM, div.CAUTION, div.WARNING, div.NOTE, table.clsArticleTable').each((idx, el) => {
+        $content.find('h1, h2, p.PROC_HEAD, p.HEAD, p, a, span, img, ol.ARABICNUM, div.CAUTION, div.WARNING, div.NOTE, table.clsArticleTable').each((idx, el) => {
           const $el = $(el);
 
           // Avoid double parsing nested items
@@ -745,6 +745,39 @@ app.get('/api/page', async (req, res) => {
               blocks.push({ type: 'paragraph', parts: partsArray });
             } else if (partsArray.length === 1) {
               blocks.push({ type: 'paragraph', text: partsArray[0].text });
+            }
+          } else if (tagName === 'a') {
+            const linkText = $el.text().trim();
+            let href = $el.attr('href') || '';
+            if (href.startsWith('/hyperlink/')) href = href.substring(11);
+            else if (href.startsWith('hyperlink/')) href = href.substring(10);
+            if (!href.startsWith('/')) href = '/' + href;
+            if (linkText && href !== '/') {
+              blocks.push({ type: 'internalLink', text: linkText, href });
+            }
+          } else if (tagName === 'span') {
+            const spanParts = [];
+            $el.contents().each((i, child) => {
+              if (child.type === 'text' && child.data && child.data.trim()) {
+                spanParts.push({ type: 'text', text: child.data });
+              } else if (child.name && child.name.toLowerCase() === 'a') {
+                const $a = $(child);
+                const linkText = $a.text().trim();
+                let href = $a.attr('href') || '';
+                if (href.startsWith('/hyperlink/')) href = href.substring(11);
+                else if (href.startsWith('hyperlink/')) href = href.substring(10);
+                if (!href.startsWith('/')) href = '/' + href;
+                if (linkText) spanParts.push({ type: 'internalLink', text: linkText, href });
+              }
+            });
+            if (spanParts.some(p => p.type === 'internalLink')) {
+              if (spanParts.length > 1) {
+                blocks.push({ type: 'paragraph', parts: spanParts });
+              } else {
+                blocks.push({ type: 'internalLink', text: spanParts[0].text, href: spanParts[0].href });
+              }
+            } else if (spanParts.length === 1 && spanParts[0].text) {
+              blocks.push({ type: 'paragraph', text: spanParts[0].text });
             }
           } else if (tagName === 'img') {
             const src = $el.attr('src');
