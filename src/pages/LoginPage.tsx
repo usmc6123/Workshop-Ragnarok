@@ -42,15 +42,15 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
       <div className="w-full max-w-[420px] relative z-10 flex flex-col items-center">
         
         {/* Neon Glowing Logo Ring Container */}
-        <div className="relative inline-flex items-center justify-center mb-5">
-          {/* Subtle amber glowing outer ring */}
-          <div className="absolute inset-0 rounded-full border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.5),inset_0_0_10px_rgba(245,158,11,0.25)]" />
+        <div className="relative inline-flex items-center justify-center mb-5 w-[160px] h-[160px]">
+          {/* Stronger amber glowing outer ring with pulse animation */}
+          <div className="absolute inset-0 rounded-full border border-amber-500/80 shadow-[0_0_20px_rgba(245,158,11,0.65),inset_0_0_12px_rgba(245,158,11,0.35)] animate-pulse-glow" />
           {/* Inner ring & Logo */}
-          <div className="relative p-0.5 bg-black/40 rounded-full overflow-hidden">
+          <div className="relative p-0.5 bg-black/40 rounded-full overflow-hidden w-[160px] h-[160px]">
             <img 
               src="https://raw.githubusercontent.com/usmc6123/images/main/newlogo.jpg" 
               alt="Ragnarök Logo" 
-              className="w-20 h-20 rounded-full object-cover relative z-10"
+              className="w-full h-full rounded-full object-cover relative z-10"
               referrerPolicy="no-referrer"
             />
           </div>
@@ -58,8 +58,8 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
 
         {/* Brand Header */}
         <div className="text-center mb-6">
-          <h1 className="text-4xl font-black tracking-[0.25em] text-[#ff9900] drop-shadow-[0_0_10px_rgba(255,153,0,0.7)] font-sans uppercase">
-            RAGNARÖK
+          <h1 className="text-3xl font-black tracking-[0.15em] text-[#ff9900] drop-shadow-[0_0_12px_rgba(255,153,0,0.8)] font-sans uppercase">
+            WORKSHOP: RAGNARÖK
           </h1>
           <p className="text-gray-300 font-mono tracking-wider text-xs uppercase mt-2">
             Workshop Service Manual Library

@@ -131,6 +131,24 @@ body {
   animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Pulsing amber glow ring for workshop badge */
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.5), inset 0 0 10px rgba(245, 158, 11, 0.25);
+    border-color: rgba(245, 158, 11, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 35px rgba(255, 153, 0, 0.95), inset 0 0 20px rgba(255, 153, 0, 0.55);
+    border-color: rgba(255, 153, 0, 0.9);
+    transform: scale(1.02);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2.5s infinite ease-in-out;
+}
+
 /* Monospace alignment helper */
 .spec-number {
   font-family: var(--font-mono);
