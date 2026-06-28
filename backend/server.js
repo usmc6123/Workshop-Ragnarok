@@ -738,17 +738,25 @@ app.get('/api/page', async (req, res) => {
               } else if (child.type === 'tag' && child.name && child.name.toLowerCase() === 'a') {
                 const $child = $(child);
                 const linkText = $child.text().trim();
-                let href = $child.attr('href') || '';
-                let cleanHref = href;
-                if (cleanHref.startsWith('/hyperlink/')) {
-                  cleanHref = cleanHref.substring(11);
-                } else if (cleanHref.startsWith('hyperlink/')) {
-                  cleanHref = cleanHref.substring(10);
+                let href = $child.attr('href') || $child.attr('HREF') || '';
+                console.log('[HREF DEBUG]', 'text:', linkText, 'raw href:', href);
+                if (href.startsWith('/hyperlink/')) {
+                  href = href.substring(11);
+                } else if (href.startsWith('hyperlink/')) {
+                  href = href.substring(10);
+                } else if (!href || href === '#' || href.startsWith('javascript:')) {
+                  const pathText = linkText.toLowerCase()
+                    .trim()
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/^-+|-+$/g, '');
+                  href = '/' + pathText;
                 }
-                if (!cleanHref.startsWith('/')) {
-                  cleanHref = '/' + cleanHref;
+                if (!href.startsWith('/')) {
+                  href = '/' + href;
                 }
-                partsArray.push({ type: 'internalLink', text: linkText, href: cleanHref });
+                if (linkText) {
+                  partsArray.push({ type: 'internalLink', text: linkText, href });
+                }
               }
             });
 
@@ -760,11 +768,23 @@ app.get('/api/page', async (req, res) => {
             }
           } else if (tagName === 'a') {
             const linkText = $el.text().trim();
-            let href = $el.attr('href') || '';
-            if (href.startsWith('/hyperlink/')) href = href.substring(11);
-            else if (href.startsWith('hyperlink/')) href = href.substring(10);
-            if (!href.startsWith('/')) href = '/' + href;
-            if (linkText && href !== '/') {
+            let href = $el.attr('href') || $el.attr('HREF') || '';
+            console.log('[HREF DEBUG]', 'text:', linkText, 'raw href:', href);
+            if (href.startsWith('/hyperlink/')) {
+              href = href.substring(11);
+            } else if (href.startsWith('hyperlink/')) {
+              href = href.substring(10);
+            } else if (!href || href === '#' || href.startsWith('javascript:')) {
+              const pathText = linkText.toLowerCase()
+                .trim()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+              href = '/' + pathText;
+            }
+            if (!href.startsWith('/')) {
+              href = '/' + href;
+            }
+            if (linkText) {
               blocks.push({ type: 'internalLink', text: linkText, href });
             }
           } else if (tagName === 'span') {
@@ -773,13 +793,27 @@ app.get('/api/page', async (req, res) => {
               if (child.type === 'text' && child.data && child.data.trim()) {
                 spanParts.push({ type: 'text', text: child.data });
               } else if (child.name && child.name.toLowerCase() === 'a') {
-                const $a = $(child);
-                const linkText = $a.text().trim();
-                let href = $a.attr('href') || '';
-                if (href.startsWith('/hyperlink/')) href = href.substring(11);
-                else if (href.startsWith('hyperlink/')) href = href.substring(10);
-                if (!href.startsWith('/')) href = '/' + href;
-                if (linkText) spanParts.push({ type: 'internalLink', text: linkText, href });
+                const $child = $(child);
+                const linkText = $child.text().trim();
+                let href = $child.attr('href') || $child.attr('HREF') || '';
+                console.log('[HREF DEBUG]', 'text:', linkText, 'raw href:', href);
+                if (href.startsWith('/hyperlink/')) {
+                  href = href.substring(11);
+                } else if (href.startsWith('hyperlink/')) {
+                  href = href.substring(10);
+                } else if (!href || href === '#' || href.startsWith('javascript:')) {
+                  const pathText = linkText.toLowerCase()
+                    .trim()
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/^-+|-+$/g, '');
+                  href = '/' + pathText;
+                }
+                if (!href.startsWith('/')) {
+                  href = '/' + href;
+                }
+                if (linkText) {
+                  spanParts.push({ type: 'internalLink', text: linkText, href });
+                }
               }
             });
             if (spanParts.some(p => p.type === 'internalLink')) {
