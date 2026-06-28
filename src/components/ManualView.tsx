@@ -880,7 +880,7 @@ export default function ManualView({
                                   loadActivePageDetails(blockAsAny.href);
                                   setCurrentUri(blockAsAny.href);
                                 }}
-                                className="inline-block text-base leading-relaxed text-amber-400 hover:text-amber-300 font-bold underline transition-colors cursor-pointer text-left font-sans my-1"
+                                className="inline-block text-base leading-relaxed text-blue-400 hover:text-blue-300 font-bold underline transition-colors cursor-pointer text-left font-sans my-1"
                               >
                                 {blockAsAny.text}
                               </button>
@@ -930,7 +930,7 @@ export default function ManualView({
                                             loadActivePageDetails(part.href);
                                             setCurrentUri(part.href);
                                           }}
-                                          className="text-amber-400 hover:text-amber-300 underline cursor-pointer bg-transparent border-none p-0 inline font-bold"
+                                          className="text-blue-400 hover:text-blue-300 underline cursor-pointer bg-transparent border-none p-0 inline font-bold"
                                         >
                                           {part.text}
                                         </button>

@@ -757,6 +757,13 @@ app.get('/api/page', async (req, res) => {
                 if (linkText) currentParts.push({ type: 'internalLink', text: linkText, href });
               }
             });
+          } else if (tagName === 'div') {
+            flushParts();
+            const img = $node.find('img');
+            if (img.length > 0) {
+              const src = img.attr('src');
+              if (src) blocks.push({ type: 'image', src });
+            }
           }
         });
         
