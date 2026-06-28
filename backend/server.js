@@ -171,6 +171,13 @@ try {
     )
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS app_flags (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    )
+  `);
+
   // Seed the admin user if not exists
   const bcrypt = require('bcryptjs');
   const existingAdmin = db.prepare('SELECT * FROM users WHERE username = ?').get('usmc6123');
@@ -183,10 +190,11 @@ try {
   }
 
   // Seed initial CRM data if table is completely empty
-  const existingCustomers = db.prepare(
-    'SELECT COUNT(*) as count FROM customers'
-  ).get();
-  if (existingCustomers.count === 0) {
+  const seeded = db.prepare(
+    'SELECT value FROM app_flags WHERE key = ?'
+  ).get('initial_seed_done');
+  
+  if (!seeded) {
     console.log('Seeding initial CRM database rows...');
     
     // Seed Customers
@@ -251,6 +259,10 @@ try {
     db.prepare(`INSERT INTO service_history (vehicle_id, date, mileage, description, parts_used, cost, technician, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
       3, '2026-06-24', 31000, 'Misfire diagnostic spark plug swap', '8x NGK Iridium Plugs', 161.92, 'David Miller', 'Scanned cylinder 5 misfire. Spark plugs swapped, test-drive checked clean.'
     );
+
+    db.prepare(
+      'INSERT INTO app_flags (key, value) VALUES (?, ?)'
+    ).run('initial_seed_done', 'true');
   }
 
   console.log('Verified database schemas & seeds.');
@@ -1020,9 +1032,12 @@ app.get('/api/page', async (req, res) => {
       }
 
       console.log('[PAGE DEBUG] pageType:', pageType, '| blocks count:', blocks.length);
-      if (blocks.length > 0) {
-        console.log('[PAGE DEBUG] first 3 blocks:', JSON.stringify(blocks.slice(0, 3)));
-      }
+      const linkBlocks = blocks.filter(b => 
+        b.type === 'internalLink' || 
+        (b.parts && b.parts.some(p => p.type === 'internalLink'))
+      );
+      console.log('[LINK BLOCKS]', JSON.stringify(linkBlocks));
+      console.log('[ALL BLOCKS]', JSON.stringify(blocks));
 
       return res.json({
         pageType: pageType === 'unknown' ? 'content' : pageType,
