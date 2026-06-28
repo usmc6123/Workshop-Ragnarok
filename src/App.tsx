@@ -30,6 +30,7 @@ import {
 type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login';
 
 export default function App() {
+  console.log('APP RENDERING');
   const [view, setView] = useState<ViewType>('dashboard');
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   

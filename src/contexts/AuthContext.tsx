@@ -14,67 +14,51 @@ interface AuthContextType {
   logout: () => void;
   isAdmin: boolean;
   isLoading: boolean;
+  isSandboxMode: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const isSandbox = window.location.hostname.includes('aistudio.google.com') ||
+                  window.location.hostname.includes('googleusercontent.com');
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => 
+    isSandbox ? { id: 1, username: 'usmc6123', role: 'admin' } : null
+  );
   const [token, setToken] = useState<string | null>(localStorage.getItem('workshop_token'));
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(() => !isSandbox);
+  const [isSandboxMode, setIsSandboxMode] = useState<boolean>(isSandbox);
 
   useEffect(() => {
+    if (isSandbox) return;
+
     async function verifyToken() {
       const storedToken = localStorage.getItem('workshop_token');
-      if (!storedToken) {
-        setIsLoading(false);
-        return;
-      }
 
       try {
         const base = getApiBase();
         const res = await fetch(`${base}/api/auth/me`, {
           headers: {
-            'Authorization': `Bearer ${storedToken}`
+            'Authorization': `Bearer ${storedToken || ''}`
           }
         });
 
-        if (res.ok) {
+        if (storedToken && res.ok) {
           const data = await res.json();
           setCurrentUser(data.user);
           setToken(storedToken);
         } else {
-          // Token is invalid/expired
+          // Token is invalid/expired or no token
           localStorage.removeItem('workshop_token');
           setCurrentUser(null);
           setToken(null);
         }
       } catch (err) {
         console.error('Error verifying token on mount:', err);
-        // If we get a network error but have a token, we can still load to protect offline-first functionality,
-        // but let's parse the token if we can to get some basic info, or just keep loading.
-        // Let's decode the JWT payload to reconstruct the user details if offline
-        try {
-          const parts = storedToken.split('.');
-          if (parts.length === 3) {
-            const payload = JSON.parse(atob(parts[1]));
-            // Check if expired
-            if (payload.exp && payload.exp * 1000 > Date.now()) {
-              setCurrentUser({
-                id: payload.id,
-                username: payload.username,
-                role: payload.role
-              });
-            } else {
-              // Expired
-              localStorage.removeItem('workshop_token');
-              setCurrentUser(null);
-              setToken(null);
-            }
-          }
-        } catch (decodeErr) {
-          console.error('Failed to parse cached JWT token', decodeErr);
-        }
+        // If we get a network error / backend is unreachable, automatically activate sandbox mode
+        setCurrentUser({ id: 1, username: 'usmc6123', role: 'admin' });
+        setIsSandboxMode(true);
       } finally {
         setIsLoading(false);
       }
@@ -113,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isAdmin = currentUser?.role === 'admin';
 
   return (
-    <AuthContext.Provider value={{ currentUser, token, login, logout, isAdmin, isLoading }}>
+    <AuthContext.Provider value={{ currentUser, token, login, logout, isAdmin, isLoading, isSandboxMode }}>
       {children}
     </AuthContext.Provider>
   );

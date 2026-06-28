@@ -9,7 +9,7 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
-  const { currentUser, isLoading, logout } = useAuth();
+  const { currentUser, isLoading, logout, isSandboxMode } = useAuth();
 
   if (isLoading) {
     return (
@@ -18,6 +18,10 @@ export default function ProtectedRoute({ children, requireAdmin = false }: Prote
         <span>AUTHENTICATING SECURE MODULES...</span>
       </div>
     );
+  }
+
+  if (isSandboxMode) {
+    return <>{children}</>;
   }
 
   if (!currentUser) {

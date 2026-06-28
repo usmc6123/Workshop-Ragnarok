@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node backend/server.js",
+    "dev": "vite",
+    "server": "node backend/server.js",
     "build": "vite build",
     "start": "node backend/server.js",
     "clean": "rm -rf dist",
