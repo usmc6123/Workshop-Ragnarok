@@ -623,7 +623,7 @@ app.get('/api/page', async (req, res) => {
     // Better detection: LEMON content pages have a specific ID wrapper or ARABICNUM lists
     const isLemonContent = $content.find('div[id^="S"]').length > 0 || 
                            $content.find('ol.ARABICNUM').length > 0 ||
-                           $content.find('div.main').length > 0;
+                           $content.find('a[href^="/hyperlink/"]').length > 0;
 
     const isCharmContent = !isLemonContent && (
                            $content.find('div.oxe-image, div.big-img').length > 0 ||
