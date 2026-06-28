@@ -183,8 +183,10 @@ try {
   }
 
   // Seed initial CRM data if table is completely empty
-  const customerCount = db.prepare('SELECT count(*) as count FROM customers').get().count;
-  if (customerCount === 0) {
+  const existingCustomers = db.prepare(
+    'SELECT COUNT(*) as count FROM customers'
+  ).get();
+  if (existingCustomers.count === 0) {
     console.log('Seeding initial CRM database rows...');
     
     // Seed Customers
@@ -715,38 +717,34 @@ app.get('/api/page', async (req, res) => {
               blocks.push({ type: 'heading', text });
             }
           } else if (tagName === 'p') {
-            const hasLinks = $el.find('a').length > 0;
-            if (hasLinks) {
-              const childNodes = $el.contents();
-              childNodes.each((cIdx, child) => {
-                const $child = $(child);
-                if (child.type === 'tag' && child.name && child.name.toLowerCase() === 'a') {
-                  const linkText = $child.text().trim();
-                  let href = $child.attr('href') || '';
-                  let cleanHref = href;
-                  if (cleanHref.startsWith('/hyperlink/')) {
-                    cleanHref = cleanHref.substring(11);
-                  } else if (cleanHref.startsWith('hyperlink/')) {
-                    cleanHref = cleanHref.substring(10);
-                  }
-                  if (!cleanHref.startsWith('/')) {
-                    cleanHref = '/' + cleanHref;
-                  }
-                  if (linkText) {
-                    blocks.push({ type: 'internalLink', text: linkText, href: cleanHref });
-                  }
-                } else {
-                  const textContent = (child.type === 'text') ? child.data : $child.text();
-                  if (textContent && textContent.trim()) {
-                    blocks.push({ type: 'paragraph', text: textContent.trim() });
-                  }
+            const partsArray = [];
+            $el.contents().each((cIdx, child) => {
+              if (child.type === 'text') {
+                if (child.data) {
+                  partsArray.push({ type: 'text', text: child.data });
                 }
-              });
-            } else {
-              const text = $el.text().trim();
-              if (text) {
-                blocks.push({ type: 'text', text });
+              } else if (child.type === 'tag' && child.name && child.name.toLowerCase() === 'a') {
+                const $child = $(child);
+                const linkText = $child.text().trim();
+                let href = $child.attr('href') || '';
+                let cleanHref = href;
+                if (cleanHref.startsWith('/hyperlink/')) {
+                  cleanHref = cleanHref.substring(11);
+                } else if (cleanHref.startsWith('hyperlink/')) {
+                  cleanHref = cleanHref.substring(10);
+                }
+                if (!cleanHref.startsWith('/')) {
+                  cleanHref = '/' + cleanHref;
+                }
+                partsArray.push({ type: 'internalLink', text: linkText, href: cleanHref });
               }
+            });
+
+            const hasInternalLink = partsArray.some(p => p.type === 'internalLink');
+            if (partsArray.length > 1 || hasInternalLink) {
+              blocks.push({ type: 'paragraph', parts: partsArray });
+            } else if (partsArray.length === 1) {
+              blocks.push({ type: 'paragraph', text: partsArray[0].text });
             }
           } else if (tagName === 'img') {
             const src = $el.attr('src');
