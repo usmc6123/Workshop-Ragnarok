@@ -10,6 +10,7 @@ const cheerio = require('cheerio');
 const fetch = require('node-fetch');
 const path = require('path');
 const fs = require('fs');
+const jwt = require('jsonwebtoken');
 
 // Load environment variables
 require('dotenv').config();
@@ -28,6 +29,10 @@ if (!fs.existsSync(dbDir)) {
 // Enable CORS and JSON parsing
 app.use(cors());
 app.use(express.json());
+
+// Apply auth middleware to all API routes
+const { authMiddleware, adminOnly } = require('./middleware/authMiddleware');
+app.use('/api', authMiddleware);
 
 // Initialize SQLite database
 let db;
@@ -155,6 +160,28 @@ try {
     )
   `);
 
+  // 8. Create Users Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'user',
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  // Seed the admin user if not exists
+  const bcrypt = require('bcryptjs');
+  const existingAdmin = db.prepare('SELECT * FROM users WHERE username = ?').get('usmc6123');
+  if (!existingAdmin) {
+    const saltRounds = 10;
+    const hash = bcrypt.hashSync('GHostrider36', saltRounds);
+    db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)')
+      .run('usmc6123', hash, 'admin');
+    console.log('Seeded initial admin user: usmc6123');
+  }
+
   // Seed initial CRM data if table is completely empty
   const customerCount = db.prepare('SELECT count(*) as count FROM customers').get().count;
   if (customerCount === 0) {
@@ -228,6 +255,148 @@ try {
 } catch (err) {
   console.error('Failed to initialize SQLite database:', err);
 }
+
+// --- AUTHENTICATION ENDPOINTS ---
+app.post('/api/auth/login', (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+
+    // Find user
+    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    // Compare password hash
+    const bcrypt = require('bcryptjs');
+    const valid = bcrypt.compareSync(password, user.password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    // Generate JWT
+    const JWT_SECRET = process.env.JWT_SECRET || 'workshop-ragnarok-secret';
+    const payload = { id: user.id, username: user.username, role: user.role };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Internal server error during login' });
+  }
+});
+
+app.get('/api/auth/me', (req, res) => {
+  // authMiddleware already verified and populated req.user
+  if (!req.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  res.json({ user: req.user });
+});
+
+// Admin-only user management routes
+app.get('/api/auth/users', adminOnly, (req, res) => {
+  try {
+    const users = db.prepare('SELECT id, username, role, created_at FROM users ORDER BY created_at DESC').all();
+    res.json(users);
+  } catch (error) {
+    console.error('Error listing users:', error);
+    res.status(500).json({ error: 'Database error listing users' });
+  }
+});
+
+app.post('/api/auth/users', adminOnly, (req, res) => {
+  try {
+    const { username, password, role } = req.body;
+    if (!username || !password || !role) {
+      return res.status(400).json({ error: 'Missing username, password, or role' });
+    }
+
+    if (role !== 'admin' && role !== 'user') {
+      return res.status(400).json({ error: 'Invalid role. Must be "admin" or "user"' });
+    }
+
+    // Check if user already exists
+    const existing = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    if (existing) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+
+    const bcrypt = require('bcryptjs');
+    const hash = bcrypt.hashSync(password, 10);
+
+    const stmt = db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)');
+    const info = stmt.run(username, hash, role);
+
+    res.status(201).json({
+      id: info.lastInsertRowid,
+      username,
+      role
+    });
+  } catch (error) {
+    console.error('Error creating user:', error);
+    res.status(500).json({ error: 'Database error creating user' });
+  }
+});
+
+app.delete('/api/auth/users/:id', adminOnly, (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Prevent admin from deleting themselves to avoid locking themselves out
+    if (parseInt(id, 10) === req.user.id) {
+      return res.status(400).json({ error: 'Cannot delete your own admin account' });
+    }
+
+    const stmt = db.prepare('DELETE FROM users WHERE id = ?');
+    const info = stmt.run(id);
+
+    if (info.changes === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: 'Database error deleting user' });
+  }
+});
+
+app.patch('/api/auth/users/:id/password', adminOnly, (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    if (!newPassword || newPassword.trim() === '') {
+      return res.status(400).json({ error: 'New password is required' });
+    }
+
+    const bcrypt = require('bcryptjs');
+    const hash = bcrypt.hashSync(newPassword, 10);
+
+    const stmt = db.prepare('UPDATE users SET password_hash = ? WHERE id = ?');
+    const info = stmt.run(hash, id);
+
+    if (info.changes === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    res.status(500).json({ error: 'Database error changing password' });
+  }
+});
 
 // Ensure database query safety when tables aren't hydrated yet
 function isVehiclesTableReady() {

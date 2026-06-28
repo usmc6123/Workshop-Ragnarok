@@ -201,8 +201,22 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const base = getApiBase();
   const url = `${base}${path}`;
 
+  const token = localStorage.getItem('workshop_token');
+  const headers = {
+    ...(options.headers || {}),
+  } as Record<string, string>;
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const mergedOptions = {
+    ...options,
+    headers,
+  };
+
   try {
-    const response = await fetchWithTimeout(url, options);
+    const response = await fetchWithTimeout(url, mergedOptions);
     if (!response.ok) {
       throw new ApiError(`Server responded with status ${response.status}: ${response.statusText}`, false);
     }

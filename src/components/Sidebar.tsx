@@ -1,9 +1,10 @@
 import React from 'react';
 import { 
   LayoutDashboard, Users, Car, ClipboardList, Calendar, BookOpen, Settings,
-  ChevronLeft, ChevronRight, Menu
+  ChevronLeft, ChevronRight, Menu, ShieldCheck, LogOut
 } from 'lucide-react';
 import { LOGO_URL } from '../constants/branding';
+import { useAuth } from '../contexts/AuthContext';
 
 interface SidebarProps {
   currentView: string;
@@ -22,6 +23,7 @@ export default function Sidebar({
   mobileOpen,
   onToggleMobile
 }: SidebarProps) {
+  const { currentUser, isAdmin, logout } = useAuth();
   
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -30,8 +32,13 @@ export default function Sidebar({
     { id: 'jobs', label: 'Jobs / Work Orders', icon: ClipboardList },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'manual-library', label: 'Manual Library', icon: BookOpen },
-    { id: 'settings', label: 'Settings', icon: Settings },
   ];
+
+  if (isAdmin) {
+    navItems.push({ id: 'admin', label: 'Security Core', icon: ShieldCheck });
+  }
+
+  navItems.push({ id: 'settings', label: 'Settings', icon: Settings });
 
   return (
     <>
@@ -114,10 +121,37 @@ export default function Sidebar({
           </nav>
         </div>
 
-        {/* Lower Status Indicator row */}
-        <div className="p-4 border-t border-border-theme shrink-0">
+        {/* Lower Status Indicator row / User Account & Logout */}
+        <div className="p-3 border-t border-border-theme shrink-0 space-y-3">
           {!collapsed ? (
-            <div className="text-[10px] font-mono text-slate-500 animate-fade-in">
+            <div className="flex items-center justify-between gap-2 p-2.5 bg-[#08090d] rounded-xl border border-[#1e202d] animate-fade-in">
+              <div className="min-w-0 flex-1">
+                <p className="text-[9px] font-mono text-slate-500 uppercase tracking-wider">Active Agent</p>
+                <p className="text-xs font-mono font-black text-slate-200 truncate">{currentUser?.username || 'Guest'}</p>
+                <p className="text-[8px] font-mono text-amber-500 font-bold uppercase tracking-widest mt-0.5">{currentUser?.role}</p>
+              </div>
+              <button
+                onClick={logout}
+                className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition border border-transparent hover:border-red-500/10 cursor-pointer"
+                title="De-authorize Session"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex justify-center">
+              <button
+                onClick={logout}
+                className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer"
+                title="De-authorize Session"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {!collapsed ? (
+            <div className="text-[10px] font-mono text-slate-500 animate-fade-in px-1">
               <p className="font-bold">v1.2.0-CRM</p>
               <p className="text-[9px] mt-0.5">LOCAL WORKSPACE</p>
             </div>
