@@ -506,8 +506,10 @@ app.get('/api/page', async (req, res) => {
       });
     } else {
       const blocks = [];
+      let pageType = 'unknown';
 
       if (isLemonContent) {
+        pageType = 'content';
         // --- LEMON Content Parser ---
         $content.find('h1, h2, p.PROC_HEAD, p.HEAD, p, img, ol.ARABICNUM, div.CAUTION, div.WARNING, div.NOTE, table.clsArticleTable').each((idx, el) => {
           const $el = $(el);
@@ -613,7 +615,8 @@ app.get('/api/page', async (req, res) => {
             }
           }
         });
-      } else {
+      } else if (isCharmContent) {
+        pageType = 'content';
         // --- CHARM Content Parser ---
         let currentSteps = [];
         const childNodes = $content.contents();
@@ -706,6 +709,65 @@ app.get('/api/page', async (req, res) => {
         }
       }
 
+      if (pageType === 'unknown' && $content.length > 0) {
+        // Fallback parser for generic LEMON page
+        const childNodes = $content.contents();
+        childNodes.each((idx, node) => {
+          const $node = $(node);
+          const tagName = node.name ? node.name.toLowerCase() : '';
+
+          if (node.type === 'text') {
+            const text = node.data;
+            if (text && text.trim()) {
+              blocks.push({ type: 'paragraph', text: text.trim() });
+            }
+          } else if (tagName === 'h1') {
+            const text = $node.text().trim();
+            if (text) {
+              blocks.push({ type: 'heading', text });
+            }
+          } else if (tagName === 'b') {
+            const text = $node.text().trim();
+            if (text) {
+              blocks.push({ type: 'heading', text });
+            }
+          } else if (tagName === 'br') {
+            // skip
+          } else if (tagName === 'span') {
+            const text = $node.text();
+            const trimmed = text.trim();
+            const match = trimmed.match(/^(\d+)\.\s*(.*)$/);
+            if (match) {
+              const N = parseInt(match[1], 10);
+              const stepText = match[2].trim();
+              blocks.push({ type: 'step', number: N, text: stepText });
+            } else if (!trimmed || /^\s*$/.test(text)) {
+              // skip
+            } else {
+              blocks.push({ type: 'paragraph', text: trimmed });
+            }
+          } else if (tagName === 'a') {
+            const linkText = $node.text().trim();
+            let href = $node.attr('href') || '';
+            if (href.startsWith('/hyperlink/')) {
+              href = href.substring(11);
+            } else if (href.startsWith('hyperlink/')) {
+              href = href.substring(10);
+            }
+            if (!href.startsWith('/')) {
+              href = '/' + href;
+            }
+            if (linkText) {
+              blocks.push({ type: 'internalLink', text: linkText, href });
+            }
+          }
+        });
+
+        if (blocks.length > 0) {
+          pageType = 'lemon';
+        }
+      }
+
       // Fallback text if empty
       if (blocks.length === 0) {
         const text = $content.text().trim();
@@ -715,7 +777,7 @@ app.get('/api/page', async (req, res) => {
       }
 
       return res.json({
-        pageType: 'content',
+        pageType: pageType === 'unknown' ? 'content' : pageType,
         title: title,
         blocks: blocks
       });

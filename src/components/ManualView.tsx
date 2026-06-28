@@ -919,6 +919,28 @@ export default function ManualView({
                             );
                           }
 
+                          if (blockAsAny.type === 'step') {
+                            const stepNumber = blockAsAny.number !== undefined ? blockAsAny.number : 1;
+                            const stepText = blockAsAny.text || '';
+                            return (
+                              <div
+                                key={`single-step-${blockIdx}`}
+                                className="p-4 rounded-xl border bg-[#13141a] border-[#1e2028] border-l-[3px] border-l-amber-500 flex items-start gap-4"
+                              >
+                                <div className="shrink-0 flex flex-col items-center">
+                                  <span className="text-xs font-mono font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                                    {stepNumber.toString().padStart(2, '0')}
+                                  </span>
+                                </div>
+                                <div className="flex-1">
+                                  <p className="text-slate-200 text-base leading-relaxed">
+                                    {stepText}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          }
+
                           // Repair step checklist rendered as beautiful numbered cards
                           if (block.type === 'steps') {
                             const completedCount = Object.values(completedSteps).filter(Boolean).length;
