@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Vehicle } from '../types';
 import { api } from '../lib/api';
-import { Wrench, Car, RefreshCw, AlertTriangle, BookOpen, ChevronRight, ArrowLeft, ChevronDown, History } from 'lucide-react';
+import { Wrench, Car, RefreshCw, AlertTriangle, BookOpen, ChevronRight, ArrowLeft, ChevronDown, History, Search, Folder, FolderOpen, FileText, MoreHorizontal } from 'lucide-react';
 
 interface BrowseViewProps {
   onSelectVehicle?: (vehicle: Vehicle) => void;
@@ -157,6 +157,42 @@ export function getDrivetrainBadge(drivetrain: string) {
   }
 }
 
+export function extractModelAndVariant(fullModel: string) {
+  const regex = /\b([LVIH]\d-[0-9.]+L|L\d-|V\d-|I\d-|[0-9.]+L)\b/i;
+  const match = fullModel.match(regex);
+  if (match && match.index !== undefined) {
+    const modelGroup = fullModel.slice(0, match.index).trim();
+    const variantName = fullModel.slice(match.index).trim();
+    return {
+      modelGroup: modelGroup || "Other",
+      variantName: variantName || fullModel
+    };
+  }
+  
+  const firstSpaceIdx = fullModel.indexOf(' ');
+  if (firstSpaceIdx !== -1) {
+    return {
+      modelGroup: fullModel.slice(0, firstSpaceIdx).trim(),
+      variantName: fullModel.slice(firstSpaceIdx).trim()
+    };
+  }
+  
+  return {
+    modelGroup: fullModel,
+    variantName: ""
+  };
+}
+
+export function getVariantDisplayName(v: Vehicle) {
+  const { variantName } = extractModelAndVariant(v.model);
+  if (variantName) {
+    return variantName;
+  }
+  const dt = parseDrivetrain(v.model);
+  const eng = v.engine ? v.engine : "Standard";
+  return `${eng} - ${dt}`;
+}
+
 
 
 export default function BrowseView({ 
@@ -170,6 +206,7 @@ export default function BrowseView({
   const [makes, setMakes] = useState<string[]>([]);
   const [years, setYears] = useState<string[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [collapsedModels, setCollapsedModels] = useState<Record<string, boolean>>({});
   
   const [selectedMake, setSelectedMake] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
@@ -347,28 +384,30 @@ export default function BrowseView({
       </div>
 
       {/* 2. Global Large Search Bar & Filters Section */}
-      <div className="space-y-4">
-        <div className="relative">
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search for car make, model, or year... e.g., Toyota Camry, 2018 Ford"
-            className="w-full rounded-full bg-black/50 border border-amber-500/30 focus:border-amber-500 pl-12 pr-16 py-3.5 text-sm md:text-base text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-4 focus:ring-amber-500/5 transition duration-200 font-sans font-medium"
-            id="browse-keyword-input"
-          />
-          <Wrench className="absolute left-4 top-4.5 w-4.5 h-4.5 text-amber-500" />
-          {searchTerm && (
-            <button
-              type="button"
-              onClick={() => setSearchTerm('')}
-              className="absolute right-4 top-3.5 text-slate-500 hover:text-slate-300 text-xs font-mono uppercase tracking-widest font-extrabold cursor-pointer"
-            >
-              Clear
-            </button>
-          )}
+      {!(selectedMake && selectedYear) && (
+        <div className="space-y-4">
+          <div className="relative">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search for car make, model, or year... e.g., Toyota Camry, 2018 Ford"
+              className="w-full rounded-full bg-black/50 border border-amber-500/30 focus:border-amber-500 pl-12 pr-16 py-3.5 text-sm md:text-base text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-4 focus:ring-amber-500/5 transition duration-200 font-sans font-medium"
+              id="browse-keyword-input"
+            />
+            <Wrench className="absolute left-4 top-4.5 w-4.5 h-4.5 text-amber-500" />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-4 top-3.5 text-slate-500 hover:text-slate-300 text-xs font-mono uppercase tracking-widest font-extrabold cursor-pointer"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Loader / Errors view */}
       {loading && (
@@ -407,7 +446,7 @@ export default function BrowseView({
         <div className="space-y-6" id="all-makes-container">
           
           {/* SEARCH TERM IS ACTIVE */}
-          {searchTerm.trim() ? (
+          {searchTerm.trim() && !(selectedMake && selectedYear) ? (
             <div className="space-y-6">
               
               {/* Flat Search Results List */}
@@ -591,11 +630,32 @@ export default function BrowseView({
                 const eng = parseEngineType(v.engine);
                 const matchDt = drivetrainFilter === 'ALL' || dt === drivetrainFilter;
                 const matchEng = engineFilter === 'ALL' || eng === engineFilter;
-                return matchDt && matchEng;
+                const matchSearch = !searchTerm.trim() || 
+                  v.model.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                  v.engine.toLowerCase().includes(searchTerm.toLowerCase());
+                return matchDt && matchEng && matchSearch;
               });
 
+              // Group filtered vehicles by model
+              const groupedModels: Record<string, Vehicle[]> = {};
+              filteredVehicles.forEach((v) => {
+                const { modelGroup } = extractModelAndVariant(v.model);
+                const uppercaseGroup = modelGroup.toUpperCase();
+                if (!groupedModels[uppercaseGroup]) {
+                  groupedModels[uppercaseGroup] = [];
+                }
+                groupedModels[uppercaseGroup].push(v);
+              });
+
+              const modelKeys = Object.keys(groupedModels).sort();
+
+              const toggleModel = (m: string) => {
+                setCollapsedModels(prev => ({ ...prev, [m]: !prev[m] }));
+              };
+
               return (
-                <div className="space-y-4">
+                <div className="w-full max-w-2xl mx-auto md:max-w-3xl animate-fade-in space-y-4">
+                  {/* Back to Years floating button */}
                   <div className="flex justify-start">
                     <button
                       type="button"
@@ -605,131 +665,171 @@ export default function BrowseView({
                       <span className="text-amber-500 font-black">←</span> Back to Years
                     </button>
                   </div>
-                  <div className="space-y-4 bg-black/40 backdrop-blur-sm border border-white/5 rounded-xl p-6 animate-fade-in w-full">
-                    <h3 className="text-xs font-mono font-extrabold uppercase tracking-widest text-slate-300 border-l-2 border-amber-500 pl-3">
-                      Browse Service Manuals for {selectedYear} {selectedMake}
-                    </h3>
 
-                  {/* Filter bar at top */}
-                  <div className="flex flex-col gap-3.5 border-b border-white/5 pb-5 mb-5">
-                    {/* Drivetrain Filters */}
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                      <span className="text-[10px] font-mono font-bold tracking-wider text-slate-400 uppercase w-28 shrink-0">DRIVETRAIN:</span>
-                      <div className="flex flex-wrap gap-2">
-                        {['ALL', 'FWD', 'AWD', 'RWD', '4WD'].map((dt) => (
+                  {/* Main Tree Card Panel */}
+                  <div className="bg-[#0e0f14]/95 border border-white/5 rounded-2xl p-6 shadow-2xl space-y-4 text-left">
+                    
+                    {/* Integrated Search Input */}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Search"
+                        className="w-full rounded-lg bg-[#14151c] border border-white/5 pl-10 pr-12 py-2.5 text-sm text-slate-200 placeholder-zinc-500 focus:outline-none focus:border-amber-500/50 transition duration-200"
+                      />
+                      <Search className="absolute left-3.5 top-3 w-4 h-4 text-zinc-500" />
+                      {searchTerm && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchTerm('')}
+                          className="absolute right-3.5 top-2.5 text-zinc-500 hover:text-slate-300 text-xs font-mono uppercase tracking-widest font-extrabold cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Horizontal Filters Section */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      {['FWD', 'AWD', 'RWD', '4WD'].map((dt) => {
+                        const isActive = drivetrainFilter === dt;
+                        return (
                           <button
                             key={dt}
                             type="button"
-                            onClick={() => setDrivetrainFilter(dt)}
-                            className={`px-3.5 py-1.5 rounded-full text-xs font-mono font-bold uppercase transition-all duration-150 cursor-pointer ${
-                              drivetrainFilter === dt
-                                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 font-extrabold'
-                                : 'bg-black/60 hover:bg-white/5 text-slate-400 border border-white/5 hover:text-slate-200'
+                            onClick={() => setDrivetrainFilter(isActive ? 'ALL' : dt)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-mono font-black transition duration-150 ${
+                              isActive 
+                                ? 'bg-amber-500/20 border border-amber-500/40 text-amber-400' 
+                                : 'bg-[#14151c] border border-white/5 text-zinc-400 hover:text-zinc-200'
                             }`}
                           >
                             {dt}
                           </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Engine Filters */}
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                      <span className="text-[10px] font-mono font-bold tracking-wider text-slate-400 uppercase w-28 shrink-0">ENGINE TYPE:</span>
-                      <div className="flex flex-wrap gap-2">
-                        {['ALL', ...uniqueEngines].map((eng) => (
-                          <button
-                            key={eng}
-                            type="button"
-                            onClick={() => setEngineFilter(eng)}
-                            className={`px-3.5 py-1.5 rounded-full text-xs font-mono font-bold uppercase transition-all duration-150 cursor-pointer ${
-                              engineFilter === eng
-                                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 font-extrabold'
-                                : 'bg-black/60 hover:bg-white/5 text-slate-400 border border-white/5 hover:text-slate-200'
-                            }`}
-                          >
-                            {eng}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {filteredVehicles.length === 0 ? (
-                    <div className="py-12 text-center border border-dashed border-white/10 rounded-xl text-slate-500 text-xs">
-                      No model variants match the selected filters.
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto rounded-xl border border-white/5 bg-[#07080c]" id="vehicles-catalog-list">
-                      <table className="w-full text-left border-collapse table-auto">
-                        <thead className="bg-[#101118] border-b border-white/5 font-mono text-[10px] tracking-widest text-slate-400 uppercase">
-                          <tr>
-                            <th className="px-4 py-3 font-extrabold">YEAR</th>
-                            <th className="px-4 py-3 font-extrabold">MODEL</th>
-                            <th className="px-4 py-3 font-extrabold">ENGINE</th>
-                            <th className="px-4 py-3 font-extrabold">DRIVETRAIN</th>
-                            <th className="px-4 py-3 font-extrabold text-right">ACTION</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                          {filteredVehicles.map((v, idx) => {
-                            const dt = parseDrivetrain(v.model);
-                            const engType = parseEngineType(v.engine);
+                        );
+                      })}
+                      
+                      {uniqueEngines.length > 0 && (
+                        <>
+                          <div className="h-6 w-px bg-white/5 mx-1" />
+                          {uniqueEngines.map((eng) => {
+                            const isActive = engineFilter === eng;
                             return (
-                              <tr 
-                                key={v.id} 
-                                className={`transition-colors duration-150 group ${
-                                  idx % 2 === 0 ? 'bg-[#0b0c11]' : 'bg-[#07080c]'
-                                } hover:bg-white/5`}
+                              <button
+                                key={eng}
+                                type="button"
+                                onClick={() => setEngineFilter(isActive ? 'ALL' : eng)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-black transition duration-150 ${
+                                  isActive 
+                                    ? 'bg-amber-500/20 border border-amber-500/40 text-amber-400' 
+                                    : 'bg-[#14151c] border border-white/5 text-zinc-400 hover:text-zinc-200'
+                                }`}
                               >
-                                {/* Year badge */}
-                                <td className="px-4 py-2 font-mono whitespace-nowrap">
-                                  <span className="text-xs text-amber-500 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded font-extrabold select-none">
-                                    {v.year}
-                                  </span>
-                                </td>
-
-                                {/* Model name */}
-                                <td className="px-4 py-2 font-sans font-extrabold text-base md:text-lg text-white uppercase tracking-wide">
-                                  {v.make} {v.model}
-                                </td>
-
-                                {/* Engine spec */}
-                                <td className="px-4 py-2 font-mono text-xs text-slate-300">
-                                  <div className="flex items-center gap-1.5">
-                                    <span>{v.engine}</span>
-                                    <span className="text-slate-500 text-[10px] font-bold">[{engType}]</span>
-                                  </div>
-                                </td>
-
-                                {/* Drivetrain badge */}
-                                <td className="px-4 py-2 whitespace-nowrap">
-                                  <span className={`text-[10px] font-mono font-extrabold px-2.5 py-0.5 rounded-full ${getDrivetrainBadge(dt)}`}>
-                                    {dt}
-                                  </span>
-                                </td>
-
-                                {/* OPEN MANUAL button */}
-                                <td className="px-4 py-2 text-right whitespace-nowrap">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSelectVehicle(v)}
-                                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold py-1 px-3.5 rounded-lg text-xs uppercase tracking-wider transition-all duration-150 cursor-pointer inline-flex items-center gap-1.5 shadow"
-                                  >
-                                    <BookOpen className="w-3.5 h-3.5" />
-                                    <span>OPEN MANUAL</span>
-                                  </button>
-                                </td>
-                              </tr>
+                                {eng}
+                              </button>
                             );
                           })}
-                        </tbody>
-                      </table>
+                        </>
+                      )}
                     </div>
-                  )}
+
+                    {/* Separator line */}
+                    <div className="h-px bg-white/5 w-full my-2" />
+
+                    {/* Breadcrumbs */}
+                    <div className="flex items-center gap-2 text-xs font-mono font-bold tracking-wider uppercase select-none">
+                      <button 
+                        type="button"
+                        onClick={() => { setSelectedMake(''); setSelectedYear(''); }}
+                        className="text-zinc-400 hover:text-white transition"
+                      >
+                        Make
+                      </button>
+                      <span className="text-zinc-700 font-normal">&gt;</span>
+                      <button 
+                        type="button"
+                        onClick={() => setSelectedYear('')}
+                        className="text-zinc-400 hover:text-white transition"
+                      >
+                        Year
+                      </button>
+                      <span className="text-zinc-700 font-normal">&gt;</span>
+                      <span className="text-amber-500">{selectedYear}</span>
+                    </div>
+
+                    {/* Tree List of Models and Variants */}
+                    <div className="space-y-4 pt-2">
+                      {modelKeys.length === 0 ? (
+                        <div className="py-12 text-center border border-dashed border-white/5 rounded-xl text-zinc-500 text-xs">
+                          No model variants match the selected filters.
+                        </div>
+                      ) : (
+                        modelKeys.map((modelKey) => {
+                          const isCollapsed = !!collapsedModels[modelKey];
+                          const groupVariants = groupedModels[modelKey];
+
+                          return (
+                            <div key={modelKey} className="space-y-1">
+                              {/* Collapsible Model Group Header */}
+                              <div 
+                                onClick={() => toggleModel(modelKey)}
+                                className="flex items-center gap-2 cursor-pointer select-none group/header py-1"
+                              >
+                                {isCollapsed ? (
+                                  <ChevronRight className="w-4 h-4 text-zinc-500 group-hover/header:text-white transition" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-zinc-500 group-hover/header:text-white transition" />
+                                )}
+                                
+                                <Folder className="w-4.5 h-4.5 text-amber-500 shrink-0 fill-amber-500/10" />
+                                
+                                <span className="font-mono text-sm font-black tracking-wider text-slate-100 uppercase group-hover/header:text-amber-400 transition">
+                                  {modelKey}
+                                </span>
+                              </div>
+
+                              {/* Indented Variants list with left connection line */}
+                              {!isCollapsed && (
+                                <div className="border-l border-zinc-800/80 ml-5.5 pl-4 space-y-2.5 py-1.5">
+                                  {groupVariants.map((v) => {
+                                    const variantDisplayName = getVariantDisplayName(v);
+                                    return (
+                                      <div 
+                                        key={v.id}
+                                        className="flex items-center justify-between group/variant py-0.5"
+                                      >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <FileText className="w-4 h-4 text-zinc-500 shrink-0" />
+                                          <span className="font-mono text-xs md:text-sm text-zinc-300 group-hover/variant:text-slate-100 transition truncate uppercase">
+                                            {variantDisplayName}
+                                          </span>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-4 shrink-0 pl-2">
+                                          <span className="text-zinc-600 font-bold select-none text-xs">...</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSelectVehicle(v)}
+                                            className="border border-amber-500/50 hover:border-amber-500 hover:bg-amber-500/10 text-amber-500 font-mono font-black text-[11px] px-3.5 py-1 rounded transition duration-150 cursor-pointer"
+                                          >
+                                            OPEN MANUAL
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                  </div>
                 </div>
-              </div>
-            );
+              );
             })()}
 
           </div>
