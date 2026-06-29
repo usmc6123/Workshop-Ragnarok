@@ -69,6 +69,26 @@ export default function App() {
     return localStorage.getItem('ragnarok_active_theme') || 'theme-ragnarok';
   });
 
+  // Per-page scale state and storage loading
+  const [scale, setScale] = useState(100);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(`page_scale_${view}`);
+    if (saved) {
+      setScale(parseInt(saved, 10) || 100);
+    } else {
+      setScale(100);
+    }
+  }, [view]);
+
+  const handleAdjustScale = (amount: number) => {
+    setScale((prev) => {
+      const next = Math.min(150, Math.max(70, prev + amount));
+      localStorage.setItem(`page_scale_${view}`, String(next));
+      return next;
+    });
+  };
+
   // Network connection diagnostics
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [currentApiEndpoint, setCurrentApiEndpoint] = useState(getApiBase());
@@ -272,68 +292,107 @@ export default function App() {
 
           {/* 3. Main Viewport Container */}
           <main className="flex-1 overflow-y-auto">
-            {view === 'dashboard' && (
-              <DashboardView
-                onSelectVehicle={handleSelectVehicle}
-                onNavigateToTab={(tab) => setView(tab as any)}
-                onNavigateToBrowseWithSearch={handleNavBrowse}
-                refreshTrigger={refreshTrigger}
-              />
-            )}
+            <div
+              style={{
+                transform: `scale(${scale / 100})`,
+                transformOrigin: 'top center'
+              }}
+              className="w-full origin-top"
+              id="main-content-scale-wrapper"
+            >
+              {view === 'dashboard' && (
+                <DashboardView
+                  onSelectVehicle={handleSelectVehicle}
+                  onNavigateToTab={(tab) => setView(tab as any)}
+                  onNavigateToBrowseWithSearch={handleNavBrowse}
+                  refreshTrigger={refreshTrigger}
+                />
+              )}
 
-            {view === 'customers' && (
-              <CustomersView onNavigateToTab={(tab) => setView(tab as any)} />
-            )}
+              {view === 'customers' && (
+                <CustomersView onNavigateToTab={(tab) => setView(tab as any)} />
+              )}
 
-            {view === 'vehicles' && (
-              <VehiclesView 
-                onNavigateToManualWithSearch={(make, year, model) => handleNavBrowse(`${make} ${model}`)} 
-                onSelectVehicle={handleSelectVehicle}
-                refreshTrigger={refreshTrigger}
-              />
-            )}
+              {view === 'vehicles' && (
+                <VehiclesView 
+                  onNavigateToManualWithSearch={(make, year, model) => handleNavBrowse(`${make} ${model}`)} 
+                  onSelectVehicle={handleSelectVehicle}
+                  refreshTrigger={refreshTrigger}
+                />
+              )}
 
-            {view === 'jobs' && (
-              <JobsView 
-                refreshTrigger={refreshTrigger}
-              />
-            )}
+              {view === 'jobs' && (
+                <JobsView 
+                  refreshTrigger={refreshTrigger}
+                />
+              )}
 
-            {view === 'calendar' && (
-              <CalendarView />
-            )}
+              {view === 'calendar' && (
+                <CalendarView />
+              )}
 
-            {view === 'manual-library' && (
-              <BrowseView 
-                selectedVehicle={selectedVehicle}
-                onSelectVehicle={handleSelectVehicle} 
-                onClearSelectedVehicle={() => setSelectedVehicle(null)}
-                initialSearch={browseSearchQuery}
-              />
-            )}
+              {view === 'manual-library' && (
+                <BrowseView 
+                  selectedVehicle={selectedVehicle}
+                  onSelectVehicle={handleSelectVehicle} 
+                  onClearSelectedVehicle={() => setSelectedVehicle(null)}
+                  initialSearch={browseSearchQuery}
+                />
+              )}
 
-            {view === 'settings' && (
-              <SettingsView 
-                activeTheme={activeTheme}
-                setActiveTheme={setActiveTheme}
-                onSaveAddress={handleApplyNewSettings}
-              />
-            )}
+              {view === 'settings' && (
+                <SettingsView 
+                  activeTheme={activeTheme}
+                  setActiveTheme={setActiveTheme}
+                  onSaveAddress={handleApplyNewSettings}
+                />
+              )}
 
-            {view === 'manual' && selectedVehicle && (
-              <ManualView
-                vehicle={selectedVehicle}
-                onBackToDashboard={handleBackFromManual}
-                onRefreshGarage={() => setRefreshTrigger((prev) => prev + 1)}
-              />
-            )}
+              {view === 'manual' && selectedVehicle && (
+                <ManualView
+                  vehicle={selectedVehicle}
+                  onBackToDashboard={handleBackFromManual}
+                  onRefreshGarage={() => setRefreshTrigger((prev) => prev + 1)}
+                />
+              )}
 
-            {view === 'admin' && (
-              <ProtectedRoute requireAdmin={true}>
-                <AdminPage />
-              </ProtectedRoute>
-            )}
+              {view === 'admin' && (
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminPage />
+                </ProtectedRoute>
+              )}
+            </div>
           </main>
+
+          {/* Floating Scale Control Widget */}
+          {view !== 'settings' && view !== 'admin' && (
+            <div 
+              className="fixed bottom-6 right-6 z-40 flex items-center gap-1.5 bg-[#0e0f14]/80 backdrop-blur-md border border-white/10 px-2.5 py-1.5 rounded-full shadow-lg select-none"
+              id="page-scale-control-widget"
+            >
+              <button
+                type="button"
+                onClick={() => handleAdjustScale(-5)}
+                disabled={scale <= 70}
+                className="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 border border-white/5 text-amber-500 hover:text-amber-400 disabled:text-zinc-600 disabled:cursor-not-allowed hover:bg-white/5 active:scale-95 transition cursor-pointer text-sm font-bold animate-none"
+                id="scale-down-btn"
+              >
+                -
+              </button>
+              <span className="text-[11px] font-mono font-black text-amber-500 w-11 text-center" id="scale-display-value">
+                {scale}%
+              </span>
+              <button
+                type="button"
+                onClick={() => handleAdjustScale(5)}
+                disabled={scale >= 150}
+                className="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 border border-white/5 text-amber-500 hover:text-amber-400 disabled:text-zinc-600 disabled:cursor-not-allowed hover:bg-white/5 active:scale-95 transition cursor-pointer text-sm font-bold animate-none"
+                id="scale-up-btn"
+              >
+                +
+              </button>
+            </div>
+          )}
 
           {/* Mini Embedded Footer copyright */}
           {view !== 'manual' && (
