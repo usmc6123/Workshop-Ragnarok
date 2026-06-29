@@ -650,7 +650,10 @@ export default function BrowseView({
               const modelKeys = Object.keys(groupedModels).sort();
 
               const toggleModel = (m: string) => {
-                setCollapsedModels(prev => ({ ...prev, [m]: !prev[m] }));
+                setCollapsedModels(prev => {
+                  const current = prev[m] === undefined ? true : prev[m];
+                  return { ...prev, [m]: !current };
+                });
               };
 
               return (
@@ -766,7 +769,7 @@ export default function BrowseView({
                         </div>
                       ) : (
                         modelKeys.map((modelKey) => {
-                          const isCollapsed = !!collapsedModels[modelKey];
+                          const isCollapsed = collapsedModels[modelKey] === undefined ? true : collapsedModels[modelKey];
                           const groupVariants = groupedModels[modelKey];
 
                           return (
