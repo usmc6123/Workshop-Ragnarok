@@ -517,6 +517,27 @@ app.get('/api/vehicles', (req, res) => {
   }
 });
 
+// GET /api/vehicles/models
+// Returns distinct model names for a given make/year with no truncation,
+// regardless of how many engine/trans variant rows exist underneath.
+app.get('/api/vehicles/models', (req, res) => {
+  try {
+    if (!isVehiclesTableReady()) {
+      return res.json([]);
+    }
+    const { make, year } = req.query;
+    if (!make || !year) {
+      return res.status(400).json({ error: 'make and year are required' });
+    }
+    const stmt = db.prepare('SELECT DISTINCT model FROM vehicles WHERE make = ? AND year = ? ORDER BY model ASC');
+    const rows = stmt.all(make, year);
+    res.json(rows.map(r => r.model));
+  } catch (error) {
+    console.error('Error fetching models:', error);
+    res.status(500).json({ error: 'Database error fetching models' });
+  }
+});
+
 // GET /api/garage
 app.get('/api/garage', (req, res) => {
   try {

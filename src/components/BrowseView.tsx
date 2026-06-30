@@ -288,7 +288,10 @@ export default function BrowseView({
       if (!selectedMake || !selectedYear) { setVehicles([]); return; }
       setLoading(true); setError(null);
       try {
-        const fetchedVehicles = await api.getVehicles(selectedMake, selectedYear, undefined, 500);
+        // Limit raised from 500 to 10000 — some make/year combos (e.g. Chevrolet 1972 = 3196 rows)
+        // have more engine/trans variants than the old cap allowed, which silently dropped
+        // entire models from the tree view (e.g. International 1968 was missing Scout, M800, etc).
+        const fetchedVehicles = await api.getVehicles(selectedMake, selectedYear, undefined, 10000);
         setVehicles(fetchedVehicles);
       } catch (err: any) {
         setError(err.message || 'Failed to load vehicles list.');
