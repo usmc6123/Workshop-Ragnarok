@@ -778,6 +778,12 @@ app.get('/api/page', async (req, res) => {
                 if (linkText) currentParts.push({ type: 'internalLink', text: linkText, href });
               }
             });
+          } else if (tagName === 'p') {
+            // Mirrors the same fix applied inside nested div[id^="S"] wrappers —
+            // catches paragraphs that sit directly under div.main with no wrapper div.
+            flushParts();
+            const text = $node.text().trim();
+            if (text) blocks.push({ type: 'paragraph', text });
           } else if (tagName === 'div') {
             flushParts();
             // Recursively process children of wrapper divs (like div[id^="S"])
@@ -832,6 +838,13 @@ app.get('/api/page', async (req, res) => {
                 if (tableData.length > 0) {
                   blocks.push({ type: 'table', rows: tableData });
                 }
+              } else if (dTagName === 'p') {
+                // Some LEMON pages wrap plain paragraph text directly in <p> tags
+                // inside the div[id^="S"] wrapper (e.g. wiring diagram intro pages).
+                // Without this case, all such paragraph text was silently dropped.
+                flushParts();
+                const text = $dNode.text().trim();
+                if (text) blocks.push({ type: 'paragraph', text });
               } else if (dTagName === 'div') {
                 // handle nested divs with class clsTableTitle etc as headings
                 const text = $dNode.text().trim();
