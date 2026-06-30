@@ -759,11 +759,67 @@ app.get('/api/page', async (req, res) => {
             });
           } else if (tagName === 'div') {
             flushParts();
-            const img = $node.find('img');
-            if (img.length > 0) {
-              const src = img.attr('src');
-              if (src) blocks.push({ type: 'image', src });
-            }
+            // Recursively process children of wrapper divs (like div[id^="S"])
+            $node.contents().each((dIdx, dNode) => {
+              const $dNode = $(dNode);
+              const dTagName = dNode.name ? dNode.name.toLowerCase() : '';
+              
+              if (dNode.type === 'text') {
+                const text = dNode.data ? dNode.data.trim() : '';
+                if (text) currentParts.push({ type: 'text', text });
+              } else if (dTagName === 'br') {
+                flushParts();
+              } else if (dTagName === 'a') {
+                const linkText = $dNode.text().trim();
+                let href = $dNode.attr('href') || '';
+                if (href.startsWith('/hyperlink/')) href = href.substring(11);
+                else if (href.startsWith('hyperlink/')) href = href.substring(10);
+                if (!href.startsWith('/')) href = '/' + href;
+                if (linkText) currentParts.push({ type: 'internalLink', text: linkText, href });
+              } else if (dTagName === 'h1' || dTagName === 'h2' || dTagName === 'b') {
+                flushParts();
+                const text = $dNode.text().trim();
+                if (text) blocks.push({ type: 'heading', text });
+              } else if (dTagName === 'img') {
+                flushParts();
+                const src = $dNode.attr('src');
+                if (src) blocks.push({ type: 'image', src });
+              } else if (dTagName === 'table') {
+                flushParts();
+                const tableData = [];
+                $dNode.find('tr').each((i, row) => {
+                  const rowData = [];
+                  $(row).find('td, th').each((j, cell) => {
+                    const $cell = $(cell);
+                    const cellLinks = [];
+                    $cell.find('a').each((k, link) => {
+                      const $link = $(link);
+                      let href = $link.attr('href') || '';
+                      if (href.startsWith('/hyperlink/')) href = href.substring(11);
+                      else if (href.startsWith('hyperlink/')) href = href.substring(10);
+                      if (!href.startsWith('/')) href = '/' + href;
+                      cellLinks.push({ text: $link.text().trim(), href });
+                    });
+                    rowData.push({ 
+                      text: $cell.text().trim(),
+                      isHeader: cell.name.toLowerCase() === 'th',
+                      links: cellLinks
+                    });
+                  });
+                  if (rowData.length > 0) tableData.push(rowData);
+                });
+                if (tableData.length > 0) {
+                  blocks.push({ type: 'table', rows: tableData });
+                }
+              } else if (dTagName === 'div') {
+                // handle nested divs with class clsTableTitle etc as headings
+                const text = $dNode.text().trim();
+                if (text) {
+                  flushParts();
+                  blocks.push({ type: 'heading', text });
+                }
+              }
+            });
           } else if (tagName === 'table') {
             flushParts();
             const tableData = [];
