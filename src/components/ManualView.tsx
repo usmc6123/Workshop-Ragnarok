@@ -805,7 +805,44 @@ export default function ManualView({
               <div className="max-w-6xl mx-auto space-y-8 animate-fade-in" id="active-document-canvas">
                 
                 {/* 2A. When active selection is a folder category (welcome / select a procedure state) */}
-                {activePage.pageType === 'category' ? (
+                {activePage.pageType === 'category' && (() => {
+                  const firstNode = activePage.tree?.[0];
+                  const links = (firstNode && 'children' in firstNode ? firstNode.children : null) || activePage.tree || [];
+                  return links.length > 0;
+                })() ? (
+                  // 2A-i. Category page WITH real links (e.g. an index page like
+                  // "Heating And Air Conditioning -- Tightening Torques") — render
+                  // the actual list of links instead of the generic placeholder below,
+                  // which previously showed for every category page regardless of
+                  // whether it had real content to display.
+                  <div className="space-y-6" id="category-links-content">
+                    <div className="border-b border-[#1e2028] pb-4">
+                      <span className="text-[10px] text-amber-500 font-mono tracking-widest font-semibold uppercase">
+                        {vehicle.source.toUpperCase()} MANUAL • INDEX
+                      </span>
+                      <h2 className="text-xl md:text-2xl font-black text-slate-100 tracking-tight mt-1 leading-snug">
+                        {activePage.title}
+                      </h2>
+                    </div>
+                    <ul className="space-y-2">
+                      {(() => {
+                        const firstNode = activePage.tree?.[0];
+                        const links = (firstNode && 'children' in firstNode ? firstNode.children : null) || activePage.tree || [];
+                        return links.map((link: any, idx: number) => (
+                          <li key={idx}>
+                            <button
+                              type="button"
+                              onClick={() => loadActivePageDetails(resolveHref(currentUri, link.href))}
+                              className="text-primary-theme hover:underline text-sm text-left"
+                            >
+                              {link.title}
+                            </button>
+                          </li>
+                        ));
+                      })()}
+                    </ul>
+                  </div>
+                ) : activePage.pageType === 'category' ? (
                   <div className="flex flex-col items-center justify-center text-center py-24 px-6 max-w-lg mx-auto space-y-6" id="manual-welcome-pane">
                     <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center border border-amber-500/25 animate-pulse">
                       <Wrench className="w-7 h-7 text-amber-500" />
