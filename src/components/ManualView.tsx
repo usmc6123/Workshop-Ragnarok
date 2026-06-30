@@ -804,73 +804,31 @@ export default function ManualView({
             ) : activePage ? (
               <div className="max-w-6xl mx-auto space-y-8 animate-fade-in" id="active-document-canvas">
                 
-                {/* 2A. When active selection is a folder category (welcome / select a procedure state) */}
-                {activePage.pageType === 'category' && (() => {
-                  const firstNode = activePage.tree?.[0];
-                  const links = (firstNode && 'children' in firstNode ? firstNode.children : null) || activePage.tree || [];
-                  return links.length > 0;
-                })() ? (
-                  // 2A-i. Category page WITH real links (e.g. an index page like
-                  // "Heating And Air Conditioning -- Tightening Torques") — render
-                  // the actual list of links instead of the generic placeholder below,
-                  // which previously showed for every category page regardless of
-                  // whether it had real content to display.
-                  <div className="space-y-6" id="category-links-content">
+                {/* 2A. When active selection is a category (not a leaf content page) —
+                    show one consistent big tree view that mirrors the left sidebar's
+                    proven navigation logic exactly, instead of separate "flat link list"
+                    and "generic placeholder" states. Clicking a leaf link here loads
+                    real content the same way the left sidebar does, swapping this tree
+                    out for the content view below. The left sidebar itself is untouched. */}
+                {activePage.pageType === 'category' ? (
+                  <div className="space-y-4" id="category-big-tree">
                     <div className="border-b border-[#1e2028] pb-4">
                       <span className="text-[10px] text-amber-500 font-mono tracking-widest font-semibold uppercase">
                         {vehicle.source.toUpperCase()} MANUAL • INDEX
                       </span>
                       <h2 className="text-xl md:text-2xl font-black text-slate-100 tracking-tight mt-1 leading-snug">
-                        {activePage.title}
+                        {displayTitle}
                       </h2>
                     </div>
-                    <ul className="space-y-2">
-                      {(() => {
-                        const firstNode = activePage.tree?.[0];
-                        const links = (firstNode && 'children' in firstNode ? firstNode.children : null) || activePage.tree || [];
-                        return links.map((link: any, idx: number) => (
-                          <li key={idx}>
-                            <button
-                              type="button"
-                              onClick={() => loadActivePageDetails(resolveHref(currentUri, link.href))}
-                              className="text-primary-theme hover:underline text-sm text-left"
-                            >
-                              {link.title}
-                            </button>
-                          </li>
-                        ));
-                      })()}
-                    </ul>
-                  </div>
-                ) : activePage.pageType === 'category' ? (
-                  <div className="flex flex-col items-center justify-center text-center py-24 px-6 max-w-lg mx-auto space-y-6" id="manual-welcome-pane">
-                    <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center border border-amber-500/25 animate-pulse">
-                      <Wrench className="w-7 h-7 text-amber-500" />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <span className="text-[10px] text-amber-500 font-mono tracking-widest font-bold uppercase block">
-                        Ragnarök Manual Workspace
-                      </span>
-                      <h3 className="text-lg font-black text-slate-100 tracking-tight uppercase">
-                        Select a Procedure Section
-                      </h3>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        Use the fully collapsible chapter directory on the left to navigate service manuals. Click any folder to toggle subchapters, or select a leaf diagnostic / repair page to load detailed diagrams and checklists.
-                      </p>
-                    </div>
-
-                    <div className="w-full grid grid-cols-2 gap-3.5 pt-4 text-left font-sans">
-                      <div className="bg-[#13141a] border border-[#1e2028] p-4 rounded-xl">
-                        <Folder className="w-4 h-4 text-amber-500 mb-2" />
-                        <h4 className="text-xs font-bold text-slate-200">Interactive Tree</h4>
-                        <p className="text-[11px] text-slate-500 mt-1 leading-snug">Fully collapsible index showing deep-nested manual paths.</p>
-                      </div>
-                      <div className="bg-[#13141a] border border-[#1e2028] p-4 rounded-xl">
-                        <CheckSquare className="w-4 h-4 text-amber-500 mb-2" />
-                        <h4 className="text-xs font-bold text-slate-200">Leaf Procedures</h4>
-                        <p className="text-[11px] text-slate-500 mt-1 leading-snug">Clickable end documents showing guidelines, steps & specs.</p>
-                      </div>
+                    <div className="text-base" id="category-big-tree-view">
+                      <TreeView
+                        rootTitle={displayTitle}
+                        rootTree={displayTree}
+                        baseUri={displayBaseUri}
+                        activeUri={currentUri}
+                        onSelectUri={handleSelectUri}
+                        dynamicChildren={dynamicChildren}
+                      />
                     </div>
                   </div>
                 ) : (
