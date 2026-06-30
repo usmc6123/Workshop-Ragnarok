@@ -764,6 +764,33 @@ app.get('/api/page', async (req, res) => {
               const src = img.attr('src');
               if (src) blocks.push({ type: 'image', src });
             }
+          } else if (tagName === 'table') {
+            flushParts();
+            const tableData = [];
+            $node.find('tr').each((i, row) => {
+              const rowData = [];
+              $(row).find('td, th').each((j, cell) => {
+                const $cell = $(cell);
+                const cellLinks = [];
+                $cell.find('a').each((k, link) => {
+                  const $link = $(link);
+                  let href = $link.attr('href') || '';
+                  if (href.startsWith('/hyperlink/')) href = href.substring(11);
+                  else if (href.startsWith('hyperlink/')) href = href.substring(10);
+                  if (!href.startsWith('/')) href = '/' + href;
+                  cellLinks.push({ text: $link.text().trim(), href });
+                });
+                rowData.push({ 
+                  text: $cell.text().trim(),
+                  isHeader: cell.name.toLowerCase() === 'th',
+                  links: cellLinks
+                });
+              });
+              if (rowData.length > 0) tableData.push(rowData);
+            });
+            if (tableData.length > 0) {
+              blocks.push({ type: 'table', rows: tableData });
+            }
           }
         });
         

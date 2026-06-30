@@ -1083,35 +1083,81 @@ export default function ManualView({
                           }
 
                            if (block.type === 'table') {
-                            const hasHeaders = block.headers && block.headers.length > 0;
-                            const tableHeaders = hasHeaders ? block.headers : (block.rows && block.rows.length > 0 ? block.rows[0] : []);
-                            const tableRows = hasHeaders ? block.rows : (block.rows && block.rows.length > 1 ? block.rows.slice(1) : (block.rows || []));
+                             const rows = (block as any).rows || [];
 
-                            return (
-                              <div key={`table-${blockIdx}`} className="overflow-x-auto rounded-xl border border-[#1e2028] my-8 font-mono text-sm">
-                                <table className="w-full text-left border-collapse bg-[#0c0d12]">
-                                  {tableHeaders && tableHeaders.length > 0 && (
-                                    <thead className="bg-[#1a1c24] border-b border-amber-500/30">
-                                      <tr>
-                                        {tableHeaders.map((h: string, i: number) => (
-                                          <th key={i} className="px-5 py-4 text-left text-amber-500 font-bold uppercase tracking-wider text-xs md:text-sm">{h}</th>
-                                        ))}
-                                      </tr>
-                                    </thead>
-                                  )}
-                                  <tbody>
-                                    {tableRows && tableRows.map((row: string[], i: number) => (
-                                      <tr key={i} className={`border-b border-[#1e2028]/40 hover:bg-[#1a1c24]/30 transition-colors ${i % 2 === 0 ? 'bg-[#13141a]' : 'bg-[#0a0a0f]'}`}>
-                                        {row.map((cell: string, j: number) => (
-                                          <td key={j} className="px-5 py-3.5 text-slate-300">{cell}</td>
-                                        ))}
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            );
-                          }
+                             return (
+                               <div key={`table-${blockIdx}`} className="overflow-x-auto rounded-xl border border-[#1e2028] my-8 font-sans text-sm w-full">
+                                 <table className="w-full text-left border-collapse bg-[#0c0d12]">
+                                   <tbody>
+                                     {rows.map((row: any[], i: number) => {
+                                       const hasHeaderCell = row.some((cell: any) => cell && cell.isHeader);
+                                       const isHeaderRow = hasHeaderCell;
+
+                                       return (
+                                         <tr 
+                                           key={i} 
+                                           className={`border-b border-[#1e2028]/40 hover:bg-[#1a1c24]/30 transition-colors ${
+                                             isHeaderRow 
+                                               ? 'bg-[#1a1c24] border-b-2 border-amber-500/30' 
+                                               : (i % 2 === 0 ? 'bg-[#13141a]' : 'bg-[#0a0a0f]')
+                                           }`}
+                                         >
+                                           {row.map((cell: any, j: number) => {
+                                             const isObj = cell && typeof cell === 'object';
+                                             const text = isObj ? cell.text : String(cell || '');
+                                             const isHeader = isObj ? !!cell.isHeader : false;
+                                             const links = isObj ? cell.links : [];
+
+                                             const cellContent = (
+                                               <div className="flex flex-wrap items-center gap-1.5">
+                                                 {links && links.length > 0 ? (
+                                                   links.map((lnk: any, lIdx: number) => (
+                                                     <button
+                                                       key={lIdx}
+                                                       type="button"
+                                                       onClick={() => {
+                                                         loadActivePageDetails(lnk.href);
+                                                         setCurrentUri(lnk.href);
+                                                       }}
+                                                       className="inline-block text-blue-400 hover:text-blue-300 font-bold underline transition-colors cursor-pointer text-left font-sans"
+                                                     >
+                                                       {lnk.text}
+                                                     </button>
+                                                   ))
+                                                 ) : (
+                                                   <span>{text}</span>
+                                                 )}
+                                               </div>
+                                             );
+
+                                             if (isHeader) {
+                                               return (
+                                                 <th 
+                                                   key={j} 
+                                                   className="px-5 py-4 text-left text-amber-500 font-bold uppercase tracking-wider text-xs md:text-sm border-r border-[#1e2028]/30 last:border-r-0"
+                                                 >
+                                                   {cellContent}
+                                                 </th>
+                                               );
+                                             }
+
+                                             return (
+                                               <td 
+                                                 key={j} 
+                                                 className="px-5 py-3.5 text-slate-300 border-r border-[#1e2028]/30 last:border-r-0"
+                                               >
+                                                 {cellContent}
+                                               </td>
+                                             );
+                                           })}
+                                         </tr>
+                                       );
+                                     })}
+                                   </tbody>
+                                 </table>
+                               </div>
+                             );
+                           }
 
                           return null;
                         })
