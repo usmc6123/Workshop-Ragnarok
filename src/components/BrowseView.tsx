@@ -184,13 +184,19 @@ export function extractModelAndVariant(fullModel: string) {
 }
 
 export function getVariantDisplayName(v: Vehicle) {
+  // Prefer the dedicated engine field when it holds real variant data — many makes
+  // (e.g. International) store model and engine/trans details as separate clean fields,
+  // and trying to regex-extract a variant out of v.model alone mangles names like
+  // "Scout II" (the space-split fallback mistook "II" for the variant description).
+  if (v.engine && v.engine.trim() && v.engine.trim().toUpperCase() !== 'N/A') {
+    return v.engine.trim();
+  }
   const { variantName } = extractModelAndVariant(v.model);
   if (variantName) {
     return variantName;
   }
   const dt = parseDrivetrain(v.model);
-  const eng = v.engine ? v.engine : "Standard";
-  return `${eng} - ${dt}`;
+  return `Standard - ${dt}`;
 }
 
 
@@ -639,11 +645,13 @@ export default function BrowseView({
                 return matchDt && matchEng && matchSearch;
               });
 
-              // Group filtered vehicles by model
+              // Group filtered vehicles by model.
+              // v.model is already the clean model name (e.g. "Scout II", "1000C") —
+              // grouping by it directly avoids extractModelAndVariant mangling multi-word
+              // model names (it previously turned "Scout II" into just "Scout").
               const groupedModels: Record<string, Vehicle[]> = {};
               filteredVehicles.forEach((v) => {
-                const { modelGroup } = extractModelAndVariant(v.model);
-                const uppercaseGroup = modelGroup.toUpperCase();
+                const uppercaseGroup = v.model.toUpperCase();
                 if (!groupedModels[uppercaseGroup]) {
                   groupedModels[uppercaseGroup] = [];
                 }
