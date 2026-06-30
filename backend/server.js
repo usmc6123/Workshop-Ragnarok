@@ -1079,6 +1079,70 @@ app.get('/api/page', async (req, res) => {
                 blocks.push({ type: 'paragraph', parts: pParts });
               }
             }
+          } else if (tagName === 'table') {
+            flushCurrentParts();
+            const tableData = [];
+            $node.find('tr').each((i, row) => {
+              const rowData = [];
+              $(row).find('td, th').each((j, cell) => {
+                const $cell = $(cell);
+                const cellLinks = [];
+                $cell.find('a').each((k, link) => {
+                  const $link = $(link);
+                  let href = $link.attr('href') || '';
+                  if (href.startsWith('/hyperlink/')) href = href.substring(11);
+                  else if (href.startsWith('hyperlink/')) href = href.substring(10);
+                  if (!href.startsWith('/')) href = '/' + href;
+                  cellLinks.push({ text: $link.text().trim(), href });
+                });
+                rowData.push({
+                  text: $cell.text().trim(),
+                  isHeader: cell.name.toLowerCase() === 'th',
+                  links: cellLinks
+                });
+              });
+              if (rowData.length > 0) tableData.push(rowData);
+            });
+            if (tableData.length > 0) {
+              blocks.push({ type: 'table', rows: tableData });
+            }
+          } else if (tagName === 'div') {
+            // Some pages (e.g. Fluids quick-lookup tables) wrap their table in a
+            // div like <div id="fluid001" class="infoObjPrint"> that doesn't match
+            // div[id^="S"], so this fallback parser never recurses into it. Without
+            // this case, processInlineNode silently discarded the entire table.
+            flushCurrentParts();
+            const innerTable = $node.find('table').first();
+            if (innerTable.length > 0) {
+              const tableData = [];
+              innerTable.find('tr').each((i, row) => {
+                const rowData = [];
+                $(row).find('td, th').each((j, cell) => {
+                  const $cell = $(cell);
+                  const cellLinks = [];
+                  $cell.find('a').each((k, link) => {
+                    const $link = $(link);
+                    let href = $link.attr('href') || '';
+                    if (href.startsWith('/hyperlink/')) href = href.substring(11);
+                    else if (href.startsWith('hyperlink/')) href = href.substring(10);
+                    if (!href.startsWith('/')) href = '/' + href;
+                    cellLinks.push({ text: $link.text().trim(), href });
+                  });
+                  rowData.push({
+                    text: $cell.text().trim(),
+                    isHeader: cell.name.toLowerCase() === 'th',
+                    links: cellLinks
+                  });
+                });
+                if (rowData.length > 0) tableData.push(rowData);
+              });
+              if (tableData.length > 0) {
+                blocks.push({ type: 'table', rows: tableData });
+              }
+            } else {
+              const text = $node.text().trim();
+              if (text) blocks.push({ type: 'paragraph', text });
+            }
           } else {
             processInlineNode(node, currentParts);
           }
