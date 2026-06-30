@@ -845,6 +845,16 @@ app.get('/api/page', async (req, res) => {
                 flushParts();
                 const text = $dNode.text().trim();
                 if (text) blocks.push({ type: 'paragraph', text });
+              } else if (dTagName === 'div' && $dNode.hasClass('imageHolder')) {
+                // imageHolder wraps an imageHeader (caption) plus an <img> tag.
+                // The generic div fallback below only grabs combined .text(), which
+                // captured the caption but silently dropped the <img> entirely since
+                // it never searches descendants for image tags.
+                flushParts();
+                const caption = $dNode.find('.imageCaption').first().text().trim();
+                if (caption) blocks.push({ type: 'heading', text: caption });
+                const src = $dNode.find('img').first().attr('src');
+                if (src) blocks.push({ type: 'image', src });
               } else if (dTagName === 'div') {
                 // handle nested divs with class clsTableTitle etc as headings
                 const text = $dNode.text().trim();
