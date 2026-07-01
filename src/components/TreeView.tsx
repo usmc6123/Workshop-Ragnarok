@@ -38,6 +38,9 @@ const getSemanticIcon = (iconPath: string | null) => {
 };
 
 function resolveHref(baseUri: string, href: string): string {
+  if (!href || href.startsWith('#')) {
+    return ''; // hash anchors and empty hrefs are not real navigable pages
+  }
   if (href.startsWith('/')) {
     return href; // already absolute from site root, use as-is
   }
@@ -76,7 +79,7 @@ export default function TreeView({
     const newExpanded: { [key: string]: boolean } = {};
     const recExpand = (nodes: CategoryTreeNode[], parentPathKey: string, currentBaseUri: string) => {
       nodes.forEach((node) => {
-        const resolvedUri = node.type === 'link' && node.href ? resolveHref(currentBaseUri, node.href) : '';
+        const resolvedUri = node.type === 'link' && node.href && !node.href.startsWith('#') ? resolveHref(currentBaseUri, node.href) : '';
         const dynamicChildrenList = (node.type === 'link' && resolvedUri && dynamicChildren && dynamicChildren[resolvedUri]) || null;
 
         if (node.type === 'category' || dynamicChildrenList) {
@@ -110,7 +113,7 @@ export default function TreeView({
 
       for (const node of nodes) {
         const pathKey = parentPathKey ? `${parentPathKey}/${node.title}` : node.title;
-        const resolvedUri = node.type === 'link' && node.href ? resolveHref(currentBaseUri, node.href) : '';
+        const resolvedUri = node.type === 'link' && node.href && !node.href.startsWith('#') ? resolveHref(currentBaseUri, node.href) : '';
         const dynamicChildrenList = (node.type === 'link' && resolvedUri && dynamicChildren && dynamicChildren[resolvedUri]) || null;
 
         if (node.type === 'category' || dynamicChildrenList) {
@@ -149,7 +152,7 @@ export default function TreeView({
 
   // Handle clicking leaf node links
   const handleLinkClick = (node: CategoryTreeLink, resolvedUri: string) => {
-    if (!node.href) return; // Header label only
+    if (!node.href || node.href.startsWith('#')) return; // Header label or anchor only
     
     // Check if it's a download or bundle link
     if (node.icon === '/icons/download.svg' || node.href.startsWith('/bundle/')) {
@@ -174,7 +177,7 @@ export default function TreeView({
     const pathKey = parentPathKey ? `${parentPathKey}/${node.title}` : node.title;
 
     // Check if link node has dynamic children
-    const resolvedUri = node.type === 'link' && node.href ? resolveHref(currentBaseUri, node.href) : '';
+    const resolvedUri = node.type === 'link' && node.href && !node.href.startsWith('#') ? resolveHref(currentBaseUri, node.href) : '';
     const dynamicChildrenList = (node.type === 'link' && resolvedUri && dynamicChildren && dynamicChildren[resolvedUri]) || null;
 
     if (node.type === 'category' || dynamicChildrenList) {
