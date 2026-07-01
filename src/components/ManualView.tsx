@@ -270,6 +270,7 @@ export default function ManualView({
   const [sectionTree, setSectionTree] = useState<any[]>([]);
   const [sectionTitle, setSectionTitle] = useState<string>('');
   const [sectionBaseUri, setSectionBaseUri] = useState<string>('');
+  const [uriHistory, setUriHistory] = useState<string[]>([]);
   
   // Right content panel states
   const [activePage, setActivePage] = useState<PageResponse | null>(null);
@@ -433,6 +434,11 @@ export default function ManualView({
   useEffect(() => {
     if (!initialContent) {
       loadActivePageDetails(currentUri);
+      // Track navigation history so Back can step through visited pages reliably
+      setUriHistory(prev => {
+        if (prev[prev.length - 1] === currentUri) return prev;
+        return [...prev, currentUri];
+      });
     }
   }, [currentUri, initialContent]);
 
@@ -479,16 +485,22 @@ export default function ManualView({
 
   const goUpOneLevel = () => {
     if (currentUri === vehicle.uriPath) return;
+    // Step back through actual visited URIs first (most reliable)
+    if (uriHistory.length >= 2) {
+      const newHistory = [...uriHistory];
+      newHistory.pop(); // remove current
+      const prev = newHistory[newHistory.length - 1];
+      setUriHistory(newHistory);
+      setCurrentUri(prev);
+      return;
+    }
+    // Fallback: walk path segments looking for a known-real page
     const cleanUri = currentUri.trim().replace(/^\/|\/$/g, '');
     const segments = cleanUri.split('/').filter(Boolean);
     if (segments.length <= 3) {
       setCurrentUri(vehicle.uriPath);
       return;
     }
-    // Walk backward through parent URIs, skipping virtual anchor-based segments
-    // that don't exist as real lemon-server pages (they would 500 if navigated to).
-    // A URI is considered real if it's in dynamicChildren (previously loaded), equals
-    // sectionBaseUri, or equals vehicle.uriPath.
     const segs = [...segments];
     segs.pop();
     while (segs.length > 3) {
@@ -503,7 +515,6 @@ export default function ManualView({
       }
       segs.pop();
     }
-    // Fall back to vehicle root if nothing navigable found
     setCurrentUri(vehicle.uriPath);
   };
 
