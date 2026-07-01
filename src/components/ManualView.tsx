@@ -527,15 +527,33 @@ export default function ManualView({
                 <span className="text-primary-theme font-semibold truncate max-w-[160px] md:max-w-xs">
                   {path.label}
                 </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setCurrentUri(targetUri)}
-                  className="hover:text-primary-theme transition truncate max-w-[120px] md:max-w-xs text-slate-300 font-bold"
-                >
-                  {path.label}
-                </button>
-              )}
+              ) : (() => {
+                // Only make a crumb clickable if we know it's a real navigable page —
+                // either it's a model-level node (routes to vehicle root), the current
+                // sectionBaseUri, the vehicle uriPath, or a URI we've already confirmed
+                // exists by having previously loaded it into dynamicChildren.
+                // Intermediate virtual segments (e.g. "Horns", "Accessories & Equipment")
+                // are anchor-based paths that don't exist as standalone lemon-server pages
+                // and will 500 if navigated to directly.
+                const isNavigable = isModelNode
+                  || targetUri === vehicle.uriPath
+                  || targetUri === sectionBaseUri
+                  || Object.keys(dynamicChildren).includes(path.uri)
+                  || path.uri === sectionBaseUri;
+                return isNavigable ? (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentUri(targetUri)}
+                    className="hover:text-primary-theme transition truncate max-w-[120px] md:max-w-xs text-slate-300 font-bold"
+                  >
+                    {path.label}
+                  </button>
+                ) : (
+                  <span className="truncate max-w-[120px] md:max-w-xs text-slate-500">
+                    {path.label}
+                  </span>
+                );
+              })()}
             </React.Fragment>
           );
         })}
