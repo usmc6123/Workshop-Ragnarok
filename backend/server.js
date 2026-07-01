@@ -674,22 +674,49 @@ app.get('/api/page', async (req, res) => {
           return $(el).parents('ul, ol').length === 0;
         });
 
-      // Helper to process a single <li> element into a link node
-      const processLi = (liEl) => {
-        const $li = $(liEl);
-        // Only look at direct child <a> tags (not nested list links)
-        const $a = $li.children('a').first();
-        if ($a.length === 0) return null;
-        const linkTitle = $a.text().trim();
-        const href = $a.attr('href') || '';
-        if (!linkTitle) return null;
-        const isDownload = href.startsWith('/bundle/') || href.endsWith('.zip');
-        return {
-          type: 'link',
-          title: linkTitle,
-          icon: isDownload ? '/icons/download.svg' : '/icons/service-and-repair.svg',
-          href: href
-        };
+      // Recursively process a <ul>/<ol> list element into tree nodes.
+      // Handles arbitrary nesting depth via li-folder pattern:
+      //   li.li-folder > a[name] + ul  →  category node with children
+      //   li > a[href]                 →  leaf link node
+      const processList = (listEl) => {
+        const results = [];
+        $(listEl).children('li').each((i, liEl) => {
+          const $li = $(liEl);
+          const $nestedList = $li.children('ul, ol').first();
+          if ($nestedList.length > 0) {
+            // Folder node: header from direct <a name="..."> child
+            const $header = $li.children('a').first();
+            const folderTitle = $header.text().trim();
+            const folderChildren = processList($nestedList[0]);
+            if (folderChildren.length > 0) {
+              if (folderTitle) {
+                results.push({
+                  type: 'category',
+                  title: folderTitle,
+                  icon: '/icons/service-and-repair.svg',
+                  children: folderChildren
+                });
+              } else {
+                results.push(...folderChildren);
+              }
+            }
+          } else {
+            // Leaf node: direct <a href="..."> child
+            const $a = $li.children('a').first();
+            if ($a.length === 0) return;
+            const linkTitle = $a.text().trim();
+            const href = $a.attr('href') || '';
+            if (!linkTitle) return;
+            const isDownload = href.startsWith('/bundle/') || href.endsWith('.zip');
+            results.push({
+              type: 'link',
+              title: linkTitle,
+              icon: isDownload ? '/icons/download.svg' : '/icons/service-and-repair.svg',
+              href: href
+            });
+          }
+        });
+        return results;
       };
 
       topLists.forEach((listEl) => {
@@ -707,41 +734,7 @@ app.get('/api/page', async (req, res) => {
           prev = prev.prev();
         }
 
-        const children = [];
-
-        // Process only direct <li> children, not nested ones
-        $list.children('li').each((i, liEl) => {
-          const $li = $(liEl);
-
-          // Check if this li has a nested <ul>/<ol> — it's a folder (li-folder pattern)
-          const $nestedList = $li.children('ul, ol').first();
-          if ($nestedList.length > 0) {
-            // Folder: header is the direct <a name="..."> child, children are nested list
-            const $header = $li.children('a').first();
-            const folderTitle = $header.text().trim();
-            const folderChildren = [];
-            $nestedList.children('li').each((j, nestedLi) => {
-              const node = processLi(nestedLi);
-              if (node) folderChildren.push(node);
-            });
-            if (folderChildren.length > 0) {
-              if (folderTitle) {
-                children.push({
-                  type: 'category',
-                  title: folderTitle,
-                  icon: '/icons/service-and-repair.svg',
-                  children: folderChildren
-                });
-              } else {
-                children.push(...folderChildren);
-              }
-            }
-          } else {
-            // Leaf: regular link item
-            const node = processLi(liEl);
-            if (node) children.push(node);
-          }
-        });
+        const children = processList(listEl);
 
         if (children.length > 0) {
           if (headingText) {
