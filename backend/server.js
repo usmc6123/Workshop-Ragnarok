@@ -661,9 +661,40 @@ app.get('/api/page', async (req, res) => {
     if (hasCategoryLinks) {
       const tree = [];
 
-      $content.find('ul, ol').each((idx, listEl) => {
+      // Process only top-level lists to avoid double-processing nested <ul> elements.
+      // Pages like Technical Data use li.li-folder with <a name="..."> headers and
+      // nested <ul> children — processing all lists with find('ul,ol') caused the
+      // outer list to grab nested li items (via recursive .find('li')) while also
+      // processing the same nested <ul> a second time, producing duplicates and
+      // corrupted href paths with section-anchor names baked into them.
+      const topLists = $content.children('ul, ol').toArray()
+        .concat($content.find('> * > ul, > * > ol').toArray())
+        .filter((el, idx, arr) => {
+          // Keep only lists that are not nested inside another list
+          return $(el).parents('ul, ol').length === 0;
+        });
+
+      // Helper to process a single <li> element into a link node
+      const processLi = (liEl) => {
+        const $li = $(liEl);
+        // Only look at direct child <a> tags (not nested list links)
+        const $a = $li.children('a').first();
+        if ($a.length === 0) return null;
+        const linkTitle = $a.text().trim();
+        const href = $a.attr('href') || '';
+        if (!linkTitle) return null;
+        const isDownload = href.startsWith('/bundle/') || href.endsWith('.zip');
+        return {
+          type: 'link',
+          title: linkTitle,
+          icon: isDownload ? '/icons/download.svg' : '/icons/service-and-repair.svg',
+          href: href
+        };
+      };
+
+      topLists.forEach((listEl) => {
         const $list = $(listEl);
-        
+
         // Find preceding heading if present (up to 3 tags backward)
         let headingText = '';
         let prev = $list.prev();
@@ -677,19 +708,38 @@ app.get('/api/page', async (req, res) => {
         }
 
         const children = [];
-        $list.find('li').each((i, liEl) => {
+
+        // Process only direct <li> children, not nested ones
+        $list.children('li').each((i, liEl) => {
           const $li = $(liEl);
-          const $a = $li.find('a').first();
-          if ($a.length > 0) {
-            const linkTitle = $a.text().trim();
-            const href = $a.attr('href') || '';
-            const isDownload = href.startsWith('/bundle/') || href.endsWith('.zip');
-            children.push({
-              type: 'link',
-              title: linkTitle,
-              icon: isDownload ? '/icons/download.svg' : '/icons/service-and-repair.svg',
-              href: href
+
+          // Check if this li has a nested <ul>/<ol> — it's a folder (li-folder pattern)
+          const $nestedList = $li.children('ul, ol').first();
+          if ($nestedList.length > 0) {
+            // Folder: header is the direct <a name="..."> child, children are nested list
+            const $header = $li.children('a').first();
+            const folderTitle = $header.text().trim();
+            const folderChildren = [];
+            $nestedList.children('li').each((j, nestedLi) => {
+              const node = processLi(nestedLi);
+              if (node) folderChildren.push(node);
             });
+            if (folderChildren.length > 0) {
+              if (folderTitle) {
+                children.push({
+                  type: 'category',
+                  title: folderTitle,
+                  icon: '/icons/service-and-repair.svg',
+                  children: folderChildren
+                });
+              } else {
+                children.push(...folderChildren);
+              }
+            }
+          } else {
+            // Leaf: regular link item
+            const node = processLi(liEl);
+            if (node) children.push(node);
           }
         });
 
