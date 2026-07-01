@@ -888,7 +888,17 @@ export default function ManualView({
                       <TreeView
                         rootTitle={activePage.title || displayTitle}
                         rootTree={rightPaneTree.length > 0 ? rightPaneTree : displayTree}
-                        baseUri={rightPaneBaseUri || displayBaseUri}
+                        baseUri={
+                          // Only use rightPaneBaseUri if it's a valid deeper path within
+                          // the current section. If it diverged (e.g. user navigated to
+                          // Common Specs then clicks Technical Data from the R&D tree),
+                          // using the wrong rightPaneBaseUri corrupts the resolved URI.
+                          // sectionBaseUri is always the safe fallback since it's the
+                          // locked top-level section URI that never changes mid-session.
+                          rightPaneBaseUri && rightPaneBaseUri.startsWith(sectionBaseUri)
+                            ? rightPaneBaseUri
+                            : sectionBaseUri || displayBaseUri
+                        }
                         activeUri={currentUri}
                         onSelectUri={handleSelectUri}
                         dynamicChildren={{}}
