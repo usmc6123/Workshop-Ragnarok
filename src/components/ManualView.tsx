@@ -399,6 +399,14 @@ export default function ManualView({
         const firstNode = data.tree?.[0];
         const children = (firstNode && 'children' in firstNode ? firstNode.children : null) || data.tree || [];
         setDynamicChildren(prev => ({ ...prev, [uri]: children }));
+        // Update section tree/base when navigating into a deeper category page,
+        // so the right-pane TreeView reflects the current location instead of
+        // staying locked to the initial section entry point.
+        if (navLevel === 'section') {
+          setSectionTree(data.tree || []);
+          setSectionBaseUri(uri);
+          setSectionTitle(data.title || '');
+        }
       }
       setActivePage(data);
     } catch (err: any) {
