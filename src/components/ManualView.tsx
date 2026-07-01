@@ -272,6 +272,7 @@ export default function ManualView({
   const [sectionBaseUri, setSectionBaseUri] = useState<string>('');
   const [rightPaneBaseUri, setRightPaneBaseUri] = useState<string>('');
   const [uriHistory, setUriHistory] = useState<string[]>([]);
+  const latestUriRef = useRef<string>('');
   
   // Right content panel states
   const [activePage, setActivePage] = useState<PageResponse | null>(null);
@@ -394,16 +395,16 @@ export default function ManualView({
   const loadActivePageDetails = async (uri: string) => {
     setLoadingActivePage(true);
     setErrorActivePage(null);
-    setCompletedSteps({}); // Reset checklists on page changes
+    setCompletedSteps({});
+    latestUriRef.current = uri;
     try {
       const data = await api.getPage(uri);
+      // Ignore stale responses from previous navigations
+      if (latestUriRef.current !== uri) return;
       if (data.pageType === 'category') {
         const firstNode = data.tree?.[0];
         const children = (firstNode && 'children' in firstNode ? firstNode.children : null) || data.tree || [];
         setDynamicChildren(prev => ({ ...prev, [uri]: children }));
-        // Update section tree/base when navigating into a deeper category page,
-        // so the right-pane TreeView reflects the current location instead of
-        // staying locked to the initial section entry point.
         if (navLevel === 'section') {
           setSectionTree(data.tree || []);
           setSectionBaseUri(uri);
@@ -413,9 +414,12 @@ export default function ManualView({
       }
       setActivePage(data);
     } catch (err: any) {
+      if (latestUriRef.current !== uri) return;
       setErrorActivePage(err.message || 'Failed to download procedure instructions.');
     } finally {
-      setLoadingActivePage(false);
+      if (latestUriRef.current === uri) {
+        setLoadingActivePage(false);
+      }
     }
   };
 
