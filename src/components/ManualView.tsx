@@ -820,7 +820,7 @@ export default function ManualView({
           </div>
 
           {/* Core scrollable content container */}
-          <div className="flex-1 overflow-y-auto px-6 md:px-12 py-8 pb-20">
+          <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 pb-20">
             
             {loadingActivePage ? (
               <div className="py-24 flex flex-col items-center justify-center space-y-4">
@@ -845,7 +845,7 @@ export default function ManualView({
                 </button>
               </div>
             ) : activePage ? (
-              <div className="max-w-6xl mx-auto space-y-8 animate-fade-in" id="active-document-canvas">
+              <div className="w-full space-y-8 animate-fade-in" id="active-document-canvas">
                 
                 {/* 2A. When active selection is a category (not a leaf content page) —
                     show one consistent big tree view that mirrors the left sidebar's
@@ -863,7 +863,7 @@ export default function ManualView({
                         {displayTitle}
                       </h2>
                     </div>
-                    <div className="text-base" id="category-big-tree-view">
+                    <div className="text-base [&_.text-xs]:text-sm [&_.text-\\[11px\\]]:text-xs [&_.text-\\[9px\\]]:text-\\[10px\\] [&_button]:py-1.5 [&_span]:leading-snug" id="category-big-tree-view">
                       <TreeView
                         rootTitle={displayTitle}
                         rootTree={displayTree}
