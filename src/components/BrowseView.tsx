@@ -566,7 +566,7 @@ export default function BrowseView({
                         {/* List of makes inside (compact pills with accent outline glow) */}
                         {!isCollapsed && (
                           <div className="p-4 flex flex-wrap gap-2">
-                            {groupMakes.map((make) => {
+                            {[...groupMakes].sort((a, b) => a.localeCompare(b)).map((make) => {
                               const isHovered = hoveredMake === `${nat.id}-${make}`;
                               return (
                                 <button

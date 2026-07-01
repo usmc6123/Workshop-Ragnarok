@@ -485,9 +485,26 @@ export default function ManualView({
       setCurrentUri(vehicle.uriPath);
       return;
     }
-    segments.pop();
-    const parentUri = '/' + segments.join('/') + '/';
-    setCurrentUri(parentUri);
+    // Walk backward through parent URIs, skipping virtual anchor-based segments
+    // that don't exist as real lemon-server pages (they would 500 if navigated to).
+    // A URI is considered real if it's in dynamicChildren (previously loaded), equals
+    // sectionBaseUri, or equals vehicle.uriPath.
+    const segs = [...segments];
+    segs.pop();
+    while (segs.length > 3) {
+      const candidateUri = '/' + segs.join('/') + '/';
+      if (
+        candidateUri === sectionBaseUri ||
+        candidateUri === vehicle.uriPath ||
+        Object.keys(dynamicChildren).includes(candidateUri)
+      ) {
+        setCurrentUri(candidateUri);
+        return;
+      }
+      segs.pop();
+    }
+    // Fall back to vehicle root if nothing navigable found
+    setCurrentUri(vehicle.uriPath);
   };
 
   // Form custom path trail
