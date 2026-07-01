@@ -893,6 +893,7 @@ export default function ManualView({
                         activeUri={currentUri}
                         onSelectUri={handleSelectUri}
                         dynamicChildren={{}}
+                        navigateOnCategoryClick={true}
                       />
                     </div>
                   </div>

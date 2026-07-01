@@ -17,6 +17,7 @@ interface TreeViewProps {
   activeUri?: string;
   onSelectUri: (uri: string, node: CategoryTreeNode) => void;
   dynamicChildren?: Record<string, CategoryTreeNode[]>;
+  navigateOnCategoryClick?: boolean;
 }
 
 // Map semantic icons based on common names
@@ -53,7 +54,8 @@ export default function TreeView({
   baseUri, 
   activeUri,
   onSelectUri,
-  dynamicChildren
+  dynamicChildren = {},
+  navigateOnCategoryClick = false,
 }: TreeViewProps) {
   
   // Tracking expanded categories by their unique pathKey
@@ -190,7 +192,15 @@ export default function TreeView({
 
       const handleCategoryClick = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!isFiltered) {
+        if (navigateOnCategoryClick) {
+          // In right-pane mode, category nodes navigate on click instead of expand/collapse
+          const categoryUri = resolveHref(currentBaseUri, (node.type === 'link' ? node.href : '') || '');
+          if (categoryUri) {
+            onSelectUri(categoryUri, node);
+          }
+          // Also toggle expand so children are visible
+          if (!isFiltered) toggleExpand(pathKey);
+        } else if (!isFiltered) {
           toggleExpand(pathKey);
         }
       };
