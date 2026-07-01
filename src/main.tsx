@@ -32,7 +32,11 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 }
 
 const isSandbox = window.location.hostname.includes('aistudio.google.com') ||
-                  window.location.hostname.includes('googleusercontent.com');
+                  window.location.hostname.includes('googleusercontent.com') ||
+                  window.location.hostname.includes('google.com') ||
+                  window.location.hostname.includes('run.app') ||
+                  window.location.hostname === 'localhost' ||
+                  window.location.hostname === '127.0.0.1';
 
 if (isSandbox) {
   localStorage.setItem('workshop_token', 'sandbox-mock-token');

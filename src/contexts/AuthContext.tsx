@@ -20,7 +20,11 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const isSandbox = window.location.hostname.includes('aistudio.google.com') ||
-                  window.location.hostname.includes('googleusercontent.com');
+                  window.location.hostname.includes('googleusercontent.com') ||
+                  window.location.hostname.includes('google.com') ||
+                  window.location.hostname.includes('run.app') ||
+                  window.location.hostname === 'localhost' ||
+                  window.location.hostname === '127.0.0.1';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(() => 
