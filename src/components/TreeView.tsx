@@ -229,9 +229,7 @@ export default function TreeView({
       const isCurrentActive = activeUri === resolvedUri;
       const LinkIcon = getSemanticIcon(node.icon);
       const hasHref = !!node.href;
-      if (node.href && node.href.includes('1100')) {
-        console.log('[TREE] leaf 1100 | base:', currentBaseUri, '| href:', node.href, '| resolved:', resolvedUri, '| rootTitle:', rootTitle);
-      }
+
 
       if (!hasHref) {
         // This is a section header (label only, not clickable)

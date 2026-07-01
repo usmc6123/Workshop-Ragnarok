@@ -406,10 +406,13 @@ export default function ManualView({
         const children = (firstNode && 'children' in firstNode ? firstNode.children : null) || data.tree || [];
         setDynamicChildren(prev => ({ ...prev, [uri]: children }));
         if (navLevel === 'section') {
-          console.log('[RPANE] setting rightPaneBaseUri to:', uri);
+          // Only update sectionTree and rightPaneBaseUri for deeper navigation.
+          // sectionBaseUri must NOT be updated here — it must stay locked to the
+          // top-level section URI (e.g. Repair and Diagnosis) set in handleSelectUri's
+          // root branch. Updating it here caused the left sidebar to resolve all hrefs
+          // against the most recently visited deeper page URI instead of the section root,
+          // producing corrupted URIs when clicking other sections from the left sidebar.
           setSectionTree(data.tree || []);
-          setSectionBaseUri(uri);
-          setSectionTitle(data.title || '');
           setRightPaneBaseUri(uri);
         }
       }
@@ -611,7 +614,6 @@ export default function ManualView({
       try {
         const response = await api.getPage(resolvedUri);
         if (response.pageType === 'category') {
-          console.log('[RPANE-ROOT] setting rightPaneBaseUri to:', resolvedUri);
           setSectionTree(response.tree || []);
           setSectionTitle(response.title || node.title);
           setSectionBaseUri(resolvedUri);
@@ -636,7 +638,6 @@ export default function ManualView({
       }
     } else {
       // Selecting a leaf procedure document within the expanded tree
-      console.log('[NAV] handleSelectUri called with:', resolvedUri);
       setCurrentUri(resolvedUri);
       setSidebarOpen(false); // Close mobile menu drawer
     }
@@ -885,7 +886,6 @@ export default function ManualView({
                       </h2>
                     </div>
                     <div className="text-base [&_.text-xs]:text-sm [&_.text-\\[11px\\]]:text-xs [&_.text-\\[9px\\]]:text-\\[10px\\] [&_button]:py-1.5 [&_span]:leading-snug" id="category-big-tree-view">
-                      {(() => { console.log('[RENDER] rightPaneBaseUri:', rightPaneBaseUri, '| displayBaseUri:', displayBaseUri); return null; })()}
                       <TreeView
                         rootTitle={displayTitle}
                         rootTree={displayTree}
