@@ -270,6 +270,7 @@ export default function ManualView({
   const [sectionTree, setSectionTree] = useState<any[]>([]);
   const [sectionTitle, setSectionTitle] = useState<string>('');
   const [sectionBaseUri, setSectionBaseUri] = useState<string>('');
+  const [rightPaneBaseUri, setRightPaneBaseUri] = useState<string>('');
   const [uriHistory, setUriHistory] = useState<string[]>([]);
   
   // Right content panel states
@@ -407,6 +408,7 @@ export default function ManualView({
           setSectionTree(data.tree || []);
           setSectionBaseUri(uri);
           setSectionTitle(data.title || '');
+          setRightPaneBaseUri(uri);
         }
       }
       setActivePage(data);
@@ -607,6 +609,7 @@ export default function ManualView({
           setSectionTree(response.tree || []);
           setSectionTitle(response.title || node.title);
           setSectionBaseUri(resolvedUri);
+          setRightPaneBaseUri(resolvedUri);
           setNavLevel('section');
           
           // Clear active page to welcome/placeholder state
@@ -878,7 +881,7 @@ export default function ManualView({
                       <TreeView
                         rootTitle={displayTitle}
                         rootTree={displayTree}
-                        baseUri={displayBaseUri}
+                        baseUri={rightPaneBaseUri || displayBaseUri}
                         activeUri={currentUri}
                         onSelectUri={handleSelectUri}
                         dynamicChildren={dynamicChildren}
