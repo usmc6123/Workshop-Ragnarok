@@ -270,6 +270,7 @@ export default function ManualView({
   const [sectionTree, setSectionTree] = useState<any[]>([]);
   const [sectionTitle, setSectionTitle] = useState<string>('');
   const [sectionBaseUri, setSectionBaseUri] = useState<string>('');
+  const [rightPaneTree, setRightPaneTree] = useState<any[]>([]);
   const [rightPaneBaseUri, setRightPaneBaseUri] = useState<string>('');
   const [uriHistory, setUriHistory] = useState<string[]>([]);
   const latestUriRef = useRef<string>('');
@@ -406,13 +407,10 @@ export default function ManualView({
         const children = (firstNode && 'children' in firstNode ? firstNode.children : null) || data.tree || [];
         setDynamicChildren(prev => ({ ...prev, [uri]: children }));
         if (navLevel === 'section') {
-          // Only update sectionTree and rightPaneBaseUri for deeper navigation.
-          // sectionBaseUri must NOT be updated here — it must stay locked to the
-          // top-level section URI (e.g. Repair and Diagnosis) set in handleSelectUri's
-          // root branch. Updating it here caused the left sidebar to resolve all hrefs
-          // against the most recently visited deeper page URI instead of the section root,
-          // producing corrupted URIs when clicking other sections from the left sidebar.
-          setSectionTree(data.tree || []);
+          // rightPaneTree updates independently from sectionTree.
+          // sectionTree stays locked to the top-level section (Repair and Diagnosis)
+          // so the left sidebar always resolves hrefs correctly.
+          setRightPaneTree(data.tree || []);
           setRightPaneBaseUri(uri);
         }
       }
@@ -617,6 +615,7 @@ export default function ManualView({
           setSectionTree(response.tree || []);
           setSectionTitle(response.title || node.title);
           setSectionBaseUri(resolvedUri);
+          setRightPaneTree(response.tree || []);
           setRightPaneBaseUri(resolvedUri);
           setNavLevel('section');
           
@@ -887,8 +886,8 @@ export default function ManualView({
                     </div>
                     <div className="text-base [&_.text-xs]:text-sm [&_.text-\\[11px\\]]:text-xs [&_.text-\\[9px\\]]:text-\\[10px\\] [&_button]:py-1.5 [&_span]:leading-snug" id="category-big-tree-view">
                       <TreeView
-                        rootTitle={displayTitle}
-                        rootTree={displayTree}
+                        rootTitle={activePage.title || displayTitle}
+                        rootTree={rightPaneTree.length > 0 ? rightPaneTree : displayTree}
                         baseUri={rightPaneBaseUri || displayBaseUri}
                         activeUri={currentUri}
                         onSelectUri={handleSelectUri}
