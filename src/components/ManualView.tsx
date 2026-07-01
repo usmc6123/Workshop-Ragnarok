@@ -889,7 +889,7 @@ export default function ManualView({
                         baseUri={rightPaneBaseUri || displayBaseUri}
                         activeUri={currentUri}
                         onSelectUri={handleSelectUri}
-                        dynamicChildren={dynamicChildren}
+                        dynamicChildren={{}}
                       />
                     </div>
                   </div>
