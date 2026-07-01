@@ -407,9 +407,10 @@ export default function ManualView({
         const children = (firstNode && 'children' in firstNode ? firstNode.children : null) || data.tree || [];
         setDynamicChildren(prev => ({ ...prev, [uri]: children }));
         if (navLevel === 'section') {
-          // rightPaneTree updates independently from sectionTree.
-          // sectionTree stays locked to the top-level section (Repair and Diagnosis)
-          // so the left sidebar always resolves hrefs correctly.
+          // Update both sidebar and right-pane trees to follow navigation.
+          // sectionBaseUri stays locked to the top-level section URI so hrefs
+          // resolve correctly — only the tree content updates to show current level.
+          setSectionTree(data.tree || []);
           setRightPaneTree(data.tree || []);
           setRightPaneBaseUri(uri);
         }

@@ -617,7 +617,12 @@ app.get('/api/page', async (req, res) => {
       return res.status(400).json({ error: 'Missing uri parameter' });
     }
 
-    const targetUrl = `${LEMON_SERVER_URL}${uri}`;
+    // Re-encode the URI to preserve special characters like %2F (slash in filenames).
+    // Express decodes req.query values, turning %2F into literal / which breaks
+    // lemon-server paths like "installing/replacing" (should be "installing%2Freplacing").
+    // We encode each path segment individually to preserve / as path separator.
+    const encodedUri = uri.split('/').map(seg => encodeURIComponent(decodeURIComponent(seg))).join('/');
+    const targetUrl = `${LEMON_SERVER_URL}${encodedUri}`;
     console.log(`Fetching from lemon-server: ${targetUrl}`);
 
     const response = await fetch(targetUrl);
@@ -909,30 +914,52 @@ app.get('/api/page', async (req, res) => {
             });
           } else if (tagName === 'table') {
             flushParts();
-            const tableData = [];
-            $node.find('tr').each((i, row) => {
-              const rowData = [];
-              $(row).find('td, th').each((j, cell) => {
-                const $cell = $(cell);
-                const cellLinks = [];
-                $cell.find('a').each((k, link) => {
-                  const $link = $(link);
-                  let href = $link.attr('href') || '';
-                  if (href.startsWith('/hyperlink/')) href = href.substring(11);
-                  else if (href.startsWith('hyperlink/')) href = href.substring(10);
-                  if (!href.startsWith('/')) href = '/' + href;
-                  cellLinks.push({ text: $link.text().trim(), href });
-                });
-                rowData.push({ 
-                  text: $cell.text().trim(),
-                  isHeader: cell.name.toLowerCase() === 'th',
-                  links: cellLinks
-                });
+            // Check if this table is purely an image container (imageHolder pattern).
+            // LEMON pages often wrap images in a single-cell table with a div.imageHolder.
+            // We extract these as image blocks rather than tables to render them properly.
+            const imageCells = $node.find('div.imageHolder');
+            if (imageCells.length > 0 && $node.find('td').length === imageCells.length) {
+              // All cells are image holders — extract as image blocks
+              imageCells.each((k, holder) => {
+                const $holder = $(holder);
+                const caption = $holder.find('.imageCaption').first().text().trim();
+                if (caption) blocks.push({ type: 'heading', text: caption });
+                const src = $holder.find('img').first().attr('src');
+                if (src) blocks.push({ type: 'image', src });
               });
-              if (rowData.length > 0) tableData.push(rowData);
-            });
-            if (tableData.length > 0) {
-              blocks.push({ type: 'table', rows: tableData });
+            } else {
+              const tableData = [];
+              $node.find('tr').each((i, row) => {
+                const rowData = [];
+                $(row).find('td, th').each((j, cell) => {
+                  const $cell = $(cell);
+                  // If this cell contains an imageHolder, extract image separately
+                  const $imgHolder = $cell.find('div.imageHolder').first();
+                  if ($imgHolder.length > 0) {
+                    const src = $imgHolder.find('img').first().attr('src');
+                    if (src) blocks.push({ type: 'image', src });
+                    return; // skip adding this cell to tableData
+                  }
+                  const cellLinks = [];
+                  $cell.find('a').each((k, link) => {
+                    const $link = $(link);
+                    let href = $link.attr('href') || '';
+                    if (href.startsWith('/hyperlink/')) href = href.substring(11);
+                    else if (href.startsWith('hyperlink/')) href = href.substring(10);
+                    if (!href.startsWith('/')) href = '/' + href;
+                    cellLinks.push({ text: $link.text().trim(), href });
+                  });
+                  rowData.push({ 
+                    text: $cell.text().trim(),
+                    isHeader: cell.name.toLowerCase() === 'th',
+                    links: cellLinks
+                  });
+                });
+                if (rowData.length > 0) tableData.push(rowData);
+              });
+              if (tableData.length > 0) {
+                blocks.push({ type: 'table', rows: tableData });
+              }
             }
           }
         });
