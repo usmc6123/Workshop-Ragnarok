@@ -611,6 +611,7 @@ export default function ManualView({
       try {
         const response = await api.getPage(resolvedUri);
         if (response.pageType === 'category') {
+          console.log('[RPANE-ROOT] setting rightPaneBaseUri to:', resolvedUri);
           setSectionTree(response.tree || []);
           setSectionTitle(response.title || node.title);
           setSectionBaseUri(resolvedUri);
@@ -884,6 +885,7 @@ export default function ManualView({
                       </h2>
                     </div>
                     <div className="text-base [&_.text-xs]:text-sm [&_.text-\\[11px\\]]:text-xs [&_.text-\\[9px\\]]:text-\\[10px\\] [&_button]:py-1.5 [&_span]:leading-snug" id="category-big-tree-view">
+                      {(() => { console.log('[RENDER] rightPaneBaseUri:', rightPaneBaseUri, '| displayBaseUri:', displayBaseUri); return null; })()}
                       <TreeView
                         rootTitle={displayTitle}
                         rootTree={displayTree}
