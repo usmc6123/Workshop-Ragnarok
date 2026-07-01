@@ -406,6 +406,7 @@ export default function ManualView({
         const children = (firstNode && 'children' in firstNode ? firstNode.children : null) || data.tree || [];
         setDynamicChildren(prev => ({ ...prev, [uri]: children }));
         if (navLevel === 'section') {
+          console.log('[RPANE] setting rightPaneBaseUri to:', uri);
           setSectionTree(data.tree || []);
           setSectionBaseUri(uri);
           setSectionTitle(data.title || '');
