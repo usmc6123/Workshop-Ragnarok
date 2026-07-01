@@ -630,6 +630,7 @@ export default function ManualView({
       }
     } else {
       // Selecting a leaf procedure document within the expanded tree
+      console.log('[NAV] handleSelectUri called with:', resolvedUri);
       setCurrentUri(resolvedUri);
       setSidebarOpen(false); // Close mobile menu drawer
     }
