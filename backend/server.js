@@ -612,12 +612,13 @@ app.delete('/api/garage/:garageId', (req, res) => {
 // GET /api/page?uri=<uriPath>
 app.get('/api/page', async (req, res) => {
   try {
-    const { uri } = req.query;
-    if (!uri) {
+    const rawSearch = req.url.slice(req.url.indexOf('?'));
+    const rawUri = new URLSearchParams(rawSearch).get('uri');
+    if (!rawUri) {
       return res.status(400).json({ error: 'Missing uri parameter' });
     }
 
-    const targetUrl = `${LEMON_SERVER_URL}${uri}`;
+    const targetUrl = `${LEMON_SERVER_URL}${rawUri}`;
     console.log(`Fetching from lemon-server: ${targetUrl}`);
 
     const response = await fetch(targetUrl);
