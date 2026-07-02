@@ -900,6 +900,24 @@ app.get('/api/page', async (req, res) => {
                     blocks.push({ type: 'table', rows: tableData });
                   }
                 }
+              } else if (dTagName === 'ul' || dTagName === 'ol') {
+                flushParts();
+                // Handle bullet/numbered lists inside LEMON content divs
+                $dNode.children('li').each((liIdx, liEl) => {
+                  const $li = $(liEl);
+                  const $a = $li.children('a').first();
+                  if ($a.length > 0) {
+                    let href = $a.attr('href') || '';
+                    if (href.startsWith('/hyperlink/')) href = href.substring(11);
+                    else if (href.startsWith('hyperlink/')) href = href.substring(10);
+                    if (!href.startsWith('/')) href = '/' + href;
+                    const linkText = $a.text().trim();
+                    if (linkText) blocks.push({ type: 'paragraph', parts: [{ type: 'internalLink', text: linkText, href }] });
+                  } else {
+                    const text = $li.text().trim();
+                    if (text) blocks.push({ type: 'paragraph', text });
+                  }
+                });
               } else if (dTagName === 'p') {
                 // Some LEMON pages wrap plain paragraph text directly in <p> tags
                 // inside the div[id^="S"] wrapper (e.g. wiring diagram intro pages).
