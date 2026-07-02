@@ -856,30 +856,52 @@ app.get('/api/page', async (req, res) => {
                 if (src) blocks.push({ type: 'image', src });
               } else if (dTagName === 'table') {
                 flushParts();
-                const tableData = [];
-                $dNode.find('tr').each((i, row) => {
-                  const rowData = [];
-                  $(row).find('td, th').each((j, cell) => {
-                    const $cell = $(cell);
-                    const cellLinks = [];
-                    $cell.find('a').each((k, link) => {
-                      const $link = $(link);
-                      let href = $link.attr('href') || '';
-                      if (href.startsWith('/hyperlink/')) href = href.substring(11);
-                      else if (href.startsWith('hyperlink/')) href = href.substring(10);
-                      if (!href.startsWith('/')) href = '/' + href;
-                      cellLinks.push({ text: $link.text().trim(), href });
-                    });
-                    rowData.push({ 
-                      text: $cell.text().trim(),
-                      isHeader: cell.name.toLowerCase() === 'th',
-                      links: cellLinks
-                    });
+                // Check if this table is purely an image container (imageHolder pattern).
+                // LEMON pages often wrap images in a single-cell table with a div.imageHolder.
+                // We extract these as image blocks rather than tables to render them properly.
+                const imageCells = $dNode.find('div.imageHolder');
+                if (imageCells.length > 0 && $dNode.find('td').length === imageCells.length) {
+                  // All cells are image holders — extract as image blocks
+                  imageCells.each((k, holder) => {
+                    const $holder = $(holder);
+                    const caption = $holder.find('.imageCaption').first().text().trim();
+                    if (caption) blocks.push({ type: 'heading', text: caption });
+                    const src = $holder.find('img').first().attr('src');
+                    if (src) blocks.push({ type: 'image', src });
                   });
-                  if (rowData.length > 0) tableData.push(rowData);
-                });
-                if (tableData.length > 0) {
-                  blocks.push({ type: 'table', rows: tableData });
+                } else {
+                  const tableData = [];
+                  $dNode.find('tr').each((i, row) => {
+                    const rowData = [];
+                    $(row).find('td, th').each((j, cell) => {
+                      const $cell = $(cell);
+                      // If this cell contains an imageHolder, extract image separately
+                      const $imgHolder = $cell.find('div.imageHolder').first();
+                      if ($imgHolder.length > 0) {
+                        const src = $imgHolder.find('img').first().attr('src');
+                        if (src) blocks.push({ type: 'image', src });
+                        return; // skip adding this cell to tableData
+                      }
+                      const cellLinks = [];
+                      $cell.find('a').each((k, link) => {
+                        const $link = $(link);
+                        let href = $link.attr('href') || '';
+                        if (href.startsWith('/hyperlink/')) href = href.substring(11);
+                        else if (href.startsWith('hyperlink/')) href = href.substring(10);
+                        if (!href.startsWith('/')) href = '/' + href;
+                        cellLinks.push({ text: $link.text().trim(), href });
+                      });
+                      rowData.push({ 
+                        text: $cell.text().trim(),
+                        isHeader: cell.name.toLowerCase() === 'th',
+                        links: cellLinks
+                      });
+                    });
+                    if (rowData.length > 0) tableData.push(rowData);
+                  });
+                  if (tableData.length > 0) {
+                    blocks.push({ type: 'table', rows: tableData });
+                  }
                 }
               } else if (dTagName === 'p') {
                 // Some LEMON pages wrap plain paragraph text directly in <p> tags
@@ -1146,44 +1168,30 @@ app.get('/api/page', async (req, res) => {
             }
           } else if (tagName === 'table') {
             flushCurrentParts();
-            const tableData = [];
-            $node.find('tr').each((i, row) => {
-              const rowData = [];
-              $(row).find('td, th').each((j, cell) => {
-                const $cell = $(cell);
-                const cellLinks = [];
-                $cell.find('a').each((k, link) => {
-                  const $link = $(link);
-                  let href = $link.attr('href') || '';
-                  if (href.startsWith('/hyperlink/')) href = href.substring(11);
-                  else if (href.startsWith('hyperlink/')) href = href.substring(10);
-                  if (!href.startsWith('/')) href = '/' + href;
-                  cellLinks.push({ text: $link.text().trim(), href });
-                });
-                rowData.push({
-                  text: $cell.text().trim(),
-                  isHeader: cell.name.toLowerCase() === 'th',
-                  links: cellLinks
-                });
+            // Check if this table is purely an image container (imageHolder pattern).
+            const imageCells = $node.find('div.imageHolder');
+            if (imageCells.length > 0 && $node.find('td').length === imageCells.length) {
+              // All cells are image holders — extract as image blocks
+              imageCells.each((k, holder) => {
+                const $holder = $(holder);
+                const caption = $holder.find('.imageCaption').first().text().trim();
+                if (caption) blocks.push({ type: 'heading', text: caption });
+                const src = $holder.find('img').first().attr('src');
+                if (src) blocks.push({ type: 'image', src });
               });
-              if (rowData.length > 0) tableData.push(rowData);
-            });
-            if (tableData.length > 0) {
-              blocks.push({ type: 'table', rows: tableData });
-            }
-          } else if (tagName === 'div') {
-            // Some pages (e.g. Fluids quick-lookup tables) wrap their table in a
-            // div like <div id="fluid001" class="infoObjPrint"> that doesn't match
-            // div[id^="S"], so this fallback parser never recurses into it. Without
-            // this case, processInlineNode silently discarded the entire table.
-            flushCurrentParts();
-            const innerTable = $node.find('table').first();
-            if (innerTable.length > 0) {
+            } else {
               const tableData = [];
-              innerTable.find('tr').each((i, row) => {
+              $node.find('tr').each((i, row) => {
                 const rowData = [];
                 $(row).find('td, th').each((j, cell) => {
                   const $cell = $(cell);
+                  // If this cell contains an imageHolder, extract image separately
+                  const $imgHolder = $cell.find('div.imageHolder').first();
+                  if ($imgHolder.length > 0) {
+                    const src = $imgHolder.find('img').first().attr('src');
+                    if (src) blocks.push({ type: 'image', src });
+                    return; // skip adding this cell to tableData
+                  }
                   const cellLinks = [];
                   $cell.find('a').each((k, link) => {
                     const $link = $(link);
@@ -1203,6 +1211,60 @@ app.get('/api/page', async (req, res) => {
               });
               if (tableData.length > 0) {
                 blocks.push({ type: 'table', rows: tableData });
+              }
+            }
+          } else if (tagName === 'div') {
+            // Some pages (e.g. Fluids quick-lookup tables) wrap their table in a
+            // div like <div id="fluid001" class="infoObjPrint"> that doesn't match
+            // div[id^="S"], so this fallback parser never recurses into it. Without
+            // this case, processInlineNode silently discarded the entire table.
+            flushCurrentParts();
+            const innerTable = $node.find('table').first();
+            if (innerTable.length > 0) {
+              // Check if this table is purely an image container (imageHolder pattern).
+              const imageCells = innerTable.find('div.imageHolder');
+              if (imageCells.length > 0 && innerTable.find('td').length === imageCells.length) {
+                // All cells are image holders — extract as image blocks
+                imageCells.each((k, holder) => {
+                  const $holder = $(holder);
+                  const caption = $holder.find('.imageCaption').first().text().trim();
+                  if (caption) blocks.push({ type: 'heading', text: caption });
+                  const src = $holder.find('img').first().attr('src');
+                  if (src) blocks.push({ type: 'image', src });
+                });
+              } else {
+                const tableData = [];
+                innerTable.find('tr').each((i, row) => {
+                  const rowData = [];
+                  $(row).find('td, th').each((j, cell) => {
+                    const $cell = $(cell);
+                    // If this cell contains an imageHolder, extract image separately
+                    const $imgHolder = $cell.find('div.imageHolder').first();
+                    if ($imgHolder.length > 0) {
+                      const src = $imgHolder.find('img').first().attr('src');
+                      if (src) blocks.push({ type: 'image', src });
+                      return; // skip adding this cell to tableData
+                    }
+                    const cellLinks = [];
+                    $cell.find('a').each((k, link) => {
+                      const $link = $(link);
+                      let href = $link.attr('href') || '';
+                      if (href.startsWith('/hyperlink/')) href = href.substring(11);
+                      else if (href.startsWith('hyperlink/')) href = href.substring(10);
+                      if (!href.startsWith('/')) href = '/' + href;
+                      cellLinks.push({ text: $link.text().trim(), href });
+                    });
+                    rowData.push({
+                      text: $cell.text().trim(),
+                      isHeader: cell.name.toLowerCase() === 'th',
+                      links: cellLinks
+                    });
+                  });
+                  if (rowData.length > 0) tableData.push(rowData);
+                });
+                if (tableData.length > 0) {
+                  blocks.push({ type: 'table', rows: tableData });
+                }
               }
             } else {
               const text = $node.text().trim();
