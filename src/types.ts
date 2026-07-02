@@ -26,6 +26,7 @@ export type CategoryTreeLink = {
   title: string;
   icon: string | null; // e.g. "/icons/service-and-repair.svg", or null
   href: string;         // percent-encoded, RELATIVE to the URI that fetched this tree
+  _resolvedBase?: string;
 };
 
 export type CategoryTreeFolder = {
