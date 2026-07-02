@@ -45,7 +45,7 @@ function resolveHref(baseUri: string, href: string): string {
   if (href.startsWith('/')) {
     return href; // already absolute from site root, use as-is
   }
-  return baseUri + href; // relative, concatenate
+  return baseUri.split('#')[0] + href; // relative, concatenate
 }
 
 export default function TreeView({ 
