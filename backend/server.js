@@ -619,6 +619,9 @@ app.get('/api/page', async (req, res) => {
 
     const response = await fetch(targetUrl);
     if (!response.ok) {
+      if (response.status === 404) {
+        return res.status(200).json({ pageType: 'notfound', title: 'Page Not Found', blocks: [] });
+      }
       throw new Error(`lemon-server responded with status ${response.status}`);
     }
 
