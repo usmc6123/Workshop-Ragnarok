@@ -612,8 +612,14 @@ app.delete('/api/garage/:garageId', (req, res) => {
 // GET /api/page?uri=<uriPath>
 app.get('/api/page', async (req, res) => {
   try {
-    const rawSearch = req.url.slice(req.url.indexOf('?'));
-    const rawUri = new URLSearchParams(rawSearch).get('uri');
+    const rawSearch = req.url.slice(req.url.indexOf('?') + 1);
+    const rawUri = rawSearch.split('&').reduce((acc, part) => {
+      const eq = part.indexOf('=');
+      if (eq === -1) return acc;
+      const key = decodeURIComponent(part.slice(0, eq));
+      if (key === 'uri') acc = part.slice(eq + 1);
+      return acc;
+    }, null);
     if (!rawUri) {
       return res.status(400).json({ error: 'Missing uri parameter' });
     }
