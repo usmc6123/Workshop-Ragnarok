@@ -359,9 +359,8 @@ export const api = {
     try {
       // uri may already be URL-encoded (from resolveHref in TreeView).
       // Decode first to prevent double-encoding (%20 becoming %2520).
-      return await request<PageResponse>(
-        `/api/page?uri=${uri.split('/').map(seg => encodeURIComponent(decodeURIComponent(seg))).join('/')}`
-      );
+      console.log('[API] getPage uri:', uri);
+      return await request<PageResponse>(`/api/page?uri=${encodeURIComponent(uri)}`);
     } catch (err: any) {
       if (err instanceof ApiError && err.isOffline) {
         const cleanUri = uri.trim().replace(/\/$/, '');
