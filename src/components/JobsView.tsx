@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { Job, JobPart, Customer, CustomerVehicle } from '../types';
 import { api } from '../lib/api';
 import { 
   ClipboardList, Plus, Trash2, Edit2, Calendar, Milestone, 
   User, Phone, Mail, FileText, CheckCircle, Clock, AlertTriangle,
-  ArrowLeft, Package, DollarSign, PlusCircle, X, Wrench, FileEdit
+  ArrowLeft, Package, DollarSign, PlusCircle, X, Wrench, FileEdit,
+  Printer, Download
 } from 'lucide-react';
 
 interface JobsViewProps {
@@ -280,6 +284,233 @@ export default function JobsView({ refreshTrigger }: JobsViewProps) {
     }
   }, [vCustomerId, vehicles]);
 
+  const handlePrintInvoice = () => {
+    window.print();
+  };
+
+  const handleDownloadPDF = () => {
+    if (!selectedJob) return;
+
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'pt',
+      format: 'letter'
+    });
+
+    // Padded Ticket ID
+    const paddedId = selectedJob.id.toString().padStart(4, '0');
+
+    // Letterhead
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(20);
+    doc.setTextColor(0, 0, 0);
+    doc.text('WORKSHOP: RAGNARÖK', 40, 50);
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Automotive Service & Repair', 40, 65);
+
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(22);
+    doc.setTextColor(0, 0, 0);
+    doc.text('INVOICE', 570, 50, { align: 'right' });
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Ticket #${paddedId}`, 570, 65, { align: 'right' });
+    doc.text(new Date().toLocaleDateString(), 570, 78, { align: 'right' });
+
+    // Divider line
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(1);
+    doc.line(40, 95, 570, 95);
+
+    // Three-column Info Block
+    // Col 1: Bill To
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text('BILL TO', 40, 120);
+    
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.text(selectedJob.customer_name, 40, 135);
+    doc.setFont('Helvetica', 'normal');
+    doc.setTextColor(80, 80, 80);
+    let yOffset = 148;
+    if (selectedJob.customer_phone) {
+      doc.text(`Phone: ${selectedJob.customer_phone}`, 40, yOffset);
+      yOffset += 13;
+    }
+    if (selectedJob.customer_email) {
+      doc.text(`Email: ${selectedJob.customer_email}`, 40, yOffset);
+    }
+
+    // Col 2: Vehicle
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text('VEHICLE', 220, 120);
+
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`${selectedJob.vehicle_year} ${selectedJob.vehicle_make} ${selectedJob.vehicle_model}`, 220, 135);
+    doc.setFont('Helvetica', 'normal');
+    doc.setTextColor(80, 80, 80);
+    doc.text(`VIN: ${selectedJob.vehicle_vin || 'N/A'}`, 220, 148);
+    doc.text(`Odometer: ${selectedJob.vehicle_current_mileage?.toLocaleString() || '0'} mi`, 220, 161);
+
+    // Col 3: Service
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text('SERVICE', 400, 120);
+
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    const descLines = doc.splitTextToSize(selectedJob.description, 170);
+    doc.text(descLines, 400, 135);
+    
+    const descHeight = descLines.length * 12;
+    doc.setFont('Helvetica', 'normal');
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Status: ${selectedJob.status}`, 400, 135 + descHeight + 3);
+    doc.text(`Est. Completion: ${selectedJob.estimated_completion || 'N/A'}`, 400, 135 + descHeight + 16);
+
+    let currentY = 195;
+
+    // Diagnostics & Findings / Labor Performed
+    if (selectedJob.diagnosis_notes || selectedJob.labor_notes) {
+      doc.setDrawColor(230, 230, 230);
+      doc.line(40, currentY, 570, currentY);
+      currentY += 15;
+
+      if (selectedJob.diagnosis_notes) {
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(100, 100, 100);
+        doc.text('DIAGNOSTICS & FINDINGS', 40, currentY);
+        currentY += 12;
+
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(80, 80, 80);
+        const diagLines = doc.splitTextToSize(selectedJob.diagnosis_notes, 530);
+        doc.text(diagLines, 40, currentY);
+        currentY += (diagLines.length * 12) + 15;
+      }
+
+      if (selectedJob.labor_notes) {
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(100, 100, 100);
+        doc.text('LABOR PERFORMED / COMMENTS', 40, currentY);
+        currentY += 12;
+
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(80, 80, 80);
+        const laborLines = doc.splitTextToSize(selectedJob.labor_notes, 530);
+        doc.text(laborLines, 40, currentY);
+        currentY += (laborLines.length * 12) + 15;
+      }
+    }
+
+    // Parts Table Header
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text('PARTS & MATERIALS', 40, currentY);
+    currentY += 10;
+
+    const tableBody = jobParts.length === 0
+      ? [['No parts logged on this ticket.', '', '', '', '']]
+      : jobParts.map(part => [
+          part.part_name,
+          part.part_number || 'N/A',
+          part.quantity.toString(),
+          `$${part.unit_cost?.toFixed(2)}`,
+          `$${(part.quantity * part.unit_cost)?.toFixed(2)}`
+        ]);
+
+    autoTable(doc, {
+      startY: currentY,
+      margin: { left: 40, right: 40 },
+      head: [['Part/Item', 'Part #', 'Qty', 'Unit Price', 'Total']],
+      body: tableBody,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [60, 60, 60],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 9
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 6
+      },
+      columnStyles: {
+        2: { halign: 'right' },
+        3: { halign: 'right' },
+        4: { halign: 'right' }
+      },
+      didDrawPage: (data) => {
+        currentY = data.cursor ? data.cursor.y : currentY + 40;
+      }
+    });
+
+    currentY += 20;
+
+    if (currentY > 700) {
+      doc.addPage();
+      currentY = 50;
+    }
+
+    // Totals Block
+    const totalX = 570;
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Parts Subtotal:', totalX - 120, currentY);
+    doc.setFont('Helvetica', 'bold');
+    doc.text(`$${totalPartsCost.toFixed(2)}`, totalX, currentY, { align: 'right' });
+    currentY += 15;
+
+    doc.setFont('Helvetica', 'normal');
+    doc.text('Labor Cost:', totalX - 120, currentY);
+    doc.setFont('Helvetica', 'bold');
+    doc.text(`$${selectedJob.labor_cost?.toFixed(2) || '0.00'}`, totalX, currentY, { align: 'right' });
+    
+    currentY += 8;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(totalX - 120, currentY, totalX, currentY);
+    currentY += 15;
+
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(0, 0, 0);
+    doc.text('TOTAL DUE:', totalX - 120, currentY);
+    doc.text(`$${totalWorkOrderCost.toFixed(2)}`, totalX, currentY, { align: 'right' });
+
+    // Footer
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(
+      'Thank you for your business. Please contact us with any questions regarding this invoice.',
+      306,
+      740,
+      { align: 'center' }
+    );
+
+    doc.save(`Invoice-${paddedId}.pdf`);
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 py-6" id="jobs-view-container">
       
@@ -446,13 +677,165 @@ export default function JobsView({ refreshTrigger }: JobsViewProps) {
                     <p className="text-sm font-bold text-primary-theme">{selectedJob.description}</p>
                   </div>
 
-                  <button
-                    onClick={() => openJobModal(selectedJob)}
-                    className="border border-border-theme hover:border-primary-theme text-slate-350 px-3.5 py-1.5 rounded-lg text-xs uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer self-start"
-                  >
-                    <FileEdit className="w-3.5 h-3.5" />
-                    Edit Ticket Form
-                  </button>
+                  <div className="flex flex-wrap gap-2 self-start sm:self-center">
+                    <button
+                      onClick={() => openJobModal(selectedJob)}
+                      className="border border-border-theme hover:border-primary-theme text-slate-350 px-3.5 py-1.5 rounded-lg text-xs uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer self-start"
+                    >
+                      <FileEdit className="w-3.5 h-3.5" />
+                      Edit Ticket Form
+                    </button>
+                    <button
+                      onClick={handlePrintInvoice}
+                      className="border border-border-theme hover:border-primary-theme text-slate-350 px-3.5 py-1.5 rounded-lg text-xs uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer self-start"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      Print Invoice
+                    </button>
+                    <button
+                      onClick={handleDownloadPDF}
+                      className="border border-border-theme hover:border-primary-theme text-slate-350 px-3.5 py-1.5 rounded-lg text-xs uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer self-start"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Download PDF
+                    </button>
+                  </div>
+
+                  <style>{`
+                    @media print {
+                      body > *:not(#print-only-content) {
+                        display: none !important;
+                      }
+                      #print-only-content {
+                        display: block !important;
+                      }
+                      tr {
+                        page-break-inside: avoid !important;
+                      }
+                      table {
+                        page-break-inside: auto !important;
+                      }
+                    }
+                  `}</style>
+
+                  {createPortal(
+                    <div id="print-only-content" className="hidden bg-white text-black p-8 font-sans w-[8.5in] min-h-[11in]">
+                      {/* Letterhead */}
+                      <div className="flex justify-between items-start border-b border-gray-300 pb-6 mb-6">
+                        <div className="text-left">
+                          <h1 className="text-2xl font-bold tracking-wider text-black">WORKSHOP: RAGNARÖK</h1>
+                          <p className="text-sm text-gray-500 font-medium">Automotive Service & Repair</p>
+                        </div>
+                        <div className="text-right">
+                          <h2 className="text-2xl font-extrabold tracking-tight text-black">INVOICE</h2>
+                          <p className="text-sm font-mono text-gray-700 mt-1">Ticket #{selectedJob.id.toString().padStart(4, '0')}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{new Date().toLocaleDateString()}</p>
+                        </div>
+                      </div>
+
+                      {/* Three-column Info Block */}
+                      <div className="grid grid-cols-3 gap-6 pb-6 mb-6 border-b border-gray-200 text-xs text-left">
+                        {/* Bill To */}
+                        <div className="space-y-1">
+                          <h3 className="font-bold text-gray-700 uppercase tracking-wider mb-2">Bill To</h3>
+                          <p className="font-bold text-black">{selectedJob.customer_name}</p>
+                          {selectedJob.customer_phone && <p className="text-gray-600">Phone: {selectedJob.customer_phone}</p>}
+                          {selectedJob.customer_email && <p className="text-gray-600">Email: {selectedJob.customer_email}</p>}
+                        </div>
+                        
+                        {/* Vehicle */}
+                        <div className="space-y-1">
+                          <h3 className="font-bold text-gray-700 uppercase tracking-wider mb-2">Vehicle</h3>
+                          <p className="font-bold text-black">{selectedJob.vehicle_year} {selectedJob.vehicle_make} {selectedJob.vehicle_model}</p>
+                          <p className="text-gray-600">VIN: {selectedJob.vehicle_vin || 'N/A'}</p>
+                          <p className="text-gray-600">Odometer: {selectedJob.vehicle_current_mileage?.toLocaleString() || '0'} mi</p>
+                        </div>
+
+                        {/* Service */}
+                        <div className="space-y-1">
+                          <h3 className="font-bold text-gray-700 uppercase tracking-wider mb-2">Service</h3>
+                          <p className="font-bold text-black">{selectedJob.description}</p>
+                          <p className="text-gray-600">Status: {selectedJob.status}</p>
+                          <p className="text-gray-600">Est. Completion: {selectedJob.estimated_completion || 'N/A'}</p>
+                        </div>
+                      </div>
+
+                      {/* Diagnostics & Findings / Labor Performed sections */}
+                      {(selectedJob.diagnosis_notes || selectedJob.labor_notes) && (
+                        <div className="space-y-4 pb-6 mb-6 border-b border-gray-200 text-xs text-left">
+                          {selectedJob.diagnosis_notes && (
+                            <div>
+                              <h3 className="font-bold text-gray-700 uppercase tracking-wider mb-1">Diagnostics & Findings</h3>
+                              <p className="text-gray-600 leading-relaxed whitespace-pre-line bg-gray-50 p-3 rounded border border-gray-100">{selectedJob.diagnosis_notes}</p>
+                            </div>
+                          )}
+                          {selectedJob.labor_notes && (
+                            <div>
+                              <h3 className="font-bold text-gray-700 uppercase tracking-wider mb-1">Labor Performed / Comments</h3>
+                              <p className="text-gray-600 leading-relaxed whitespace-pre-line bg-gray-50 p-3 rounded border border-gray-100">{selectedJob.labor_notes}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Parts Table */}
+                      <div className="mb-6 text-left">
+                        <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Parts & Materials</h3>
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="border-b-2 border-gray-300 text-gray-700 font-bold">
+                              <th className="py-2">Part/Item</th>
+                              <th className="py-2">Part #</th>
+                              <th className="py-2 text-right">Qty</th>
+                              <th className="py-2 text-right">Unit Price</th>
+                              <th className="py-2 text-right">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 text-gray-800">
+                            {jobParts.length === 0 ? (
+                              <tr>
+                                <td colSpan={5} className="py-4 text-center text-gray-500 italic">No parts logged on this ticket.</td>
+                              </tr>
+                            ) : (
+                              jobParts.map((part) => (
+                                <tr key={part.id}>
+                                  <td className="py-2 font-semibold">{part.part_name}</td>
+                                  <td className="py-2 font-mono text-gray-600">{part.part_number || 'N/A'}</td>
+                                  <td className="py-2 text-right">{part.quantity}</td>
+                                  <td className="py-2 text-right">${part.unit_cost?.toFixed(2)}</td>
+                                  <td className="py-2 text-right font-semibold">${(part.quantity * part.unit_cost)?.toFixed(2)}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Totals */}
+                      <div className="flex justify-end mb-8 text-xs">
+                        <div className="w-64 space-y-2">
+                          <div className="flex justify-between text-gray-600">
+                            <span>Parts Subtotal:</span>
+                            <span className="font-mono">${totalPartsCost.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-gray-600 pb-2 border-b border-gray-200">
+                            <span>Labor Cost:</span>
+                            <span className="font-mono">${selectedJob.labor_cost?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="flex justify-between text-black font-bold text-sm pt-1">
+                            <span>TOTAL DUE:</span>
+                            <span className="font-mono">${totalWorkOrderCost.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Footer */}
+                      <div className="text-center text-gray-400 text-[10px] mt-12 pt-6 border-t border-gray-200">
+                        Thank you for your business. Please contact us with any questions regarding this invoice.
+                      </div>
+                    </div>,
+                    document.body
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
