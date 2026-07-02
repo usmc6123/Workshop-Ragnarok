@@ -617,14 +617,7 @@ app.get('/api/page', async (req, res) => {
       return res.status(400).json({ error: 'Missing uri parameter' });
     }
 
-    // Extract the raw encoded URI directly from req.url to avoid Express auto-decoding.
-    // req.query.uri is already decoded by Express, which turns %2F into literal /,
-    // breaking lemon-server paths that have / inside filenames (e.g. "installing/replacing").
-    // req.url preserves the original percent-encoding sent by the client.
-    const rawQuery = req.url.split('?')[1] || '';
-    const uriMatch = rawQuery.match(/(?:^|&)uri=([^&]*)/);
-    const encodedUri = uriMatch ? uriMatch[1] : encodeURIComponent(uri);
-    const targetUrl = `${LEMON_SERVER_URL}${encodedUri}`;
+    const targetUrl = `${LEMON_SERVER_URL}${uri}`;
     console.log(`Fetching from lemon-server: ${targetUrl}`);
 
     const response = await fetch(targetUrl);
