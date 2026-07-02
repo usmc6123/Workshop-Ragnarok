@@ -637,11 +637,14 @@ export default function ManualView({
         setLoadingActivePage(false);
       }
     } else {
-      if (node._resolvedBase) {
-        setSectionBaseUri(node._resolvedBase.split('#')[0]);
+      // If clicking a category node in the left panel, update sectionBaseUri
+      // so child hrefs resolve correctly against the deeper path
+      if (node.type === 'category' && resolvedUri) {
+        setSectionBaseUri(resolvedUri.split('#')[0]);
       }
+      // Selecting a leaf procedure document within the expanded tree
       setCurrentUri(resolvedUri);
-      setSidebarOpen(false);
+      setSidebarOpen(false); // Close mobile menu drawer
     }
   };
 

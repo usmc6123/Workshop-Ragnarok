@@ -153,7 +153,7 @@ export default function TreeView({
   const displayTree = filteredTreeData.tree;
 
   // Handle clicking leaf node links
-  const handleLinkClick = (node: CategoryTreeLink, resolvedUri: string, baseUri: string) => {
+  const handleLinkClick = (node: CategoryTreeLink, resolvedUri: string) => {
     if (!node.href || node.href.startsWith('#')) return; // Header label or anchor only
     
     // Check if it's a download or bundle link
@@ -171,7 +171,7 @@ export default function TreeView({
       return;
     }
 
-    onSelectUri(resolvedUri, { ...node, _resolvedBase: baseUri });
+    onSelectUri(resolvedUri, node);
   };
 
   // Recursive Tree Node Renderer
@@ -257,7 +257,7 @@ export default function TreeView({
       return (
         <button
           type="button"
-          onClick={() => handleLinkClick(node, resolvedUri, currentBaseUri)}
+          onClick={() => handleLinkClick(node, resolvedUri)}
           style={{ paddingLeft: `${depth * 12 + 16}px` }}
           className={`w-full flex items-center justify-between text-left py-1 pr-1.5 rounded transition duration-150 border-l-2 ${
             isCurrentActive 
