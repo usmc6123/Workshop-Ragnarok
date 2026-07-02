@@ -274,6 +274,7 @@ export default function ManualView({
   const [rightPaneBaseUri, setRightPaneBaseUri] = useState<string>('');
   const [uriHistory, setUriHistory] = useState<string[]>([]);
   const latestUriRef = useRef<string>('');
+  const lockedSectionBaseUriRef = useRef<string>('');
   
   // Right content panel states
   const [activePage, setActivePage] = useState<PageResponse | null>(null);
@@ -616,6 +617,7 @@ export default function ManualView({
           setSectionTree(response.tree || []);
           setSectionTitle(response.title || node.title);
           setSectionBaseUri(resolvedUri);
+          lockedSectionBaseUriRef.current = resolvedUri;
           setRightPaneTree(response.tree || []);
           setRightPaneBaseUri(resolvedUri);
           setNavLevel('section');
@@ -652,7 +654,7 @@ export default function ManualView({
 
   const displayTree = navLevel === 'root' ? (rootCategoryPage?.tree || []) : sectionTree;
   const displayTitle = navLevel === 'root' ? (rootCategoryPage?.title || vehicle.model) : sectionTitle;
-  const displayBaseUri = navLevel === 'root' ? vehicle.uriPath : sectionBaseUri.split('#')[0];
+  const displayBaseUri = navLevel === 'root' ? vehicle.uriPath : (lockedSectionBaseUriRef.current || sectionBaseUri).split('#')[0];
 
   return (
     <div className="flex flex-col flex-1 h-[calc(100vh-64px)] overflow-hidden bg-[#0a0a0f]" id="manual-workspace">
