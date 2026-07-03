@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.5
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Job, Appointment, Customer, Vehicle, DatabaseStats } from '../types';
 import { api } from '../lib/api';
 import { 
@@ -36,6 +36,7 @@ export default function DashboardView({
 
   // Universal Search States & Setup
   const [searchTerm, setSearchTerm] = useState('');
+  const latestSearchQueryRef = useRef('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -187,35 +188,47 @@ export default function DashboardView({
 
   const executeSearch = async (query: string) => {
     if (!query.trim()) return;
+    // Guards against a race condition: if the user keeps typing while an
+    // earlier search is still in flight, a second (more complete) search
+    // fires before the first one resolves. Without this check, whichever
+    // request happens to finish last wins — even if it's the stale, less-
+    // specific one — silently overwriting good results with wrong/empty
+    // ones a moment later. This ref always holds the most recently issued
+    // query, so a response only gets applied if it's still the latest one.
+    latestSearchQueryRef.current = query;
     setSearchLoading(true);
     setSearchError(null);
     setDropdownOpen(true);
     try {
-      // 1. Fetch all vehicles to support flexible client-side multi-token matching
-      const allVehicles = await api.getVehicles(undefined, undefined, undefined, 200);
-
-      // 2. Expand aliases
+      // 1. Expand aliases and split into vehicle vs. procedure tokens first,
+      // so we know what to actually search for before hitting the backend.
       const tokens = getExpandedTokens(query);
       if (tokens.length === 0) {
+        if (latestSearchQueryRef.current !== query) return;
         setVehicleResults([]);
         setProcedureResults([]);
         return;
       }
 
-      // 3. Split tokens into vehicle properties and procedure keywords
       const vehicleTokens = tokens.filter(t => !PROCEDURE_KEYWORDS.has(t));
       const procedureTokens = tokens.filter(t => PROCEDURE_KEYWORDS.has(t));
 
-      // 4. Find matching vehicles
-      const matchedVehs = allVehicles.filter(v => {
-        const searchFields = [v.make, v.model, v.year, v.engine].map(s => s.toLowerCase());
-        const tokensToMatch = vehicleTokens.length > 0 ? vehicleTokens : tokens;
-        return tokensToMatch.every(token => 
-          searchFields.some(field => field.includes(token))
-        );
-      });
+      // 2. Ask the backend to search across the full 304,923-vehicle
+      // database using these tokens, rather than fetching an arbitrary
+      // fixed batch and filtering client-side — with 300k+ vehicles, any
+      // fixed-size sample is very unlikely to contain the specific vehicle
+      // being searched for, which is why multi-word searches (e.g. "2008
+      // toyota") previously returned nothing once more than one token had
+      // to match. The backend's /api/vehicles?q= endpoint already does
+      // correct multi-token AND-matching across make/model/year/engine.
+      const searchTokens = vehicleTokens.length > 0 ? vehicleTokens : tokens;
+      const matchedVehs = await api.getVehicles(undefined, undefined, searchTokens.join(' '), 50);
 
-      // 5. Match procedures for each matched vehicle
+      // If a newer search has started since this one was issued, discard
+      // this response — it's stale, even though it just resolved.
+      if (latestSearchQueryRef.current !== query) return;
+
+      // 3. Match procedures for each matched vehicle
       const matchedProcs: { title: string; href: string; vehicle: Vehicle }[] = [];
       
       matchedVehs.forEach(v => {
@@ -239,12 +252,15 @@ export default function DashboardView({
       setVehicleResults(matchedVehs.slice(0, 8));
       setProcedureResults(matchedProcs.slice(0, 8));
     } catch (err: any) {
+      if (latestSearchQueryRef.current !== query) return;
       console.error('Search error:', err);
       setSearchError(err.message || 'Search lookup failed.');
       setVehicleResults([]);
       setProcedureResults([]);
     } finally {
-      setSearchLoading(false);
+      if (latestSearchQueryRef.current === query) {
+        setSearchLoading(false);
+      }
     }
   };
 
