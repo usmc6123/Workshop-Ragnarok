@@ -33,6 +33,7 @@ export default function App() {
   console.log('APP RENDERING');
   const [view, setView] = useState<ViewType>('dashboard');
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [initialSelectedVehicleId, setInitialSelectedVehicleId] = useState<number | null>(null);
   
   // Create state to toggle Boot/Splash Screen once per session
   const [showSplash, setShowSplash] = useState(() => {
@@ -310,14 +311,19 @@ export default function App() {
               )}
 
               {view === 'customers' && (
-                <CustomersView onNavigateToTab={(tab) => setView(tab as any)} />
+                <CustomersView onNavigateToTab={(tab, vehicleId) => {
+                  setView(tab as any);
+                  setInitialSelectedVehicleId(vehicleId ?? null);
+                }} />
               )}
 
               {view === 'vehicles' && (
-                <VehiclesView 
-                  onNavigateToManualWithSearch={(make, year, model) => handleNavBrowse(`${make} ${model}`)} 
+                <VehiclesView
+                  onNavigateToManualWithSearch={(make, year, model) => handleNavBrowse(`${make} ${model}`)}
                   onSelectVehicle={handleSelectVehicle}
                   refreshTrigger={refreshTrigger}
+                  initialSelectedVehicleId={initialSelectedVehicleId}
+                  onInitialVehicleConsumed={() => setInitialSelectedVehicleId(null)}
                 />
               )}
 

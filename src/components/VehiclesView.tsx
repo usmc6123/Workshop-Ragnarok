@@ -10,9 +10,17 @@ interface VehiclesViewProps {
   onNavigateToManualWithSearch: (make: string, year: string, model: string) => void;
   onSelectVehicle?: (vehicle: Vehicle) => void;
   refreshTrigger: number;
+  initialSelectedVehicleId?: number | null;
+  onInitialVehicleConsumed?: () => void;
 }
 
-export default function VehiclesView({ onNavigateToManualWithSearch, onSelectVehicle, refreshTrigger }: VehiclesViewProps) {
+export default function VehiclesView({
+  onNavigateToManualWithSearch,
+  onSelectVehicle,
+  refreshTrigger,
+  initialSelectedVehicleId,
+  onInitialVehicleConsumed,
+}: VehiclesViewProps) {
   const [vehicles, setVehicles] = useState<CustomerVehicle[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<CustomerVehicle | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -159,6 +167,20 @@ export default function VehiclesView({ onNavigateToManualWithSearch, onSelectVeh
     fetchServiceHistory(vehicle.id);
     fetchSavedManuals(vehicle.id);
   };
+
+  // Jumps straight to a specific vehicle's detail view instead of the
+  // inventory list when arriving here via a deep link (e.g. clicking a
+  // vehicle card on a customer's profile). Runs once the vehicle list has
+  // finished loading, since the target vehicle needs to exist in `vehicles` first.
+  useEffect(() => {
+    if (initialSelectedVehicleId && vehicles.length > 0) {
+      const target = vehicles.find((v) => v.id === initialSelectedVehicleId);
+      if (target) {
+        handleSelectVehicle(target);
+        onInitialVehicleConsumed?.();
+      }
+    }
+  }, [initialSelectedVehicleId, vehicles]);
 
   // Opens a Google Shopping search pre-filled with this vehicle + part name
   // — a legitimate, free way to get a real local price comparison sourced

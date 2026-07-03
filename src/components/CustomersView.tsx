@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 interface CustomersViewProps {
-  onNavigateToTab: (tab: string) => void;
+  onNavigateToTab: (tab: string, vehicleId?: number) => void;
   onSelectVehicleForManual?: (vehicle: any) => void;
 }
 
@@ -369,7 +369,7 @@ export default function CustomersView({ onNavigateToTab }: CustomersViewProps) {
                     {customerVehicles.map((v) => (
                       <div
                         key={v.id}
-                        onClick={() => onNavigateToTab('vehicles')}
+                        onClick={() => onNavigateToTab('vehicles', v.id)}
                         className="bg-bg-theme/40 hover:bg-bg-theme border border-border-theme hover:border-slate-700 p-4 rounded-xl cursor-pointer transition space-y-2 flex flex-col justify-between"
                       >
                         <div>
