@@ -201,6 +201,19 @@ try {
     )
   `);
 
+  // Create Job Photos Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS job_photos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      photo_data TEXT,
+      caption TEXT,
+      photo_type TEXT,
+      uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Migrate columns for shop_settings table
   const shopSettingsCols = [
     { name: 'user_id', type: 'INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE' },
@@ -234,7 +247,8 @@ try {
     'service_history',
     'appointments',
     'garage',
-    'vehicle_manuals'
+    'vehicle_manuals',
+    'job_photos'
   ];
 
   for (const tableName of targetTables) {
@@ -2073,6 +2087,65 @@ app.delete('/api/jobs/:jobId/parts/:partId', (req, res) => {
   } catch (error) {
     console.error('Error removing job part:', error);
     res.status(500).json({ error: 'Database error removing job part' });
+  }
+});
+
+// --- JOB PHOTOS ---
+app.get('/api/jobs/:jobId/photos', (req, res) => {
+  try {
+    const { jobId } = req.params;
+
+    // Verify job ownership
+    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(jobId, req.user.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+
+    const stmt = db.prepare('SELECT * FROM job_photos WHERE job_id = ? AND user_id = ? ORDER BY uploaded_at ASC');
+    const rows = stmt.all(jobId, req.user.id);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching job photos:', error);
+    res.status(500).json({ error: 'Database error fetching job photos' });
+  }
+});
+
+app.post('/api/jobs/:jobId/photos', (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { photo_data, caption, photo_type } = req.body;
+
+    if (!photo_data) {
+      return res.status(400).json({ error: 'Photo data is required' });
+    }
+
+    // Verify job ownership
+    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(jobId, req.user.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+
+    const stmt = db.prepare(`
+      INSERT INTO job_photos (job_id, photo_data, caption, photo_type, user_id)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    const info = stmt.run(jobId, photo_data, caption || '', photo_type || 'before', req.user.id);
+    const inserted = db.prepare('SELECT * FROM job_photos WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
+    res.json(inserted);
+  } catch (error) {
+    console.error('Error adding job photo:', error);
+    res.status(500).json({ error: 'Database error adding job photo' });
+  }
+});
+
+app.delete('/api/jobs/:jobId/photos/:photoId', (req, res) => {
+  try {
+    const { photoId } = req.params;
+    
+    // Deleting is scoped to user_id for safety
+    const stmt = db.prepare('DELETE FROM job_photos WHERE id = ? AND user_id = ?');
+    const info = stmt.run(photoId, req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Job photo not found' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error removing job photo:', error);
+    res.status(500).json({ error: 'Database error removing job photo' });
   }
 });
 

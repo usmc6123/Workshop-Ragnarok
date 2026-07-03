@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Job, JobPart, Customer, CustomerVehicle } from '../types';
+import { Job, JobPart, Customer, CustomerVehicle, JobPhoto } from '../types';
 import { api } from '../lib/api';
 import { 
   ClipboardList, Plus, Trash2, Edit2, Calendar, Milestone, 
   User, Phone, Mail, FileText, CheckCircle, Clock, AlertTriangle,
   ArrowLeft, Package, DollarSign, PlusCircle, X, Wrench, FileEdit,
-  Printer, Download, Search
+  Printer, Download, Search, Image, Upload
 } from 'lucide-react';
 
 interface JobsViewProps {
@@ -21,6 +21,52 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [jobParts, setJobParts] = useState<JobPart[]>([]);
+  const [jobPhotos, setJobPhotos] = useState<JobPhoto[]>([]);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<Record<string, boolean>>({});
+  const [selectedLightboxPhoto, setSelectedLightboxPhoto] = useState<JobPhoto | null>(null);
+  const [photoCaptions, setPhotoCaptions] = useState<Record<string, string>>({ before: '', after: '' });
+
+  const compressImage = (file: File, maxDimension = 1200): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new window.Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(event.target?.result as string);
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+          resolve(dataUrl);
+        };
+        img.onerror = (err) => reject(err);
+      };
+      reader.onerror = (err) => reject(err);
+    });
+  };
   
   // Association lists for the forms
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -115,9 +161,22 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
     }
   };
 
+  const fetchJobPhotos = async (jobId: number) => {
+    setPhotosLoading(true);
+    try {
+      const data = await api.getJobPhotos(jobId);
+      setJobPhotos(data);
+    } catch (err) {
+      console.error('Failed to load job photos:', err);
+    } finally {
+      setPhotosLoading(false);
+    }
+  };
+
   const handleSelectJob = (job: Job) => {
     setSelectedJob(job);
     fetchJobParts(job.id);
+    fetchJobPhotos(job.id);
   };
 
   // Jumps straight to a specific ticket's detail view instead of the queue
@@ -333,6 +392,42 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       fetchJobParts(selectedJob.id);
     } catch (err: any) {
       alert(err.message || 'Failed to delete part item.');
+    }
+  };
+
+  const handleUploadPhoto = async (e: React.ChangeEvent<HTMLInputElement>, photoType: 'before' | 'after') => {
+    if (!selectedJob) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingPhoto((prev) => ({ ...prev, [photoType]: true }));
+    try {
+      const compressedDataUrl = await compressImage(file);
+      const caption = photoCaptions[photoType] || '';
+      await api.addJobPhoto(selectedJob.id, {
+        photo_data: compressedDataUrl,
+        caption,
+        photo_type: photoType
+      });
+      setPhotoCaptions((prev) => ({ ...prev, [photoType]: '' }));
+      await fetchJobPhotos(selectedJob.id);
+    } catch (err: any) {
+      alert(err.message || 'Failed to upload photo.');
+    } finally {
+      setIsUploadingPhoto((prev) => ({ ...prev, [photoType]: false }));
+      e.target.value = '';
+    }
+  };
+
+  const handleDeletePhoto = async (photoId: number) => {
+    if (!selectedJob) return;
+    if (!window.confirm('Delete this photo attachment?')) return;
+
+    try {
+      await api.deleteJobPhoto(selectedJob.id, photoId);
+      await fetchJobPhotos(selectedJob.id);
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete photo.');
     }
   };
 
@@ -608,6 +703,85 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
     });
 
     currentY += 20;
+
+    // Attached Repair Photos in PDF
+    if (jobPhotos.length > 0) {
+      if (currentY > 580) {
+        doc.addPage();
+        currentY = 50;
+      }
+
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text('ATTACHED REPAIR PHOTOS', 40, currentY);
+      currentY += 15;
+
+      let colIdx = 0;
+      const photoWidth = 150;
+      const photoHeight = 100;
+      const colWidth = 150;
+      const colGap = 40;
+
+      for (const photo of jobPhotos) {
+        if (currentY + 140 > 750) {
+          doc.addPage();
+          currentY = 50;
+          colIdx = 0;
+        }
+
+        const colX = 40 + (colIdx * (colWidth + colGap));
+
+        // Background box
+        doc.setDrawColor(220, 220, 220);
+        doc.setFillColor(249, 249, 249);
+        doc.rect(colX - 4, currentY - 4, colWidth + 8, photoHeight + 32, 'FD');
+
+        try {
+          doc.addImage(photo.photo_data, 'JPEG', colX, currentY, photoWidth, photoHeight);
+        } catch (imgErr) {
+          console.error('Error rendering image in PDF:', imgErr);
+          doc.setDrawColor(200, 200, 200);
+          doc.rect(colX, currentY, photoWidth, photoHeight);
+          doc.setFont('Helvetica', 'italic');
+          doc.setFontSize(8);
+          doc.setTextColor(150, 150, 150);
+          doc.text('[Image Error]', colX + 45, currentY + 50);
+        }
+
+        // Photo Type
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(7);
+        if (photo.photo_type === 'before') {
+          doc.setTextColor(217, 119, 6); // amber
+          doc.text('BEFORE REPAIR', colX, currentY + photoHeight + 10);
+        } else {
+          doc.setTextColor(22, 163, 74); // green
+          doc.text('AFTER REPAIR', colX, currentY + photoHeight + 10);
+        }
+
+        // Caption
+        if (photo.caption) {
+          doc.setFont('Helvetica', 'normal');
+          doc.setFontSize(7);
+          doc.setTextColor(80, 80, 80);
+          const captionLines = doc.splitTextToSize(photo.caption, photoWidth);
+          doc.text(captionLines[0], colX, currentY + photoHeight + 20);
+        }
+
+        colIdx++;
+        if (colIdx >= 3) {
+          colIdx = 0;
+          currentY += photoHeight + 45;
+        }
+      }
+
+      if (colIdx > 0) {
+        currentY += photoHeight + 45;
+      }
+    }
+
+    currentY += 10;
 
     if (currentY > 680) {
       doc.addPage();
@@ -974,6 +1148,36 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                         </table>
                       </div>
 
+                      {/* Printable Invoice Photos section */}
+                      {jobPhotos.length > 0 && (
+                        <div style={{ marginBottom: '16px', pageBreakInside: 'avoid' }}>
+                          <div style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#555', marginBottom: '6px', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>
+                            Attached Repair Photos
+                          </div>
+                          
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                            {jobPhotos.map((photo) => (
+                              <div key={photo.id} style={{ border: '1px solid #ddd', borderRadius: '4px', padding: '4px', backgroundColor: '#f9f9f9', display: 'flex', flexDirection: 'column', gap: '4px', pageBreakInside: 'avoid' }}>
+                                <img 
+                                  src={photo.photo_data} 
+                                  alt={photo.caption || 'Repair photo'} 
+                                  style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '2px' }} 
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div style={{ fontSize: '8px', fontWeight: 600, textTransform: 'uppercase', color: photo.photo_type === 'before' ? '#d97706' : '#16a34a' }}>
+                                  {photo.photo_type === 'before' ? 'Before Repair' : 'After Repair'}
+                                </div>
+                                {photo.caption && (
+                                  <div style={{ fontSize: '8px', color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {photo.caption}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Totals */}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px', fontSize: '10.5px' }}>
                         <div style={{ width: '220px' }}>
@@ -1193,6 +1397,168 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                     </table>
                   </div>
                 )}
+              </div>
+
+              {/* Photos Section */}
+              <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-6 space-y-6 shadow-xl">
+                <div className="border-b border-border-theme pb-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <Image className="w-4.5 h-4.5 text-primary-theme" />
+                    Ticket Photo Attachments / Repair Records
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Before Repairs Sub-group */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-amber-500 font-mono">
+                        Before Repairs
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-500">
+                        {jobPhotos.filter(p => p.photo_type === 'before').length} photos
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Before caption (optional)..."
+                          value={photoCaptions.before}
+                          onChange={(e) => setPhotoCaptions((prev) => ({ ...prev, before: e.target.value }))}
+                          className="flex-1 bg-surface-theme border border-[#2b2d37] rounded px-2.5 py-1 text-xs text-slate-202 focus:outline-none focus:border-primary-theme"
+                        />
+                        <label className="flex items-center gap-1.5 bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-bold px-3 py-1 rounded text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap">
+                          <Upload className="w-3 h-3" />
+                          <span>{isUploadingPhoto.before ? 'Uploading...' : 'Add Photo'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleUploadPhoto(e, 'before')}
+                            disabled={isUploadingPhoto.before}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    {photosLoading ? (
+                      <div className="text-center py-4 text-slate-500 text-xs">Loading...</div>
+                    ) : jobPhotos.filter(p => p.photo_type === 'before').length === 0 ? (
+                      <div className="text-center py-6 border border-dashed border-border-theme text-slate-500 text-xs rounded-lg select-none">
+                        No before photos uploaded.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {jobPhotos.filter(p => p.photo_type === 'before').map((photo) => (
+                          <div key={photo.id} className="relative group bg-bg-theme border border-border-theme rounded-lg overflow-hidden aspect-video cursor-pointer">
+                            <img
+                              src={photo.photo_data}
+                              alt={photo.caption}
+                              className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
+                              onClick={() => setSelectedLightboxPhoto(photo)}
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition duration-200 flex flex-col justify-between p-1.5">
+                              <div className="flex justify-end">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeletePhoto(photo.id);
+                                  }}
+                                  className="text-white hover:text-red-400 bg-black/40 hover:bg-black/60 p-1 rounded transition"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                              {photo.caption && (
+                                <p className="text-[9px] text-slate-200 truncate bg-black/40 px-1 py-0.5 rounded leading-tight">
+                                  {photo.caption}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* After Repairs Sub-group */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-green-400 font-mono">
+                        After Repairs
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-500">
+                        {jobPhotos.filter(p => p.photo_type === 'after').length} photos
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="After caption (optional)..."
+                          value={photoCaptions.after}
+                          onChange={(e) => setPhotoCaptions((prev) => ({ ...prev, after: e.target.value }))}
+                          className="flex-1 bg-surface-theme border border-[#2b2d37] rounded px-2.5 py-1 text-xs text-slate-202 focus:outline-none focus:border-primary-theme"
+                        />
+                        <label className="flex items-center gap-1.5 bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-bold px-3 py-1 rounded text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap">
+                          <Upload className="w-3 h-3" />
+                          <span>{isUploadingPhoto.after ? 'Uploading...' : 'Add Photo'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleUploadPhoto(e, 'after')}
+                            disabled={isUploadingPhoto.after}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    {photosLoading ? (
+                      <div className="text-center py-4 text-slate-500 text-xs">Loading...</div>
+                    ) : jobPhotos.filter(p => p.photo_type === 'after').length === 0 ? (
+                      <div className="text-center py-6 border border-dashed border-border-theme text-slate-500 text-xs rounded-lg select-none">
+                        No after photos uploaded.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {jobPhotos.filter(p => p.photo_type === 'after').map((photo) => (
+                          <div key={photo.id} className="relative group bg-bg-theme border border-border-theme rounded-lg overflow-hidden aspect-video cursor-pointer">
+                            <img
+                              src={photo.photo_data}
+                              alt={photo.caption}
+                              className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
+                              onClick={() => setSelectedLightboxPhoto(photo)}
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition duration-200 flex flex-col justify-between p-1.5">
+                              <div className="flex justify-end">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeletePhoto(photo.id);
+                                  }}
+                                  className="text-white hover:text-red-400 bg-black/40 hover:bg-black/60 p-1 rounded transition"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                              {photo.caption && (
+                                <p className="text-[9px] text-slate-200 truncate bg-black/40 px-1 py-0.5 rounded leading-tight">
+                                  {photo.caption}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1421,6 +1787,37 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
             </form>
           </div>
         </div>
+      )}
+
+      {selectedLightboxPhoto && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 animate-fade-in"
+          onClick={() => setSelectedLightboxPhoto(null)}
+        >
+          <button 
+            className="absolute top-4 right-4 text-white/70 hover:text-white p-2 transition-all"
+            onClick={() => setSelectedLightboxPhoto(null)}
+          >
+            <X className="w-8 h-8" />
+          </button>
+          <div className="max-w-4xl max-h-[85vh] flex flex-col items-center gap-4" onClick={(e) => e.stopPropagation()}>
+            <img 
+              src={selectedLightboxPhoto.photo_data} 
+              alt={selectedLightboxPhoto.caption || 'Ticket photo'} 
+              className="max-w-full max-h-[75vh] object-contain rounded-lg border border-border-theme/40 shadow-2xl"
+              referrerPolicy="no-referrer"
+            />
+            {selectedLightboxPhoto.caption && (
+              <div className="bg-[#13141a]/90 border border-[#2b2d37] rounded-lg px-4 py-2 max-w-lg text-center shadow-xl">
+                <p className="text-sm font-semibold text-slate-200">{selectedLightboxPhoto.caption}</p>
+                <span className="text-[10px] font-mono text-slate-500 uppercase mt-1 block">
+                  {selectedLightboxPhoto.photo_type === 'before' ? 'Before Repairs' : 'After Repairs'} • {selectedLightboxPhoto.uploaded_at ? new Date(selectedLightboxPhoto.uploaded_at).toLocaleString() : ''}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
       )}
 
     </div>

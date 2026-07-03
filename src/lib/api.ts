@@ -5,7 +5,7 @@
 
 import { 
   Vehicle, GarageItem, PageResponse, Customer, CustomerVehicle, 
-  ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual, ShopSettings
+  ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual, ShopSettings, JobPhoto
 } from '../types';
 
 import { 
@@ -133,6 +133,22 @@ function getSimulatedJobParts(): JobPart[] {
 
 function saveSimulatedJobParts(list: JobPart[]) {
   localStorage.setItem(SIMULATED_JOB_PARTS_KEY, JSON.stringify(list));
+}
+
+const SIMULATED_JOB_PHOTOS_KEY = 'ragnarok_simulated_job_photos_v1';
+
+function getSimulatedJobPhotos(): JobPhoto[] {
+  const saved = localStorage.getItem(SIMULATED_JOB_PHOTOS_KEY);
+  if (saved) {
+    try { return JSON.parse(saved); } catch {}
+  }
+  const initial: JobPhoto[] = [];
+  localStorage.setItem(SIMULATED_JOB_PHOTOS_KEY, JSON.stringify(initial));
+  return initial;
+}
+
+function saveSimulatedJobPhotos(list: JobPhoto[]) {
+  localStorage.setItem(SIMULATED_JOB_PHOTOS_KEY, JSON.stringify(list));
 }
 
 function getSimulatedAppointments(): Appointment[] {
@@ -905,6 +921,52 @@ export const api = {
       if (err instanceof ApiError && err.isOffline) {
         const list = getSimulatedJobParts();
         saveSimulatedJobParts(list.filter(p => p.id !== partId));
+        return { success: true };
+      }
+      throw err;
+    }
+  },
+
+  // --- JOB PHOTOS ---
+  async getJobPhotos(jobId: number): Promise<JobPhoto[]> {
+    try {
+      return await request<JobPhoto[]>(`/api/jobs/${jobId}/photos`);
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return getSimulatedJobPhotos().filter(p => p.job_id === jobId);
+      }
+      throw err;
+    }
+  },
+
+  async addJobPhoto(jobId: number, photo: Omit<JobPhoto, 'id' | 'job_id'>): Promise<JobPhoto> {
+    try {
+      return await request<JobPhoto>(`/api/jobs/${jobId}/photos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(photo)
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        const list = getSimulatedJobPhotos();
+        const nextId = list.reduce((max, p) => Math.max(max, p.id), 0) + 1;
+        const newItem: JobPhoto = { ...photo, id: nextId, job_id: jobId };
+        saveSimulatedJobPhotos([...list, newItem]);
+        return newItem;
+      }
+      throw err;
+    }
+  },
+
+  async deleteJobPhoto(jobId: number, photoId: number): Promise<{ success: boolean }> {
+    try {
+      return await request<{ success: boolean }>(`/api/jobs/${jobId}/photos/${photoId}`, {
+        method: 'DELETE'
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        const list = getSimulatedJobPhotos();
+        saveSimulatedJobPhotos(list.filter(p => p.id !== photoId));
         return { success: true };
       }
       throw err;

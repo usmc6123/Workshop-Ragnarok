@@ -168,6 +168,15 @@ export interface JobPart {
   notes: string;
 }
 
+export interface JobPhoto {
+  id: number;
+  job_id: number;
+  photo_data: string;
+  caption: string;
+  photo_type: 'before' | 'after';
+  uploaded_at?: string;
+}
+
 export interface Appointment {
   id: number;
   title: string;
