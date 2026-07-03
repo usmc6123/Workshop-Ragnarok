@@ -46,6 +46,8 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
   const [jStatus, setJStatus] = useState<Job['status']>('Pending');
   const [jEstCompletion, setJEstCompletion] = useState('');
   const [jLaborCost, setJLaborCost] = useState('0');
+  const [hoursWorked, setHoursWorked] = useState('');
+  const [shopSettings, setShopSettings] = useState<any>(null);
 
   // Part Form state
   const [partName, setPartName] = useState('');
@@ -58,7 +60,17 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
   useEffect(() => {
     fetchJobs();
     fetchFormAssociations();
+    fetchShopSettings();
   }, [refreshTrigger]);
+
+  const fetchShopSettings = async () => {
+    try {
+      const data = await api.getShopSettings();
+      setShopSettings(data);
+    } catch (err) {
+      console.error('Failed to load shop settings:', err);
+    }
+  };
 
   const fetchJobs = async () => {
     setLoading(true);
@@ -170,6 +182,11 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       setJStatus(job.status);
       setJEstCompletion(job.estimated_completion);
       setJLaborCost(job.labor_cost?.toString() || '0');
+      if (shopSettings && shopSettings.default_labor_rate > 0 && job.labor_cost) {
+        setHoursWorked((job.labor_cost / shopSettings.default_labor_rate).toFixed(2));
+      } else {
+        setHoursWorked('');
+      }
     } else {
       setEditingJob(null);
       setVCustomerId(customers.length > 0 ? customers[0].id.toString() : '');
@@ -180,6 +197,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       setJStatus('Pending');
       setJEstCompletion(new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0]); // 2 days default
       setJLaborCost('0');
+      setHoursWorked('');
     }
     setIsJobModalOpen(true);
   };
@@ -244,19 +262,27 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
   // own opted-in product feeds — legitimate and free, unlike scraping each
   // store directly. Remembers the shop's zip code in localStorage after the
   // first search so it doesn't need to be re-entered every time.
-  const handleFindNearbyPrice = () => {
+  const handleFindNearbyPrice = async () => {
     if (!selectedJob) return;
     if (!partName.trim()) {
       alert('Enter a part name first, then click Find Nearby Price.');
       return;
     }
 
-    let zip = localStorage.getItem('workshop_shop_zip') || '';
-    if (!zip) {
-      const entered = window.prompt('Enter your zip code for local price search (saved for next time):');
-      if (!entered || !entered.trim()) return;
-      zip = entered.trim();
-      localStorage.setItem('workshop_shop_zip', zip);
+    let zip = '';
+    try {
+      const settings = await api.getShopSettings();
+      zip = settings.zip_code || '';
+      if (!zip) {
+        const entered = window.prompt('Enter your zip code for local price search (saved for next time):');
+        if (!entered || !entered.trim()) return;
+        zip = entered.trim();
+        settings.zip_code = zip;
+        await api.updateShopSettings(settings);
+      }
+    } catch (err) {
+      console.error('Failed to resolve zip code from shop settings:', err);
+      zip = localStorage.getItem('workshop_shop_zip') || '90210';
     }
 
     const vehicleParts = [
@@ -313,6 +339,15 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
   // Calculations
   const totalPartsCost = jobParts.reduce((sum, item) => sum + (item.quantity * item.unit_cost), 0);
   const totalWorkOrderCost = totalPartsCost + (selectedJob?.labor_cost || 0);
+  const taxRatePercent = shopSettings?.tax_rate || 0;
+  const taxAmount = (totalPartsCost + (selectedJob?.labor_cost || 0)) * (taxRatePercent / 100);
+  const grandTotal = totalPartsCost + (selectedJob?.labor_cost || 0) + taxAmount;
+
+  const shopName = shopSettings?.shop_name || 'WORKSHOP: RAGNARÖK';
+  const tagline = shopSettings?.shop_name ? '' : 'Automotive Service & Repair';
+  const shopAddress = shopSettings?.shop_address || '';
+  const shopPhone = shopSettings?.shop_phone || '';
+  const shopLogo = shopSettings?.shop_logo_url || '';
 
   // Filter list by status tabs and search keywords
   const filteredJobs = jobs.filter(j => {
@@ -348,16 +383,76 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
     // Padded Ticket ID
     const paddedId = selectedJob.id.toString().padStart(4, '0');
 
-    // Letterhead
-    doc.setFont('Helvetica', 'bold');
-    doc.setFontSize(20);
-    doc.setTextColor(0, 0, 0);
-    doc.text('WORKSHOP: RAGNARÖK', 40, 50);
+    // Load Dynamic Shop Settings
+    const shopName = shopSettings?.shop_name || 'WORKSHOP: RAGNARÖK';
+    const tagline = shopSettings?.shop_name ? '' : 'Automotive Service & Repair';
+    const shopAddress = shopSettings?.shop_address || '';
+    const shopPhone = shopSettings?.shop_phone || '';
+    const shopLogo = shopSettings?.shop_logo_url || '';
+    const taxRatePercent = shopSettings?.tax_rate || 0;
 
-    doc.setFont('Helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text('Automotive Service & Repair', 40, 65);
+    // Header Drawing with Logo
+    if (shopLogo) {
+      try {
+        doc.addImage(shopLogo, 'JPEG', 40, 30, 45, 45);
+        
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(18);
+        doc.setTextColor(0, 0, 0);
+        doc.text(shopName, 95, 45);
+
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(100, 100, 100);
+        let currentHeaderY = 57;
+        if (tagline) {
+          doc.text(tagline, 95, currentHeaderY);
+          currentHeaderY += 12;
+        }
+        const contactLine = [shopAddress, shopPhone].filter(Boolean).join(' | ');
+        if (contactLine) {
+          doc.text(contactLine, 95, currentHeaderY);
+        }
+      } catch (err) {
+        console.error('Error drawing logo image on PDF:', err);
+        // Fallback layout without logo
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(20);
+        doc.setTextColor(0, 0, 0);
+        doc.text(shopName, 40, 50);
+
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(100, 100, 100);
+        let currentHeaderY = 64;
+        if (tagline) {
+          doc.text(tagline, 40, currentHeaderY);
+          currentHeaderY += 12;
+        }
+        const contactLine = [shopAddress, shopPhone].filter(Boolean).join(' | ');
+        if (contactLine) {
+          doc.text(contactLine, 40, currentHeaderY);
+        }
+      }
+    } else {
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor(0, 0, 0);
+      doc.text(shopName, 40, 50);
+
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      let currentHeaderY = 64;
+      if (tagline) {
+        doc.text(tagline, 40, currentHeaderY);
+        currentHeaderY += 12;
+      }
+      const contactLine = [shopAddress, shopPhone].filter(Boolean).join(' | ');
+      if (contactLine) {
+        doc.text(contactLine, 40, currentHeaderY);
+      }
+    }
 
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(22);
@@ -514,7 +609,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
 
     currentY += 20;
 
-    if (currentY > 700) {
+    if (currentY > 680) {
       doc.addPage();
       currentY = 50;
     }
@@ -533,7 +628,17 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
     doc.text('Labor Cost:', totalX - 120, currentY);
     doc.setFont('Helvetica', 'bold');
     doc.text(`$${selectedJob.labor_cost?.toFixed(2) || '0.00'}`, totalX, currentY, { align: 'right' });
-    
+    currentY += 15;
+
+    // Calculate dynamic Tax rate and Grand Total
+    const taxAmount = (totalPartsCost + (selectedJob?.labor_cost || 0)) * (taxRatePercent / 100);
+    const grandTotal = totalPartsCost + (selectedJob?.labor_cost || 0) + taxAmount;
+
+    doc.setFont('Helvetica', 'normal');
+    doc.text(`Tax (${taxRatePercent.toFixed(2)}%):`, totalX - 120, currentY);
+    doc.setFont('Helvetica', 'bold');
+    doc.text(`$${taxAmount.toFixed(2)}`, totalX, currentY, { align: 'right' });
+
     currentY += 8;
     doc.setDrawColor(200, 200, 200);
     doc.line(totalX - 120, currentY, totalX, currentY);
@@ -543,7 +648,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
     doc.text('TOTAL DUE:', totalX - 120, currentY);
-    doc.text(`$${totalWorkOrderCost.toFixed(2)}`, totalX, currentY, { align: 'right' });
+    doc.text(`$${grandTotal.toFixed(2)}`, totalX, currentY, { align: 'right' });
 
     // Footer
     doc.setFont('Helvetica', 'normal');
@@ -770,9 +875,24 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                     <div id="print-only-content" style={{ display: 'none', backgroundColor: '#fff', color: '#000', fontFamily: 'Arial, Helvetica, sans-serif', padding: '0.4in 0.5in', maxWidth: '8in', margin: '0 auto', boxSizing: 'border-box' }}>
                       {/* Letterhead */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid #000', paddingBottom: '14px', marginBottom: '20px' }}>
-                        <div>
-                          <div style={{ fontSize: '20px', fontWeight: 900, letterSpacing: '0.02em' }}>WORKSHOP: RAGNARÖK</div>
-                          <div style={{ fontSize: '10px', color: '#555', marginTop: '2px' }}>Automotive Service &amp; Repair</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          {shopLogo && (
+                            <img 
+                              src={shopLogo} 
+                              alt="Logo" 
+                              style={{ width: '50px', height: '50px', objectFit: 'contain' }} 
+                              referrerPolicy="no-referrer"
+                            />
+                          )}
+                          <div>
+                            <div style={{ fontSize: '20px', fontWeight: 900, letterSpacing: '0.02em' }}>{shopName}</div>
+                            {tagline && <div style={{ fontSize: '10px', color: '#555', marginTop: '2px' }}>{tagline}</div>}
+                            {(shopAddress || shopPhone) && (
+                              <div style={{ fontSize: '9px', color: '#666', marginTop: '2px' }}>
+                                {[shopAddress, shopPhone].filter(Boolean).join(' | ')}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '0.04em' }}>INVOICE</div>
@@ -861,13 +981,17 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                             <span>Parts Subtotal:</span>
                             <span>${totalPartsCost.toFixed(2)}</span>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555', paddingBottom: '6px', marginBottom: '6px', borderBottom: '1px solid #ccc' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555', marginBottom: '4px' }}>
                             <span>Labor Cost:</span>
                             <span>${selectedJob.labor_cost?.toFixed(2) || '0.00'}</span>
                           </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555', paddingBottom: '6px', marginBottom: '6px', borderBottom: '1px solid #ccc' }}>
+                            <span>Tax ({taxRatePercent.toFixed(2)}%):</span>
+                            <span>${taxAmount.toFixed(2)}</span>
+                          </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: '13px' }}>
                             <span>TOTAL DUE:</span>
-                            <span>${totalWorkOrderCost.toFixed(2)}</span>
+                            <span>${grandTotal.toFixed(2)}</span>
                           </div>
                         </div>
                       </div>
@@ -936,10 +1060,18 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                   </h3>
                   <div className="flex flex-wrap gap-2 text-xs font-mono font-bold">
                     <span className="text-slate-350 bg-bg-theme border border-border-theme px-3 py-1 rounded">
-                      Parts Total: ${totalPartsCost.toFixed(2)}
+                      Parts: ${totalPartsCost.toFixed(2)}
                     </span>
+                    <span className="text-slate-350 bg-bg-theme border border-border-theme px-3 py-1 rounded">
+                      Labor: ${selectedJob.labor_cost?.toFixed(2) || '0.00'}
+                    </span>
+                    {taxRatePercent > 0 && (
+                      <span className="text-amber-500 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded">
+                        Tax ({taxRatePercent.toFixed(2)}%): ${taxAmount.toFixed(2)}
+                      </span>
+                    )}
                     <span className="text-green-400 bg-green-500/10 border border-green-500/20 px-3 py-1 rounded">
-                      Work Order Total: ${totalWorkOrderCost.toFixed(2)}
+                      Grand Total: ${grandTotal.toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -1195,7 +1327,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-4 text-left">
+              <div className={`grid ${shopSettings && shopSettings.default_labor_rate > 0 ? 'grid-cols-4' : 'grid-cols-3'} gap-4 text-left`}>
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Job Status</label>
                   <select
@@ -1218,6 +1350,26 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                     className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3 py-2.5 focus:border-primary-theme focus:outline-none"
                   />
                 </div>
+                {shopSettings && shopSettings.default_labor_rate > 0 && (
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Hours Worked</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 2.5"
+                      value={hoursWorked}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setHoursWorked(val);
+                        const hrs = parseFloat(val);
+                        if (!isNaN(hrs) && hrs >= 0) {
+                          const calculatedCost = hrs * shopSettings.default_labor_rate;
+                          setJLaborCost(calculatedCost.toFixed(2));
+                        }
+                      }}
+                      className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3 py-2.5 focus:border-primary-theme focus:outline-none font-mono"
+                    />
+                  </div>
+                )}
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Labor Cost ($)</label>
                   <input

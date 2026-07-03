@@ -187,19 +187,28 @@ export default function VehiclesView({
   // from retailers' own opted-in product feeds, rather than scraping each
   // store directly. Remembers the shop's zip code in localStorage after the
   // first search (shared with the same feature on the Jobs ticket view).
-  const handleFindNearbyParts = () => {
+  const handleFindNearbyParts = async () => {
     if (!selectedVehicle) return;
     if (!findPartName.trim()) {
       alert('Enter a part name first, then click Find Nearby Price.');
       return;
     }
 
-    let zip = localStorage.getItem('workshop_shop_zip') || '';
-    if (!zip) {
-      const entered = window.prompt('Enter your zip code for local price search (saved for next time):');
-      if (!entered || !entered.trim()) return;
-      zip = entered.trim();
-      localStorage.setItem('workshop_shop_zip', zip);
+    let zip = '';
+    try {
+      const settings = await api.getShopSettings();
+      zip = settings.zip_code || '';
+      if (!zip) {
+        const entered = window.prompt('Enter your zip code for local price search (saved for next time):');
+        if (!entered || !entered.trim()) return;
+        zip = entered.trim();
+        settings.zip_code = zip;
+        await api.updateShopSettings(settings);
+      }
+    } catch (err) {
+      console.error('Failed to resolve zip code from shop settings:', err);
+      // Fallback
+      zip = localStorage.getItem('workshop_shop_zip') || '90210';
     }
 
     const vehicleParts = [

@@ -5,7 +5,7 @@
 
 import { 
   Vehicle, GarageItem, PageResponse, Customer, CustomerVehicle, 
-  ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual
+  ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual, ShopSettings
 } from '../types';
 
 import { 
@@ -162,6 +162,30 @@ function getSimulatedGarage(): GarageItem[] {
 
 function saveSimulatedGarage(list: GarageItem[]) {
   localStorage.setItem(SIMULATED_GARAGE_KEY, JSON.stringify(list));
+}
+
+const SIMULATED_SHOP_SETTINGS_KEY = 'ragnarok_simulated_shop_settings_v1';
+
+function getSimulatedShopSettings(): ShopSettings {
+  const saved = localStorage.getItem(SIMULATED_SHOP_SETTINGS_KEY);
+  if (saved) {
+    try { return JSON.parse(saved); } catch {}
+  }
+  const initial: ShopSettings = {
+    shop_name: '',
+    shop_address: '',
+    shop_phone: '',
+    shop_logo_url: '',
+    tax_rate: 0,
+    default_labor_rate: 0,
+    zip_code: ''
+  };
+  localStorage.setItem(SIMULATED_SHOP_SETTINGS_KEY, JSON.stringify(initial));
+  return initial;
+}
+
+function saveSimulatedShopSettings(settings: ShopSettings) {
+  localStorage.setItem(SIMULATED_SHOP_SETTINGS_KEY, JSON.stringify(settings));
 }
 
 export function getApiBase(): string {
@@ -1031,6 +1055,34 @@ export const api = {
         const list = getSimulatedVehicleManuals();
         saveSimulatedVehicleManuals(list.filter(m => m.id !== id));
         return;
+      }
+      throw err;
+    }
+  },
+
+  // --- SHOP SETTINGS ---
+  async getShopSettings(): Promise<ShopSettings> {
+    try {
+      return await request<ShopSettings>('/api/shop-settings');
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return getSimulatedShopSettings();
+      }
+      throw err;
+    }
+  },
+
+  async updateShopSettings(settings: ShopSettings): Promise<ShopSettings> {
+    try {
+      return await request<ShopSettings>('/api/shop-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        saveSimulatedShopSettings(settings);
+        return settings;
       }
       throw err;
     }

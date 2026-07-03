@@ -206,3 +206,16 @@ export interface VehicleManual {
   manualEngine: string;
   savedAt: string;
 }
+
+export interface ShopSettings {
+  id?: number;
+  user_id?: number;
+  shop_name: string;
+  shop_address: string;
+  shop_phone: string;
+  shop_logo_url: string;
+  tax_rate: number;
+  default_labor_rate: number;
+  zip_code: string;
+}
+

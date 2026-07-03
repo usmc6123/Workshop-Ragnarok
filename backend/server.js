@@ -186,6 +186,45 @@ try {
     )
   `);
 
+  // Create Shop Settings Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS shop_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      shop_name TEXT,
+      shop_address TEXT,
+      shop_phone TEXT,
+      shop_logo_url TEXT,
+      tax_rate REAL DEFAULT 0,
+      default_labor_rate REAL DEFAULT 0,
+      zip_code TEXT
+    )
+  `);
+
+  // Migrate columns for shop_settings table
+  const shopSettingsCols = [
+    { name: 'user_id', type: 'INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE' },
+    { name: 'shop_name', type: 'TEXT' },
+    { name: 'shop_address', type: 'TEXT' },
+    { name: 'shop_phone', type: 'TEXT' },
+    { name: 'shop_logo_url', type: 'TEXT' },
+    { name: 'tax_rate', type: 'REAL DEFAULT 0' },
+    { name: 'default_labor_rate', type: 'REAL DEFAULT 0' },
+    { name: 'zip_code', type: 'TEXT' }
+  ];
+  try {
+    const columns = db.prepare('PRAGMA table_info(shop_settings)').all();
+    for (const col of shopSettingsCols) {
+      const hasCol = columns.some(c => c.name === col.name);
+      if (!hasCol) {
+        db.exec(`ALTER TABLE shop_settings ADD COLUMN ${col.name} ${col.type}`);
+        console.log(`Successfully migrated shop_settings to include ${col.name} column.`);
+      }
+    }
+  } catch (err) {
+    console.error('Error migrating shop_settings columns:', err);
+  }
+
   // Migration: Ensure user_id column exists in all target tables
   const targetTables = [
     'customers',
@@ -1427,6 +1466,54 @@ app.get('/api/stats', (req, res) => {
   } catch (error) {
     console.error('Error fetching database stats:', error);
     res.status(500).json({ error: 'Database error fetching stats' });
+  }
+});
+
+// --- SHOP SETTINGS ---
+app.get('/api/shop-settings', (req, res) => {
+  try {
+    let settings = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(req.user.id);
+    if (!settings) {
+      // Create a default empty shop settings row for the user
+      const stmt = db.prepare(`
+        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(req.user.id, '', '', '', '', 0, 0, '');
+      settings = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(req.user.id);
+    }
+    res.json(settings);
+  } catch (error) {
+    console.error('Error fetching shop settings:', error);
+    res.status(500).json({ error: 'Database error fetching shop settings' });
+  }
+});
+
+app.put('/api/shop-settings', (req, res) => {
+  try {
+    const { shop_name, shop_address, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code } = req.body;
+    
+    const settings = db.prepare('SELECT id FROM shop_settings WHERE user_id = ?').get(req.user.id);
+    if (!settings) {
+      const stmt = db.prepare(`
+        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(req.user.id, shop_name || '', shop_address || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '');
+    } else {
+      const stmt = db.prepare(`
+        UPDATE shop_settings
+        SET shop_name = ?, shop_address = ?, shop_phone = ?, shop_logo_url = ?, tax_rate = ?, default_labor_rate = ?, zip_code = ?
+        WHERE user_id = ?
+      `);
+      stmt.run(shop_name || '', shop_address || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', req.user.id);
+    }
+    
+    const updated = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(req.user.id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating shop settings:', error);
+    res.status(500).json({ error: 'Database error updating shop settings' });
   }
 });
 
