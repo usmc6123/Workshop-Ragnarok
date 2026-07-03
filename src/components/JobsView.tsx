@@ -8,14 +8,16 @@ import {
   ClipboardList, Plus, Trash2, Edit2, Calendar, Milestone, 
   User, Phone, Mail, FileText, CheckCircle, Clock, AlertTriangle,
   ArrowLeft, Package, DollarSign, PlusCircle, X, Wrench, FileEdit,
-  Printer, Download
+  Printer, Download, Search
 } from 'lucide-react';
 
 interface JobsViewProps {
   refreshTrigger: number;
+  initialSelectedJobId?: number | null;
+  onInitialJobConsumed?: () => void;
 }
 
-export default function JobsView({ refreshTrigger }: JobsViewProps) {
+export default function JobsView({ refreshTrigger, initialSelectedJobId, onInitialJobConsumed }: JobsViewProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [jobParts, setJobParts] = useState<JobPart[]>([]);
@@ -105,6 +107,20 @@ export default function JobsView({ refreshTrigger }: JobsViewProps) {
     setSelectedJob(job);
     fetchJobParts(job.id);
   };
+
+  // Jumps straight to a specific ticket's detail view instead of the queue
+  // list when arriving here via a deep link (e.g. clicking a service
+  // history entry on a customer's profile). Runs once the job list has
+  // finished loading, since the target job needs to exist in `jobs` first.
+  useEffect(() => {
+    if (initialSelectedJobId && jobs.length > 0) {
+      const target = jobs.find((j) => j.id === initialSelectedJobId);
+      if (target) {
+        handleSelectJob(target);
+        onInitialJobConsumed?.();
+      }
+    }
+  }, [initialSelectedJobId, jobs]);
 
   // Status Badge Helper
   const renderStatusBadge = (status: Job['status']) => {
@@ -223,6 +239,38 @@ export default function JobsView({ refreshTrigger }: JobsViewProps) {
   };
 
   // Parts handlers
+  // Opens a Google Shopping search pre-filled with this vehicle + part name,
+  // so the user gets a real local price comparison sourced from retailers'
+  // own opted-in product feeds — legitimate and free, unlike scraping each
+  // store directly. Remembers the shop's zip code in localStorage after the
+  // first search so it doesn't need to be re-entered every time.
+  const handleFindNearbyPrice = () => {
+    if (!selectedJob) return;
+    if (!partName.trim()) {
+      alert('Enter a part name first, then click Find Nearby Price.');
+      return;
+    }
+
+    let zip = localStorage.getItem('workshop_shop_zip') || '';
+    if (!zip) {
+      const entered = window.prompt('Enter your zip code for local price search (saved for next time):');
+      if (!entered || !entered.trim()) return;
+      zip = entered.trim();
+      localStorage.setItem('workshop_shop_zip', zip);
+    }
+
+    const vehicleParts = [
+      selectedJob.vehicle_year,
+      selectedJob.vehicle_make,
+      selectedJob.vehicle_model,
+      selectedJob.vehicle_engine,
+    ].filter(Boolean).join(' ');
+
+    const query = `${vehicleParts} ${partName}`.replace(/\s+/g, ' ').trim();
+    const url = `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(query)}&near=${encodeURIComponent(zip)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   const handleAddJobPart = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedJob) return;
@@ -719,91 +767,86 @@ export default function JobsView({ refreshTrigger }: JobsViewProps) {
                   `}</style>
 
                   {createPortal(
-                    <div id="print-only-content" className="hidden bg-white text-black p-8 font-sans w-[8.5in] min-h-[11in]">
+                    <div id="print-only-content" style={{ display: 'none', backgroundColor: '#fff', color: '#000', fontFamily: 'Arial, Helvetica, sans-serif', padding: '0.4in 0.5in', maxWidth: '8in', margin: '0 auto', boxSizing: 'border-box' }}>
                       {/* Letterhead */}
-                      <div className="flex justify-between items-start border-b border-gray-300 pb-6 mb-6">
-                        <div className="text-left">
-                          <h1 className="text-2xl font-bold tracking-wider text-black">WORKSHOP: RAGNARÖK</h1>
-                          <p className="text-sm text-gray-500 font-medium">Automotive Service & Repair</p>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid #000', paddingBottom: '14px', marginBottom: '20px' }}>
+                        <div>
+                          <div style={{ fontSize: '20px', fontWeight: 900, letterSpacing: '0.02em' }}>WORKSHOP: RAGNARÖK</div>
+                          <div style={{ fontSize: '10px', color: '#555', marginTop: '2px' }}>Automotive Service &amp; Repair</div>
                         </div>
-                        <div className="text-right">
-                          <h2 className="text-2xl font-extrabold tracking-tight text-black">INVOICE</h2>
-                          <p className="text-sm font-mono text-gray-700 mt-1">Ticket #{selectedJob.id.toString().padStart(4, '0')}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">{new Date().toLocaleDateString()}</p>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '0.04em' }}>INVOICE</div>
+                          <div style={{ fontSize: '11px', color: '#333', marginTop: '2px' }}>Ticket #{selectedJob.id.toString().padStart(4, '0')}</div>
+                          <div style={{ fontSize: '10px', color: '#555' }}>{new Date().toLocaleDateString()}</div>
                         </div>
                       </div>
 
                       {/* Three-column Info Block */}
-                      <div className="grid grid-cols-3 gap-6 pb-6 mb-6 border-b border-gray-200 text-xs text-left">
-                        {/* Bill To */}
-                        <div className="space-y-1">
-                          <h3 className="font-bold text-gray-700 uppercase tracking-wider mb-2">Bill To</h3>
-                          <p className="font-bold text-black">{selectedJob.customer_name}</p>
-                          {selectedJob.customer_phone && <p className="text-gray-600">Phone: {selectedJob.customer_phone}</p>}
-                          {selectedJob.customer_email && <p className="text-gray-600">Email: {selectedJob.customer_email}</p>}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', paddingBottom: '16px', marginBottom: '16px', borderBottom: '1px solid #ccc', fontSize: '10.5px' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#555', marginBottom: '4px' }}>Bill To</div>
+                          <div style={{ fontWeight: 700 }}>{selectedJob.customer_name}</div>
+                          {selectedJob.customer_phone && <div style={{ color: '#555' }}>Phone: {selectedJob.customer_phone}</div>}
+                          {selectedJob.customer_email && <div style={{ color: '#555', wordBreak: 'break-word' }}>Email: {selectedJob.customer_email}</div>}
                         </div>
-                        
-                        {/* Vehicle */}
-                        <div className="space-y-1">
-                          <h3 className="font-bold text-gray-700 uppercase tracking-wider mb-2">Vehicle</h3>
-                          <p className="font-bold text-black">{selectedJob.vehicle_year} {selectedJob.vehicle_make} {selectedJob.vehicle_model}</p>
-                          <p className="text-gray-600">VIN: {selectedJob.vehicle_vin || 'N/A'}</p>
-                          <p className="text-gray-600">Odometer: {selectedJob.vehicle_current_mileage?.toLocaleString() || '0'} mi</p>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#555', marginBottom: '4px' }}>Vehicle</div>
+                          <div style={{ fontWeight: 700 }}>{selectedJob.vehicle_year} {selectedJob.vehicle_make} {selectedJob.vehicle_model}</div>
+                          <div style={{ color: '#555' }}>VIN: {selectedJob.vehicle_vin || 'N/A'}</div>
+                          <div style={{ color: '#555' }}>Odometer: {selectedJob.vehicle_current_mileage?.toLocaleString() || '0'} mi</div>
                         </div>
-
-                        {/* Service */}
-                        <div className="space-y-1">
-                          <h3 className="font-bold text-gray-700 uppercase tracking-wider mb-2">Service</h3>
-                          <p className="font-bold text-black">{selectedJob.description}</p>
-                          <p className="text-gray-600">Status: {selectedJob.status}</p>
-                          <p className="text-gray-600">Est. Completion: {selectedJob.estimated_completion || 'N/A'}</p>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#555', marginBottom: '4px' }}>Service</div>
+                          <div style={{ fontWeight: 700 }}>{selectedJob.description}</div>
+                          <div style={{ color: '#555' }}>Status: {selectedJob.status}</div>
+                          <div style={{ color: '#555' }}>Est. Completion: {selectedJob.estimated_completion || 'N/A'}</div>
                         </div>
                       </div>
 
                       {/* Diagnostics & Findings / Labor Performed sections */}
                       {(selectedJob.diagnosis_notes || selectedJob.labor_notes) && (
-                        <div className="space-y-4 pb-6 mb-6 border-b border-gray-200 text-xs text-left">
+                        <div style={{ paddingBottom: '16px', marginBottom: '16px', borderBottom: '1px solid #ccc', fontSize: '10.5px' }}>
                           {selectedJob.diagnosis_notes && (
-                            <div>
-                              <h3 className="font-bold text-gray-700 uppercase tracking-wider mb-1">Diagnostics & Findings</h3>
-                              <p className="text-gray-600 leading-relaxed whitespace-pre-line bg-gray-50 p-3 rounded border border-gray-100">{selectedJob.diagnosis_notes}</p>
+                            <div style={{ marginBottom: '8px' }}>
+                              <div style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#555', marginBottom: '2px' }}>Diagnostics &amp; Findings</div>
+                              <div style={{ color: '#333', lineHeight: 1.5 }}>{selectedJob.diagnosis_notes}</div>
                             </div>
                           )}
                           {selectedJob.labor_notes && (
                             <div>
-                              <h3 className="font-bold text-gray-700 uppercase tracking-wider mb-1">Labor Performed / Comments</h3>
-                              <p className="text-gray-600 leading-relaxed whitespace-pre-line bg-gray-50 p-3 rounded border border-gray-100">{selectedJob.labor_notes}</p>
+                              <div style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#555', marginBottom: '2px' }}>Labor Performed / Comments</div>
+                              <div style={{ color: '#333', lineHeight: 1.5 }}>{selectedJob.labor_notes}</div>
                             </div>
                           )}
                         </div>
                       )}
 
                       {/* Parts Table */}
-                      <div className="mb-6 text-left">
-                        <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Parts & Materials</h3>
-                        <table className="w-full text-left border-collapse text-xs">
+                      <div style={{ marginBottom: '16px' }}>
+                        <div style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#555', marginBottom: '6px' }}>Parts &amp; Materials</div>
+                        <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: '10px' }}>
                           <thead>
-                            <tr className="border-b-2 border-gray-300 text-gray-700 font-bold">
-                              <th className="py-2">Part/Item</th>
-                              <th className="py-2">Part #</th>
-                              <th className="py-2 text-right">Qty</th>
-                              <th className="py-2 text-right">Unit Price</th>
-                              <th className="py-2 text-right">Total</th>
+                            <tr>
+                              <th style={{ borderBottom: '2px solid #000', padding: '5px 4px', textAlign: 'left', width: '32%' }}>Part/Item</th>
+                              <th style={{ borderBottom: '2px solid #000', padding: '5px 4px', textAlign: 'left', width: '20%' }}>Part #</th>
+                              <th style={{ borderBottom: '2px solid #000', padding: '5px 4px', textAlign: 'right', width: '14%' }}>Qty</th>
+                              <th style={{ borderBottom: '2px solid #000', padding: '5px 4px', textAlign: 'right', width: '17%' }}>Unit Price</th>
+                              <th style={{ borderBottom: '2px solid #000', padding: '5px 4px', textAlign: 'right', width: '17%' }}>Total</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-gray-200 text-gray-800">
+                          <tbody>
                             {jobParts.length === 0 ? (
                               <tr>
-                                <td colSpan={5} className="py-4 text-center text-gray-500 italic">No parts logged on this ticket.</td>
+                                <td colSpan={5} style={{ padding: '10px 4px', textAlign: 'center', color: '#777', fontStyle: 'italic', borderBottom: '1px solid #ccc' }}>No parts logged on this ticket.</td>
                               </tr>
                             ) : (
                               jobParts.map((part) => (
                                 <tr key={part.id}>
-                                  <td className="py-2 font-semibold">{part.part_name}</td>
-                                  <td className="py-2 font-mono text-gray-600">{part.part_number || 'N/A'}</td>
-                                  <td className="py-2 text-right">{part.quantity}</td>
-                                  <td className="py-2 text-right">${part.unit_cost?.toFixed(2)}</td>
-                                  <td className="py-2 text-right font-semibold">${(part.quantity * part.unit_cost)?.toFixed(2)}</td>
+                                  <td style={{ padding: '5px 4px', borderBottom: '1px solid #ccc', fontWeight: 600, wordWrap: 'break-word' }}>{part.part_name}</td>
+                                  <td style={{ padding: '5px 4px', borderBottom: '1px solid #ccc', color: '#555', wordWrap: 'break-word' }}>{part.part_number || 'N/A'}</td>
+                                  <td style={{ padding: '5px 4px', borderBottom: '1px solid #ccc', textAlign: 'right' }}>{part.quantity}</td>
+                                  <td style={{ padding: '5px 4px', borderBottom: '1px solid #ccc', textAlign: 'right' }}>${part.unit_cost?.toFixed(2)}</td>
+                                  <td style={{ padding: '5px 4px', borderBottom: '1px solid #ccc', textAlign: 'right', fontWeight: 700 }}>${(part.quantity * part.unit_cost)?.toFixed(2)}</td>
                                 </tr>
                               ))
                             )}
@@ -812,25 +855,25 @@ export default function JobsView({ refreshTrigger }: JobsViewProps) {
                       </div>
 
                       {/* Totals */}
-                      <div className="flex justify-end mb-8 text-xs">
-                        <div className="w-64 space-y-2">
-                          <div className="flex justify-between text-gray-600">
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px', fontSize: '10.5px' }}>
+                        <div style={{ width: '220px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555', marginBottom: '4px' }}>
                             <span>Parts Subtotal:</span>
-                            <span className="font-mono">${totalPartsCost.toFixed(2)}</span>
+                            <span>${totalPartsCost.toFixed(2)}</span>
                           </div>
-                          <div className="flex justify-between text-gray-600 pb-2 border-b border-gray-200">
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555', paddingBottom: '6px', marginBottom: '6px', borderBottom: '1px solid #ccc' }}>
                             <span>Labor Cost:</span>
-                            <span className="font-mono">${selectedJob.labor_cost?.toFixed(2) || '0.00'}</span>
+                            <span>${selectedJob.labor_cost?.toFixed(2) || '0.00'}</span>
                           </div>
-                          <div className="flex justify-between text-black font-bold text-sm pt-1">
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: '13px' }}>
                             <span>TOTAL DUE:</span>
-                            <span className="font-mono">${totalWorkOrderCost.toFixed(2)}</span>
+                            <span>${totalWorkOrderCost.toFixed(2)}</span>
                           </div>
                         </div>
                       </div>
 
                       {/* Footer */}
-                      <div className="text-center text-gray-400 text-[10px] mt-12 pt-6 border-t border-gray-200">
+                      <div style={{ textAlign: 'center', color: '#999', fontSize: '9px', marginTop: '20px', paddingTop: '12px', borderTop: '1px solid #ccc' }}>
                         Thank you for your business. Please contact us with any questions regarding this invoice.
                       </div>
                     </div>,
@@ -903,9 +946,20 @@ export default function JobsView({ refreshTrigger }: JobsViewProps) {
 
                 {/* Sub part additions form */}
                 <form onSubmit={handleAddJobPart} className="bg-bg-theme border border-border-theme rounded-lg p-4 space-y-3">
-                  <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-black block">
-                    Add Part / Fluid Expense Item
-                  </span>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-black block">
+                      Add Part / Fluid Expense Item
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleFindNearbyPrice}
+                      className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-primary-theme hover:text-white bg-primary-theme/10 hover:bg-primary-theme border border-primary-theme/30 rounded px-2.5 py-1 transition cursor-pointer"
+                      title="Search Google Shopping for this part on this vehicle, near your zip code"
+                    >
+                      <Search className="w-3 h-3" />
+                      Find Nearby Price
+                    </button>
+                  </div>
                   <div className="grid grid-cols-2 md:grid-cols-12 gap-3 items-end">
                     <div className="md:col-span-3 space-y-1">
                       <label className="block text-[9px] font-mono text-slate-500 uppercase">Part Name</label>
