@@ -440,7 +440,10 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
 
   const shopName = shopSettings?.shop_name || 'WORKSHOP: RAGNARÖK';
   const tagline = shopSettings?.shop_name ? '' : 'Automotive Service & Repair';
-  const shopAddress = shopSettings?.shop_address || '';
+  const shopAddress = [
+    shopSettings?.shop_address,
+    [shopSettings?.shop_city, shopSettings?.shop_state].filter(Boolean).join(', ')
+  ].filter(Boolean).join(', ');
   const shopPhone = shopSettings?.shop_phone || '';
   const shopLogo = shopSettings?.shop_logo_url || '';
 
@@ -481,7 +484,10 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
     // Load Dynamic Shop Settings
     const shopName = shopSettings?.shop_name || 'WORKSHOP: RAGNARÖK';
     const tagline = shopSettings?.shop_name ? '' : 'Automotive Service & Repair';
-    const shopAddress = shopSettings?.shop_address || '';
+    const shopAddress = [
+      shopSettings?.shop_address,
+      [shopSettings?.shop_city, shopSettings?.shop_state].filter(Boolean).join(', ')
+    ].filter(Boolean).join(', ');
     const shopPhone = shopSettings?.shop_phone || '';
     const shopLogo = shopSettings?.shop_logo_url || '';
     const taxRatePercent = shopSettings?.tax_rate || 0;

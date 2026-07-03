@@ -193,6 +193,8 @@ try {
       user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
       shop_name TEXT,
       shop_address TEXT,
+      shop_city TEXT,
+      shop_state TEXT,
       shop_phone TEXT,
       shop_logo_url TEXT,
       tax_rate REAL DEFAULT 0,
@@ -219,6 +221,8 @@ try {
     { name: 'user_id', type: 'INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE' },
     { name: 'shop_name', type: 'TEXT' },
     { name: 'shop_address', type: 'TEXT' },
+    { name: 'shop_city', type: 'TEXT' },
+    { name: 'shop_state', type: 'TEXT' },
     { name: 'shop_phone', type: 'TEXT' },
     { name: 'shop_logo_url', type: 'TEXT' },
     { name: 'tax_rate', type: 'REAL DEFAULT 0' },
@@ -1490,10 +1494,10 @@ app.get('/api/shop-settings', (req, res) => {
     if (!settings) {
       // Create a default empty shop settings row for the user
       const stmt = db.prepare(`
-        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(req.user.id, '', '', '', '', 0, 0, '');
+      stmt.run(req.user.id, '', '', '', '', '', '', 0, 0, '');
       settings = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(req.user.id);
     }
     res.json(settings);
@@ -1505,22 +1509,22 @@ app.get('/api/shop-settings', (req, res) => {
 
 app.put('/api/shop-settings', (req, res) => {
   try {
-    const { shop_name, shop_address, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code } = req.body;
+    const { shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code } = req.body;
     
     const settings = db.prepare('SELECT id FROM shop_settings WHERE user_id = ?').get(req.user.id);
     if (!settings) {
       const stmt = db.prepare(`
-        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(req.user.id, shop_name || '', shop_address || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '');
+      stmt.run(req.user.id, shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '');
     } else {
       const stmt = db.prepare(`
         UPDATE shop_settings
-        SET shop_name = ?, shop_address = ?, shop_phone = ?, shop_logo_url = ?, tax_rate = ?, default_labor_rate = ?, zip_code = ?
+        SET shop_name = ?, shop_address = ?, shop_city = ?, shop_state = ?, shop_phone = ?, shop_logo_url = ?, tax_rate = ?, default_labor_rate = ?, zip_code = ?
         WHERE user_id = ?
       `);
-      stmt.run(shop_name || '', shop_address || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', req.user.id);
+      stmt.run(shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', req.user.id);
     }
     
     const updated = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(req.user.id);

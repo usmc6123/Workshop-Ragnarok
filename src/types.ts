@@ -221,6 +221,8 @@ export interface ShopSettings {
   user_id?: number;
   shop_name: string;
   shop_address: string;
+  shop_city: string;
+  shop_state: string;
   shop_phone: string;
   shop_logo_url: string;
   tax_rate: number;

@@ -27,6 +27,8 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
   const [settings, setSettings] = useState<ShopSettings>({
     shop_name: '',
     shop_address: '',
+    shop_city: '',
+    shop_state: '',
     shop_phone: '',
     shop_logo_url: '',
     tax_rate: 0,
@@ -274,11 +276,37 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
                   <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Street Address</label>
                   <input
                     type="text"
-                    placeholder="e.g. 123 Resistance Way, Los Angeles, CA"
+                    placeholder="e.g. 123 Resistance Way"
                     value={settings.shop_address}
                     onChange={(e) => setSettings({ ...settings, shop_address: e.target.value })}
                     className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
                     id="shop-address-input"
+                  />
+                </div>
+
+                {/* Shop City */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">City</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Los Angeles"
+                    value={settings.shop_city}
+                    onChange={(e) => setSettings({ ...settings, shop_city: e.target.value })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
+                    id="shop-city-input"
+                  />
+                </div>
+
+                {/* Shop State */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">State</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. CA"
+                    value={settings.shop_state}
+                    onChange={(e) => setSettings({ ...settings, shop_state: e.target.value })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
+                    id="shop-state-input"
                   />
                 </div>
 

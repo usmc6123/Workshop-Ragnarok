@@ -190,6 +190,8 @@ function getSimulatedShopSettings(): ShopSettings {
   const initial: ShopSettings = {
     shop_name: '',
     shop_address: '',
+    shop_city: '',
+    shop_state: '',
     shop_phone: '',
     shop_logo_url: '',
     tax_rate: 0,
