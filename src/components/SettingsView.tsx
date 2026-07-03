@@ -285,7 +285,7 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
                 </div>
 
                 {/* Shop City */}
-                <div className="space-y-1">
+                <div className="space-y-1 md:col-span-2">
                   <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">City</label>
                   <input
                     type="text"
@@ -298,7 +298,7 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
                 </div>
 
                 {/* Shop State */}
-                <div className="space-y-1">
+                <div className="space-y-1 md:col-span-2">
                   <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">State</label>
                   <input
                     type="text"
