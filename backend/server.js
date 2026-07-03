@@ -40,12 +40,24 @@ try {
   db = new Database(DB_PATH);
   console.log(`Connected to SQLite database at ${DB_PATH}`);
   
+  // 8. Create Users Table (created first so foreign keys can reference it)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'user',
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
   // Ensure the base garage table exists (backwards compatibility)
   db.exec(`
     CREATE TABLE IF NOT EXISTS garage (
       garageId INTEGER PRIMARY KEY AUTOINCREMENT,
       vehicleId INTEGER,
-      nickname TEXT
+      nickname TEXT,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
@@ -58,7 +70,8 @@ try {
       email TEXT,
       address TEXT,
       notes TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
@@ -77,7 +90,8 @@ try {
       purchase_mileage INTEGER,
       current_mileage INTEGER,
       notes TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
@@ -94,7 +108,8 @@ try {
       cost REAL,
       technician TEXT,
       notes TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
@@ -112,7 +127,8 @@ try {
       actual_completion TEXT,
       labor_cost REAL DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
@@ -125,7 +141,8 @@ try {
       part_number TEXT,
       quantity INTEGER DEFAULT 1,
       unit_cost REAL DEFAULT 0,
-      notes TEXT
+      notes TEXT,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
@@ -140,7 +157,8 @@ try {
       time TEXT,
       duration_minutes INTEGER DEFAULT 60,
       notes TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
@@ -156,18 +174,8 @@ try {
       manual_model TEXT,
       manual_engine TEXT,
       saved_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       UNIQUE(garage_vehicle_id, manual_uri)
-    )
-  `);
-
-  // 8. Create Users Table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'user',
-      created_at TEXT DEFAULT (datetime('now'))
     )
   `);
 
@@ -177,6 +185,27 @@ try {
       value TEXT
     )
   `);
+
+  // Migration: Ensure user_id column exists in all target tables
+  const targetTables = [
+    'customers',
+    'customer_vehicles',
+    'jobs',
+    'job_parts',
+    'service_history',
+    'appointments',
+    'garage',
+    'vehicle_manuals'
+  ];
+
+  for (const tableName of targetTables) {
+    const columns = db.prepare(`PRAGMA table_info(${tableName})`).all();
+    const hasUserId = columns.some(col => col.name === 'user_id');
+    if (!hasUserId) {
+      db.exec(`ALTER TABLE ${tableName} ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`);
+      console.log(`Successfully migrated ${tableName} to include user_id column.`);
+    }
+  }
 
   // Seed the admin user if not exists
   const bcrypt = require('bcryptjs');
@@ -263,6 +292,15 @@ try {
     db.prepare(
       'INSERT INTO app_flags (key, value) VALUES (?, ?)'
     ).run('initial_seed_done', 'true');
+  }
+
+  // Data Backfill: Ensure existing rows have user_id = 1 if user_id is currently NULL
+  for (const tableName of targetTables) {
+    const stmt = db.prepare(`UPDATE ${tableName} SET user_id = 1 WHERE user_id IS NULL`);
+    const result = stmt.run();
+    if (result.changes > 0) {
+      console.log(`Backfilled ${result.changes} rows in ${tableName} with user_id = 1`);
+    }
   }
 
   console.log('Verified database schemas & seeds.');
@@ -548,8 +586,9 @@ app.get('/api/garage', (req, res) => {
       SELECT g.garageId, g.nickname, v.id, v.source, v.make, v.year, v.model, v.engine, v.uriPath, v.isComplete
       FROM garage g
       JOIN vehicles v ON g.vehicleId = v.id
+      WHERE g.user_id = ?
     `);
-    const rows = stmt.all();
+    const rows = stmt.all(req.user.id);
     res.json(rows);
   } catch (error) {
     console.error('Error fetching garage:', error);
@@ -574,8 +613,8 @@ app.post('/api/garage', (req, res) => {
       return res.status(404).json({ error: 'Vehicle profile not found' });
     }
 
-    const stmt = db.prepare('INSERT INTO garage (vehicleId, nickname) VALUES (?, ?)');
-    const info = stmt.run(vehicleId, nickname || null);
+    const stmt = db.prepare('INSERT INTO garage (vehicleId, nickname, user_id) VALUES (?, ?, ?)');
+    const info = stmt.run(vehicleId, nickname || null, req.user.id);
     const garageId = info.lastInsertRowid;
 
     // Join and fetch the newly inserted garage profile
@@ -583,8 +622,8 @@ app.post('/api/garage', (req, res) => {
       SELECT g.garageId, g.nickname, v.id, v.source, v.make, v.year, v.model, v.engine, v.uriPath, v.isComplete
       FROM garage g
       JOIN vehicles v ON g.vehicleId = v.id
-      WHERE g.garageId = ?
-    `).get(garageId);
+      WHERE g.garageId = ? AND g.user_id = ?
+    `).get(garageId, req.user.id);
 
     res.json(item);
   } catch (error) {
@@ -597,8 +636,8 @@ app.post('/api/garage', (req, res) => {
 app.delete('/api/garage/:garageId', (req, res) => {
   try {
     const { garageId } = req.params;
-    const stmt = db.prepare('DELETE FROM garage WHERE garageId = ?');
-    const info = stmt.run(garageId);
+    const stmt = db.prepare('DELETE FROM garage WHERE garageId = ? AND user_id = ?');
+    const info = stmt.run(garageId, req.user.id);
     if (info.changes === 0) {
       return res.status(404).json({ error: 'Garage entry not found' });
     }
@@ -1375,9 +1414,9 @@ app.get('/api/stats', (req, res) => {
       totalManuals = row.count || 300000;
     }
     
-    const customersCount = db.prepare('SELECT count(*) as count FROM customers').get().count || 0;
-    const vehiclesCount = db.prepare('SELECT count(*) as count FROM customer_vehicles').get().count || 0;
-    const activeJobsCount = db.prepare("SELECT count(*) as count FROM jobs WHERE status != 'Complete' AND status != 'Cancelled'").get().count || 0;
+    const customersCount = db.prepare('SELECT count(*) as count FROM customers WHERE user_id = ?').get(req.user.id).count || 0;
+    const vehiclesCount = db.prepare('SELECT count(*) as count FROM customer_vehicles WHERE user_id = ?').get(req.user.id).count || 0;
+    const activeJobsCount = db.prepare("SELECT count(*) as count FROM jobs WHERE status != 'Complete' AND status != 'Cancelled' AND user_id = ?").get(req.user.id).count || 0;
 
     res.json({
       totalManuals,
@@ -1396,12 +1435,13 @@ app.get('/api/customers', (req, res) => {
   try {
     const stmt = db.prepare(`
       SELECT c.*, 
-        (SELECT count(*) FROM customer_vehicles WHERE customer_id = c.id) as vehicle_count,
-        (SELECT MAX(date) FROM service_history sh JOIN customer_vehicles cv ON sh.vehicle_id = cv.id WHERE cv.customer_id = c.id) as last_visit
+        (SELECT count(*) FROM customer_vehicles WHERE customer_id = c.id AND user_id = ?) as vehicle_count,
+        (SELECT MAX(date) FROM service_history sh JOIN customer_vehicles cv ON sh.vehicle_id = cv.id WHERE cv.customer_id = c.id AND sh.user_id = ?) as last_visit
       FROM customers c 
+      WHERE c.user_id = ?
       ORDER BY c.name ASC
     `);
-    const rows = stmt.all();
+    const rows = stmt.all(req.user.id, req.user.id, req.user.id);
     res.json(rows);
   } catch (error) {
     console.error('Error fetching customers:', error);
@@ -1413,9 +1453,9 @@ app.post('/api/customers', (req, res) => {
   try {
     const { name, phone, email, address, notes } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required' });
-    const stmt = db.prepare('INSERT INTO customers (name, phone, email, address, notes) VALUES (?, ?, ?, ?, ?)');
-    const info = stmt.run(name, phone, email, address, notes);
-    const inserted = db.prepare('SELECT * FROM customers WHERE id = ?').get(info.lastInsertRowid);
+    const stmt = db.prepare('INSERT INTO customers (name, phone, email, address, notes, user_id) VALUES (?, ?, ?, ?, ?, ?)');
+    const info = stmt.run(name, phone, email, address, notes, req.user.id);
+    const inserted = db.prepare('SELECT * FROM customers WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
     res.json(inserted);
   } catch (error) {
     console.error('Error creating customer:', error);
@@ -1427,10 +1467,10 @@ app.put('/api/customers/:id', (req, res) => {
   try {
     const { id } = req.params;
     const { name, phone, email, address, notes } = req.body;
-    const stmt = db.prepare('UPDATE customers SET name = ?, phone = ?, email = ?, address = ?, notes = ? WHERE id = ?');
-    const info = stmt.run(name, phone, email, address, notes, id);
+    const stmt = db.prepare('UPDATE customers SET name = ?, phone = ?, email = ?, address = ?, notes = ? WHERE id = ? AND user_id = ?');
+    const info = stmt.run(name, phone, email, address, notes, id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Customer not found' });
-    const updated = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
+    const updated = db.prepare('SELECT * FROM customers WHERE id = ? AND user_id = ?').get(id, req.user.id);
     res.json(updated);
   } catch (error) {
     console.error('Error updating customer:', error);
@@ -1441,11 +1481,14 @@ app.put('/api/customers/:id', (req, res) => {
 app.delete('/api/customers/:id', (req, res) => {
   try {
     const { id } = req.params;
-    // SQLite foreign keys ON DELETE CASCADE will handle cascading where specified, but let's be thorough
-    db.prepare('DELETE FROM appointments WHERE customer_id = ?').run(id);
-    db.prepare('DELETE FROM jobs WHERE customer_id = ?').run(id);
-    db.prepare('DELETE FROM customer_vehicles WHERE customer_id = ?').run(id);
-    const info = db.prepare('DELETE FROM customers WHERE id = ?').run(id);
+    // Verify ownership
+    const customer = db.prepare('SELECT id FROM customers WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+
+    db.prepare('DELETE FROM appointments WHERE customer_id = ? AND user_id = ?').run(id, req.user.id);
+    db.prepare('DELETE FROM jobs WHERE customer_id = ? AND user_id = ?').run(id, req.user.id);
+    db.prepare('DELETE FROM customer_vehicles WHERE customer_id = ? AND user_id = ?').run(id, req.user.id);
+    const info = db.prepare('DELETE FROM customers WHERE id = ? AND user_id = ?').run(id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Customer not found' });
     res.json({ success: true });
   } catch (error) {
@@ -1458,8 +1501,8 @@ app.delete('/api/customers/:id', (req, res) => {
 app.get('/api/customers/:customerId/vehicles', (req, res) => {
   try {
     const { customerId } = req.params;
-    const stmt = db.prepare('SELECT * FROM customer_vehicles WHERE customer_id = ? ORDER BY year DESC');
-    const rows = stmt.all(customerId);
+    const stmt = db.prepare('SELECT * FROM customer_vehicles WHERE customer_id = ? AND user_id = ? ORDER BY year DESC');
+    const rows = stmt.all(customerId, req.user.id);
     res.json(rows);
   } catch (error) {
     console.error('Error fetching customer vehicles:', error);
@@ -1471,12 +1514,13 @@ app.get('/api/vehicles-all', (req, res) => {
   try {
     const stmt = db.prepare(`
       SELECT cv.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email,
-        (SELECT MAX(date) FROM service_history WHERE vehicle_id = cv.id) as last_service_date
+        (SELECT MAX(date) FROM service_history WHERE vehicle_id = cv.id AND user_id = ?) as last_service_date
       FROM customer_vehicles cv
       LEFT JOIN customers c ON cv.customer_id = c.id
+      WHERE cv.user_id = ?
       ORDER BY cv.year DESC, cv.make ASC
     `);
-    const rows = stmt.all();
+    const rows = stmt.all(req.user.id, req.user.id);
     res.json(rows);
   } catch (error) {
     console.error('Error fetching all vehicles:', error);
@@ -1488,12 +1532,17 @@ app.post('/api/vehicles', (req, res) => {
   try {
     const { customer_id, year, make, model, engine, vin, color, purchase_date, purchase_mileage, current_mileage, notes } = req.body;
     if (!customer_id) return res.status(400).json({ error: 'customer_id is required' });
+
+    // Verify customer ownership
+    const customer = db.prepare('SELECT id FROM customers WHERE id = ? AND user_id = ?').get(customer_id, req.user.id);
+    if (!customer) return res.status(400).json({ error: 'Invalid or unauthorized customer_id' });
+
     const stmt = db.prepare(`
-      INSERT INTO customer_vehicles (customer_id, year, make, model, engine, vin, color, purchase_date, purchase_mileage, current_mileage, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO customer_vehicles (customer_id, year, make, model, engine, vin, color, purchase_date, purchase_mileage, current_mileage, notes, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const info = stmt.run(customer_id, year, make, model, engine, vin, color, purchase_date, purchase_mileage || 0, current_mileage || 0, notes);
-    const inserted = db.prepare('SELECT * FROM customer_vehicles WHERE id = ?').get(info.lastInsertRowid);
+    const info = stmt.run(customer_id, year, make, model, engine, vin, color, purchase_date, purchase_mileage || 0, current_mileage || 0, notes, req.user.id);
+    const inserted = db.prepare('SELECT * FROM customer_vehicles WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
     res.json(inserted);
   } catch (error) {
     console.error('Error creating customer vehicle:', error);
@@ -1505,14 +1554,24 @@ app.put('/api/vehicles/:id', (req, res) => {
   try {
     const { id } = req.params;
     const { customer_id, year, make, model, engine, vin, color, purchase_date, purchase_mileage, current_mileage, notes } = req.body;
+
+    // Verify vehicle ownership
+    const vehicle = db.prepare('SELECT id FROM customer_vehicles WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!vehicle) return res.status(404).json({ error: 'Vehicle not found' });
+
+    if (customer_id) {
+      const customer = db.prepare('SELECT id FROM customers WHERE id = ? AND user_id = ?').get(customer_id, req.user.id);
+      if (!customer) return res.status(400).json({ error: 'Invalid or unauthorized customer_id' });
+    }
+
     const stmt = db.prepare(`
       UPDATE customer_vehicles
       SET customer_id = ?, year = ?, make = ?, model = ?, engine = ?, vin = ?, color = ?, purchase_date = ?, purchase_mileage = ?, current_mileage = ?, notes = ?
-      WHERE id = ?
+      WHERE id = ? AND user_id = ?
     `);
-    const info = stmt.run(customer_id, year, make, model, engine, vin, color, purchase_date, purchase_mileage || 0, current_mileage || 0, notes, id);
+    const info = stmt.run(customer_id, year, make, model, engine, vin, color, purchase_date, purchase_mileage || 0, current_mileage || 0, notes, id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Vehicle not found' });
-    const updated = db.prepare('SELECT * FROM customer_vehicles WHERE id = ?').get(id);
+    const updated = db.prepare('SELECT * FROM customer_vehicles WHERE id = ? AND user_id = ?').get(id, req.user.id);
     res.json(updated);
   } catch (error) {
     console.error('Error updating customer vehicle:', error);
@@ -1523,10 +1582,14 @@ app.put('/api/vehicles/:id', (req, res) => {
 app.delete('/api/vehicles/:id', (req, res) => {
   try {
     const { id } = req.params;
-    db.prepare('DELETE FROM service_history WHERE vehicle_id = ?').run(id);
-    db.prepare('DELETE FROM appointments WHERE vehicle_id = ?').run(id);
-    db.prepare('DELETE FROM jobs WHERE vehicle_id = ?').run(id);
-    const info = db.prepare('DELETE FROM customer_vehicles WHERE id = ?').run(id);
+    // Verify ownership
+    const vehicle = db.prepare('SELECT id FROM customer_vehicles WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!vehicle) return res.status(404).json({ error: 'Vehicle not found' });
+
+    db.prepare('DELETE FROM service_history WHERE vehicle_id = ? AND user_id = ?').run(id, req.user.id);
+    db.prepare('DELETE FROM appointments WHERE vehicle_id = ? AND user_id = ?').run(id, req.user.id);
+    db.prepare('DELETE FROM jobs WHERE vehicle_id = ? AND user_id = ?').run(id, req.user.id);
+    const info = db.prepare('DELETE FROM customer_vehicles WHERE id = ? AND user_id = ?').run(id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Vehicle not found' });
     res.json({ success: true });
   } catch (error) {
@@ -1539,8 +1602,8 @@ app.delete('/api/vehicles/:id', (req, res) => {
 app.get('/api/vehicles/:vehicleId/service-history', (req, res) => {
   try {
     const { vehicleId } = req.params;
-    const stmt = db.prepare('SELECT * FROM service_history WHERE vehicle_id = ? ORDER BY date DESC, id DESC');
-    const rows = stmt.all(vehicleId);
+    const stmt = db.prepare('SELECT * FROM service_history WHERE vehicle_id = ? AND user_id = ? ORDER BY date DESC, id DESC');
+    const rows = stmt.all(vehicleId, req.user.id);
     res.json(rows);
   } catch (error) {
     console.error('Error fetching service history:', error);
@@ -1552,21 +1615,31 @@ app.post('/api/service-history', (req, res) => {
   try {
     const { vehicle_id, job_id, date, mileage, description, parts_used, cost, technician, notes } = req.body;
     if (!vehicle_id) return res.status(400).json({ error: 'vehicle_id is required' });
+
+    // Verify vehicle ownership
+    const vehicle = db.prepare('SELECT id FROM customer_vehicles WHERE id = ? AND user_id = ?').get(vehicle_id, req.user.id);
+    if (!vehicle) return res.status(400).json({ error: 'Invalid or unauthorized vehicle_id' });
+
+    if (job_id) {
+      const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(job_id, req.user.id);
+      if (!job) return res.status(400).json({ error: 'Invalid or unauthorized job_id' });
+    }
+
     const stmt = db.prepare(`
-      INSERT INTO service_history (vehicle_id, job_id, date, mileage, description, parts_used, cost, technician, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO service_history (vehicle_id, job_id, date, mileage, description, parts_used, cost, technician, notes, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const info = stmt.run(vehicle_id, job_id || null, date, mileage || 0, description, parts_used, cost || 0, technician, notes);
+    const info = stmt.run(vehicle_id, job_id || null, date, mileage || 0, description, parts_used, cost || 0, technician, notes, req.user.id);
     
     if (mileage) {
       db.prepare(`
         UPDATE customer_vehicles
         SET current_mileage = MAX(current_mileage, ?)
-        WHERE id = ?
-      `).run(mileage, vehicle_id);
+        WHERE id = ? AND user_id = ?
+      `).run(mileage, vehicle_id, req.user.id);
     }
 
-    const inserted = db.prepare('SELECT * FROM service_history WHERE id = ?').get(info.lastInsertRowid);
+    const inserted = db.prepare('SELECT * FROM service_history WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
     res.json(inserted);
   } catch (error) {
     console.error('Error creating service entry:', error);
@@ -1578,23 +1651,38 @@ app.put('/api/service-history/:id', (req, res) => {
   try {
     const { id } = req.params;
     const { vehicle_id, job_id, date, mileage, description, parts_used, cost, technician, notes } = req.body;
+
+    // Verify entry ownership
+    const entry = db.prepare('SELECT id FROM service_history WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!entry) return res.status(404).json({ error: 'Service entry not found' });
+
+    if (vehicle_id) {
+      const vehicle = db.prepare('SELECT id FROM customer_vehicles WHERE id = ? AND user_id = ?').get(vehicle_id, req.user.id);
+      if (!vehicle) return res.status(400).json({ error: 'Invalid or unauthorized vehicle_id' });
+    }
+
+    if (job_id) {
+      const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(job_id, req.user.id);
+      if (!job) return res.status(400).json({ error: 'Invalid or unauthorized job_id' });
+    }
+
     const stmt = db.prepare(`
       UPDATE service_history
       SET vehicle_id = ?, job_id = ?, date = ?, mileage = ?, description = ?, parts_used = ?, cost = ?, technician = ?, notes = ?
-      WHERE id = ?
+      WHERE id = ? AND user_id = ?
     `);
-    const info = stmt.run(vehicle_id, job_id || null, date, mileage || 0, description, parts_used, cost || 0, technician, notes, id);
+    const info = stmt.run(vehicle_id, job_id || null, date, mileage || 0, description, parts_used, cost || 0, technician, notes, id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Service entry not found' });
 
     if (mileage && vehicle_id) {
       db.prepare(`
         UPDATE customer_vehicles
         SET current_mileage = MAX(current_mileage, ?)
-        WHERE id = ?
-      `).run(mileage, vehicle_id);
+        WHERE id = ? AND user_id = ?
+      `).run(mileage, vehicle_id, req.user.id);
     }
 
-    const updated = db.prepare('SELECT * FROM service_history WHERE id = ?').get(id);
+    const updated = db.prepare('SELECT * FROM service_history WHERE id = ? AND user_id = ?').get(id, req.user.id);
     res.json(updated);
   } catch (error) {
     console.error('Error updating service entry:', error);
@@ -1605,8 +1693,8 @@ app.put('/api/service-history/:id', (req, res) => {
 app.delete('/api/service-history/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const stmt = db.prepare('DELETE FROM service_history WHERE id = ?');
-    const info = stmt.run(id);
+    const stmt = db.prepare('DELETE FROM service_history WHERE id = ? AND user_id = ?');
+    const info = stmt.run(id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Service entry not found' });
     res.json({ success: true });
   } catch (error) {
@@ -1619,8 +1707,8 @@ app.delete('/api/service-history/:id', (req, res) => {
 app.get('/api/vehicle-manuals/:garageVehicleId', (req, res) => {
   try {
     const { garageVehicleId } = req.params;
-    const stmt = db.prepare('SELECT * FROM vehicle_manuals WHERE garage_vehicle_id = ? ORDER BY saved_at DESC');
-    const rows = stmt.all(garageVehicleId);
+    const stmt = db.prepare('SELECT * FROM vehicle_manuals WHERE garage_vehicle_id = ? AND user_id = ? ORDER BY saved_at DESC');
+    const rows = stmt.all(garageVehicleId, req.user.id);
     
     // Map snake_case SQLite fields to camelCase for the frontend
     const mapped = rows.map(r => ({
@@ -1647,14 +1735,19 @@ app.post('/api/vehicle-manuals', (req, res) => {
     if (!garageVehicleId || !manualUri) {
       return res.status(400).json({ error: 'garageVehicleId and manualUri are required' });
     }
+
+    // Verify vehicle ownership
+    const vehicle = db.prepare('SELECT id FROM customer_vehicles WHERE id = ? AND user_id = ?').get(garageVehicleId, req.user.id);
+    if (!vehicle) return res.status(400).json({ error: 'Invalid or unauthorized garageVehicleId' });
+
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO vehicle_manuals (garage_vehicle_id, manual_uri, manual_title, manual_make, manual_year, manual_model, manual_engine)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO vehicle_manuals (garage_vehicle_id, manual_uri, manual_title, manual_make, manual_year, manual_model, manual_engine, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const info = stmt.run(garageVehicleId, manualUri, manualTitle || '', manualMake || '', manualYear || '', manualModel || '', manualEngine || '');
+    const info = stmt.run(garageVehicleId, manualUri, manualTitle || '', manualMake || '', manualYear || '', manualModel || '', manualEngine || '', req.user.id);
     const id = info.lastInsertRowid;
     
-    const saved = db.prepare('SELECT * FROM vehicle_manuals WHERE id = ?').get(id);
+    const saved = db.prepare('SELECT * FROM vehicle_manuals WHERE id = ? AND user_id = ?').get(id, req.user.id);
     res.json({
       id: saved.id,
       garageVehicleId: saved.garage_vehicle_id,
@@ -1675,8 +1768,8 @@ app.post('/api/vehicle-manuals', (req, res) => {
 app.delete('/api/vehicle-manuals/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const stmt = db.prepare('DELETE FROM vehicle_manuals WHERE id = ?');
-    const info = stmt.run(id);
+    const stmt = db.prepare('DELETE FROM vehicle_manuals WHERE id = ? AND user_id = ?');
+    const info = stmt.run(id, req.user.id);
     if (info.changes === 0) {
       return res.status(404).json({ error: 'Vehicle manual not found' });
     }
@@ -1697,6 +1790,7 @@ app.get('/api/jobs', (req, res) => {
       FROM jobs j
       LEFT JOIN customers c ON j.customer_id = c.id
       LEFT JOIN customer_vehicles cv ON j.vehicle_id = cv.id
+      WHERE j.user_id = ?
       ORDER BY 
         CASE j.status 
           WHEN 'In Progress' THEN 1
@@ -1706,7 +1800,7 @@ app.get('/api/jobs', (req, res) => {
           ELSE 5
         END, j.estimated_completion ASC, j.created_at DESC
     `);
-    const rows = stmt.all();
+    const rows = stmt.all(req.user.id);
     res.json(rows);
   } catch (error) {
     console.error('Error fetching jobs:', error);
@@ -1724,9 +1818,9 @@ app.get('/api/jobs/:id', (req, res) => {
       FROM jobs j
       LEFT JOIN customers c ON j.customer_id = c.id
       LEFT JOIN customer_vehicles cv ON j.vehicle_id = cv.id
-      WHERE j.id = ?
+      WHERE j.id = ? AND j.user_id = ?
     `);
-    const row = stmt.get(id);
+    const row = stmt.get(id, req.user.id);
     if (!row) return res.status(404).json({ error: 'Job not found' });
     res.json(row);
   } catch (error) {
@@ -1741,16 +1835,24 @@ app.post('/api/jobs', (req, res) => {
       customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost
     } = req.body;
     if (!customer_id || !vehicle_id) return res.status(400).json({ error: 'customer_id and vehicle_id are required' });
+
+    // Verify ownership of customer and vehicle
+    const customer = db.prepare('SELECT id FROM customers WHERE id = ? AND user_id = ?').get(customer_id, req.user.id);
+    if (!customer) return res.status(400).json({ error: 'Invalid or unauthorized customer_id' });
+
+    const vehicle = db.prepare('SELECT id FROM customer_vehicles WHERE id = ? AND user_id = ?').get(vehicle_id, req.user.id);
+    if (!vehicle) return res.status(400).json({ error: 'Invalid or unauthorized vehicle_id' });
+
     const stmt = db.prepare(`
       INSERT INTO jobs (
-        customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost
+        customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost, user_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
-      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status || 'Pending', estimated_completion, actual_completion || null, labor_cost || 0
+      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status || 'Pending', estimated_completion, actual_completion || null, labor_cost || 0, req.user.id
     );
-    const inserted = db.prepare('SELECT * FROM jobs WHERE id = ?').get(info.lastInsertRowid);
+    const inserted = db.prepare('SELECT * FROM jobs WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
     res.json(inserted);
   } catch (error) {
     console.error('Error creating job:', error);
@@ -1764,16 +1866,31 @@ app.put('/api/jobs/:id', (req, res) => {
     const {
       customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost
     } = req.body;
+
+    // Verify ownership of the job
+    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+
+    if (customer_id) {
+      const customer = db.prepare('SELECT id FROM customers WHERE id = ? AND user_id = ?').get(customer_id, req.user.id);
+      if (!customer) return res.status(400).json({ error: 'Invalid or unauthorized customer_id' });
+    }
+
+    if (vehicle_id) {
+      const vehicle = db.prepare('SELECT id FROM customer_vehicles WHERE id = ? AND user_id = ?').get(vehicle_id, req.user.id);
+      if (!vehicle) return res.status(400).json({ error: 'Invalid or unauthorized vehicle_id' });
+    }
+
     const stmt = db.prepare(`
       UPDATE jobs
       SET customer_id = ?, vehicle_id = ?, description = ?, diagnosis_notes = ?, labor_notes = ?, status = ?, estimated_completion = ?, actual_completion = ?, labor_cost = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+      WHERE id = ? AND user_id = ?
     `);
     const info = stmt.run(
-      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost || 0, id
+      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost || 0, id, req.user.id
     );
     if (info.changes === 0) return res.status(404).json({ error: 'Job not found' });
-    const updated = db.prepare('SELECT * FROM jobs WHERE id = ?').get(id);
+    const updated = db.prepare('SELECT * FROM jobs WHERE id = ? AND user_id = ?').get(id, req.user.id);
     res.json(updated);
   } catch (error) {
     console.error('Error updating job:', error);
@@ -1784,8 +1901,13 @@ app.put('/api/jobs/:id', (req, res) => {
 app.delete('/api/jobs/:id', (req, res) => {
   try {
     const { id } = req.params;
-    db.prepare('DELETE FROM job_parts WHERE job_id = ?').run(id);
-    const info = db.prepare('DELETE FROM jobs WHERE id = ?').run(id);
+    
+    // Verify job ownership
+    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+
+    db.prepare('DELETE FROM job_parts WHERE job_id = ? AND user_id = ?').run(id, req.user.id);
+    const info = db.prepare('DELETE FROM jobs WHERE id = ? AND user_id = ?').run(id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Job not found' });
     res.json({ success: true });
   } catch (error) {
@@ -1798,8 +1920,13 @@ app.delete('/api/jobs/:id', (req, res) => {
 app.get('/api/jobs/:jobId/parts', (req, res) => {
   try {
     const { jobId } = req.params;
-    const stmt = db.prepare('SELECT * FROM job_parts WHERE job_id = ?');
-    const rows = stmt.all(jobId);
+
+    // Verify job ownership
+    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(jobId, req.user.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+
+    const stmt = db.prepare('SELECT * FROM job_parts WHERE job_id = ? AND user_id = ?');
+    const rows = stmt.all(jobId, req.user.id);
     res.json(rows);
   } catch (error) {
     console.error('Error fetching job parts:', error);
@@ -1811,12 +1938,17 @@ app.post('/api/jobs/:jobId/parts', (req, res) => {
   try {
     const { jobId } = req.params;
     const { part_name, part_number, quantity, unit_cost, notes } = req.body;
+
+    // Verify job ownership
+    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(jobId, req.user.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+
     const stmt = db.prepare(`
-      INSERT INTO job_parts (job_id, part_name, part_number, quantity, unit_cost, notes)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO job_parts (job_id, part_name, part_number, quantity, unit_cost, notes, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
-    const info = stmt.run(jobId, part_name, part_number, quantity || 1, unit_cost || 0, notes);
-    const inserted = db.prepare('SELECT * FROM job_parts WHERE id = ?').get(info.lastInsertRowid);
+    const info = stmt.run(jobId, part_name, part_number, quantity || 1, unit_cost || 0, notes, req.user.id);
+    const inserted = db.prepare('SELECT * FROM job_parts WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
     res.json(inserted);
   } catch (error) {
     console.error('Error adding job part:', error);
@@ -1828,14 +1960,15 @@ app.put('/api/jobs/:jobId/parts/:partId', (req, res) => {
   try {
     const { partId } = req.params;
     const { part_name, part_number, quantity, unit_cost, notes } = req.body;
+
     const stmt = db.prepare(`
       UPDATE job_parts
       SET part_name = ?, part_number = ?, quantity = ?, unit_cost = ?, notes = ?
-      WHERE id = ?
+      WHERE id = ? AND user_id = ?
     `);
-    const info = stmt.run(part_name, part_number, quantity || 1, unit_cost || 0, notes, partId);
+    const info = stmt.run(part_name, part_number, quantity || 1, unit_cost || 0, notes, partId, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Part not found' });
-    const updated = db.prepare('SELECT * FROM job_parts WHERE id = ?').get(partId);
+    const updated = db.prepare('SELECT * FROM job_parts WHERE id = ? AND user_id = ?').get(partId, req.user.id);
     res.json(updated);
   } catch (error) {
     console.error('Error updating job part:', error);
@@ -1846,8 +1979,8 @@ app.put('/api/jobs/:jobId/parts/:partId', (req, res) => {
 app.delete('/api/jobs/:jobId/parts/:partId', (req, res) => {
   try {
     const { partId } = req.params;
-    const stmt = db.prepare('DELETE FROM job_parts WHERE id = ?');
-    const info = stmt.run(partId);
+    const stmt = db.prepare('DELETE FROM job_parts WHERE id = ? AND user_id = ?');
+    const info = stmt.run(partId, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Job part not found' });
     res.json({ success: true });
   } catch (error) {
@@ -1867,10 +2000,11 @@ app.get('/api/appointments', (req, res) => {
       FROM appointments a
       LEFT JOIN customers c ON a.customer_id = c.id
       LEFT JOIN customer_vehicles cv ON a.vehicle_id = cv.id
+      WHERE a.user_id = ?
     `;
-    const params = [];
+    const params = [req.user.id];
     if (month) {
-      queryStr += ' WHERE a.date LIKE ?';
+      queryStr += ' AND a.date LIKE ?';
       params.push(`${month}%`);
     }
     queryStr += ' ORDER BY a.date ASC, a.time ASC';
@@ -1889,12 +2023,20 @@ app.post('/api/appointments', (req, res) => {
     if (!title || !customer_id || !vehicle_id || !date || !time) {
       return res.status(400).json({ error: 'Required fields missing: title, customer_id, vehicle_id, date, time' });
     }
+
+    // Verify ownership of customer and vehicle
+    const customer = db.prepare('SELECT id FROM customers WHERE id = ? AND user_id = ?').get(customer_id, req.user.id);
+    if (!customer) return res.status(400).json({ error: 'Invalid or unauthorized customer_id' });
+
+    const vehicle = db.prepare('SELECT id FROM customer_vehicles WHERE id = ? AND user_id = ?').get(vehicle_id, req.user.id);
+    if (!vehicle) return res.status(400).json({ error: 'Invalid or unauthorized vehicle_id' });
+
     const stmt = db.prepare(`
-      INSERT INTO appointments (title, customer_id, vehicle_id, date, time, duration_minutes, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO appointments (title, customer_id, vehicle_id, date, time, duration_minutes, notes, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const info = stmt.run(title, customer_id, vehicle_id, date, time, duration_minutes || 60, notes);
-    const inserted = db.prepare('SELECT * FROM appointments WHERE id = ?').get(info.lastInsertRowid);
+    const info = stmt.run(title, customer_id, vehicle_id, date, time, duration_minutes || 60, notes, req.user.id);
+    const inserted = db.prepare('SELECT * FROM appointments WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
     res.json(inserted);
   } catch (error) {
     console.error('Error creating appointment:', error);
@@ -1906,14 +2048,29 @@ app.put('/api/appointments/:id', (req, res) => {
   try {
     const { id } = req.params;
     const { title, customer_id, vehicle_id, date, time, duration_minutes, notes } = req.body;
+
+    // Verify appointment ownership
+    const appt = db.prepare('SELECT id FROM appointments WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!appt) return res.status(404).json({ error: 'Appointment not found' });
+
+    if (customer_id) {
+      const customer = db.prepare('SELECT id FROM customers WHERE id = ? AND user_id = ?').get(customer_id, req.user.id);
+      if (!customer) return res.status(400).json({ error: 'Invalid or unauthorized customer_id' });
+    }
+
+    if (vehicle_id) {
+      const vehicle = db.prepare('SELECT id FROM customer_vehicles WHERE id = ? AND user_id = ?').get(vehicle_id, req.user.id);
+      if (!vehicle) return res.status(400).json({ error: 'Invalid or unauthorized vehicle_id' });
+    }
+
     const stmt = db.prepare(`
       UPDATE appointments
       SET title = ?, customer_id = ?, vehicle_id = ?, date = ?, time = ?, duration_minutes = ?, notes = ?
-      WHERE id = ?
+      WHERE id = ? AND user_id = ?
     `);
-    const info = stmt.run(title, customer_id, vehicle_id, date, time, duration_minutes || 60, notes, id);
+    const info = stmt.run(title, customer_id, vehicle_id, date, time, duration_minutes || 60, notes, id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Appointment not found' });
-    const updated = db.prepare('SELECT * FROM appointments WHERE id = ?').get(id);
+    const updated = db.prepare('SELECT * FROM appointments WHERE id = ? AND user_id = ?').get(id, req.user.id);
     res.json(updated);
   } catch (error) {
     console.error('Error updating appointment:', error);
@@ -1924,8 +2081,8 @@ app.put('/api/appointments/:id', (req, res) => {
 app.delete('/api/appointments/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const stmt = db.prepare('DELETE FROM appointments WHERE id = ?');
-    const info = stmt.run(id);
+    const stmt = db.prepare('DELETE FROM appointments WHERE id = ? AND user_id = ?');
+    const info = stmt.run(id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Appointment not found' });
     res.json({ success: true });
   } catch (error) {
