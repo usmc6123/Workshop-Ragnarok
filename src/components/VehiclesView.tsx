@@ -58,6 +58,7 @@ export default function VehiclesView({ onNavigateToManualWithSearch, onSelectVeh
   // Inline profile editing
   const [profileMileage, setProfileMileage] = useState('');
   const [profileNotes, setProfileNotes] = useState('');
+  const [findPartName, setFindPartName] = useState('');
   const [isSavingProfileEdits, setIsSavingProfileEdits] = useState(false);
 
   useEffect(() => {
@@ -154,8 +155,41 @@ export default function VehiclesView({ onNavigateToManualWithSearch, onSelectVeh
     setSelectedVehicle(vehicle);
     setProfileMileage(vehicle.current_mileage.toString());
     setProfileNotes(vehicle.notes || '');
+    setFindPartName('');
     fetchServiceHistory(vehicle.id);
     fetchSavedManuals(vehicle.id);
+  };
+
+  // Opens a Google Shopping search pre-filled with this vehicle + part name
+  // — a legitimate, free way to get a real local price comparison sourced
+  // from retailers' own opted-in product feeds, rather than scraping each
+  // store directly. Remembers the shop's zip code in localStorage after the
+  // first search (shared with the same feature on the Jobs ticket view).
+  const handleFindNearbyParts = () => {
+    if (!selectedVehicle) return;
+    if (!findPartName.trim()) {
+      alert('Enter a part name first, then click Find Nearby Price.');
+      return;
+    }
+
+    let zip = localStorage.getItem('workshop_shop_zip') || '';
+    if (!zip) {
+      const entered = window.prompt('Enter your zip code for local price search (saved for next time):');
+      if (!entered || !entered.trim()) return;
+      zip = entered.trim();
+      localStorage.setItem('workshop_shop_zip', zip);
+    }
+
+    const vehicleParts = [
+      selectedVehicle.year,
+      selectedVehicle.make,
+      selectedVehicle.model,
+      selectedVehicle.engine,
+    ].filter(Boolean).join(' ');
+
+    const query = `${vehicleParts} ${findPartName}`.replace(/\s+/g, ' ').trim();
+    const url = `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(query)}&near=${encodeURIComponent(zip)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const handleSaveProfileEdits = async () => {
@@ -554,6 +588,35 @@ export default function VehiclesView({ onNavigateToManualWithSearch, onSelectVeh
 
             {/* Right Box: Linked Customer Contact Card & Saved Manuals */}
             <div className="lg:col-span-4 space-y-6">
+              {/* Find Nearby Parts Card */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-primary-theme/10 via-[#13141a]/90 to-[#13141a]/90 backdrop-blur-sm border border-primary-theme/30 rounded-xl p-5 space-y-4 shadow-xl shadow-primary-theme/5">
+                <div className="absolute -top-8 -right-8 w-28 h-28 bg-primary-theme/10 rounded-full blur-2xl pointer-events-none" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-primary-theme border-b border-primary-theme/20 pb-2 flex items-center gap-1.5 relative">
+                  <Search className="w-4 h-4" />
+                  Find Nearby Parts
+                </h3>
+                <p className="text-[10px] text-slate-400 leading-relaxed relative">
+                  Search local retailers for a price on this exact vehicle — {selectedVehicle.year} {selectedVehicle.make} {selectedVehicle.model}.
+                </p>
+                <div className="space-y-2 relative">
+                  <input
+                    type="text"
+                    placeholder="e.g. Front Brake Pads"
+                    value={findPartName}
+                    onChange={(e) => setFindPartName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleFindNearbyParts(); }}
+                    className="w-full bg-bg-theme border border-primary-theme/30 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-primary-theme focus:outline-none"
+                  />
+                  <button
+                    onClick={handleFindNearbyParts}
+                    className="w-full flex items-center justify-center gap-1.5 bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-bold rounded-lg py-2.5 text-xs uppercase tracking-wider transition shadow-lg shadow-primary-theme/20 cursor-pointer"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    Find Nearby Price
+                  </button>
+                </div>
+              </div>
+
               <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-350 border-b border-border-theme pb-2 flex items-center gap-1.5">
                   <User className="w-4 h-4 text-primary-theme" />
