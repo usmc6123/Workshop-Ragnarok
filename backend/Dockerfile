@@ -25,10 +25,12 @@ RUN npm ci --only=production
 # Copy backend source files
 COPY backend/server.js ./
 COPY backend/ingestion.js ./
+COPY backend/chat-route.js ./
+COPY backend/db.js ./
 COPY backend/middleware ./middleware
 
 # Copy compiled frontend from Stage 1 into backend's public folder
-COPY --from=frontend-builder /app/dist ./public
+COPY --from=frontend-builder /app/dist ./dist
 
 # Set default environment configuration
 ENV PORT=4000

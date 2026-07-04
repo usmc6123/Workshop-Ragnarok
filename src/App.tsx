@@ -21,6 +21,7 @@ import { LOGO_URL, BACKGROUND_URL } from './constants/branding';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminPage from './pages/AdminPage';
 import LoginPage from './pages/LoginPage';
+import ChatWidget from './components/ChatWidget';
 
 import { 
   Wrench, Home, Search, Server, Sun, Moon, AlertTriangle, PlayCircle, 
@@ -414,6 +415,8 @@ export default function App() {
           onClose={() => setSettingsOpen(false)}
           onSave={handleApplyNewSettings}
         />
+
+        <ChatWidget />
       </div>
     </ProtectedRoute>
   );

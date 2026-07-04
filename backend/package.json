@@ -8,6 +8,7 @@
     "ingest": "node ingestion.js"
   },
   "dependencies": {
+    "@google/genai": "^2.10.0",
     "better-sqlite3": "^9.4.3",
     "bcryptjs": "^2.4.3",
     "cheerio": "^1.0.0-rc.12",

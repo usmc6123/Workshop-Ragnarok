@@ -1,22 +1,14 @@
-version: '3.8'
-
 services:
-  # The HTML Content Server
   lemon-server:
     build:
       context: ./lemon-server
     container_name: lemon-server
     restart: unless-stopped
     volumes:
-      # Mount the actual physical location of your manuals in Read-Only mode
       - /mnt/m/e9dfaf202d2b8b99988d2e87517b7a90eb73ad92/lemon-manuals:/data:ro
-    # No exposed ports (secured inside the Docker network)
 
-  # Workshop: Ragnarök Unified API & Frontend Service
   workshop-backend:
     build:
-      # We set context to root (.. or .) to allow Docker to copy the React frontend files 
-      # and build them in the first stage of the multi-stage Dockerfile.
       context: .
       dockerfile: backend/Dockerfile
     container_name: ragnarok-backend
@@ -27,8 +19,25 @@ services:
       - PORT=4000
       - LEMON_SERVER_URL=http://lemon-server:8080
       - DB_PATH=/data/db/workshop.db
+      - NODE_ENV=production
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     volumes:
-      # Persistent storage path on Roscoe for SQLite DB and the index.json for ingestion
       - /mnt/d/HomeServer/workshop-ragnarok/data:/data
     depends_on:
       - lemon-server
+
+  webhook:
+    build: /opt/workshop-webhook
+    container_name: workshop-webhook
+    working_dir: /app
+    volumes:
+      - /opt/workshop-webhook:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /mnt/d/HomeServer/workshop-ragnarok:/workspace
+      - /mnt/m:/mnt/m
+    environment:
+      - WEBHOOK_SECRET=ragnarok-webhook-secret
+      - PROJECT_DIR=/workspace
+    ports:
+      - "9001:9001"
+    restart: unless-stopped
