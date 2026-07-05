@@ -6,8 +6,3 @@ coverage/
 *.log
 .env*
 !.env.example
-
-# Runtime data (DB files, generated manual indexes) — never commit
-/data/
-*.db
-*.db.*

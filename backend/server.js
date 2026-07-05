@@ -11,7 +11,6 @@ const fetch = require('node-fetch');
 const path = require('path');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
-const chatRoute = require('./chat-route');
 
 // Load environment variables
 require('dotenv').config();
@@ -34,7 +33,6 @@ app.use(express.json());
 // Apply auth middleware to all API routes
 const { authMiddleware, adminOnly } = require('./middleware/authMiddleware');
 app.use('/api', authMiddleware);
-app.use('/api/chat', authMiddleware, chatRoute);
 
 // Initialize SQLite database
 let db;
@@ -2256,6 +2254,10 @@ app.delete('/api/appointments/:id', (req, res) => {
     res.status(500).json({ error: 'Database error deleting appointment' });
   }
 });
+
+// --- CHAT ASSISTANT ---
+const chatRoute = require('./chat-route');
+app.use('/api/chat', chatRoute);
 
 async function initServer() {
   if (process.env.NODE_ENV !== 'production') {
