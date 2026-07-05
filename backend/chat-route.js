@@ -2,8 +2,9 @@
 //
 // Cooper & Roscoe shop assistant — Gemini API version. CRM tools (customers,
 // jobs, appointments, parts) plus live browsing of the full 304,923-vehicle
-// manual library via your existing /api/page route. No baked-in
-// system-manual/user-guide docs yet — that's the next layer once this is solid.
+// manual library via your existing /api/page route. The app's own User
+// Guide is baked in below (APP_USER_GUIDE) so the bot can answer "how do I
+// use this app" questions, not just data lookups.
 //
 // SETUP:
 //   npm install @google/genai
@@ -28,6 +29,366 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const MODEL = 'gemini-2.5-flash'; // fast + generous free tier; swap to gemini-2.5-pro if you need stronger reasoning and don't mind a much lower free daily cap
 const MODEL_FALLBACK = 'gemini-2.5-flash-lite'; // separate capacity pool — used if MODEL is overloaded
+
+// Baked-in User Guide — how the app itself works, feature by feature.
+// Update this by re-exporting the User Guide and pasting the new text here.
+const APP_USER_GUIDE = `USER GUIDE
+
+WORKSHOP:
+RAGNARÖK
+How to Use It — A Practical, Step-by-Step Guide to
+Running Your Shop
+
+Owner / Operator: Josh (usmc6123)
+
+Production URL: workshop.homeslab.uk
+
+Companion Document: Complete System Manual (technical reference)
+
+Document Version: July 2026 Edition
+
+  10                                      2 min                    304K+
+  WALKTHROUGHS                            TO YOUR FIRST INVOICE    MANUALS AT YOUR FINGERS
+
+---
+
+Table of Contents
+
+01 Logging In & Getting Oriented
+   First login and a tour of the main layout
+
+02 Adding a Customer & Their Vehicle
+   Building out your customer base
+
+03 Creating & Managing a Job Ticket
+   From intake to completed work order
+
+04 Adding Photos to a Job
+   Before/after documentation
+
+05 Scheduling Appointments
+   Getting jobs on the calendar
+
+06 Using the Manual Library
+   Finding and reading factory service procedures
+
+07 Looking Up Part Prices Nearby
+   Using Find Nearby Price
+
+08 Creating an Invoice
+   Print or PDF, with tax and labor handled for you
+
+09 Setting Up Your Shop Profile
+   Branding, tax rate, and labor rate — do this first
+
+10 Quick Reference & Tips
+   Shortcuts and habits that save time
+
+---
+
+SECTION 01
+
+Logging In & Getting Oriented
+
+WHERE: workshop.homeslab.uk
+
+1       Go to workshop.homeslab.uk
+        in any browser, on any device connected to the internet — the Cloudflare Tunnel makes it reachable without being on your
+        home network.
+
+2       Enter your admin username and password
+        on the login screen.
+
+3       You'll land on the main dashboard
+        after logging in, with navigation to Customers, Jobs, Appointments, the Manual Library, and Settings.
+
+ The main areas
+
+ AREA                           WHAT IT'S FOR
+
+ Customers                      Your customer list and their vehicles
+
+ Jobs                           Work orders — open, in-progress, and completed
+
+ Appointments                   Your schedule
+
+ Manual Library                 Browse and search factory service manuals by vehicle
+
+ Garage                         Vehicles you've saved for quick access
+
+ Settings                       Shop branding, tax rate, labor rate, and admin/user management
+
+    FIRST THING TO DO
+
+    Before creating your first job, jump ahead to Section 09 and fill in your Shop Profile — your shop name, address, logo, tax rate,
+    and labor rate all flow automatically into every invoice from that point on.
+
+---
+
+SECTION 02
+
+Adding a Customer & Their Vehicle
+
+WHERE: Customers tab
+
+1     Open the Customers tab
+      from the main navigation.
+
+2     Click Add Customer
+      and fill in their name, phone, email, and address.
+
+3     Save the customer
+      — you'll land on their customer detail page.
+
+4     Click Add Vehicle
+      on that page to attach a vehicle to them — enter year, make, model, and trim/variant if known.
+
+5     Repeat "Add Vehicle"
+      for any additional vehicles that customer owns — a customer can have as many as needed.
+
+    HANDY SHORTCUT
+
+    From a customer's vehicle, you can jump straight into the matching factory manual for that exact make/model without
+    manually searching the library — look for the deep-link into the Manual Library on the vehicle card.
+
+---
+
+SECTION 03
+
+Creating & Managing a Job Ticket
+
+WHERE: Jobs tab
+
+1     Open the Jobs tab
+      and click New Job.
+
+2     Select the customer and vehicle
+      the job is for — you'll only see vehicles already attached to that customer, so add the vehicle first if it isn't listed (Section 02).
+
+3     Describe the work
+      being done and set the job status.
+
+4     Add parts
+      as line items — each with a description, quantity, and cost — to build out the parts subtotal.
+
+5     Enter labor
+      — either type in Hours Worked and let it auto-calculate labor cost using your shop's default labor rate, or type the labor cost
+      directly. Either field can be edited any time; changing one updates the other.
+
+6     Attach photos
+      if needed (Section 04).
+
+7     Save the job.
+      You can come back and edit it any time before invoicing — nothing is locked until you print or export the invoice.
+
+    GOOD TO KNOW
+
+    Editing an existing job's labor cost directly will reverse-calculate the hours field to match, so the two numbers never fall out of
+    sync.
+
+---
+
+SECTION 04
+
+Adding Photos to a Job
+
+WHERE: Inside a job ticket
+
+1     Open the job
+      you want to document.
+
+2     Choose Add Photo
+      and select Before or After to categorize it.
+
+3     Upload the image
+      — it's automatically compressed for storage, so there's no need to resize anything yourself first.
+
+4     Add as many photos as needed
+      — repeat for additional before/after shots.
+
+5     Click any photo
+      in the job to open it full-size in the lightbox viewer.
+
+    WHERE THESE SHOW UP
+
+    Every photo attached to a job automatically appears on both the Print Invoice view and the PDF download — you don't need to
+    attach them separately when invoicing.
+
+---
+
+SECTION 05
+
+Scheduling Appointments
+
+WHERE: Appointments tab
+
+1   Open the Appointments tab.
+
+2   Click New Appointment
+    and pick the customer and vehicle involved.
+
+3   Set the date, time, and a short description
+    of what the appointment is for.
+
+4   Save
+    — it will appear on your schedule view.
+
+5   Link it to a job
+    if the work is already ticketed, so you can jump between the appointment and the job details.
+
+---
+
+SECTION 06
+
+Using the Manual Library
+
+ WHERE: Manual Library tab
+
+  Browsing to a vehicle
+
+ 1     Open the Manual Library
+       and start from the nationality grouping (e.g. Domestic, Asian, European).
+
+ 2     Drill into make, then model, then year/variant
+       using the tree navigator until you reach the vehicle you need.
+
+ 3     Select a section
+       of the manual — the content loads in the main reading pane.
+
+  Using the dual-pane reader
+The Manual Library opens two independent panes side by side. This means you can have one procedure open on the left — say, a
+wiring diagram — and a completely different section open on the right, like torque specs, without losing your place in either.
+Navigating in one pane does not affect the other.
+
+     FASTEST WAY IN
+
+     If you're looking at a customer's vehicle, use the deep-link from their vehicle card instead of browsing manually — it jumps
+     straight to that exact make/model in the library.
+
+  Printing a manual section
+
+ 1     Open the section
+       you want to print.
+
+ 2     Click the print icon
+       in the reader toolbar — it opens a clean, print-formatted version of just that content.
+
+---
+
+SECTION 07
+
+Looking Up Part Prices Nearby
+
+WHERE: "Find Nearby Price" button, on a part or job line item
+
+1     Click Find Nearby Price
+      next to a part you're pricing out.
+
+2     Enter your zip code
+      if prompted (this currently isn't pulled from Shop Settings automatically — you may need to enter it each session).
+
+3     Review the Google Shopping results
+      shown for that part near your area.
+
+    KNOWN LIMITATION
+
+    The zip code isn't yet tied to your saved Shop Settings — it's a planned improvement. For now, expect to enter it manually.
+
+---
+
+SECTION 08
+
+Creating an Invoice
+
+WHERE: Inside a completed job
+
+1     Open the job
+      you're ready to invoice.
+
+2     Review parts and labor
+      — confirm everything is entered correctly, since this is what generates the totals.
+
+3     Choose Print or Download PDF.
+      Both pull your shop name, address, phone, and logo automatically from Shop Settings (Section 09) — if you haven't set those
+      up yet, it falls back to generic "Workshop: Ragnarök" branding.
+
+4     Check the tax line
+      — it's calculated automatically as (Parts + Labor) × your shop's tax rate, and always shows, even when it's $0.00.
+
+5     Any attached photos
+      print or export automatically at the end of the invoice.
+
+    PDF VS PRINT
+
+    Use Print when you want to hand a physical copy to a customer on the spot. Use Download PDF when you want to email it or
+    keep a digital copy on file.
+
+---
+
+SECTION 09
+
+Setting Up Your Shop Profile
+
+ WHERE: Settings → Shop Profile & Billing Preferences
+
+Do this before your first real invoice — everything here feeds directly into every job and invoice you create afterward.
+
+ 1     Go to Settings
+       and open Shop Profile & Billing Preferences.
+
+ 2     Enter your shop name, address, city, state, and phone number.
+
+ 3     Upload a logo
+       if you have one — it appears on the invoice letterhead.
+
+ 4     Set your tax rate
+       (as a percentage) — this applies automatically to every future invoice.
+
+ 5     Set your default labor rate
+       — this is what auto-fills labor cost whenever you enter Hours Worked on a job.
+
+ 6     Save.
+       Changes apply going forward; past invoices already generated won't retroactively change.
+
+     IT'S SAFE TO SKIP AT FIRST
+
+     If you don't fill this out right away, the app doesn't break — invoices simply fall back to default "Workshop: Ragnarök"
+     branding and a $0.00-safe tax calculation until you do.
+
+---
+
+SECTION 10
+
+Quick Reference & Tips
+
+ Fastest paths to common tasks
+
+ YOU WANT TO...                                           FASTEST PATH
+
+ Look up a customer's car in the manual                   Customer → Vehicle card → deep-link into Manual Library
+
+ See what's scheduled today                               Appointments tab
+
+ Hand a customer their invoice on the spot                Job → Print
+
+ Email a customer their invoice                           Job → Download PDF
+
+ Compare two manual sections side by side                 Manual Library — use both panes independently
+
+ Fix your labor rate shop-wide                            Settings → Shop Profile — updates future jobs automatically
+
+ Habits worth building
+  Set up Shop Profile (Section 09) before your first invoice — it saves redoing branding on every job.
+  Attach before/after photos as you go on a job rather than all at the end — easier to remember what each one was for.
+  Use the Garage to pin vehicles you reference often, rather than re-browsing the tree every time.
+  Double-check parts and labor entries before printing an invoice — the tax total recalculates live, but it's still worth a glance
+  before handing it to a customer.
+
+  NEED THE TECHNICAL SIDE?
+
+  For architecture, backups, troubleshooting, and admin-level details, see the companion "Complete System Manual" document.
+
+---`;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -65,6 +426,17 @@ Workshop: Ragnarök — Josh's shop CRM. You help look up customers, vehicles, j
 appointments, and parts, browse the factory service manual library for any of
 the 304,923 vehicles in the system, and you can also create new customers,
 add vehicles to existing customers, and book appointments.
+
+You also have the app's own User Guide memorized below — use it to answer
+"how do I..." or "where do I find..." questions about USING THE APP ITSELF
+(navigating the UI, invoicing, shop settings, photos, etc.), as opposed to
+questions about specific data (which need your tools instead). If someone
+seems stuck or unsure how to do something in the app, check this guide
+before saying you don't know.
+
+=== APP USER GUIDE ===
+${APP_USER_GUIDE}
+=== END APP USER GUIDE ===
 
 When creating or booking something, confirm back to the user in plain language
 what you did (e.g. "Added a 2019 Toyota Tacoma to John Doe's account" or
