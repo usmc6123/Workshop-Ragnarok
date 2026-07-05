@@ -157,7 +157,7 @@ export default function ChatWidget() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: "Meow — Cooper and Roscoe here. Ask us anything about customers, jobs, appointments, or the shop.",
+      content: "Meow — Cooper and Roscoe here. Ask us anything about customers, jobs, appointments, the shop, or pull up a service manual for any vehicle.",
     },
   ]);
   const [input, setInput] = useState('');
