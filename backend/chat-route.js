@@ -62,8 +62,16 @@ async function generateWithRetry(params) {
 
 const SYSTEM_PROMPT = `You are Cooper & Roscoe, the friendly in-house assistant for
 Workshop: Ragnarök — Josh's shop CRM. You help look up customers, vehicles, jobs,
-appointments, and parts, and you can browse the factory service manual library
-for any of the 304,923 vehicles in the system.
+appointments, and parts, browse the factory service manual library for any of
+the 304,923 vehicles in the system, and you can also create new customers,
+add vehicles to existing customers, and book appointments.
+
+When creating or booking something, confirm back to the user in plain language
+what you did (e.g. "Added a 2019 Toyota Tacoma to John Doe's account" or
+"Booked an appointment for Sarah Connor's Caprice on 2026-07-10 at 09:00").
+If create_vehicle or create_appointment returns an "ambiguous" result with
+multiple matches, list the options clearly and ask the user to pick one
+before trying again — never guess which one they meant.
 
 For manual questions: first call find_vehicle_manual to get the vehicle's
 uriPath, then call browse_manual with that uriPath to get its table of contents.
@@ -150,6 +158,56 @@ const functionDeclarations = [
       type: Type.OBJECT,
       properties: { uri: { type: Type.STRING } },
       required: ['uri'],
+    },
+  },
+  {
+    name: 'create_customer',
+    description: "Create a new customer record.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        name: { type: Type.STRING },
+        phone: { type: Type.STRING },
+        email: { type: Type.STRING },
+        address: { type: Type.STRING },
+        notes: { type: Type.STRING },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'create_vehicle',
+    description: "Add a vehicle to an existing customer. Pass the customer's name (partial match ok) — this tool looks up their customer_id automatically. If more than one customer matches, it returns the list instead of creating anything, so you can ask the user to clarify which one.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        customer_name: { type: Type.STRING },
+        year: { type: Type.STRING },
+        make: { type: Type.STRING },
+        model: { type: Type.STRING },
+        engine: { type: Type.STRING },
+        vin: { type: Type.STRING },
+        color: { type: Type.STRING },
+        current_mileage: { type: Type.INTEGER },
+      },
+      required: ['customer_name', 'year', 'make', 'model'],
+    },
+  },
+  {
+    name: 'create_appointment',
+    description: "Book an appointment. Pass the customer's name and enough of the vehicle's details (year/make/model, or just make/model) to identify it among that customer's vehicles — this tool resolves both to their IDs automatically. If the customer or vehicle can't be uniquely matched, it returns the possible matches instead of creating anything, so you can ask the user to clarify.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING },
+        customer_name: { type: Type.STRING },
+        vehicle_description: { type: Type.STRING, description: "e.g. 'the Tacoma' or '2019 Toyota Tacoma' — used to match against that customer's vehicles" },
+        date: { type: Type.STRING, description: "YYYY-MM-DD" },
+        time: { type: Type.STRING, description: "HH:MM, 24-hour" },
+        duration_minutes: { type: Type.INTEGER },
+        notes: { type: Type.STRING },
+      },
+      required: ['title', 'customer_name', 'vehicle_description', 'date', 'time'],
     },
   },
 ];
@@ -261,6 +319,60 @@ async function runTool(name, input, userId, authHeader) {
       } catch (err) {
         return { error: `Manual fetch failed: ${err.message}` };
       }
+    }
+
+    case 'create_customer': {
+      const info = db
+        .prepare(`INSERT INTO customers (name, phone, email, address, notes, user_id) VALUES (?, ?, ?, ?, ?, ?)`)
+        .run(input.name, input.phone || null, input.email || null, input.address || null, input.notes || null, userId);
+      return db.prepare(`SELECT * FROM customers WHERE id = ? AND user_id = ?`).get(info.lastInsertRowid, userId);
+    }
+
+    case 'create_vehicle': {
+      const customers = db
+        .prepare(`SELECT id, name FROM customers WHERE user_id = ? AND name LIKE ?`)
+        .all(userId, `%${input.customer_name}%`);
+      if (customers.length === 0) return { error: `No customer found matching "${input.customer_name}".` };
+      if (customers.length > 1) return { ambiguous: true, matches: customers, message: 'Multiple customers matched — ask which one.' };
+
+      const info = db
+        .prepare(
+          `INSERT INTO customer_vehicles (customer_id, year, make, model, engine, vin, color, current_mileage, user_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          customers[0].id, input.year, input.make, input.model,
+          input.engine || null, input.vin || null, input.color || null,
+          input.current_mileage || 0, userId
+        );
+      return db.prepare(`SELECT * FROM customer_vehicles WHERE id = ? AND user_id = ?`).get(info.lastInsertRowid, userId);
+    }
+
+    case 'create_appointment': {
+      const customers = db
+        .prepare(`SELECT id, name FROM customers WHERE user_id = ? AND name LIKE ?`)
+        .all(userId, `%${input.customer_name}%`);
+      if (customers.length === 0) return { error: `No customer found matching "${input.customer_name}".` };
+      if (customers.length > 1) return { ambiguous: true, matches: customers, message: 'Multiple customers matched — ask which one.' };
+      const customerId = customers[0].id;
+
+      const vehicles = db
+        .prepare(
+          `SELECT id, year, make, model FROM customer_vehicles
+           WHERE user_id = ? AND customer_id = ?
+           AND (make LIKE ? OR model LIKE ? OR year LIKE ?)`
+        )
+        .all(userId, customerId, `%${input.vehicle_description}%`, `%${input.vehicle_description}%`, `%${input.vehicle_description}%`);
+      if (vehicles.length === 0) return { error: `No vehicle matching "${input.vehicle_description}" found for this customer.` };
+      if (vehicles.length > 1) return { ambiguous: true, matches: vehicles, message: 'Multiple vehicles matched — ask which one.' };
+
+      const info = db
+        .prepare(
+          `INSERT INTO appointments (title, customer_id, vehicle_id, date, time, duration_minutes, notes, user_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(input.title, customerId, vehicles[0].id, input.date, input.time, input.duration_minutes || 60, input.notes || null, userId);
+      return db.prepare(`SELECT * FROM appointments WHERE id = ? AND user_id = ?`).get(info.lastInsertRowid, userId);
     }
 
     default:
