@@ -10,6 +10,7 @@ import {
   Search, Car, Wrench, ClipboardList, BookOpen, Clock, Users,
   RefreshCw, AlertTriangle, ChevronRight, Activity, Calendar, PlusCircle
 } from 'lucide-react';
+import CatHeaderBanner from './CatHeaderBanner';
 
 interface DashboardViewProps {
   onSelectVehicle: (vehicle: Vehicle) => void;
@@ -277,21 +278,23 @@ export default function DashboardView({
     <div className="space-y-6 max-w-6xl mx-auto px-4 py-6" id="dashboard-view-root">
       
       {/* Dashboard Hero Section */}
-      <div className="flex flex-col sm:flex-row items-center gap-6 py-5 pb-6 border-b border-amber-500/10" id="dashboard-hero">
-        <img 
-          src="https://raw.githubusercontent.com/usmc6123/images/main/newlogo.jpg" 
-          alt="Workshop Ragnarök Hero Logo" 
-          className="w-[120px] h-[120px] rounded-full object-cover border-2 border-amber-500/30 ring-2 ring-amber-500/40 shadow-xl shadow-amber-500/20 shrink-0"
-        />
-        <div className="text-center sm:text-left space-y-1">
-          <h1 className="text-3xl sm:text-4xl font-black tracking-widest text-amber-500 uppercase font-mono">
-            WORKSHOP: RAGNARÖK
-          </h1>
-          <p className="text-sm sm:text-base font-mono tracking-wider text-slate-400 uppercase">
-            Auto Shop Management System
-          </p>
+      <CatHeaderBanner sources={['/garage-calm.mp4', '/garage-run.mp4']}>
+        <div className="flex flex-col sm:flex-row items-center gap-6 p-6 h-full w-full justify-center sm:justify-start" id="dashboard-hero">
+          <img 
+            src="https://raw.githubusercontent.com/usmc6123/images/main/newlogo.jpg" 
+            alt="Workshop Ragnarök Hero Logo" 
+            className="w-[120px] h-[120px] rounded-full object-cover border-2 border-amber-500/30 ring-2 ring-amber-500/40 shadow-xl shadow-amber-500/20 shrink-0"
+          />
+          <div className="text-center sm:text-left space-y-1">
+            <h1 className="text-3xl sm:text-4xl font-black tracking-widest text-amber-500 uppercase font-mono">
+              WORKSHOP: RAGNARÖK
+            </h1>
+            <p className="text-sm sm:text-base font-mono tracking-wider text-slate-400 uppercase">
+              Auto Shop Management System
+            </p>
+          </div>
         </div>
-      </div>
+      </CatHeaderBanner>
 
       {/* 1. Overview Metrics Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="dashboard-stats-deck">
