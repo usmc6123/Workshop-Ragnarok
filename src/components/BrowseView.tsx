@@ -244,6 +244,9 @@ export default function BrowseView({
   // Recently viewed makes
   const [recentlyViewed, setRecentlyViewed] = useState<string[]>([]);
 
+  // Recently viewed manuals
+  const [recentManuals, setRecentManuals] = useState<Vehicle[]>([]);
+
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize and load all makes & recently viewed on mount
@@ -272,6 +275,15 @@ export default function BrowseView({
       }
     } else {
       setRecentlyViewed(['BMW', 'Tesla', 'Toyota', 'Ford']);
+    }
+
+    const storedManuals = localStorage.getItem('recently_viewed_manuals');
+    if (storedManuals) {
+      try {
+        setRecentManuals(JSON.parse(storedManuals));
+      } catch (e) {
+        console.error('Failed to parse recently viewed manuals', e);
+      }
     }
   }, []);
 
@@ -334,6 +346,13 @@ export default function BrowseView({
   };
 
   const handleSelectVehicle = (vehicle: Vehicle) => {
+    setRecentManuals(prev => {
+      const filtered = prev.filter(v => v.id !== vehicle.id);
+      const updated = [vehicle, ...filtered].slice(0, 6);
+      localStorage.setItem('recently_viewed_manuals', JSON.stringify(updated));
+      return updated;
+    });
+
     if (vehicle.make) {
       handleSelectMake(vehicle.make);
       setSelectedMake('');
@@ -522,6 +541,47 @@ export default function BrowseView({
             {!selectedMake && (
               <div className="space-y-6">
                 
+                {/* Recently Viewed Manuals Section */}
+                {recentManuals.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 border-b border-amber-500/15 pb-2">
+                      <History className="w-4 h-4 text-amber-500" />
+                      <h3 className="text-xs font-mono font-black tracking-widest text-slate-200 uppercase">
+                        RECENTLY VIEWED MANUALS
+                      </h3>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {recentManuals.map((v) => (
+                        <div
+                          key={v.id}
+                          onClick={() => handleSelectVehicle(v)}
+                          className="bg-black/40 hover:bg-black/60 backdrop-blur-sm border border-white/5 hover:border-amber-500/40 hover:border-l-amber-500 border-l-[3px] border-l-amber-500/30 rounded-xl p-4 flex items-center justify-between gap-4 transition-all duration-200 group cursor-pointer"
+                          id={`recent-manual-card-${v.id}`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="bg-amber-500/10 p-2 rounded-lg text-amber-500 group-hover:scale-110 transition-transform shrink-0">
+                              <Car className="w-5 h-5" />
+                            </div>
+                            <div className="space-y-0.5 min-w-0 text-left">
+                              <h4 className="text-xs md:text-sm font-extrabold text-slate-200 truncate group-hover:text-amber-400 transition-colors leading-tight font-sans">
+                                {v.year} {v.make} {v.model}
+                              </h4>
+                              <p className="text-[11px] text-slate-400 font-mono truncate">{v.engine}</p>
+                            </div>
+                          </div>
+                          <span className={`text-[8px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border select-none shrink-0 ${
+                            v.source === 'lemon'
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                          }`}>
+                            {v.source}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* 1B. 3-Column Responsive Grid of Collapsible National Groups */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   
