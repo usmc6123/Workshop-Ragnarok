@@ -346,12 +346,24 @@ export default function BrowseView({
   };
 
   const handleSelectVehicle = (vehicle: Vehicle) => {
-    setRecentManuals(prev => {
-      const filtered = prev.filter(v => v.id !== vehicle.id);
-      const updated = [vehicle, ...filtered].slice(0, 6);
-      localStorage.setItem('recently_viewed_manuals', JSON.stringify(updated));
-      return updated;
-    });
+    console.log('handleSelectVehicle called with:', vehicle);
+
+    // Synchronously update localStorage to avoid losing the update when BrowseView unmounts
+    let currentRecent: Vehicle[] = [];
+    const stored = localStorage.getItem('recently_viewed_manuals');
+    if (stored) {
+      try {
+        currentRecent = JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to parse recently_viewed_manuals', e);
+      }
+    }
+    const filtered = currentRecent.filter(v => v.id !== vehicle.id);
+    const updated = [vehicle, ...filtered].slice(0, 6);
+    localStorage.setItem('recently_viewed_manuals', JSON.stringify(updated));
+
+    // Update state so any mounted instance has the fresh list
+    setRecentManuals(updated);
 
     if (vehicle.make) {
       handleSelectMake(vehicle.make);
