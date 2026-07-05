@@ -26,6 +26,83 @@ const MASCOT_LOGO_URL = '/roscoe-logo.png';
 const MESSAGE_AVATAR_URL = '/cooper-logo.png';
 const CHAT_BACKGROUND_URL = '/chat-background.png';
 
+// ---------- Print / download helpers ----------
+
+async function downloadImage(url: string) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    const nameGuess = url.split('/').pop()?.split('?')[0] || 'diagram';
+    a.download = nameGuess.includes('.') ? nameGuess : `${nameGuess}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objectUrl);
+  } catch (err) {
+    alert("Couldn't download that image — try right-click > Save Image As instead.");
+  }
+}
+
+function printImage(url: string) {
+  const win = window.open('', '_blank');
+  if (!win) return;
+  win.document.write(`
+    <html><head><title>Print diagram</title></head>
+    <body style="margin:0;display:flex;align-items:center;justify-content:center;">
+      <img src="${url}" style="max-width:100%;" onload="window.print();" />
+    </body></html>
+  `);
+  win.document.close();
+}
+
+// Converts a message's raw ![alt](url) markdown-image content into full HTML
+// (used for both printing and downloading a whole chat response, so diagrams
+// and their surrounding text/tables stay together as one document).
+function messageToHtml(content: string): string {
+  const escaped = content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  const withImages = escaped.replace(
+    /!\[([^\]]*)\]\(([^)]+)\)/g,
+    (_match, alt, url) => `<img src="${url}" alt="${alt}" style="max-width:100%;margin:10px 0;border:1px solid #ddd;border-radius:4px;" />`
+  );
+  return withImages.replace(/\n/g, '<br/>');
+}
+
+function printMessage(content: string) {
+  const win = window.open('', '_blank');
+  if (!win) return;
+  win.document.write(`
+    <html><head><title>Cooper &amp; Roscoe — Shop Assistant</title></head>
+    <body style="font-family: Arial, sans-serif; font-size:14px; line-height:1.5; padding:24px; max-width:800px; margin:0 auto;">
+      ${messageToHtml(content)}
+      <script>window.onload = () => window.print();</script>
+    </body></html>
+  `);
+  win.document.close();
+}
+
+// Downloads the message content as an HTML file with integrated styling and image fallbacks
+function downloadMessage(content: string) {
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Cooper & Roscoe response</title></head>
+    <body style="font-family: Arial, sans-serif; font-size:14px; line-height:1.5; padding:24px; max-width:800px; margin:0 auto;">
+      ${messageToHtml(content)}
+    </body></html>`;
+  const blob = new Blob([html], { type: 'text/html' });
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = `cooper-roscoe-response-${Date.now()}.html`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
 // ---------- Message content rendering ----------
 
 // Parses ![alt](url) markdown-image syntax out of plain text and renders
@@ -102,13 +179,16 @@ function ImageLightbox({ url, onClose }: { url: string; onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
         style={{
           position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
-          display: 'flex', gap: 8, zIndex: 2001,
+          display: 'flex', gap: 8, zIndex: 2001, flexWrap: 'wrap', justifyContent: 'center',
+          maxWidth: '90vw',
         }}
       >
         <button style={btnStyle} onClick={() => setZoom((z) => Math.min(z + 0.25, 4))}>Zoom +</button>
         <button style={btnStyle} onClick={() => setZoom((z) => Math.max(z - 0.25, 0.5))}>Zoom -</button>
         <button style={btnStyle} onClick={() => setRotation((r) => (r + 90) % 360)}>Rotate</button>
         <button style={btnStyle} onClick={() => { setZoom(1); setRotation(0); }}>Reset</button>
+        <button style={btnStyle} onClick={() => printImage(url)}>Print</button>
+        <button style={btnStyle} onClick={() => downloadImage(url)}>Download</button>
       </div>
 
       <button
@@ -328,6 +408,22 @@ export default function ChatWidget() {
                   }}
                 >
                   {renderMessageContent(m.content, setLightboxUrl)}
+                  {m.role === 'assistant' && (
+                    <div style={{ display: 'flex', gap: 10, marginTop: 6, borderTop: '1px solid #eee', paddingTop: 5 }}>
+                      <button
+                        onClick={() => printMessage(m.content)}
+                        style={{ background: 'none', border: 'none', padding: 0, fontSize: 11, color: '#9a9a9a', cursor: 'pointer', textDecoration: 'underline' }}
+                      >
+                        Print
+                      </button>
+                      <button
+                        onClick={() => downloadMessage(m.content)}
+                        style={{ background: 'none', border: 'none', padding: 0, fontSize: 11, color: '#9a9a9a', cursor: 'pointer', textDecoration: 'underline' }}
+                      >
+                        Download
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
