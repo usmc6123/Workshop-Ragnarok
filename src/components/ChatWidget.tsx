@@ -7,11 +7,14 @@ import React, { useState, useRef, useEffect } from 'react';
  * inside App.tsx, so it floats on every page). It talks to your backend
  * at POST /api/chat.
  *
- * MASCOT LOGO SETUP (required):
- * Save cooper-roscoe-medallion-512.png into your frontend's `public/` folder
- * as `public/cooper-roscoe-medallion.png` — Vite serves anything in `public/`
- * directly at the site root, so no import needed. MASCOT_LOGO_URL below
- * already points at that path.
+ * LOGO SETUP (required):
+ * Save Roscoe's image as `public/roscoe-logo.png` — used on the toggle
+ * button and header (the "main" chat icon).
+ * Save Cooper's image as `public/cooper-logo.png` — used next to every
+ * assistant message and the typing indicator.
+ * Vite serves anything in `public/` directly at the site root, so no
+ * import needed — MASCOT_LOGO_URL / MESSAGE_AVATAR_URL below already
+ * point at those paths.
  *
  * CHAT BACKGROUND SETUP (required):
  * Save chat-background.png into `public/chat-background.png` the same way.
@@ -19,36 +22,9 @@ import React, { useState, useRef, useEffect } from 'react';
  * text readable) — adjust the 0.86 opacity value below to taste.
  */
 
-const MASCOT_LOGO_URL = '/cooper-roscoe-medallion.png';
+const MASCOT_LOGO_URL = '/roscoe-logo.png';
+const MESSAGE_AVATAR_URL = '/cooper-logo.png';
 const CHAT_BACKGROUND_URL = '/chat-background.png';
-
-// ---------- Cat avatars (placeholder SVGs — swap for real photos anytime) ----------
-
-const CooperAvatar = ({ size = 32 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 40 40" style={{ display: 'block' }}>
-    <circle cx="20" cy="20" r="20" fill="#22232a" />
-    <path d="M9 12 L15 4 L18 13 Z" fill="#22232a" />
-    <path d="M31 12 L25 4 L22 13 Z" fill="#22232a" />
-    <ellipse cx="20" cy="23" rx="11" ry="9" fill="#f4f1ea" />
-    <circle cx="15.5" cy="21" r="2" fill="#22232a" />
-    <circle cx="24.5" cy="21" r="2" fill="#22232a" />
-    <path d="M18.5 25 Q20 27 21.5 25" stroke="#22232a" strokeWidth="1.4" fill="none" strokeLinecap="round" />
-    <path d="M20 24.3 L20 25.3" stroke="#22232a" strokeWidth="1.2" />
-  </svg>
-);
-
-const RoscoeAvatar = ({ size = 32 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 40 40" style={{ display: 'block' }}>
-    <circle cx="20" cy="20" r="20" fill="#9a9ca3" />
-    <path d="M9 12 L15 4 L18 13 Z" fill="#9a9ca3" />
-    <path d="M31 12 L25 4 L22 13 Z" fill="#9a9ca3" />
-    <ellipse cx="20" cy="24" rx="12" ry="9.5" fill="#e9e7e2" />
-    <circle cx="15.5" cy="22" r="2" fill="#4a4c52" />
-    <circle cx="24.5" cy="22" r="2" fill="#4a4c52" />
-    <path d="M18.3 26 Q20 28 21.7 26" stroke="#4a4c52" strokeWidth="1.4" fill="none" strokeLinecap="round" />
-    <path d="M20 25.3 L20 26.3" stroke="#4a4c52" strokeWidth="1.2" />
-  </svg>
-);
 
 // ---------- Message content rendering ----------
 
@@ -170,7 +146,6 @@ function ImageLightbox({ url, onClose }: { url: string; onClose: () => void }) {
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-  avatar?: 'cooper' | 'roscoe';
 }
 
 // ---------- Widget ----------
@@ -183,13 +158,11 @@ export default function ChatWidget() {
     {
       role: 'assistant',
       content: "Meow — Cooper and Roscoe here. Ask us anything about customers, jobs, appointments, or the shop.",
-      avatar: 'roscoe',
     },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const nextAvatar = useRef<'cooper' | 'roscoe'>('cooper');
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -203,10 +176,6 @@ export default function ChatWidget() {
     const history = [...messages, userMsg];
     setMessages(history);
     setLoading(true);
-
-    // alternate which cat "answers" each turn
-    const avatar = nextAvatar.current;
-    nextAvatar.current = avatar === 'cooper' ? 'roscoe' : 'cooper';
 
     try {
       const token = localStorage.getItem('workshop_token');
@@ -223,12 +192,12 @@ export default function ChatWidget() {
       const data = await res.json();
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: data.reply ?? "Hmm, couldn't fetch that.", avatar },
+        { role: 'assistant', content: data.reply ?? "Hmm, couldn't fetch that." },
       ]);
     } catch (err) {
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: "Connection hiccup — try that again in a sec.", avatar },
+        { role: 'assistant', content: "Connection hiccup — try that again in a sec." },
       ]);
     } finally {
       setLoading(false);
@@ -338,9 +307,12 @@ export default function ChatWidget() {
                 }}
               >
                 {m.role === 'assistant' && (
-                  <div style={{ flexShrink: 0 }}>
-                    {m.avatar === 'cooper' ? <CooperAvatar size={28} /> : <RoscoeAvatar size={28} />}
-                  </div>
+                  <img
+                    src={MESSAGE_AVATAR_URL}
+                    alt=""
+                    style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'contain', background: '#1a1d24', flexShrink: 0 }}
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
                 )}
                 <div
                   style={{
@@ -361,7 +333,12 @@ export default function ChatWidget() {
             ))}
             {loading && (
               <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                <RoscoeAvatar size={28} />
+                <img
+                  src={MESSAGE_AVATAR_URL}
+                  alt=""
+                  style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'contain', background: '#1a1d24', flexShrink: 0 }}
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
                 <div
                   style={{
                     background: '#fff', padding: '8px 11px', borderRadius: 10,
