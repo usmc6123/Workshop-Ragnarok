@@ -103,6 +103,8 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
   const [partUnitCost, setPartUnitCost] = useState('');
   const [partNotes, setPartNotes] = useState('');
   const [isAddingPart, setIsAddingPart] = useState(false);
+  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
+  const [selectedInventoryId, setSelectedInventoryId] = useState<string>('');
 
   useEffect(() => {
     fetchJobs();
@@ -145,6 +147,8 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       setCustomers(custs);
       const vehs = await api.getVehiclesAll();
       setVehicles(vehs);
+      const inv = await api.getInventory();
+      setInventoryItems(inv);
     } catch (err) {
       console.error('Failed to load associations for Job modal:', err);
     }
@@ -367,7 +371,8 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       part_number: partNumber,
       quantity: parseInt(partQuantity, 10) || 1,
       unit_cost: parseFloat(partUnitCost) || 0,
-      notes: partNotes
+      notes: partNotes,
+      inventory_item_id: selectedInventoryId ? parseInt(selectedInventoryId, 10) : null
     };
 
     try {
@@ -377,7 +382,12 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       setPartQuantity('1');
       setPartUnitCost('');
       setPartNotes('');
+      setSelectedInventoryId('');
       fetchJobParts(selectedJob.id);
+      
+      // Refresh inventory items dropdown so quantities are up-to-date
+      const inv = await api.getInventory();
+      setInventoryItems(inv);
     } catch (err: any) {
       alert(err.message || 'Failed to add part billing line.');
     } finally {
@@ -391,6 +401,10 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
     try {
       await api.deleteJobPart(selectedJob.id, partId);
       fetchJobParts(selectedJob.id);
+      
+      // Refresh inventory items dropdown so quantities are restored
+      const inv = await api.getInventory();
+      setInventoryItems(inv);
     } catch (err: any) {
       alert(err.message || 'Failed to delete part item.');
     }
@@ -1310,6 +1324,38 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                       Find Nearby Price
                     </button>
                   </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[9px] font-mono text-slate-500 uppercase">Link with Workshop Stock Inventory (Optional)</label>
+                    <select
+                      value={selectedInventoryId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSelectedInventoryId(val);
+                        if (val) {
+                          const item = inventoryItems.find(i => i.id === parseInt(val, 10));
+                          if (item) {
+                            setPartName(item.name || '');
+                            setPartNumber(item.part_number || '');
+                            setPartUnitCost(item.sell_price?.toString() || '0');
+                          }
+                        } else {
+                          setPartName('');
+                          setPartNumber('');
+                          setPartUnitCost('');
+                        }
+                      }}
+                      className="w-full bg-surface-theme border border-border-theme rounded px-2.5 py-1.5 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
+                    >
+                      <option value="">-- Custom One-Off / Non-Inventory Part --</option>
+                      {inventoryItems.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name} {item.part_number ? `(${item.part_number})` : ''} — Stock: {item.quantity_on_hand} {item.unit_type || 'pcs'} [${item.sell_price ? `$${item.sell_price.toFixed(2)}` : 'Free'}]
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div className="grid grid-cols-2 md:grid-cols-12 gap-3 items-end">
                     <div className="md:col-span-3 space-y-1">
                       <label className="block text-[9px] font-mono text-slate-500 uppercase">Part Name</label>
@@ -1319,7 +1365,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                         placeholder="e.g. Brake Pads"
                         value={partName}
                         onChange={(e) => setPartName(e.target.value)}
-                        className="w-full bg-surface-theme border border-border-theme rounded px-2.5 py-1.5 text-xs text-slate-205 focus:border-primary-theme focus:outline-none"
+                        className="w-full bg-surface-theme border border-border-theme rounded px-2.5 py-1.5 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
                       />
                     </div>
                     <div className="md:col-span-3 space-y-1">

@@ -230,3 +230,49 @@ export interface ShopSettings {
   zip_code: string;
 }
 
+export interface InventoryItem {
+  id: number;
+  part_number: string;
+  name: string;
+  category: 'brakes' | 'filters' | 'fluids' | 'electrical' | 'engine' | 'other';
+  quantity_on_hand: number;
+  reorder_threshold: number;
+  unit_type: string;
+  cost_price: number;
+  sell_price: number;
+  supplier_name?: string;
+  location?: string;
+  core_charge?: number;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+  user_id?: number;
+}
+
+export interface WorkOrderPart {
+  id: number;
+  job_id: number;
+  inventory_item_id?: number | null;
+  part_name_snapshot: string;
+  quantity_used: number;
+  price_charged: number;
+  created_at?: string;
+  user_id?: number;
+  
+  // Joined fields from inventory items
+  part_number?: string;
+  inventory_name?: string;
+  category?: string;
+  reorder_threshold?: number;
+  quantity_on_hand?: number;
+}
+
+export interface InventoryAdjustment {
+  id: number;
+  item_id: number;
+  delta: number;
+  reason: string;
+  created_at?: string;
+  user_id?: number;
+}
+

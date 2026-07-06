@@ -5,7 +5,8 @@
 
 import { 
   Vehicle, GarageItem, PageResponse, Customer, CustomerVehicle, 
-  ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual, ShopSettings, JobPhoto
+  ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual, ShopSettings, JobPhoto,
+  InventoryItem, WorkOrderPart
 } from '../types';
 
 import { 
@@ -862,37 +863,7 @@ export const api = {
     }
   },
 
-  // --- JOB PARTS ---
-  async getJobParts(jobId: number): Promise<JobPart[]> {
-    try {
-      return await request<JobPart[]>(`/api/jobs/${jobId}/parts`);
-    } catch (err: any) {
-      if (err instanceof ApiError && err.isOffline) {
-        return getSimulatedJobParts().filter(p => p.job_id === jobId);
-      }
-      throw err;
-    }
-  },
-
-  async addJobPart(jobId: number, part: Omit<JobPart, 'id' | 'job_id'>): Promise<JobPart> {
-    try {
-      return await request<JobPart>(`/api/jobs/${jobId}/parts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(part)
-      });
-    } catch (err: any) {
-      if (err instanceof ApiError && err.isOffline) {
-        const list = getSimulatedJobParts();
-        const nextId = list.reduce((max, p) => Math.max(max, p.id), 0) + 1;
-        const newItem: JobPart = { ...part, id: nextId, job_id: jobId };
-        saveSimulatedJobParts([...list, newItem]);
-        return newItem;
-      }
-      throw err;
-    }
-  },
-
+  // --- JOB PARTS (INVENTORY INTEGRATED) ---
   async updateJobPart(jobId: number, partId: number, part: JobPart): Promise<JobPart> {
     try {
       return await request<JobPart>(`/api/jobs/${jobId}/parts/${partId}`, {
@@ -909,21 +880,6 @@ export const api = {
         updated[idx] = part;
         saveSimulatedJobParts(updated);
         return part;
-      }
-      throw err;
-    }
-  },
-
-  async deleteJobPart(jobId: number, partId: number): Promise<{ success: boolean }> {
-    try {
-      return await request<{ success: boolean }>(`/api/jobs/${jobId}/parts/${partId}`, {
-        method: 'DELETE'
-      });
-    } catch (err: any) {
-      if (err instanceof ApiError && err.isOffline) {
-        const list = getSimulatedJobParts();
-        saveSimulatedJobParts(list.filter(p => p.id !== partId));
-        return { success: true };
       }
       throw err;
     }
@@ -1150,5 +1106,86 @@ export const api = {
       }
       throw err;
     }
+  },
+
+  // --- INVENTORY MANAGEMENT ---
+  async getInventory(q?: string, category?: string): Promise<InventoryItem[]> {
+    let url = '/api/inventory?';
+    if (q) url += `q=${encodeURIComponent(q)}&`;
+    if (category) url += `category=${encodeURIComponent(category)}`;
+    return await request<InventoryItem[]>(url);
+  },
+
+  async createInventoryItem(item: Partial<InventoryItem>): Promise<InventoryItem> {
+    return await request<InventoryItem>('/api/inventory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(item)
+    });
+  },
+
+  async updateInventoryItem(id: number, item: Partial<InventoryItem>): Promise<InventoryItem> {
+    return await request<InventoryItem>(`/api/inventory/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(item)
+    });
+  },
+
+  async deleteInventoryItem(id: number): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/inventory/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async adjustInventoryItem(id: number, delta: number, reason: string): Promise<InventoryItem> {
+    return await request<InventoryItem>(`/api/inventory/${id}/adjust`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ delta, reason })
+    });
+  },
+
+  // --- WORK ORDER INTEGRATION ---
+  async getJobParts(jobId: number): Promise<any[]> {
+    const raw = await request<any[]>(`/api/jobs/${jobId}/parts`);
+    return (raw || []).map(p => ({
+      ...p,
+      part_name: p.part_name_snapshot,
+      quantity: p.quantity_used,
+      unit_cost: p.price_charged,
+      part_number: p.part_number || ''
+    }));
+  },
+
+  async addJobPart(jobId: number, data: any): Promise<any> {
+    const payload = {
+      inventory_item_id: data.inventory_item_id || null,
+      part_name_snapshot: data.part_name_snapshot || data.part_name,
+      quantity_used: data.quantity_used || data.quantity || 1,
+      price_charged: data.price_charged !== undefined ? data.price_charged : data.unit_cost
+    };
+    const res = await request<any>(`/api/jobs/${jobId}/parts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const partsList = (res.parts || []).map((p: any) => ({
+      ...p,
+      part_name: p.part_name_snapshot,
+      quantity: p.quantity_used,
+      unit_cost: p.price_charged,
+      part_number: p.part_number || ''
+    }));
+    return {
+      ...res,
+      parts: partsList
+    };
+  },
+
+  async deleteJobPart(jobId: number, partId: number): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/jobs/${jobId}/parts/${partId}`, {
+      method: 'DELETE'
+    });
   }
 };

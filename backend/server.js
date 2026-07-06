@@ -216,6 +216,54 @@ try {
     )
   `);
 
+  // Create Inventory Items Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS inventory_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      part_number TEXT,
+      name TEXT NOT NULL,
+      category TEXT,
+      quantity_on_hand INTEGER DEFAULT 0,
+      reorder_threshold INTEGER DEFAULT 0,
+      unit_type TEXT DEFAULT 'each',
+      cost_price REAL DEFAULT 0,
+      sell_price REAL DEFAULT 0,
+      supplier_name TEXT,
+      location TEXT,
+      core_charge REAL DEFAULT 0,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create Work Order Parts Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS work_order_parts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
+      inventory_item_id INTEGER REFERENCES inventory_items(id) ON DELETE SET NULL,
+      part_name_snapshot TEXT,
+      quantity_used INTEGER DEFAULT 1,
+      price_charged REAL DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create Inventory Adjustments Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS inventory_adjustments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      item_id INTEGER REFERENCES inventory_items(id) ON DELETE CASCADE,
+      delta INTEGER NOT NULL,
+      reason TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
   // Migrate columns for shop_settings table
   const shopSettingsCols = [
     { name: 'user_id', type: 'INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE' },
@@ -252,7 +300,10 @@ try {
     'appointments',
     'garage',
     'vehicle_manuals',
-    'job_photos'
+    'job_photos',
+    'inventory_items',
+    'work_order_parts',
+    'inventory_adjustments'
   ];
 
   for (const tableName of targetTables) {
@@ -345,6 +396,28 @@ try {
     db.prepare(`INSERT INTO service_history (vehicle_id, date, mileage, description, parts_used, cost, technician, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
       3, '2026-06-24', 31000, 'Misfire diagnostic spark plug swap', '8x NGK Iridium Plugs', 161.92, 'David Miller', 'Scanned cylinder 5 misfire. Spark plugs swapped, test-drive checked clean.'
     );
+
+    // Seed initial Inventory Items
+    console.log('Seeding initial Inventory Items...');
+    const seedInv = [
+      ['SP-101', 'Brake Pads Front (Ceramic)', 'brakes', 15, 5, 'each', 22.50, 45.00, 'NAPA Auto Parts', 'Shelf A-1', 0, 'High quality ceramic pads'],
+      ['FL-202', 'Full Synthetic Oil 5W-30', 'fluids', 45, 12, 'quart', 4.50, 8.99, 'Valvoline Corp', 'Shelf B-3', 0, '5W-30 motor oil'],
+      ['FL-203', 'Oil Filter (Premium)', 'filters', 20, 6, 'each', 3.20, 7.50, 'Fram Filters', 'Shelf B-4', 0, 'Spin-on oil filter'],
+      ['EL-301', 'Heavy Duty Alternator 160A', 'electrical', 2, 1, 'each', 110.00, 185.00, 'ACDelco', 'Shelf C-2', 45.00, 'Requires core return'],
+      ['EG-401', 'Spark Plug (Iridium)', 'engine', 32, 10, 'each', 4.20, 9.50, 'NGK Spark Plugs', 'Shelf B-1', 0, 'Pre-gapped to 0.040"']
+    ];
+    for (const [part, name, cat, qty, reorder, unit, cost, sell, supp, loc, core, note] of seedInv) {
+      db.prepare(`
+        INSERT INTO inventory_items (part_number, name, category, quantity_on_hand, reorder_threshold, unit_type, cost_price, sell_price, supplier_name, location, core_charge, notes, user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      `).run(part, name, cat, qty, reorder, unit, cost, sell, supp, loc, core, note);
+    }
+
+    // Seed some work order parts for historical jobs (e.g. Job 3 is spark plug tune-up, which has id = 3)
+    db.prepare(`
+      INSERT INTO work_order_parts (job_id, inventory_item_id, part_name_snapshot, quantity_used, price_charged, user_id)
+      VALUES (?, ?, ?, ?, ?, 1)
+    `).run(3, 5, 'Spark Plug (Iridium)', 8, 9.50);
 
     db.prepare(
       'INSERT INTO app_flags (key, value) VALUES (?, ?)'
@@ -2252,6 +2325,239 @@ app.delete('/api/appointments/:id', (req, res) => {
   } catch (error) {
     console.error('Error deleting appointment:', error);
     res.status(500).json({ error: 'Database error deleting appointment' });
+  }
+});
+
+// --- INVENTORY MANAGEMENT ---
+app.get('/api/inventory', (req, res) => {
+  try {
+    const { q, category } = req.query;
+    let queryStr = 'SELECT * FROM inventory_items WHERE user_id = ?';
+    const params = [req.user.id];
+    
+    if (category) {
+      queryStr += ' AND category = ?';
+      params.push(category);
+    }
+    if (q) {
+      queryStr += ' AND (LOWER(name) LIKE ? OR LOWER(part_number) LIKE ?)';
+      const term = `%${q.toLowerCase()}%`;
+      params.push(term, term);
+    }
+    
+    queryStr += ' ORDER BY name ASC';
+    const rows = db.prepare(queryStr).all(...params);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching inventory:', error);
+    res.status(500).json({ error: 'Database error fetching inventory' });
+  }
+});
+
+app.post('/api/inventory', (req, res) => {
+  try {
+    const { part_number, name, category, quantity_on_hand, reorder_threshold, unit_type, cost_price, sell_price, supplier_name, location, core_charge, notes } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name is required' });
+    
+    const stmt = db.prepare(`
+      INSERT INTO inventory_items (
+        part_number, name, category, quantity_on_hand, reorder_threshold, unit_type, cost_price, sell_price, supplier_name, location, core_charge, notes, user_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const info = stmt.run(
+      part_number || '', name, category || 'other', quantity_on_hand || 0, reorder_threshold || 0, unit_type || 'each',
+      cost_price || 0, sell_price || 0, supplier_name || '', location || '', core_charge || 0, notes || '', req.user.id
+    );
+    const inserted = db.prepare('SELECT * FROM inventory_items WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
+    res.json(inserted);
+  } catch (error) {
+    console.error('Error creating inventory item:', error);
+    res.status(500).json({ error: 'Database error creating inventory item' });
+  }
+});
+
+app.get('/api/inventory/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const row = db.prepare('SELECT * FROM inventory_items WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!row) return res.status(404).json({ error: 'Inventory item not found' });
+    res.json(row);
+  } catch (error) {
+    console.error('Error fetching inventory item:', error);
+    res.status(500).json({ error: 'Database error fetching inventory item' });
+  }
+});
+
+app.put('/api/inventory/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { part_number, name, category, quantity_on_hand, reorder_threshold, unit_type, cost_price, sell_price, supplier_name, location, core_charge, notes } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name is required' });
+    
+    const stmt = db.prepare(`
+      UPDATE inventory_items
+      SET part_number = ?, name = ?, category = ?, quantity_on_hand = ?, reorder_threshold = ?, unit_type = ?,
+          cost_price = ?, sell_price = ?, supplier_name = ?, location = ?, core_charge = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `);
+    const info = stmt.run(
+      part_number || '', name, category || 'other', quantity_on_hand || 0, reorder_threshold || 0, unit_type || 'each',
+      cost_price || 0, sell_price || 0, supplier_name || '', location || '', core_charge || 0, notes || '', id, req.user.id
+    );
+    if (info.changes === 0) return res.status(404).json({ error: 'Inventory item not found' });
+    const updated = db.prepare('SELECT * FROM inventory_items WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating inventory item:', error);
+    res.status(500).json({ error: 'Database error updating inventory item' });
+  }
+});
+
+app.delete('/api/inventory/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const info = db.prepare('DELETE FROM inventory_items WHERE id = ? AND user_id = ?').run(id, req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Inventory item not found' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting inventory item:', error);
+    res.status(500).json({ error: 'Database error deleting inventory item' });
+  }
+});
+
+app.post('/api/inventory/:id/adjust', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { delta, reason } = req.body;
+    if (delta === undefined || !reason) {
+      return res.status(400).json({ error: 'Delta and reason are required' });
+    }
+    const d = parseInt(delta, 10);
+    if (isNaN(d)) return res.status(400).json({ error: 'Invalid delta value' });
+    
+    // Verify item ownership
+    const item = db.prepare('SELECT id, quantity_on_hand FROM inventory_items WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!item) return res.status(404).json({ error: 'Inventory item not found' });
+    
+    // Log adjustment
+    db.prepare(`
+      INSERT INTO inventory_adjustments (item_id, delta, reason, user_id)
+      VALUES (?, ?, ?, ?)
+    `).run(id, d, reason, req.user.id);
+    
+    // Update quantity
+    db.prepare('UPDATE inventory_items SET quantity_on_hand = quantity_on_hand + ? WHERE id = ? AND user_id = ?').run(d, id, req.user.id);
+    
+    const updated = db.prepare('SELECT * FROM inventory_items WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error adjusting inventory:', error);
+    res.status(500).json({ error: 'Database error adjusting inventory' });
+  }
+});
+
+// --- WORK ORDER INTEGRATION ENDPOINTS ---
+app.get('/api/jobs/:jobId/parts', (req, res) => {
+  try {
+    const { jobId } = req.params;
+    // Verify job ownership
+    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(jobId, req.user.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    
+    const stmt = db.prepare(`
+      SELECT w.*, i.part_number, i.name as inventory_name, i.category, i.reorder_threshold, i.quantity_on_hand
+      FROM work_order_parts w
+      LEFT JOIN inventory_items i ON w.inventory_item_id = i.id
+      WHERE w.job_id = ? AND w.user_id = ?
+    `);
+    const rows = stmt.all(jobId, req.user.id);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching job parts:', error);
+    res.status(500).json({ error: 'Database error fetching job parts' });
+  }
+});
+
+app.post('/api/jobs/:jobId/parts', (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { inventory_item_id, part_name_snapshot, quantity_used, price_charged } = req.body;
+    
+    // Verify job ownership
+    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(jobId, req.user.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    
+    let finalPartName = part_name_snapshot;
+    let finalPriceCharged = price_charged || 0;
+    let belowThreshold = false;
+    
+    if (inventory_item_id) {
+      const item = db.prepare('SELECT * FROM inventory_items WHERE id = ? AND user_id = ?').get(inventory_item_id, req.user.id);
+      if (!item) return res.status(404).json({ error: 'Inventory item not found' });
+      
+      if (!finalPartName) {
+        finalPartName = item.name;
+      }
+      if (price_charged === undefined) {
+        finalPriceCharged = item.sell_price;
+      }
+      
+      // Decrement inventory stock
+      const qty = parseInt(quantity_used, 10) || 1;
+      db.prepare('UPDATE inventory_items SET quantity_on_hand = quantity_on_hand - ? WHERE id = ? AND user_id = ?')
+        .run(qty, inventory_item_id, req.user.id);
+        
+      // Get updated stock to check threshold
+      const updatedItem = db.prepare('SELECT quantity_on_hand, reorder_threshold FROM inventory_items WHERE id = ? AND user_id = ?').get(inventory_item_id, req.user.id);
+      belowThreshold = updatedItem.quantity_on_hand < updatedItem.reorder_threshold;
+    }
+    
+    const qty = parseInt(quantity_used, 10) || 1;
+    
+    // Insert into work_order_parts
+    db.prepare(`
+      INSERT INTO work_order_parts (job_id, inventory_item_id, part_name_snapshot, quantity_used, price_charged, user_id)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(jobId, inventory_item_id || null, finalPartName, qty, finalPriceCharged, req.user.id);
+    
+    // Get updated list of parts
+    const stmt = db.prepare(`
+      SELECT w.*, i.part_number, i.name as inventory_name, i.category, i.reorder_threshold, i.quantity_on_hand
+      FROM work_order_parts w
+      LEFT JOIN inventory_items i ON w.inventory_item_id = i.id
+      WHERE w.job_id = ? AND w.user_id = ?
+    `);
+    const parts = stmt.all(jobId, req.user.id);
+    
+    res.json({
+      parts,
+      isBelowThreshold: belowThreshold
+    });
+  } catch (error) {
+    console.error('Error adding work order part:', error);
+    res.status(500).json({ error: 'Database error adding work order part' });
+  }
+});
+
+app.delete('/api/jobs/:jobId/parts/:partId', (req, res) => {
+  try {
+    const { jobId, partId } = req.params;
+    
+    // Fetch work order part first to check if it exists and linked to inventory
+    const part = db.prepare('SELECT * FROM work_order_parts WHERE id = ? AND job_id = ? AND user_id = ?').get(partId, jobId, req.user.id);
+    if (!part) return res.status(404).json({ error: 'Work order part not found' });
+    
+    if (part.inventory_item_id) {
+      // Restock
+      db.prepare('UPDATE inventory_items SET quantity_on_hand = quantity_on_hand + ? WHERE id = ? AND user_id = ?')
+        .run(part.quantity_used, part.inventory_item_id, req.user.id);
+    }
+    
+    db.prepare('DELETE FROM work_order_parts WHERE id = ? AND user_id = ?').run(partId, req.user.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting work order part:', error);
+    res.status(500).json({ error: 'Database error deleting work order part' });
   }
 });
 

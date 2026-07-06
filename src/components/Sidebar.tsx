@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   LayoutDashboard, Users, Car, ClipboardList, Calendar, BookOpen, Settings,
-  ChevronLeft, ChevronRight, Menu, ShieldCheck, LogOut
+  ChevronLeft, ChevronRight, Menu, ShieldCheck, LogOut, Package
 } from 'lucide-react';
 import { LOGO_URL } from '../constants/branding';
 import { useAuth } from '../contexts/AuthContext';
@@ -30,6 +30,7 @@ export default function Sidebar({
     { id: 'customers', label: 'Customers', icon: Users },
     { id: 'vehicles', label: 'Vehicles', icon: Car },
     { id: 'jobs', label: 'Jobs / Work Orders', icon: ClipboardList },
+    { id: 'inventory', label: 'Inventory', icon: Package },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'manual-library', label: 'Manual Library', icon: BookOpen },
   ];

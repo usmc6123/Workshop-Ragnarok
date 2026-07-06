@@ -13,6 +13,7 @@ import ManualView from './components/ManualView';
 import CustomersView from './components/CustomersView';
 import VehiclesView from './components/VehiclesView';
 import JobsView from './components/JobsView';
+import InventoryView from './components/InventoryView';
 import CalendarView from './components/CalendarView';
 import SettingsView from './components/SettingsView';
 import NetworkSettingsModal from './components/NetworkSettingsModal';
@@ -28,7 +29,7 @@ import {
   Wifi, HelpCircle, CheckSquare, Settings, Car, ClipboardList, LayoutDashboard, Menu
 } from 'lucide-react';
 
-type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login';
+type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login';
 
 export default function App() {
   console.log('APP RENDERING');
@@ -169,6 +170,7 @@ export default function App() {
       case 'customers': return 'Clients & CRM Profiles';
       case 'vehicles': return 'Vehicle Fleet Profiles';
       case 'jobs': return 'Work Orders & Repairs';
+      case 'inventory': return 'Inventory & Spare Parts';
       case 'calendar': return 'Schedules & Intake';
       case 'manual-library': return 'Service Manual Catalog';
       case 'settings': return 'System Settings';
@@ -332,6 +334,10 @@ export default function App() {
                 <JobsView 
                   refreshTrigger={refreshTrigger}
                 />
+              )}
+
+              {view === 'inventory' && (
+                <InventoryView />
               )}
 
               {view === 'calendar' && (
