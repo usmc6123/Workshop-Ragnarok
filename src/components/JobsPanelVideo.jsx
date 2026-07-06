@@ -1,4 +1,5 @@
 import React, { useRef, useState, useCallback } from 'react';
+import MechanicSlogan from './MechanicSlogan';
 
 function StatOverlay({ icon, label, value, style }) {
   return (
@@ -141,6 +142,8 @@ export default function JobsPanelVideo({ sources }) {
           }}
         />
       </div>
+
+      <MechanicSlogan />
 
       <StatOverlay
         icon={WrenchIcon}
