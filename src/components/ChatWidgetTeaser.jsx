@@ -23,15 +23,24 @@ const MESSAGES = [
   "Roscoe says hi. So do I. What's up?",
 ];
 
+function pickRandomIndex(excludeIndex) {
+  if (MESSAGES.length <= 1) return 0;
+  let next = Math.floor(Math.random() * MESSAGES.length);
+  while (next === excludeIndex) {
+    next = Math.floor(Math.random() * MESSAGES.length);
+  }
+  return next;
+}
+
 export default function ChatWidgetTeaser({ onOpen, children, intervalMs = 45000, visibleMs = 5000 }) {
   const [visible, setVisible] = useState(false);
-  const [messageIndex, setMessageIndex] = useState(0);
+  const [messageIndex, setMessageIndex] = useState(() => pickRandomIndex(-1));
 
   useEffect(() => {
     const initialTimer = setTimeout(() => setVisible(true), 3000);
 
     const cycle = setInterval(() => {
-      setMessageIndex((prev) => (prev + 1) % MESSAGES.length);
+      setMessageIndex((prev) => pickRandomIndex(prev));
       setVisible(true);
     }, intervalMs);
 
