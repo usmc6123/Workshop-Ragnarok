@@ -2270,7 +2270,13 @@ async function initServer() {
   } else {
     // PRODUCTION PATH - DO NOT CHANGE - must be 'dist' not '../dist'
     const distPath = path.join(__dirname, 'dist');
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.mp4') || filePath.toLowerCase().endsWith('.mp4')) {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      }
+    }));
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api/')) {
         return next();
