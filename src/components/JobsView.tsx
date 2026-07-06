@@ -980,7 +980,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                   ))}
                 </div>
               </div>
-              <div className="w-full lg:w-auto shrink-0 flex justify-center lg:justify-start">
+              <div className="w-full lg:w-[420px] shrink-0 flex justify-center lg:justify-start">
                 <JobsPanelVideo sources={['/jobs-calm.mp4', '/jobs-buff.mp4']} />
               </div>
             </div>
