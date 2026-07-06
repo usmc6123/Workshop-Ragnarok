@@ -29,7 +29,7 @@ function StatPlate({ label, value, style }) {
             textAnchor="middle"
             fontFamily="'JetBrains Mono', monospace"
             fontWeight="600"
-            fontSize="120"
+            fontSize="140"
             letterSpacing="4"
             fill="rgba(226,232,220,0.9)"
             style={{ textTransform: 'uppercase' }}
@@ -42,7 +42,7 @@ function StatPlate({ label, value, style }) {
             textAnchor="middle"
             fontFamily="'JetBrains Mono', monospace"
             fontWeight="800"
-            fontSize="210"
+            fontSize="245"
             fill="#ffc177"
             filter={`url(#statGlow-${label})`}
           >
