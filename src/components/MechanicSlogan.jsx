@@ -11,6 +11,25 @@ const SLOGANS = [
   "CATS THAT CRANK",
 ];
 
+function wrapSlogan(text) {
+  if (text.length <= 13) return [text];
+  const words = text.split(' ');
+  if (words.length === 1) return [text];
+
+  let bestSplit = 1;
+  let bestDiff = Infinity;
+  for (let i = 1; i < words.length; i++) {
+    const line1 = words.slice(0, i).join(' ');
+    const line2 = words.slice(i).join(' ');
+    const diff = Math.abs(line1.length - line2.length);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestSplit = i;
+    }
+  }
+  return [words.slice(0, bestSplit).join(' '), words.slice(bestSplit).join(' ')];
+}
+
 export default function MechanicSlogan() {
   const [index, setIndex] = useState(0);
   const [visible, setVisible] = useState(true);
@@ -27,7 +46,11 @@ export default function MechanicSlogan() {
   }, []);
 
   const text = SLOGANS[index];
-  const fontSize = text.length > 18 ? 15 : text.length > 13 ? 19 : 24;
+  const lines = wrapSlogan(text);
+  const longestLine = Math.max(...lines.map((l) => l.length));
+  const fontSize = longestLine > 14 ? 76 : longestLine > 10 ? 92 : 108;
+  const lineHeight = fontSize * 1.15;
+  const startY = 660 - ((lines.length - 1) * lineHeight) / 2;
 
   return (
     <div
@@ -47,37 +70,45 @@ export default function MechanicSlogan() {
           alt=""
           style={{ width: '100%', display: 'block' }}
         />
-        <div
+        <svg
+          viewBox="0 0 2814 1536"
           style={{
             position: 'absolute',
-            top: '19%',
-            left: '20%',
-            right: '20%',
-            bottom: '38%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            textAlign: 'center',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            opacity: visible ? 1 : 0,
+            transition: 'opacity 0.3s ease',
           }}
         >
-          <span
-            style={{
-              fontFamily: '"JetBrains Mono", monospace',
-              fontWeight: 800,
-              fontSize,
-              color: '#ffb35c',
-              textTransform: 'uppercase',
-              letterSpacing: '0.03em',
-              textShadow:
-                '0 0 8px rgba(255,179,92,0.75), 0 0 16px rgba(255,140,40,0.45), 0 2px 4px rgba(0,0,0,0.6)',
-              opacity: visible ? 1 : 0,
-              transition: 'opacity 0.3s ease',
-              whiteSpace: 'nowrap',
-            }}
+          <defs>
+            <filter id="signGlow" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="14" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          <text
+            x="1407"
+            y={startY}
+            textAnchor="middle"
+            fontFamily="'JetBrains Mono', monospace"
+            fontWeight="800"
+            fontSize={fontSize}
+            fill="#ffc177"
+            filter="url(#signGlow)"
+            style={{ textTransform: 'uppercase', letterSpacing: '2px' }}
           >
-            {text}
-          </span>
-        </div>
+            {lines.map((line, i) => (
+              <tspan key={i} x="1407" dy={i === 0 ? 0 : lineHeight}>
+                {line}
+              </tspan>
+            ))}
+          </text>
+        </svg>
       </div>
     </div>
   );
