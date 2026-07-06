@@ -1,4 +1,5 @@
 import React, { useRef, useState, useCallback } from 'react';
+import MechanicSlogan from './MechanicSlogan';
 
 function StatPlate({ icon, label, value, style }) {
   return (
@@ -146,6 +147,8 @@ export default function JobsPanelVideo({ sources }) {
           }}
         />
       </div>
+
+      <MechanicSlogan />
 
       <StatPlate
         icon={WrenchIcon}
