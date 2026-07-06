@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ChatWidgetTeaser from './ChatWidgetTeaser';
 
 /**
  * Cooper & Roscoe — Shop Assistant chat widget.
@@ -288,27 +289,28 @@ export default function ChatWidget() {
     <>
       {/* Floating toggle button */}
       {!open && (
-        <button
-          onClick={() => setOpen(true)}
-          aria-label="Open Cooper & Roscoe chat"
-          style={{
-            position: 'fixed', bottom: 84, right: 24, zIndex: 1000,
-            width: 84, height: 84, borderRadius: '50%',
-            background: '#1a1d24', border: '2px solid #d97b29',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
-            padding: 4, overflow: 'hidden',
-          }}
-        >
-          <img
-            src={MASCOT_LOGO_URL}
-            alt="Cooper & Roscoe"
-            style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '50%' }}
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
-        </button>
+        <div style={{ position: 'fixed', bottom: 84, right: 24, zIndex: 1000 }}>
+          <ChatWidgetTeaser onOpen={() => setOpen(true)}>
+            <div
+              style={{
+                width: 84, height: 84, borderRadius: '50%',
+                background: '#1a1d24', border: '2px solid #d97b29',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
+                padding: 4, overflow: 'hidden',
+              }}
+            >
+              <img
+                src={MASCOT_LOGO_URL}
+                alt="Cooper & Roscoe"
+                style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '50%' }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            </div>
+          </ChatWidgetTeaser>
+        </div>
       )}
 
       {/* Chat panel */}
