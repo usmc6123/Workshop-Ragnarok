@@ -11,7 +11,7 @@ const SLOGANS = [
   "CATS THAT CRANK",
 ];
 
-export default function MechanicSlogan({ intervalMs = 6000 }) {
+export default function MechanicSlogan() {
   const [index, setIndex] = useState(0);
   const [visible, setVisible] = useState(true);
 
@@ -22,82 +22,63 @@ export default function MechanicSlogan({ intervalMs = 6000 }) {
         setIndex((prev) => (prev + 1) % SLOGANS.length);
         setVisible(true);
       }, 300);
-    }, intervalMs);
+    }, 6000);
     return () => clearInterval(cycle);
-  }, [intervalMs]);
+  }, []);
+
+  const text = SLOGANS[index];
+  const fontSize = text.length > 18 ? 15 : text.length > 13 ? 19 : 24;
 
   return (
     <div
       style={{
         position: 'absolute',
-        top: '2%',
+        top: '1%',
         left: '50%',
         transform: 'translateX(-50%)',
-        width: '78%',
+        width: '92%',
         zIndex: 3,
         pointerEvents: 'none',
       }}
     >
-      <svg viewBox="0 0 300 150" width="100%" style={{ display: 'block' }}>
-        <defs>
-          <filter id="neonGlow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="3" result="blur1" />
-            <feMerge>
-              <feMergeNode in="blur1" />
-              <feMergeNode in="blur1" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <linearGradient id="metalGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3a3530" />
-            <stop offset="50%" stopColor="#241f1b" />
-            <stop offset="100%" stopColor="#171310" />
-          </linearGradient>
-        </defs>
-
-        <line x1="70" y1="0" x2="85" y2="22" stroke="#5a5650" strokeWidth="2" />
-        <line x1="230" y1="0" x2="215" y2="22" stroke="#5a5650" strokeWidth="2" />
-        <circle cx="70" cy="0" r="3" fill="#5a5650" />
-        <circle cx="230" cy="0" r="3" fill="#5a5650" />
-
-        <polygon
-          points="150,20 250,42 250,120 50,120 50,42"
-          fill="url(#metalGrad)"
-          stroke="#4a453e"
-          strokeWidth="2"
+      <div style={{ position: 'relative', width: '100%' }}>
+        <img
+          src="/slogan-frame.png"
+          alt=""
+          style={{ width: '100%', display: 'block' }}
         />
-        <polygon
-          points="150,20 250,42 250,120 50,120 50,42"
-          fill="none"
-          stroke="#6b6459"
-          strokeWidth="1"
-          opacity="0.5"
-        />
-
-        <circle cx="60" cy="52" r="3.5" fill="#7a7268" />
-        <circle cx="240" cy="52" r="3.5" fill="#7a7268" />
-        <circle cx="60" cy="110" r="3.5" fill="#7a7268" />
-        <circle cx="240" cy="110" r="3.5" fill="#7a7268" />
-
-        <text
-          x="150"
-          y="88"
-          textAnchor="middle"
-          fontFamily="'JetBrains Mono', monospace"
-          fontWeight="800"
-          fontSize={SLOGANS[index].length > 16 ? 16 : 20}
-          fill="#ffb35c"
-          filter="url(#neonGlow)"
+        <div
           style={{
-            opacity: visible ? 1 : 0,
-            transition: 'opacity 0.3s ease',
-            textTransform: 'uppercase',
-            letterSpacing: '0.03em',
+            position: 'absolute',
+            top: '19%',
+            left: '20%',
+            right: '20%',
+            bottom: '38%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
           }}
         >
-          {SLOGANS[index]}
-        </text>
-      </svg>
+          <span
+            style={{
+              fontFamily: '"JetBrains Mono", monospace',
+              fontWeight: 800,
+              fontSize,
+              color: '#ffb35c',
+              textTransform: 'uppercase',
+              letterSpacing: '0.03em',
+              textShadow:
+                '0 0 8px rgba(255,179,92,0.75), 0 0 16px rgba(255,140,40,0.45), 0 2px 4px rgba(0,0,0,0.6)',
+              opacity: visible ? 1 : 0,
+              transition: 'opacity 0.3s ease',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {text}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

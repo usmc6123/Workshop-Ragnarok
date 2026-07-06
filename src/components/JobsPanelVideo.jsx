@@ -1,64 +1,68 @@
 import React, { useRef, useState, useCallback } from 'react';
-import MechanicSlogan from './MechanicSlogan';
 
-function StatOverlay({ icon, label, value, style }) {
+function StatPlate({ icon, label, value, style }) {
   return (
-    <div
-      style={{
-        position: 'absolute',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        textShadow: '0 2px 6px rgba(0,0,0,0.85), 0 1px 2px rgba(0,0,0,0.9)',
-        ...style,
-      }}
-    >
-      <span
-        style={{
-          display: 'flex',
-          color: '#f2a65a',
-          flexShrink: 0,
-          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.8))',
-        }}
-      >
-        {icon}
-      </span>
-      <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
-        <span
+    <div style={{ position: 'absolute', width: '58%', ...style }}>
+      <div style={{ position: 'relative', width: '100%' }}>
+        <img
+          src="/stat-plate-frame.png"
+          alt=""
+          style={{ width: '100%', display: 'block' }}
+        />
+        <div
           style={{
-            fontSize: 10,
-            fontWeight: 600,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: 'rgba(226, 232, 220, 0.75)',
-            fontFamily: '"JetBrains Mono", monospace',
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6%',
+            padding: '0 8%',
           }}
         >
-          {label}
-        </span>
-        <span
-          style={{
-            fontSize: 15,
-            fontWeight: 800,
-            color: '#f2a65a',
-            fontFamily: '"JetBrains Mono", monospace',
-          }}
-        >
-          {value}
-        </span>
+          <span style={{ color: '#ffb35c', flexShrink: 0, width: '14%', display: 'flex' }}>
+            {icon}
+          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1, minWidth: 0 }}>
+            <span
+              style={{
+                fontSize: '11%',
+                fontWeight: 600,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                color: 'rgba(226, 232, 220, 0.8)',
+                fontFamily: '"JetBrains Mono", monospace',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {label}
+            </span>
+            <span
+              style={{
+                fontSize: '15%',
+                fontWeight: 800,
+                color: '#ffb35c',
+                fontFamily: '"JetBrains Mono", monospace',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {value}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
 const WrenchIcon = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
   </svg>
 );
 
 const OilCanIcon = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 22h12l2-14H5L3 22z" />
     <path d="M9 8V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4" />
     <path d="M17 8l3-2" />
@@ -66,7 +70,7 @@ const OilCanIcon = (
 );
 
 const CarIcon = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13" />
     <path d="M3 13h18v4a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4z" />
     <circle cx="7.5" cy="17.5" r="1.5" />
@@ -143,25 +147,23 @@ export default function JobsPanelVideo({ sources }) {
         />
       </div>
 
-      <MechanicSlogan />
-
-      <StatOverlay
+      <StatPlate
         icon={WrenchIcon}
-        label="Avg Repair Time"
+        label="Avg Repair"
         value="3.2 HRS"
-        style={{ top: '18%', left: '10%', zIndex: 2 }}
+        style={{ top: '30%', left: '4%', zIndex: 2 }}
       />
-      <StatOverlay
+      <StatPlate
         icon={OilCanIcon}
         label="Low Stock"
         value="3 ITEMS"
-        style={{ top: '46%', left: '10%', zIndex: 2 }}
+        style={{ top: '52%', left: '4%', zIndex: 2 }}
       />
-      <StatOverlay
+      <StatPlate
         icon={CarIcon}
         label="Queue"
         value="12 VEHICLES"
-        style={{ top: '68%', left: '10%', zIndex: 2 }}
+        style={{ top: '74%', left: '4%', zIndex: 2 }}
       />
     </div>
   );
