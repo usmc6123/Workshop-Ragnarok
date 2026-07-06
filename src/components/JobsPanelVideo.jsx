@@ -11,6 +11,7 @@ export default function JobsPanelVideo({ sources }) {
   const handleRef = useCallback((node) => {
     videoRef.current = node;
     if (node) {
+      node.muted = true;
       node.load();
       node.play().catch(() => {});
     }
@@ -33,7 +34,7 @@ export default function JobsPanelVideo({ sources }) {
         key={index}
         ref={handleRef}
         autoPlay
-        muted
+        muted={true}
         playsInline
         preload="auto"
         onEnded={handleEnded}
