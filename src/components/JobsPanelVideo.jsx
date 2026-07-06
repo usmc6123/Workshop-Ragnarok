@@ -1,7 +1,7 @@
 import React, { useRef, useState, useCallback } from 'react';
 import MechanicSlogan from './MechanicSlogan';
 
-function StatPlate({ iconPaths, label, value, style }) {
+function StatPlate({ label, value, style }) {
   return (
     <div style={{ position: 'absolute', width: '58%', ...style }}>
       <div style={{ position: 'relative', width: '100%' }}>
@@ -23,22 +23,10 @@ function StatPlate({ iconPaths, label, value, style }) {
               </feMerge>
             </filter>
           </defs>
-          <g
-            transform="translate(330,592) scale(11) translate(-12,-12)"
-            filter={`url(#statGlow-${label})`}
-            stroke="#ffc177"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            {iconPaths.map((d, i) => (
-              <path key={i} d={d} />
-            ))}
-          </g>
           <text
-            x="700"
+            x="1792"
             y="470"
+            textAnchor="middle"
             fontFamily="'JetBrains Mono', monospace"
             fontWeight="600"
             fontSize="120"
@@ -49,8 +37,9 @@ function StatPlate({ iconPaths, label, value, style }) {
             {label}
           </text>
           <text
-            x="700"
+            x="1792"
             y="730"
+            textAnchor="middle"
             fontFamily="'JetBrains Mono', monospace"
             fontWeight="800"
             fontSize="210"
@@ -64,22 +53,6 @@ function StatPlate({ iconPaths, label, value, style }) {
     </div>
   );
 }
-
-const WRENCH_PATHS = [
-  "M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z",
-];
-
-const PACKAGE_PATHS = [
-  "M16.5 9.4 7.5 4.21",
-  "M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z",
-  "M3.27 6.96 12 12.01l8.73-5.05",
-  "M12 22.08V12",
-];
-
-const CAR_PATHS = [
-  "M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13",
-  "M3 13h18v4a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4z",
-];
 
 export default function JobsPanelVideo({ sources }) {
   const [index, setIndex] = useState(0);
@@ -153,22 +126,19 @@ export default function JobsPanelVideo({ sources }) {
       <MechanicSlogan />
 
       <StatPlate
-        iconPaths={WRENCH_PATHS}
         label="Avg Repair"
         value="3.2 HRS"
         style={{ top: '30%', left: '4%', zIndex: 2 }}
       />
       <StatPlate
-        iconPaths={PACKAGE_PATHS}
         label="Low Stock"
         value="3 ITEMS"
-        style={{ top: '52%', left: '4%', zIndex: 2 }}
+        style={{ top: '42%', left: '4%', zIndex: 2 }}
       />
       <StatPlate
-        iconPaths={CAR_PATHS}
         label="Queue"
         value="12 VEHICLES"
-        style={{ top: '74%', left: '4%', zIndex: 2 }}
+        style={{ top: '54%', left: '4%', zIndex: 2 }}
       />
     </div>
   );

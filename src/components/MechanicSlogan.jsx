@@ -48,8 +48,8 @@ export default function MechanicSlogan() {
   const text = SLOGANS[index];
   const lines = wrapSlogan(text);
   const longestLine = Math.max(...lines.map((l) => l.length));
-  const fontSize = longestLine > 14 ? 76 : longestLine > 10 ? 92 : 108;
-  const lineHeight = fontSize * 1.15;
+  const fontSize = longestLine > 14 ? 155 : longestLine > 10 ? 195 : 245;
+  const lineHeight = fontSize * 1.05;
   const startY = 660 - ((lines.length - 1) * lineHeight) / 2;
 
   return (
@@ -100,7 +100,7 @@ export default function MechanicSlogan() {
             fontSize={fontSize}
             fill="#ffc177"
             filter="url(#signGlow)"
-            style={{ textTransform: 'uppercase', letterSpacing: '2px' }}
+            style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}
           >
             {lines.map((line, i) => (
               <tspan key={i} x="1407" dy={i === 0 ? 0 : lineHeight}>
