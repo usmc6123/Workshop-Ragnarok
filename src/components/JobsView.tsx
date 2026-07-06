@@ -4,6 +4,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Job, JobPart, Customer, CustomerVehicle, JobPhoto } from '../types';
 import { api } from '../lib/api';
+import JobsPanelVideo from './JobsPanelVideo';
 import { 
   ClipboardList, Plus, Trash2, Edit2, Calendar, Milestone, 
   User, Phone, Mail, FileText, CheckCircle, Clock, AlertTriangle,
@@ -912,69 +913,76 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="jobs-tickets-grid">
-              {filteredJobs.map((job) => (
-                <div
-                  key={job.id}
-                  onClick={() => handleSelectJob(job)}
-                  className="bg-gradient-to-b from-[#13141a]/80 to-bg-theme/80 backdrop-blur-sm border border-[#1e2028] hover:border-slate-700 hover:border-l-primary-theme border-l-[3px] border-l-[#1e2028] rounded-xl p-5 flex flex-col justify-between transition-all duration-200 cursor-pointer group shadow-lg"
-                  id={`job-ticket-card-${job.id}`}
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-mono text-slate-500 uppercase block">
-                        Ticket #{job.id.toString().padStart(4, '0')}
-                      </span>
-                      {renderStatusBadge(job.status)}
-                    </div>
-
-                    <div className="text-left">
-                      <span className="text-[10px] font-mono text-primary-theme uppercase font-bold block mb-1">
-                        {job.vehicle_year} {job.vehicle_make} {job.vehicle_model}
-                      </span>
-                      <h3 className="text-sm font-bold text-slate-101 group-hover:text-primary-theme transition-colors leading-snug truncate">
-                        {job.description}
-                      </h3>
-                      <p className="text-xs text-slate-400 font-sans mt-2 line-clamp-1">
-                        Client: <span className="text-slate-300 font-bold">{job.customer_name}</span>
-                      </p>
-                    </div>
-
-                    <div className="pt-2 border-t border-border-theme/40 flex items-center justify-between text-[11px] font-mono text-slate-400">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5 text-slate-600" />
-                        Est: {job.estimated_completion || 'N/A'}
-                      </span>
-                      <span className="text-slate-300 font-bold bg-surface-theme border border-border-theme px-2 py-0.5 rounded">
-                        {job.vehicle_current_mileage?.toLocaleString() || 0} mi
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 mt-4 pt-2 border-t border-border-theme/40">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openJobModal(job);
-                      }}
-                      className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-surface-theme transition cursor-pointer"
-                      title="Edit ticket"
+            <div className="flex flex-col lg:flex-row items-start gap-6">
+              <div className="flex-1 min-w-0 w-full">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6" id="jobs-tickets-grid">
+                  {filteredJobs.map((job) => (
+                    <div
+                      key={job.id}
+                      onClick={() => handleSelectJob(job)}
+                      className="bg-gradient-to-b from-[#13141a]/80 to-bg-theme/80 backdrop-blur-sm border border-[#1e2028] hover:border-slate-700 hover:border-l-primary-theme border-l-[3px] border-l-[#1e2028] rounded-xl p-5 flex flex-col justify-between transition-all duration-200 cursor-pointer group shadow-lg"
+                      id={`job-ticket-card-${job.id}`}
                     >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteJob(job.id);
-                      }}
-                      className="p-1.5 text-slate-500 hover:text-red-400 rounded hover:bg-surface-theme transition cursor-pointer"
-                      title="Delete ticket"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-mono text-slate-500 uppercase block">
+                            Ticket #{job.id.toString().padStart(4, '0')}
+                          </span>
+                          {renderStatusBadge(job.status)}
+                        </div>
+
+                        <div className="text-left">
+                          <span className="text-[10px] font-mono text-primary-theme uppercase font-bold block mb-1">
+                            {job.vehicle_year} {job.vehicle_make} {job.vehicle_model}
+                          </span>
+                          <h3 className="text-sm font-bold text-slate-101 group-hover:text-primary-theme transition-colors leading-snug truncate">
+                            {job.description}
+                          </h3>
+                          <p className="text-xs text-slate-400 font-sans mt-2 line-clamp-1">
+                            Client: <span className="text-slate-300 font-bold">{job.customer_name}</span>
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-border-theme/40 flex items-center justify-between text-[11px] font-mono text-slate-400">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-slate-600" />
+                            Est: {job.estimated_completion || 'N/A'}
+                          </span>
+                          <span className="text-slate-300 font-bold bg-surface-theme border border-border-theme px-2 py-0.5 rounded">
+                            {job.vehicle_current_mileage?.toLocaleString() || 0} mi
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 mt-4 pt-2 border-t border-border-theme/40">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openJobModal(job);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-surface-theme transition cursor-pointer"
+                          title="Edit ticket"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteJob(job.id);
+                          }}
+                          className="p-1.5 text-slate-500 hover:text-red-400 rounded hover:bg-surface-theme transition cursor-pointer"
+                          title="Delete ticket"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+              <div className="w-full lg:w-auto shrink-0 flex justify-center lg:justify-start">
+                <JobsPanelVideo sources={['/jobs-calm.mp4', '/jobs-buff.mp4']} />
+              </div>
             </div>
           )}
         </div>
