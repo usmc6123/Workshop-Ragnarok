@@ -327,7 +327,8 @@ export default function InventoryView() {
   const handleImportInvoice = async () => {
     setIsImporting(true);
     try {
-      for (const rItem of reviewItems) {
+      const itemsToImport = reviewItems.filter(item => item.quantity > 0);
+      for (const rItem of itemsToImport) {
         if (rItem.action === 'create') {
           const newItem = await api.createInventoryItem({
             name: rItem.name,
@@ -362,7 +363,7 @@ export default function InventoryView() {
       setUploadPreview(null);
       setReviewItems([]);
       fetchInventory();
-      alert(`Invoice imported successfully! Added/adjusted ${reviewItems.length} items.`);
+      alert(`Invoice imported successfully! Added/adjusted ${itemsToImport.length} items.`);
     } catch (err: any) {
       console.error(err);
       alert(err.message || "An error occurred during invoice importing.");
@@ -1346,7 +1347,7 @@ export default function InventoryView() {
                       {reviewItems.map((item, index) => {
                         const totalCost = (item.quantity * item.unit_price) || 0;
                         return (
-                          <tr key={item.id} className="hover:bg-bg-theme/10 transition">
+                          <tr key={item.id} className={`hover:bg-bg-theme/10 transition ${item.quantity === 0 ? 'opacity-40 bg-zinc-950/20' : ''}`}>
                             {/* Name & Part Number */}
                             <td className="py-3 px-4 space-y-1.5">
                               <input
@@ -1397,11 +1398,11 @@ export default function InventoryView() {
                             <td className="py-3 px-4">
                               <input
                                 type="number"
-                                min="1"
+                                min="0"
                                 value={item.quantity}
                                 onChange={(e) => {
                                   const updated = [...reviewItems];
-                                  updated[index].quantity = Math.max(1, parseInt(e.target.value) || 1);
+                                  updated[index].quantity = Math.max(0, parseInt(e.target.value) || 0);
                                   updated[index].total_price = updated[index].quantity * updated[index].unit_price;
                                   setReviewItems(updated);
                                 }}
@@ -1541,7 +1542,7 @@ export default function InventoryView() {
                 </button>
                 <button
                   onClick={handleImportInvoice}
-                  disabled={isImporting}
+                  disabled={isImporting || reviewItems.filter(item => item.quantity > 0).length === 0}
                   className="px-5 py-2.5 rounded bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-500 text-slate-950 font-mono font-black text-xs transition flex items-center gap-1.5 cursor-pointer"
                 >
                   {isImporting ? (
@@ -1552,7 +1553,7 @@ export default function InventoryView() {
                   ) : (
                     <>
                       <CheckCircle className="w-3.5 h-3.5" />
-                      Import {reviewItems.length} Selected to Inventory
+                      Import {reviewItems.filter(item => item.quantity > 0).length} Selected to Inventory
                     </>
                   )}
                 </button>
