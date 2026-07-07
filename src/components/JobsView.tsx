@@ -1313,14 +1313,24 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
           </p>
         </div>
 
-        <button
-          onClick={() => openJobModal()}
-          className="bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-bold rounded-lg px-4 py-2 text-xs uppercase tracking-wider flex items-center gap-1.5 transition shadow self-start md:self-center cursor-pointer"
-          id="btn-new-job"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Create Work Order</span>
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2 self-start md:self-center">
+          <button
+            onClick={() => setIsManageServicesOpen(true)}
+            className="bg-[#1e2028] hover:bg-[#2b2d37] border border-border-theme/80 text-slate-300 font-bold rounded-lg px-4 py-2 text-xs uppercase tracking-wider flex items-center gap-1.5 transition shadow cursor-pointer"
+            id="btn-manage-services-catalog"
+          >
+            <Wrench className="w-4 h-4 text-primary-theme" />
+            <span>Services Catalog</span>
+          </button>
+          <button
+            onClick={() => openJobModal()}
+            className="bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-bold rounded-lg px-4 py-2 text-xs uppercase tracking-wider flex items-center gap-1.5 transition shadow cursor-pointer"
+            id="btn-new-job"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create Work Order</span>
+          </button>
+        </div>
       </div>
 
       {loading && jobs.length === 0 ? (
@@ -2563,20 +2573,21 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       {/* Create / Edit Job Modal */}
       {isJobModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none">
-          <div className="w-full max-w-lg rounded-xl border border-border-theme bg-surface-theme text-slate-100 overflow-hidden shadow-2xl">
-            <div className="bg-bg-theme border-b border-border-theme px-5 py-4 flex items-center justify-between">
+          <div className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-xl border border-border-theme bg-surface-theme text-slate-100 overflow-hidden shadow-2xl">
+            <div className="bg-bg-theme border-b border-border-theme px-5 py-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <ClipboardList className="w-4.5 h-4.5 text-primary-theme" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-202 font-mono">
                   {editingJob ? 'Edit Repair Work Order' : 'Create Repair Work Order'}
                 </h3>
               </div>
-              <button onClick={() => setIsJobModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setIsJobModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveJob} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+            <form onSubmit={handleSaveJob} className="flex-1 flex flex-col min-h-0">
+              <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
               
               <div className="grid grid-cols-2 gap-4 text-left">
                 {/* Customer Select dropdown */}
@@ -2739,7 +2750,9 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-border-theme flex justify-end gap-3">
+              </div>
+
+              <div className="p-5 bg-bg-theme/40 border-t border-border-theme flex justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsJobModalOpen(false)}

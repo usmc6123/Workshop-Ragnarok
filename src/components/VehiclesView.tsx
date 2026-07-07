@@ -848,20 +848,21 @@ export default function VehiclesView({
       {/* Vehicle Register Dialog Modal */}
       {isVehicleModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none">
-          <div className="w-full max-w-lg rounded-xl border border-border-theme bg-surface-theme text-slate-100 overflow-hidden shadow-2xl">
-            <div className="bg-bg-theme border-b border-border-theme px-5 py-4 flex items-center justify-between">
+          <div className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-xl border border-border-theme bg-surface-theme text-slate-100 overflow-hidden shadow-2xl">
+            <div className="bg-bg-theme border-b border-border-theme px-5 py-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Car className="w-4.5 h-4.5 text-primary-theme" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200 font-mono">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-202 font-mono">
                   {editingVehicle ? 'Edit Vehicle Profile' : 'Register Customer Vehicle'}
                 </h3>
               </div>
-              <button onClick={() => setIsVehicleModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setIsVehicleModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveVehicle} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+            <form onSubmit={handleSaveVehicle} className="flex-1 flex flex-col min-h-0">
+              <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
               
               <div className="space-y-1.5 text-left">
                 <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Associated Customer *</label>
@@ -993,7 +994,9 @@ export default function VehiclesView({
                 />
               </div>
 
-              <div className="pt-2 border-t border-border-theme flex justify-end gap-3">
+              </div>
+
+              <div className="p-5 bg-bg-theme/40 border-t border-border-theme flex justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsVehicleModalOpen(false)}
@@ -1016,20 +1019,21 @@ export default function VehiclesView({
       {/* Service Entry Log Dialog Modal */}
       {isServiceModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none">
-          <div className="w-full max-w-lg rounded-xl border border-border-theme bg-surface-theme text-slate-100 overflow-hidden shadow-2xl">
-            <div className="bg-bg-theme border-b border-border-theme px-5 py-4 flex items-center justify-between">
+          <div className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-xl border border-border-theme bg-surface-theme text-slate-100 overflow-hidden shadow-2xl">
+            <div className="bg-bg-theme border-b border-border-theme px-5 py-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Wrench className="w-4.5 h-4.5 text-primary-theme" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200 font-mono">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-202 font-mono">
                   {editingService ? 'Edit Service History Log' : 'Log Maintenance Event'}
                 </h3>
               </div>
-              <button onClick={() => setIsServiceModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setIsServiceModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveService} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+            <form onSubmit={handleSaveService} className="flex-1 flex flex-col min-h-0">
+              <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
               <div className="grid grid-cols-2 gap-4 text-left">
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Service Date</label>
@@ -1111,7 +1115,9 @@ export default function VehiclesView({
                 />
               </div>
 
-              <div className="pt-2 border-t border-border-theme flex justify-end gap-3">
+              </div>
+
+              <div className="p-5 bg-bg-theme/40 border-t border-border-theme flex justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsServiceModalOpen(false)}

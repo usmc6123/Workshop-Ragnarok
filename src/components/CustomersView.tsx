@@ -459,20 +459,21 @@ export default function CustomersView({ onNavigateToTab }: CustomersViewProps) {
       {/* Customer Form Dialog Modal */}
       {isCustomerModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none">
-          <div className="w-full max-w-lg rounded-xl border border-border-theme bg-surface-theme text-slate-100 overflow-hidden shadow-2xl">
-            <div className="bg-bg-theme border-b border-border-theme px-5 py-4 flex items-center justify-between">
+          <div className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-xl border border-border-theme bg-surface-theme text-slate-100 overflow-hidden shadow-2xl">
+            <div className="bg-bg-theme border-b border-border-theme px-5 py-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Users className="w-4.5 h-4.5 text-primary-theme" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200 font-mono">
                   {editingCustomer ? 'Edit Customer Account' : 'Register Customer Account'}
                 </h3>
               </div>
-              <button onClick={() => setIsCustomerModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setIsCustomerModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveCustomer} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+            <form onSubmit={handleSaveCustomer} className="flex-1 flex flex-col min-h-0">
+              <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
               <div className="space-y-1.5 text-left">
                 <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Customer Name *</label>
                 <input
@@ -531,7 +532,9 @@ export default function CustomersView({ onNavigateToTab }: CustomersViewProps) {
                 />
               </div>
 
-              <div className="pt-2 border-t border-border-theme flex justify-end gap-3">
+              </div>
+
+              <div className="p-5 bg-bg-theme/40 border-t border-border-theme flex justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsCustomerModalOpen(false)}
