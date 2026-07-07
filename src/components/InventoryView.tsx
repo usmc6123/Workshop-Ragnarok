@@ -1277,9 +1277,9 @@ export default function InventoryView() {
 
       {/* Staging / Review Grid Modal */}
       {isReviewOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none overflow-y-auto">
-          <div className="bg-[#12131a] border border-border-theme/80 rounded-xl w-full max-w-6xl shadow-2xl overflow-hidden animate-fade-in text-left my-8">
-            <div className="px-6 py-4 bg-bg-theme/50 border-b border-border-theme/40 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none">
+          <div className="bg-[#12131a] border border-border-theme/80 rounded-xl w-[90vw] h-[90vh] max-h-[90vh] max-w-7xl shadow-2xl overflow-hidden animate-fade-in text-left flex flex-col">
+            <div className="px-6 py-4 bg-bg-theme/50 border-b border-border-theme/40 flex items-center justify-between shrink-0">
               <h2 className="text-sm font-black font-mono tracking-wider uppercase text-white flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-400" />
                 Review Parsed Invoice Items
@@ -1296,8 +1296,8 @@ export default function InventoryView() {
               </button>
             </div>
             
-            <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-              {/* Receipt Metadata Editor */}
+            {/* Receipt Metadata Editor (Sticky Header Area) */}
+            <div className="p-6 pb-4 bg-[#12131a] border-b border-border-theme/20 shrink-0">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-bg-theme/30 p-4 rounded-xl border border-border-theme/20">
                 <div>
                   <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">Supplier Name</label>
@@ -1319,7 +1319,10 @@ export default function InventoryView() {
                   />
                 </div>
               </div>
+            </div>
 
+            {/* Scrollable Items Table Area */}
+            <div className="p-6 flex-1 overflow-y-auto min-h-0 space-y-4">
               {/* Items Staging Table */}
               <div className="border border-border-theme/20 rounded-xl overflow-hidden bg-[#12131a]">
                 <div className="overflow-x-auto">
@@ -1501,53 +1504,53 @@ export default function InventoryView() {
                   </table>
                 </div>
               </div>
+            </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center justify-between border-t border-border-theme/40 pt-4">
+            {/* Sticky Action Footer */}
+            <div className="px-6 py-4 bg-bg-theme/50 border-t border-border-theme/40 flex items-center justify-between shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm("Are you sure you want to go back? All staging review changes will be lost.")) {
+                    setIsReviewOpen(false);
+                    setIsUploadOpen(true);
+                  }
+                }}
+                className="px-4 py-2 rounded border border-border-theme/60 hover:bg-bg-theme text-slate-400 hover:text-white transition text-xs font-mono cursor-pointer"
+                disabled={isImporting}
+              >
+                ← Back to Upload
+              </button>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => {
-                    if (window.confirm("Are you sure you want to go back? All staging review changes will be lost.")) {
+                    if (window.confirm("Are you sure you want to cancel? All parsed line items will be lost.")) {
                       setIsReviewOpen(false);
-                      setIsUploadOpen(true);
                     }
                   }}
-                  className="px-4 py-2 rounded border border-border-theme/60 hover:bg-bg-theme text-slate-400 hover:text-white transition text-xs font-mono"
+                  className="px-4 py-2 rounded border border-transparent hover:bg-bg-theme text-slate-400 hover:text-white transition text-xs font-mono cursor-pointer"
                   disabled={isImporting}
                 >
-                  ← Back to Upload
+                  Cancel
                 </button>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (window.confirm("Are you sure you want to cancel? All parsed line items will be lost.")) {
-                        setIsReviewOpen(false);
-                      }
-                    }}
-                    className="px-4 py-2 rounded border border-transparent hover:bg-bg-theme text-slate-400 hover:text-white transition text-xs font-mono cursor-pointer"
-                    disabled={isImporting}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleImportInvoice}
-                    disabled={isImporting}
-                    className="px-5 py-2.5 rounded bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-500 text-slate-950 font-mono font-black text-xs transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    {isImporting ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        Importing Parts...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        Import {reviewItems.length} Selected to Inventory
-                      </>
-                    )}
-                  </button>
-                </div>
+                <button
+                  onClick={handleImportInvoice}
+                  disabled={isImporting}
+                  className="px-5 py-2.5 rounded bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-500 text-slate-950 font-mono font-black text-xs transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  {isImporting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Importing Parts...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Import {reviewItems.length} Selected to Inventory
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>
