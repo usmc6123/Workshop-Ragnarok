@@ -307,3 +307,15 @@ export interface JobService {
   user_id?: number;
 }
 
+export interface Receipt {
+  id: number;
+  user_id: number;
+  file_path: string;
+  photo_data: string;
+  uploaded_at: string;
+  supplier_name: string | null;
+  invoice_date: string | null;
+  linked_import_summary: string | null;
+  notes: string | null;
+}
+

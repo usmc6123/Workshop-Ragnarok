@@ -1522,26 +1522,26 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                     <p className="text-sm font-bold text-primary-theme">{selectedJob.description}</p>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 self-start sm:self-center">
+                  <div className="flex flex-nowrap items-center gap-1 sm:gap-1.5 self-start sm:self-center overflow-x-auto scrollbar-none max-w-full shrink-0">
                     <button
                       onClick={() => openJobModal(selectedJob)}
-                      className="border border-border-theme hover:border-primary-theme text-slate-350 px-3.5 py-1.5 rounded-lg text-xs uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer self-start"
+                      className="border border-border-theme hover:border-primary-theme text-slate-350 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs uppercase tracking-wider transition flex items-center gap-1 cursor-pointer shrink-0"
                     >
-                      <FileEdit className="w-3.5 h-3.5" />
+                      <FileEdit className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       Edit Ticket Form
                     </button>
                     <button
                       onClick={handlePrintInvoice}
-                      className="border border-border-theme hover:border-primary-theme text-slate-350 px-3.5 py-1.5 rounded-lg text-xs uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer self-start"
+                      className="border border-border-theme hover:border-primary-theme text-slate-350 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs uppercase tracking-wider transition flex items-center gap-1 cursor-pointer shrink-0"
                     >
-                      <Printer className="w-3.5 h-3.5" />
+                      <Printer className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       Print Invoice
                     </button>
                     <button
                       onClick={handleDownloadPDF}
-                      className="border border-border-theme hover:border-primary-theme text-slate-350 px-3.5 py-1.5 rounded-lg text-xs uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer self-start"
+                      className="border border-border-theme hover:border-primary-theme text-slate-350 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs uppercase tracking-wider transition flex items-center gap-1 cursor-pointer shrink-0"
                     >
-                      <Download className="w-3.5 h-3.5" />
+                      <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       Download PDF
                     </button>
                   </div>
@@ -2587,7 +2587,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
             </div>
 
             <form onSubmit={handleSaveJob} className="flex-1 flex flex-col min-h-0">
-              <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
+              <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0 max-h-[60vh]">
               
               <div className="grid grid-cols-2 gap-4 text-left">
                 {/* Customer Select dropdown */}

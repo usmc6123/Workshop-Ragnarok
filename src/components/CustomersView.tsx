@@ -473,7 +473,7 @@ export default function CustomersView({ onNavigateToTab }: CustomersViewProps) {
             </div>
 
             <form onSubmit={handleSaveCustomer} className="flex-1 flex flex-col min-h-0">
-              <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
+              <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0 max-h-[60vh]">
               <div className="space-y-1.5 text-left">
                 <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Customer Name *</label>
                 <input

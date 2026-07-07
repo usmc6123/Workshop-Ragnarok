@@ -6,7 +6,7 @@
 import { 
   Vehicle, GarageItem, PageResponse, Customer, CustomerVehicle, 
   ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual, ShopSettings, JobPhoto,
-  InventoryItem, WorkOrderPart, Service, JobService
+  InventoryItem, WorkOrderPart, Service, JobService, Receipt
 } from '../types';
 
 import { 
@@ -1253,6 +1253,33 @@ export const api = {
 
   async deleteJobService(jobId: number, id: number): Promise<JobService[]> {
     return await request<JobService[]>(`/api/jobs/${jobId}/services/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // --- RECEIPTS ARCHIVE ---
+  async getReceipts(): Promise<Receipt[]> {
+    return await request<Receipt[]>('/api/receipts');
+  },
+
+  async addReceipt(data: { photo_data: string; supplier_name?: string | null; invoice_date?: string | null; linked_import_summary?: string | null; notes?: string | null }): Promise<Receipt> {
+    return await request<Receipt>('/api/receipts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async updateReceipt(id: number, data: { supplier_name?: string | null; invoice_date?: string | null; notes?: string | null; linked_import_summary?: string | null }): Promise<Receipt> {
+    return await request<Receipt>(`/api/receipts/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async deleteReceipt(id: number): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/receipts/${id}`, {
       method: 'DELETE'
     });
   }

@@ -29,6 +29,7 @@ if (!fs.existsSync(dbDir)) {
 // Enable CORS and JSON parsing
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Apply auth middleware to all API routes
 const { authMiddleware, adminOnly } = require('./middleware/authMiddleware');
@@ -246,6 +247,21 @@ try {
       caption TEXT,
       photo_type TEXT,
       uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Create Receipts Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS receipts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      file_path TEXT,
+      photo_data TEXT,
+      uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      supplier_name TEXT,
+      invoice_date TEXT,
+      linked_import_summary TEXT,
+      notes TEXT
     )
   `);
 
@@ -2996,6 +3012,90 @@ app.delete('/api/jobs/:jobId/services/:id', (req, res) => {
   } catch (error) {
     console.error('Error deleting job service:', error);
     res.status(500).json({ error: 'Database error deleting job service' });
+  }
+});
+
+// --- RECEIPTS ARCHIVE ---
+app.post('/api/receipts', (req, res) => {
+  try {
+    const { photo_data, supplier_name, invoice_date, linked_import_summary, notes } = req.body;
+    if (!photo_data) {
+      return res.status(400).json({ error: 'Receipt photo data is required' });
+    }
+
+    // Ensure uploads/receipts folder exists
+    const receiptsDir = path.join(__dirname, 'uploads', 'receipts');
+    if (!fs.existsSync(receiptsDir)) {
+      fs.mkdirSync(receiptsDir, { recursive: true });
+    }
+
+    let savedPath = '';
+    try {
+      const filename = `receipt_${Date.now()}_${Math.floor(Math.random() * 1000)}.png`;
+      const fullPath = path.join(receiptsDir, filename);
+      // Strip base64 header if present
+      let rawBase64 = photo_data;
+      if (photo_data.includes(';base64,')) {
+        rawBase64 = photo_data.split(';base64,')[1];
+      }
+      fs.writeFileSync(fullPath, Buffer.from(rawBase64, 'base64'));
+      savedPath = `/uploads/receipts/${filename}`;
+    } catch (err) {
+      console.error('Failed to write receipt image to disk:', err);
+    }
+
+    const stmt = db.prepare(`
+      INSERT INTO receipts (user_id, file_path, photo_data, supplier_name, invoice_date, linked_import_summary, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const info = stmt.run(req.user.id, savedPath, photo_data, supplier_name || null, invoice_date || null, linked_import_summary || null, notes || null);
+    const inserted = db.prepare('SELECT id, user_id, file_path, photo_data, uploaded_at, supplier_name, invoice_date, linked_import_summary, notes FROM receipts WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
+    res.json(inserted);
+  } catch (error) {
+    console.error('Error adding receipt:', error);
+    res.status(500).json({ error: 'Database error adding receipt' });
+  }
+});
+
+app.get('/api/receipts', (req, res) => {
+  try {
+    const stmt = db.prepare('SELECT id, user_id, file_path, photo_data, uploaded_at, supplier_name, invoice_date, linked_import_summary, notes FROM receipts WHERE user_id = ? ORDER BY uploaded_at DESC');
+    const rows = stmt.all(req.user.id);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching receipts:', error);
+    res.status(500).json({ error: 'Database error fetching receipts' });
+  }
+});
+
+app.put('/api/receipts/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { supplier_name, invoice_date, notes, linked_import_summary } = req.body;
+    const stmt = db.prepare(`
+      UPDATE receipts 
+      SET supplier_name = ?, invoice_date = ?, notes = ?, linked_import_summary = ?
+      WHERE id = ? AND user_id = ?
+    `);
+    const info = stmt.run(supplier_name || null, invoice_date || null, notes || null, linked_import_summary || null, id, req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Receipt not found' });
+    const updated = db.prepare('SELECT id, user_id, file_path, photo_data, uploaded_at, supplier_name, invoice_date, linked_import_summary, notes FROM receipts WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating receipt:', error);
+    res.status(500).json({ error: 'Database error updating receipt' });
+  }
+});
+
+app.delete('/api/receipts/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const info = db.prepare('DELETE FROM receipts WHERE id = ? AND user_id = ?').run(id, req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Receipt not found' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting receipt:', error);
+    res.status(500).json({ error: 'Database error deleting receipt' });
   }
 });
 

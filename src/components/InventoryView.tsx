@@ -6,7 +6,7 @@ import {
   Search, Plus, Edit2, Trash2, Sliders, AlertTriangle, 
   TrendingUp, Layers, DollarSign, MapPin, Package, RotateCcw,
   CheckCircle, ArrowDown, ArrowUp, RefreshCw, X, AlertCircle,
-  Upload, Camera
+  Upload, Camera, FolderOpen, Calendar, Eye, FileText
 } from 'lucide-react';
 
 interface ReviewItem {
@@ -93,6 +93,30 @@ export default function InventoryView() {
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
   const [isImporting, setIsImporting] = useState(false);
 
+  // Receipts Archive States
+  const [isReceiptsArchiveOpen, setIsReceiptsArchiveOpen] = useState(false);
+  const [receipts, setReceipts] = useState<any[]>([]);
+  const [receiptNotes, setReceiptNotes] = useState('');
+  const [receiptSearch, setReceiptSearch] = useState('');
+  const [receiptStartDate, setReceiptStartDate] = useState('');
+  const [receiptEndDate, setReceiptEndDate] = useState('');
+  const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null);
+  const [isReceiptDetailOpen, setIsReceiptDetailOpen] = useState(false);
+
+  // Detail editor states
+  const [editReceiptSupplier, setEditReceiptSupplier] = useState('');
+  const [editReceiptDate, setEditReceiptDate] = useState('');
+  const [editReceiptNotes, setEditReceiptNotes] = useState('');
+
+  const fetchReceipts = async () => {
+    try {
+      const res = await api.getReceipts();
+      setReceipts(res || []);
+    } catch (err) {
+      console.error('Failed to fetch receipts:', err);
+    }
+  };
+
   const findMatchingItem = (itemName: string, itemPart: string | null) => {
     if (!itemName) return null;
     const cleanName = itemName.toLowerCase().trim();
@@ -115,6 +139,10 @@ export default function InventoryView() {
   useEffect(() => {
     fetchInventory();
   }, [search, selectedCategory]);
+
+  useEffect(() => {
+    fetchReceipts();
+  }, []);
 
   const fetchInventory = async () => {
     setLoading(true);
@@ -359,6 +387,29 @@ export default function InventoryView() {
           }
         }
       }
+
+      // Save receipt image to database receipts archive if we have one
+      if (uploadPreview) {
+        try {
+          const createdCount = itemsToImport.filter(item => item.action === 'create').length;
+          const updatedCount = itemsToImport.filter(item => item.action === 'update').length;
+          const importSummaryText = `${itemsToImport.length} item(s) imported (${createdCount} added, ${updatedCount} updated)`;
+
+          await api.addReceipt({
+            photo_data: uploadPreview,
+            supplier_name: invoiceSupplier || 'Unknown Supplier',
+            invoice_date: invoiceDate || new Date().toISOString().split('T')[0],
+            linked_import_summary: importSummaryText,
+            notes: receiptNotes || ''
+          });
+
+          setReceiptNotes('');
+          fetchReceipts();
+        } catch (receiptErr) {
+          console.error('Failed to save receipt image to archive:', receiptErr);
+        }
+      }
+
       setIsReviewOpen(false);
       setUploadPreview(null);
       setReviewItems([]);
@@ -372,12 +423,90 @@ export default function InventoryView() {
     }
   };
 
+  const handleUpdateReceipt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedReceipt) return;
+    try {
+      const updated = await api.updateReceipt(selectedReceipt.id, {
+        supplier_name: editReceiptSupplier,
+        invoice_date: editReceiptDate,
+        notes: editReceiptNotes
+      });
+      alert('Receipt updated successfully.');
+      fetchReceipts();
+      setSelectedReceipt(updated);
+      setIsReceiptDetailOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Failed to update receipt.');
+    }
+  };
+
+  const handleDeleteReceipt = async (id: number) => {
+    if (!window.confirm('Are you sure you want to permanently delete this receipt from the archive? This cannot be undone.')) return;
+    try {
+      await api.deleteReceipt(id);
+      alert('Receipt deleted successfully.');
+      setIsReceiptDetailOpen(false);
+      setSelectedReceipt(null);
+      fetchReceipts();
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Failed to delete receipt.');
+    }
+  };
+
+  const getFriendlyDate = (dateStr: string) => {
+    if (!dateStr) return 'Unknown Date';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      }
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
   // Stats Calculations
   const totalItems = items.length;
   const lowStockItems = items.filter(item => item.quantity_on_hand <= item.reorder_threshold).length;
   const totalValuation = items.reduce((sum, item) => sum + (item.quantity_on_hand * item.cost_price), 0);
   const potentialRevenue = items.reduce((sum, item) => sum + (item.quantity_on_hand * item.sell_price), 0);
   const potentialProfit = potentialRevenue - totalValuation;
+
+  const filteredReceipts = receipts.filter(r => {
+    const matchesSearch = !receiptSearch || 
+      (r.supplier_name && r.supplier_name.toLowerCase().includes(receiptSearch.toLowerCase())) ||
+      (r.notes && r.notes.toLowerCase().includes(receiptSearch.toLowerCase())) ||
+      (r.linked_import_summary && r.linked_import_summary.toLowerCase().includes(receiptSearch.toLowerCase()));
+    
+    const rDate = r.invoice_date || r.uploaded_at?.split(' ')[0] || r.uploaded_at?.split('T')[0] || '';
+    const matchesStart = !receiptStartDate || rDate >= receiptStartDate;
+    const matchesEnd = !receiptEndDate || rDate <= receiptEndDate;
+    
+    return matchesSearch && matchesStart && matchesEnd;
+  });
+
+  const groupedReceipts: { [key: string]: any[] } = {};
+  
+  const sortedReceipts = [...filteredReceipts].sort((a, b) => {
+    const dateA = a.invoice_date || a.uploaded_at || '';
+    const dateB = b.invoice_date || b.uploaded_at || '';
+    return dateB.localeCompare(dateA);
+  });
+
+  sortedReceipts.forEach(r => {
+    const dateKey = r.invoice_date || r.uploaded_at?.split(' ')[0] || r.uploaded_at?.split('T')[0] || 'Unknown Date';
+    const friendly = getFriendlyDate(dateKey);
+    if (!groupedReceipts[friendly]) {
+      groupedReceipts[friendly] = [];
+    }
+    groupedReceipts[friendly].push(r);
+  });
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6" id="inventory-view-root">
@@ -393,6 +522,17 @@ export default function InventoryView() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => {
+              fetchReceipts();
+              setIsReceiptsArchiveOpen(true);
+            }}
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono font-bold text-xs rounded-lg border border-border-theme transition active:scale-95 shadow-md cursor-pointer"
+            id="btn-receipts-archive"
+          >
+            <FolderOpen className="w-4 h-4 shrink-0 text-slate-400" />
+            Receipts
+          </button>
           <button
             onClick={() => {
               setUploadPreview(null);
@@ -1303,7 +1443,7 @@ export default function InventoryView() {
             
             {/* Receipt Metadata Editor (Sticky Header Area) */}
             <div className="p-6 pb-4 bg-[#12131a] border-b border-border-theme/20 shrink-0">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-bg-theme/30 p-4 rounded-xl border border-border-theme/20">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-bg-theme/30 p-4 rounded-xl border border-border-theme/20">
                 <div>
                   <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">Supplier Name</label>
                   <input
@@ -1320,6 +1460,16 @@ export default function InventoryView() {
                     type="date"
                     value={invoiceDate}
                     onChange={(e) => setInvoiceDate(e.target.value)}
+                    className="w-full bg-[#12131a] border border-border-theme/40 text-white px-3 py-2 rounded font-mono text-xs focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">Notes / Memo</label>
+                  <input
+                    type="text"
+                    value={receiptNotes}
+                    onChange={(e) => setReceiptNotes(e.target.value)}
+                    placeholder="e.g. Parts for Cyberdyne build..."
                     className="w-full bg-[#12131a] border border-border-theme/40 text-white px-3 py-2 rounded font-mono text-xs focus:outline-none focus:border-amber-500"
                   />
                 </div>
@@ -1558,6 +1708,288 @@ export default function InventoryView() {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Receipts Archive Modal */}
+      {isReceiptsArchiveOpen && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs select-none">
+          <div className="bg-[#12131a] border border-border-theme rounded-xl w-full max-w-5xl max-h-[90vh] shadow-2xl overflow-hidden flex flex-col text-left">
+            {/* Header */}
+            <div className="px-6 py-4 bg-bg-theme/50 border-b border-border-theme/40 flex items-center justify-between shrink-0">
+              <h2 className="text-sm font-black font-mono tracking-wider uppercase text-white flex items-center gap-2">
+                <FolderOpen className="w-4 h-4 text-amber-500" />
+                Receipts & Invoices Archive
+              </h2>
+              <button 
+                onClick={() => setIsReceiptsArchiveOpen(false)}
+                className="text-slate-400 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className="p-6 bg-bg-theme/20 border-b border-border-theme/20 shrink-0 space-y-3">
+              <div className="flex flex-col md:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input
+                    type="text"
+                    value={receiptSearch}
+                    onChange={(e) => setReceiptSearch(e.target.value)}
+                    placeholder="Search by supplier name, import summary, or notes..."
+                    className="w-full bg-[#12131a] border border-border-theme/45 text-white pl-10 pr-4 py-2.5 rounded-lg text-xs font-mono focus:outline-none focus:border-amber-500 placeholder-slate-500"
+                  />
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-mono uppercase text-slate-500">From</span>
+                    <input
+                      type="date"
+                      value={receiptStartDate}
+                      onChange={(e) => setReceiptStartDate(e.target.value)}
+                      className="bg-[#12131a] border border-border-theme/45 text-white pl-11 pr-3 py-2.5 rounded-lg text-xs font-mono focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-mono uppercase text-slate-500">To</span>
+                    <input
+                      type="date"
+                      value={receiptEndDate}
+                      onChange={(e) => setReceiptEndDate(e.target.value)}
+                      className="bg-[#12131a] border border-border-theme/45 text-white pl-9 pr-3 py-2.5 rounded-lg text-xs font-mono focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      setReceiptSearch('');
+                      setReceiptStartDate('');
+                      setReceiptEndDate('');
+                    }}
+                    className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs rounded-lg border border-border-theme transition cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Content List Area */}
+            <div className="p-6 overflow-y-auto flex-1 bg-bg-theme/10 space-y-6 max-h-[60vh]">
+              {Object.keys(groupedReceipts).length === 0 ? (
+                <div className="py-12 text-center text-slate-500 font-mono text-xs">
+                  No matching archived receipts found. Upload and import an invoice to archive it here!
+                </div>
+              ) : (
+                Object.keys(groupedReceipts).map(friendlyDate => (
+                  <div key={friendlyDate} className="space-y-2">
+                    {/* Date Header */}
+                    <div className="flex items-center gap-2 border-b border-border-theme/10 pb-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-amber-500/80" />
+                      <h3 className="text-xs font-bold font-mono text-slate-300 tracking-wide">
+                        {friendlyDate}
+                      </h3>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        ({groupedReceipts[friendlyDate].length} receipt{groupedReceipts[friendlyDate].length > 1 ? 's' : ''})
+                      </span>
+                    </div>
+
+                    {/* Receipts List */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {groupedReceipts[friendlyDate].map((receipt: any) => (
+                        <div 
+                          key={receipt.id}
+                          onClick={() => {
+                            setSelectedReceipt(receipt);
+                            setEditReceiptSupplier(receipt.supplier_name || '');
+                            setEditReceiptDate(receipt.invoice_date || '');
+                            setEditReceiptNotes(receipt.notes || '');
+                            setIsReceiptDetailOpen(true);
+                          }}
+                          className="flex items-center gap-4 p-4 bg-[#13141a]/90 hover:bg-[#16171e] rounded-lg border border-border-theme/40 hover:border-amber-500/30 transition cursor-pointer group shadow-sm text-left"
+                        >
+                          {/* Image Thumbnail */}
+                          <div className="w-16 h-16 rounded border border-border-theme/60 bg-black overflow-hidden shrink-0 flex items-center justify-center relative">
+                            {receipt.photo_data || receipt.file_path ? (
+                              <img 
+                                src={receipt.photo_data || receipt.file_path} 
+                                referrerPolicy="no-referrer"
+                                alt={receipt.supplier_name} 
+                                className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                              />
+                            ) : (
+                              <FileText className="w-6 h-6 text-slate-600" />
+                            )}
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                              <Eye className="w-4 h-4 text-white" />
+                            </div>
+                          </div>
+
+                          {/* Info */}
+                          <div className="flex-1 min-w-0 text-left">
+                            <h4 className="text-xs font-black text-white font-mono uppercase tracking-tight truncate">
+                              {receipt.supplier_name || 'Unknown Supplier'}
+                            </h4>
+                            <p className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center gap-1.5">
+                              <span>Invoice Date: {receipt.invoice_date || 'N/A'}</span>
+                            </p>
+                            {receipt.linked_import_summary && (
+                              <span className="inline-block mt-2 px-1.5 py-0.5 rounded text-[9px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                {receipt.linked_import_summary}
+                              </span>
+                            )}
+                            {receipt.notes && (
+                              <p className="text-[10px] text-slate-500 italic truncate mt-1.5 font-sans">
+                                Notes: {receipt.notes}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-bg-theme/50 border-t border-border-theme/40 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsReceiptsArchiveOpen(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs rounded-lg border border-border-theme transition cursor-pointer"
+              >
+                Close Archive
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Receipt Detail / Editor Modal */}
+      {isReceiptDetailOpen && selectedReceipt && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xs select-none">
+          <div className="bg-[#12131a] border border-border-theme rounded-xl w-full max-w-4xl max-h-[90vh] shadow-2xl overflow-hidden flex flex-col text-left">
+            {/* Header */}
+            <div className="px-6 py-4 bg-bg-theme/50 border-b border-border-theme/40 flex items-center justify-between shrink-0">
+              <h2 className="text-sm font-black font-mono tracking-wider uppercase text-white flex items-center gap-2">
+                <FileText className="w-4 h-4 text-amber-500" />
+                Receipt Details
+              </h2>
+              <button 
+                onClick={() => setIsReceiptDetailOpen(false)}
+                className="text-slate-400 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body - Split screen */}
+            <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden max-h-[65vh]">
+              {/* Left - Receipt Image */}
+              <div className="flex-1 bg-black/65 p-4 flex items-center justify-center overflow-auto border-r border-border-theme/20">
+                {selectedReceipt.photo_data || selectedReceipt.file_path ? (
+                  <img 
+                    src={selectedReceipt.photo_data || selectedReceipt.file_path} 
+                    referrerPolicy="no-referrer"
+                    alt="Receipt Image" 
+                    className="max-h-full max-w-full object-contain rounded shadow-lg border border-border-theme/30"
+                  />
+                ) : (
+                  <div className="text-center py-12 text-slate-500 font-mono text-xs">
+                    No image available for this receipt.
+                  </div>
+                )}
+              </div>
+
+              {/* Right - Details Panel & Editor */}
+              <form onSubmit={handleUpdateReceipt} className="w-full md:w-80 shrink-0 p-6 flex flex-col justify-between bg-[#13141a]/60 overflow-y-auto">
+                <div className="space-y-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono border-b border-border-theme/20 pb-2">
+                    Edit Receipt Metadata
+                  </h3>
+
+                  {/* Supplier Input */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-mono uppercase text-slate-400">Supplier Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={editReceiptSupplier}
+                      onChange={(e) => setEditReceiptSupplier(e.target.value)}
+                      placeholder="e.g. Cyberdyne Parts Co."
+                      className="w-full bg-[#12131a] border border-border-theme/60 text-white px-3 py-2.5 rounded text-xs font-mono focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* Invoice Date */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-mono uppercase text-slate-400">Invoice Date</label>
+                    <input
+                      type="date"
+                      required
+                      value={editReceiptDate}
+                      onChange={(e) => setEditReceiptDate(e.target.value)}
+                      className="w-full bg-[#12131a] border border-border-theme/60 text-white px-3 py-2.5 rounded text-xs font-mono focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* Linked Import Summary */}
+                  {selectedReceipt.linked_import_summary && (
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] font-mono uppercase text-slate-400">Linked Import Status</label>
+                      <div className="p-3 bg-bg-theme/40 border border-border-theme/40 rounded-lg text-xs font-mono text-emerald-400">
+                        {selectedReceipt.linked_import_summary}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Notes Area */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-mono uppercase text-slate-400">Notes / Comments</label>
+                    <textarea
+                      value={editReceiptNotes}
+                      onChange={(e) => setEditReceiptNotes(e.target.value)}
+                      placeholder="Add custom notes..."
+                      rows={4}
+                      className="w-full bg-[#12131a] border border-border-theme/60 text-white px-3 py-2.5 rounded text-xs font-mono focus:outline-none focus:border-amber-500 resize-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-6 border-t border-border-theme/20 space-y-2 shrink-0">
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-mono font-bold text-xs rounded-lg transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 shadow"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Save Changes
+                  </button>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsReceiptDetailOpen(false)}
+                      className="py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs rounded-lg border border-border-theme transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteReceipt(selectedReceipt.id)}
+                      className="py-2 bg-red-950/25 hover:bg-red-900/30 text-red-400 hover:text-red-350 font-mono text-xs rounded-lg border border-red-900/30 transition cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </form>
             </div>
           </div>
         </div>,

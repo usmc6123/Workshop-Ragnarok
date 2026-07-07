@@ -862,7 +862,7 @@ export default function VehiclesView({
             </div>
 
             <form onSubmit={handleSaveVehicle} className="flex-1 flex flex-col min-h-0">
-              <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
+              <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0 max-h-[60vh]">
               
               <div className="space-y-1.5 text-left">
                 <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Associated Customer *</label>
@@ -1033,7 +1033,7 @@ export default function VehiclesView({
             </div>
 
             <form onSubmit={handleSaveService} className="flex-1 flex flex-col min-h-0">
-              <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
+              <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0 max-h-[60vh]">
               <div className="grid grid-cols-2 gap-4 text-left">
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Service Date</label>
