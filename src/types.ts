@@ -240,7 +240,7 @@ export interface InventoryItem {
   id: number;
   part_number: string;
   name: string;
-  category: 'brakes' | 'filters' | 'fluids' | 'electrical' | 'engine' | 'other';
+  category: 'brakes' | 'filters' | 'fluids' | 'electrical' | 'engine' | 'parts' | 'other';
   quantity_on_hand: number;
   reorder_threshold: number;
   unit_type: string;

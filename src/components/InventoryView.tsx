@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../lib/api';
 import { InventoryItem } from '../types';
 import { 
@@ -28,6 +29,7 @@ const CATEGORIES = [
   { id: 'fluids', label: 'Fluids' },
   { id: 'electrical', label: 'Electrical' },
   { id: 'engine', label: 'Engine' },
+  { id: 'parts', label: 'Parts' },
   { id: 'other', label: 'Other' }
 ];
 
@@ -744,6 +746,7 @@ export default function InventoryView() {
                     <option value="fluids">Fluids</option>
                     <option value="electrical">Electrical</option>
                     <option value="engine">Engine</option>
+                    <option value="parts">Parts</option>
                     <option value="other">Other</option>
                   </select>
                 </div>
@@ -928,6 +931,7 @@ export default function InventoryView() {
                     <option value="fluids">Fluids</option>
                     <option value="electrical">Electrical</option>
                     <option value="engine">Engine</option>
+                    <option value="parts">Parts</option>
                     <option value="other">Other</option>
                   </select>
                 </div>
@@ -1276,7 +1280,7 @@ export default function InventoryView() {
       )}
 
       {/* Staging / Review Grid Modal */}
-      {isReviewOpen && (
+      {isReviewOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none">
           <div className="bg-[#12131a] border border-border-theme/80 rounded-xl w-[90vw] h-[90vh] max-h-[90vh] max-w-7xl shadow-2xl overflow-hidden animate-fade-in text-left flex flex-col">
             <div className="px-6 py-4 bg-bg-theme/50 border-b border-border-theme/40 flex items-center justify-between shrink-0">
@@ -1384,6 +1388,7 @@ export default function InventoryView() {
                                 <option value="fluids">Fluids</option>
                                 <option value="electrical">Electrical</option>
                                 <option value="engine">Engine</option>
+                                <option value="parts">Parts</option>
                                 <option value="other">Other</option>
                               </select>
                             </td>
@@ -1554,7 +1559,8 @@ export default function InventoryView() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

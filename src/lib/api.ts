@@ -1166,7 +1166,7 @@ export const api = {
     const raw = await request<any[]>(`/api/jobs/${jobId}/parts`);
     return (raw || []).map(p => ({
       ...p,
-      part_name: p.part_name_snapshot,
+      part_name: p.inventory_name || p.part_name_snapshot || p.part_name || 'N/A',
       quantity: p.quantity_used,
       unit_cost: p.price_charged,
       part_number: p.part_number || ''
@@ -1187,7 +1187,7 @@ export const api = {
     });
     const partsList = (res.parts || []).map((p: any) => ({
       ...p,
-      part_name: p.part_name_snapshot,
+      part_name: p.inventory_name || p.part_name_snapshot || p.part_name || 'N/A',
       quantity: p.quantity_used,
       unit_cost: p.price_charged,
       part_number: p.part_number || ''
