@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   LayoutDashboard, Users, Car, ClipboardList, Calendar, BookOpen, Settings,
-  ChevronLeft, ChevronRight, Menu, ShieldCheck, LogOut, Package, Mail
+  ChevronLeft, ChevronRight, Menu, ShieldCheck, LogOut, Package, Mail, Zap
 } from 'lucide-react';
 import { LOGO_URL } from '../constants/branding';
 import { useAuth } from '../contexts/AuthContext';
@@ -34,6 +34,7 @@ export default function Sidebar({
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'manual-library', label: 'Manual Library', icon: BookOpen },
     { id: 'email', label: 'Email', icon: Mail },
+    { id: 'automations', label: 'Automations', icon: Zap },
   ];
 
   if (isAdmin) {

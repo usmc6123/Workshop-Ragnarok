@@ -19,6 +19,7 @@ import SettingsView from './components/SettingsView';
 import NetworkSettingsModal from './components/NetworkSettingsModal';
 import BootSplashScreen from './components/BootSplashScreen';
 import EmailView from './components/EmailView';
+import AutomationsView from './components/AutomationsView';
 import { LOGO_URL, BACKGROUND_URL } from './constants/branding';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminPage from './pages/AdminPage';
@@ -30,7 +31,7 @@ import {
   Wifi, HelpCircle, CheckSquare, Settings, Car, ClipboardList, LayoutDashboard, Menu
 } from 'lucide-react';
 
-type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email';
+type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email' | 'automations';
 
 export default function App() {
   console.log('APP RENDERING');
@@ -185,6 +186,7 @@ export default function App() {
       case 'settings': return 'System Settings';
       case 'manual': return 'Active Service Manual';
       case 'admin': return 'Manage Users';
+      case 'automations': return 'Automations';
       case 'login': return 'Terminal Auth';
       default: return 'Workshop Management';
     }
@@ -304,104 +306,108 @@ export default function App() {
           </header>
 
           {/* 3. Main Viewport Container */}
-          <main className="flex-1 overflow-y-auto">
-            <div
-              style={{
-                transform: `scale(${scale / 100})`,
-                transformOrigin: 'top center'
-              }}
-              className="w-full origin-top"
-              id="main-content-scale-wrapper"
-            >
-              {view === 'dashboard' && (
-                <DashboardView
-                  onSelectVehicle={handleSelectVehicle}
-                  onNavigateToTab={(tab) => setView(tab as any)}
-                  onNavigateToBrowseWithSearch={handleNavBrowse}
-                  refreshTrigger={refreshTrigger}
-                />
-              )}
+          <main className={`flex-1 ${view === 'automations' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+            {view === 'automations' ? (
+              <AutomationsView />
+            ) : (
+              <div
+                style={{
+                  transform: `scale(${scale / 100})`,
+                  transformOrigin: 'top center'
+                }}
+                className="w-full origin-top"
+                id="main-content-scale-wrapper"
+              >
+                {view === 'dashboard' && (
+                  <DashboardView
+                    onSelectVehicle={handleSelectVehicle}
+                    onNavigateToTab={(tab) => setView(tab as any)}
+                    onNavigateToBrowseWithSearch={handleNavBrowse}
+                    refreshTrigger={refreshTrigger}
+                  />
+                )}
 
-              {view === 'customers' && (
-                <CustomersView 
-                  onNavigateToTab={(tab, vehicleId) => {
-                    setView(tab as any);
-                    setInitialSelectedVehicleId(vehicleId ?? null);
-                  }} 
-                  onTriggerEmail={handleTriggerQuickEmail}
-                />
-              )}
+                {view === 'customers' && (
+                  <CustomersView 
+                    onNavigateToTab={(tab, vehicleId) => {
+                      setView(tab as any);
+                      setInitialSelectedVehicleId(vehicleId ?? null);
+                    }} 
+                    onTriggerEmail={handleTriggerQuickEmail}
+                  />
+                )}
 
-              {view === 'vehicles' && (
-                <VehiclesView
-                  onNavigateToManualWithSearch={(make, year, model) => handleNavBrowse(`${make} ${model}`)}
-                  onSelectVehicle={handleSelectVehicle}
-                  refreshTrigger={refreshTrigger}
-                  initialSelectedVehicleId={initialSelectedVehicleId}
-                  onInitialVehicleConsumed={() => setInitialSelectedVehicleId(null)}
-                />
-              )}
+                {view === 'vehicles' && (
+                  <VehiclesView
+                    onNavigateToManualWithSearch={(make, year, model) => handleNavBrowse(`${make} ${model}`)}
+                    onSelectVehicle={handleSelectVehicle}
+                    refreshTrigger={refreshTrigger}
+                    initialSelectedVehicleId={initialSelectedVehicleId}
+                    onInitialVehicleConsumed={() => setInitialSelectedVehicleId(null)}
+                  />
+                )}
 
-              {view === 'jobs' && (
-                <JobsView 
-                  refreshTrigger={refreshTrigger}
-                  onTriggerEmail={handleTriggerQuickEmail}
-                />
-              )}
+                {view === 'jobs' && (
+                  <JobsView 
+                    refreshTrigger={refreshTrigger}
+                    onTriggerEmail={handleTriggerQuickEmail}
+                  />
+                )}
 
-              {view === 'inventory' && (
-                <InventoryView />
-              )}
+                {view === 'inventory' && (
+                  <InventoryView />
+                )}
 
-              {view === 'calendar' && (
-                <CalendarView />
-              )}
+                {view === 'calendar' && (
+                  <CalendarView />
+                )}
 
-              {view === 'email' && (
-                <EmailView
-                  initialComposeData={emailComposeData}
-                  onClearComposeData={() => setEmailComposeData(null)}
-                  onNavigateToCustomer={(customerId) => {
-                    setView('customers');
-                  }}
-                />
-              )}
+                {view === 'email' && (
+                  <EmailView
+                    initialComposeData={emailComposeData}
+                    onClearComposeData={() => setEmailComposeData(null)}
+                    onNavigateToCustomer={(customerId) => {
+                      setView('customers');
+                    }}
+                  />
+                )}
 
-              {view === 'manual-library' && (
-                <BrowseView 
-                  selectedVehicle={selectedVehicle}
-                  onSelectVehicle={handleSelectVehicle} 
-                  onClearSelectedVehicle={() => setSelectedVehicle(null)}
-                  initialSearch={browseSearchQuery}
-                />
-              )}
+                {view === 'manual-library' && (
+                  <BrowseView 
+                    selectedVehicle={selectedVehicle}
+                    onSelectVehicle={handleSelectVehicle} 
+                    onClearSelectedVehicle={() => setSelectedVehicle(null)}
+                    initialSearch={browseSearchQuery}
+                  />
+                )}
 
-              {view === 'settings' && (
-                <SettingsView 
-                  activeTheme={activeTheme}
-                  setActiveTheme={setActiveTheme}
-                  onSaveAddress={handleApplyNewSettings}
-                />
-              )}
+                {view === 'settings' && (
+                  <SettingsView 
+                    activeTheme={activeTheme}
+                    setActiveTheme={setActiveTheme}
+                    onSaveAddress={handleApplyNewSettings}
+                  />
+                )}
 
-              {view === 'manual' && selectedVehicle && (
-                <ManualView
-                  vehicle={selectedVehicle}
-                  onBackToDashboard={handleBackFromManual}
-                  onRefreshGarage={() => setRefreshTrigger((prev) => prev + 1)}
-                />
-              )}
+                {view === 'manual' && selectedVehicle && (
+                  <ManualView
+                    vehicle={selectedVehicle}
+                    onBackToDashboard={handleBackFromManual}
+                    onRefreshGarage={() => setRefreshTrigger((prev) => prev + 1)}
+                  />
+                )}
 
-              {view === 'admin' && (
-                <ProtectedRoute requireAdmin={true}>
-                  <AdminPage />
-                </ProtectedRoute>
-              )}
-            </div>
+                {view === 'admin' && (
+                  <ProtectedRoute requireAdmin={true}>
+                    <AdminPage />
+                  </ProtectedRoute>
+                )}
+              </div>
+            )}
           </main>
 
           {/* Floating Scale Control Widget */}
-          {view !== 'settings' && view !== 'admin' && (
+          {view !== 'settings' && view !== 'admin' && view !== 'automations' && (
             <div 
               className="fixed bottom-6 right-6 z-40 flex items-center gap-1.5 bg-[#0e0f14]/80 backdrop-blur-md border border-white/10 px-2.5 py-1.5 rounded-full shadow-lg select-none"
               id="page-scale-control-widget"
