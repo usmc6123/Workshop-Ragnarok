@@ -127,6 +127,9 @@ try {
       actual_completion TEXT,
       labor_cost REAL DEFAULT 0,
       estimated_hours REAL DEFAULT NULL,
+      mileage_at_intake INTEGER DEFAULT NULL,
+      priority TEXT DEFAULT 'Standard',
+      customer_approved INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
@@ -136,6 +139,27 @@ try {
   try {
     db.exec(`ALTER TABLE jobs ADD COLUMN estimated_hours REAL DEFAULT NULL`);
     console.log("Successfully ran migration: ALTER TABLE jobs ADD COLUMN estimated_hours");
+  } catch (err) {
+    // Column already exists
+  }
+
+  try {
+    db.exec(`ALTER TABLE jobs ADD COLUMN mileage_at_intake INTEGER DEFAULT NULL`);
+    console.log("Successfully ran migration: ALTER TABLE jobs ADD COLUMN mileage_at_intake");
+  } catch (err) {
+    // Column already exists
+  }
+
+  try {
+    db.exec(`ALTER TABLE jobs ADD COLUMN priority TEXT DEFAULT 'Standard'`);
+    console.log("Successfully ran migration: ALTER TABLE jobs ADD COLUMN priority");
+  } catch (err) {
+    // Column already exists
+  }
+
+  try {
+    db.exec(`ALTER TABLE jobs ADD COLUMN customer_approved INTEGER DEFAULT 0`);
+    console.log("Successfully ran migration: ALTER TABLE jobs ADD COLUMN customer_approved");
   } catch (err) {
     // Column already exists
   }
@@ -254,6 +278,7 @@ try {
       job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
       inventory_item_id INTEGER REFERENCES inventory_items(id) ON DELETE SET NULL,
       part_name_snapshot TEXT,
+      part_number TEXT,
       quantity_used INTEGER DEFAULT 1,
       price_charged REAL DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -268,6 +293,34 @@ try {
       item_id INTEGER REFERENCES inventory_items(id) ON DELETE CASCADE,
       delta INTEGER NOT NULL,
       reason TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create Services Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS services (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      base_price REAL NOT NULL,
+      included_hours REAL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create Job Services Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS job_services (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
+      service_id INTEGER REFERENCES services(id) ON DELETE SET NULL,
+      service_name_snapshot TEXT NOT NULL,
+      base_price_charged REAL NOT NULL,
+      additional_hours REAL DEFAULT 0,
+      additional_hours_cost REAL DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     )
@@ -323,6 +376,18 @@ try {
       db.exec(`ALTER TABLE ${tableName} ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`);
       console.log(`Successfully migrated ${tableName} to include user_id column.`);
     }
+  }
+
+  // Migrate work_order_parts: Ensure part_number column exists
+  try {
+    const columns = db.prepare("PRAGMA table_info(work_order_parts)").all();
+    const hasPartNumber = columns.some(col => col.name === 'part_number');
+    if (!hasPartNumber) {
+      db.exec("ALTER TABLE work_order_parts ADD COLUMN part_number TEXT");
+      console.log("Successfully migrated work_order_parts to include part_number column.");
+    }
+  } catch (err) {
+    console.error("Error migrating work_order_parts part_number column:", err);
   }
 
   // Seed the admin user if not exists
@@ -2057,7 +2122,8 @@ app.get('/api/jobs/:id', (req, res) => {
 app.post('/api/jobs', (req, res) => {
   try {
     const {
-      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost, estimated_hours
+      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost, estimated_hours,
+      mileage_at_intake, priority, customer_approved
     } = req.body;
     if (!customer_id || !vehicle_id) return res.status(400).json({ error: 'customer_id and vehicle_id are required' });
 
@@ -2069,15 +2135,20 @@ app.post('/api/jobs', (req, res) => {
     if (!vehicle) return res.status(400).json({ error: 'Invalid or unauthorized vehicle_id' });
 
     const estHoursVal = (estimated_hours !== undefined && estimated_hours !== null && estimated_hours !== '') ? parseFloat(estimated_hours) : null;
+    const mileageVal = (mileage_at_intake !== undefined && mileage_at_intake !== null && mileage_at_intake !== '') ? parseInt(mileage_at_intake) : null;
+    const priorityVal = priority || 'Standard';
+    const approvedVal = customer_approved ? 1 : 0;
 
     const stmt = db.prepare(`
       INSERT INTO jobs (
-        customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost, estimated_hours, user_id
+        customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost, estimated_hours,
+        mileage_at_intake, priority, customer_approved, user_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
-      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status || 'Pending', estimated_completion, actual_completion || null, labor_cost || 0, estHoursVal, req.user.id
+      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status || 'Pending', estimated_completion, actual_completion || null, labor_cost || 0, estHoursVal,
+      mileageVal, priorityVal, approvedVal, req.user.id
     );
     const inserted = db.prepare('SELECT * FROM jobs WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
     res.json(inserted);
@@ -2091,7 +2162,8 @@ app.put('/api/jobs/:id', (req, res) => {
   try {
     const { id } = req.params;
     const {
-      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost, estimated_hours
+      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost, estimated_hours,
+      mileage_at_intake, priority, customer_approved
     } = req.body;
 
     // Verify ownership of the job
@@ -2109,14 +2181,18 @@ app.put('/api/jobs/:id', (req, res) => {
     }
 
     const estHoursVal = (estimated_hours !== undefined && estimated_hours !== null && estimated_hours !== '') ? parseFloat(estimated_hours) : null;
+    const mileageVal = (mileage_at_intake !== undefined && mileage_at_intake !== null && mileage_at_intake !== '') ? parseInt(mileage_at_intake) : null;
+    const priorityVal = priority || 'Standard';
+    const approvedVal = customer_approved ? 1 : 0;
 
     const stmt = db.prepare(`
       UPDATE jobs
-      SET customer_id = ?, vehicle_id = ?, description = ?, diagnosis_notes = ?, labor_notes = ?, status = ?, estimated_completion = ?, actual_completion = ?, labor_cost = ?, estimated_hours = ?, updated_at = CURRENT_TIMESTAMP
+      SET customer_id = ?, vehicle_id = ?, description = ?, diagnosis_notes = ?, labor_notes = ?, status = ?, estimated_completion = ?, actual_completion = ?, labor_cost = ?, estimated_hours = ?, mileage_at_intake = ?, priority = ?, customer_approved = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
     `);
     const info = stmt.run(
-      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost || 0, estHoursVal, id, req.user.id
+      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost || 0, estHoursVal,
+      mileageVal, priorityVal, approvedVal, id, req.user.id
     );
     if (info.changes === 0) return res.status(404).json({ error: 'Job not found' });
     const updated = db.prepare('SELECT * FROM jobs WHERE id = ? AND user_id = ?').get(id, req.user.id);
@@ -2136,85 +2212,14 @@ app.delete('/api/jobs/:id', (req, res) => {
     if (!job) return res.status(404).json({ error: 'Job not found' });
 
     db.prepare('DELETE FROM job_parts WHERE job_id = ? AND user_id = ?').run(id, req.user.id);
+    db.prepare('DELETE FROM work_order_parts WHERE job_id = ? AND user_id = ?').run(id, req.user.id);
+    db.prepare('DELETE FROM job_services WHERE job_id = ? AND user_id = ?').run(id, req.user.id);
     const info = db.prepare('DELETE FROM jobs WHERE id = ? AND user_id = ?').run(id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Job not found' });
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting job:', error);
     res.status(500).json({ error: 'Database error deleting job' });
-  }
-});
-
-// --- JOB PARTS ---
-app.get('/api/jobs/:jobId/parts', (req, res) => {
-  try {
-    const { jobId } = req.params;
-
-    // Verify job ownership
-    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(jobId, req.user.id);
-    if (!job) return res.status(404).json({ error: 'Job not found' });
-
-    const stmt = db.prepare('SELECT * FROM job_parts WHERE job_id = ? AND user_id = ?');
-    const rows = stmt.all(jobId, req.user.id);
-    res.json(rows);
-  } catch (error) {
-    console.error('Error fetching job parts:', error);
-    res.status(500).json({ error: 'Database error fetching job parts' });
-  }
-});
-
-app.post('/api/jobs/:jobId/parts', (req, res) => {
-  try {
-    const { jobId } = req.params;
-    const { part_name, part_number, quantity, unit_cost, notes } = req.body;
-
-    // Verify job ownership
-    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(jobId, req.user.id);
-    if (!job) return res.status(404).json({ error: 'Job not found' });
-
-    const stmt = db.prepare(`
-      INSERT INTO job_parts (job_id, part_name, part_number, quantity, unit_cost, notes, user_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    const info = stmt.run(jobId, part_name, part_number, quantity || 1, unit_cost || 0, notes, req.user.id);
-    const inserted = db.prepare('SELECT * FROM job_parts WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
-    res.json(inserted);
-  } catch (error) {
-    console.error('Error adding job part:', error);
-    res.status(500).json({ error: 'Database error adding job part' });
-  }
-});
-
-app.put('/api/jobs/:jobId/parts/:partId', (req, res) => {
-  try {
-    const { partId } = req.params;
-    const { part_name, part_number, quantity, unit_cost, notes } = req.body;
-
-    const stmt = db.prepare(`
-      UPDATE job_parts
-      SET part_name = ?, part_number = ?, quantity = ?, unit_cost = ?, notes = ?
-      WHERE id = ? AND user_id = ?
-    `);
-    const info = stmt.run(part_name, part_number, quantity || 1, unit_cost || 0, notes, partId, req.user.id);
-    if (info.changes === 0) return res.status(404).json({ error: 'Part not found' });
-    const updated = db.prepare('SELECT * FROM job_parts WHERE id = ? AND user_id = ?').get(partId, req.user.id);
-    res.json(updated);
-  } catch (error) {
-    console.error('Error updating job part:', error);
-    res.status(500).json({ error: 'Database error updating job part' });
-  }
-});
-
-app.delete('/api/jobs/:jobId/parts/:partId', (req, res) => {
-  try {
-    const { partId } = req.params;
-    const stmt = db.prepare('DELETE FROM job_parts WHERE id = ? AND user_id = ?');
-    const info = stmt.run(partId, req.user.id);
-    if (info.changes === 0) return res.status(404).json({ error: 'Job part not found' });
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error removing job part:', error);
-    res.status(500).json({ error: 'Database error removing job part' });
   }
 });
 
@@ -2636,7 +2641,7 @@ app.get('/api/jobs/:jobId/parts', (req, res) => {
     if (!job) return res.status(404).json({ error: 'Job not found' });
     
     const stmt = db.prepare(`
-      SELECT w.*, i.part_number, i.name as inventory_name, i.category, i.reorder_threshold, i.quantity_on_hand
+      SELECT w.*, COALESCE(w.part_number, i.part_number) AS part_number, i.name as inventory_name, i.category, i.reorder_threshold, i.quantity_on_hand
       FROM work_order_parts w
       LEFT JOIN inventory_items i ON w.inventory_item_id = i.id
       WHERE w.job_id = ? AND w.user_id = ?
@@ -2652,7 +2657,7 @@ app.get('/api/jobs/:jobId/parts', (req, res) => {
 app.post('/api/jobs/:jobId/parts', (req, res) => {
   try {
     const { jobId } = req.params;
-    const { inventory_item_id, part_name_snapshot, quantity_used, price_charged } = req.body;
+    const { inventory_item_id, part_name_snapshot, part_number, quantity_used, price_charged } = req.body;
     
     // Verify job ownership
     const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(jobId, req.user.id);
@@ -2687,13 +2692,13 @@ app.post('/api/jobs/:jobId/parts', (req, res) => {
     
     // Insert into work_order_parts
     db.prepare(`
-      INSERT INTO work_order_parts (job_id, inventory_item_id, part_name_snapshot, quantity_used, price_charged, user_id)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(jobId, inventory_item_id || null, finalPartName, qty, finalPriceCharged, req.user.id);
+      INSERT INTO work_order_parts (job_id, inventory_item_id, part_name_snapshot, part_number, quantity_used, price_charged, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(jobId, inventory_item_id || null, finalPartName, part_number || null, qty, finalPriceCharged, req.user.id);
     
     // Get updated list of parts
     const stmt = db.prepare(`
-      SELECT w.*, i.part_number, i.name as inventory_name, i.category, i.reorder_threshold, i.quantity_on_hand
+      SELECT w.*, COALESCE(w.part_number, i.part_number) AS part_number, i.name as inventory_name, i.category, i.reorder_threshold, i.quantity_on_hand
       FROM work_order_parts w
       LEFT JOIN inventory_items i ON w.inventory_item_id = i.id
       WHERE w.job_id = ? AND w.user_id = ?
@@ -2707,6 +2712,54 @@ app.post('/api/jobs/:jobId/parts', (req, res) => {
   } catch (error) {
     console.error('Error adding work order part:', error);
     res.status(500).json({ error: 'Database error adding work order part' });
+  }
+});
+
+app.put('/api/jobs/:jobId/parts/:partId', (req, res) => {
+  try {
+    const { jobId, partId } = req.params;
+    const { part_name, part_name_snapshot, part_number, quantity, quantity_used, unit_cost, price_charged } = req.body;
+    
+    const finalPartName = part_name_snapshot !== undefined ? part_name_snapshot : part_name;
+    const finalPartNumber = part_number;
+    const finalQty = parseInt(quantity_used !== undefined ? quantity_used : quantity, 10);
+    const finalPrice = parseFloat(price_charged !== undefined ? price_charged : unit_cost);
+
+    // Verify job ownership
+    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(jobId, req.user.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    
+    // Fetch work order part first to check if it exists and is on this job
+    const part = db.prepare('SELECT * FROM work_order_parts WHERE id = ? AND job_id = ? AND user_id = ?').get(partId, jobId, req.user.id);
+    if (!part) return res.status(404).json({ error: 'Work order part not found' });
+    
+    // Update work order part record only. Do not modify inventory_items record or stock levels.
+    const stmt = db.prepare(`
+      UPDATE work_order_parts
+      SET part_name_snapshot = ?, part_number = ?, quantity_used = ?, price_charged = ?
+      WHERE id = ? AND user_id = ?
+    `);
+    stmt.run(
+      finalPartName,
+      finalPartNumber || null,
+      isNaN(finalQty) || finalQty < 0 ? 0 : finalQty,
+      isNaN(finalPrice) || finalPrice < 0 ? 0 : finalPrice,
+      partId,
+      req.user.id
+    );
+    
+    // Fetch and return updated work order part
+    const updated = db.prepare(`
+      SELECT w.*, COALESCE(w.part_number, i.part_number) AS part_number, i.name as inventory_name, i.category, i.reorder_threshold, i.quantity_on_hand
+      FROM work_order_parts w
+      LEFT JOIN inventory_items i ON w.inventory_item_id = i.id
+      WHERE w.id = ? AND w.user_id = ?
+    `).get(partId, req.user.id);
+    
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating work order part:', error);
+    res.status(500).json({ error: 'Database error updating work order part' });
   }
 });
 
@@ -2729,6 +2782,220 @@ app.delete('/api/jobs/:jobId/parts/:partId', (req, res) => {
   } catch (error) {
     console.error('Error deleting work order part:', error);
     res.status(500).json({ error: 'Database error deleting work order part' });
+  }
+});
+
+// --- SERVICES ENDPOINTS ---
+app.get('/api/services', (req, res) => {
+  try {
+    let rows = db.prepare('SELECT * FROM services WHERE user_id = ? ORDER BY name ASC').all(req.user.id);
+    if (rows.length === 0) {
+      // Seed default services for this user
+      const defaultServices = [
+        ['Standard Oil Change', 45.00, 0.5],
+        ['Synthetic Oil Change', 65.00, 0.5],
+        ['AC System Check', 89.00, 1.0],
+        ['Diagnostic Check (Check Engine Light)', 125.00, 1.0],
+        ['Smog Check / Emissions Test', 69.95, 0.5],
+        ['Tire Rotation', 25.00, 0.5],
+        ['Brake Inspection', 29.95, 0.5],
+        ['Battery Test & Charge', 20.00, 0.5],
+        ['Wheel Alignment Check', 99.00, 1.0],
+        ['Coolant Flush', 120.00, 1.0],
+        ['Transmission Fluid Service', 150.00, 1.5],
+        ['Multi-Point Inspection', 49.00, 0.5]
+      ];
+      const insertStmt = db.prepare('INSERT INTO services (name, base_price, included_hours, user_id) VALUES (?, ?, ?, ?)');
+      for (const [name, price, hours] of defaultServices) {
+        insertStmt.run(name, price, hours, req.user.id);
+      }
+      rows = db.prepare('SELECT * FROM services WHERE user_id = ? ORDER BY name ASC').all(req.user.id);
+    }
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching/seeding services:', error);
+    res.status(500).json({ error: 'Database error fetching services' });
+  }
+});
+
+app.post('/api/services', (req, res) => {
+  try {
+    const { name, base_price, included_hours } = req.body;
+    if (!name) return res.status(400).json({ error: 'Service name is required' });
+    
+    const price = parseFloat(base_price);
+    const finalPrice = isNaN(price) || price < 0 ? 0 : price;
+    const hours = included_hours !== undefined && included_hours !== null && included_hours !== '' ? parseFloat(included_hours) : null;
+    const finalHours = hours !== null && (isNaN(hours) || hours < 0) ? 0 : hours;
+
+    const stmt = db.prepare(`
+      INSERT INTO services (name, base_price, included_hours, user_id)
+      VALUES (?, ?, ?, ?)
+    `);
+    const info = stmt.run(name, finalPrice, finalHours, req.user.id);
+    const created = db.prepare('SELECT * FROM services WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
+    res.json(created);
+  } catch (error) {
+    console.error('Error creating service:', error);
+    res.status(500).json({ error: 'Database error creating service' });
+  }
+});
+
+app.put('/api/services/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, base_price, included_hours } = req.body;
+    if (!name) return res.status(400).json({ error: 'Service name is required' });
+    
+    const price = parseFloat(base_price);
+    const finalPrice = isNaN(price) || price < 0 ? 0 : price;
+    const hours = included_hours !== undefined && included_hours !== null && included_hours !== '' ? parseFloat(included_hours) : null;
+    const finalHours = hours !== null && (isNaN(hours) || hours < 0) ? 0 : hours;
+
+    const stmt = db.prepare(`
+      UPDATE services
+      SET name = ?, base_price = ?, included_hours = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `);
+    const info = stmt.run(name, finalPrice, finalHours, id, req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Service not found' });
+    
+    const updated = db.prepare('SELECT * FROM services WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating service:', error);
+    res.status(500).json({ error: 'Database error updating service' });
+  }
+});
+
+app.delete('/api/services/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const info = db.prepare('DELETE FROM services WHERE id = ? AND user_id = ?').run(id, req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Service not found' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting service:', error);
+    res.status(500).json({ error: 'Database error deleting service' });
+  }
+});
+
+// --- WORK ORDER SERVICES (JUNCTION) ENDPOINTS ---
+app.get('/api/jobs/:jobId/services', (req, res) => {
+  try {
+    const { jobId } = req.params;
+    
+    // Verify job ownership
+    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(jobId, req.user.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    
+    const rows = db.prepare('SELECT * FROM job_services WHERE job_id = ? AND user_id = ?').all(jobId, req.user.id);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching job services:', error);
+    res.status(500).json({ error: 'Database error fetching job services' });
+  }
+});
+
+app.post('/api/jobs/:jobId/services', (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { service_id, service_name_snapshot, base_price_charged, additional_hours } = req.body;
+    
+    // Verify job ownership
+    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(jobId, req.user.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    
+    if (!service_name_snapshot) return res.status(400).json({ error: 'Service name is required' });
+    
+    const basePrice = parseFloat(base_price_charged);
+    const finalBasePrice = isNaN(basePrice) || basePrice < 0 ? 0 : basePrice;
+    
+    const addHours = additional_hours ? parseFloat(additional_hours) : 0;
+    const finalAddHours = isNaN(addHours) || addHours < 0 ? 0 : addHours;
+    
+    // Get default labor rate
+    let laborRate = 0;
+    const settings = db.prepare('SELECT default_labor_rate FROM shop_settings WHERE user_id = ?').get(req.user.id);
+    if (settings) {
+      laborRate = settings.default_labor_rate || 0;
+    }
+    
+    const addHoursCost = finalAddHours * laborRate;
+    
+    const stmt = db.prepare(`
+      INSERT INTO job_services (job_id, service_id, service_name_snapshot, base_price_charged, additional_hours, additional_hours_cost, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const info = stmt.run(jobId, service_id || null, service_name_snapshot, finalBasePrice, finalAddHours, addHoursCost, req.user.id);
+    
+    const rows = db.prepare('SELECT * FROM job_services WHERE job_id = ? AND user_id = ?').all(jobId, req.user.id);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error adding job service:', error);
+    res.status(500).json({ error: 'Database error adding job service' });
+  }
+});
+
+app.put('/api/jobs/:jobId/services/:id', (req, res) => {
+  try {
+    const { jobId, id } = req.params;
+    const { service_name_snapshot, base_price_charged, additional_hours } = req.body;
+    
+    // Verify job ownership
+    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(jobId, req.user.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    
+    const js = db.prepare('SELECT * FROM job_services WHERE id = ? AND job_id = ? AND user_id = ?').get(id, jobId, req.user.id);
+    if (!js) return res.status(404).json({ error: 'Job service not found' });
+    
+    const name = service_name_snapshot !== undefined ? service_name_snapshot : js.service_name_snapshot;
+    const basePrice = base_price_charged !== undefined ? parseFloat(base_price_charged) : js.base_price_charged;
+    const finalBasePrice = isNaN(basePrice) || basePrice < 0 ? 0 : basePrice;
+    
+    const addHours = additional_hours !== undefined ? parseFloat(additional_hours) : js.additional_hours;
+    const finalAddHours = isNaN(addHours) || addHours < 0 ? 0 : addHours;
+    
+    // Recalculate additional hours cost
+    let laborRate = 0;
+    const settings = db.prepare('SELECT default_labor_rate FROM shop_settings WHERE user_id = ?').get(req.user.id);
+    if (settings) {
+      laborRate = settings.default_labor_rate || 0;
+    }
+    
+    const addHoursCost = finalAddHours * laborRate;
+    
+    const stmt = db.prepare(`
+      UPDATE job_services
+      SET service_name_snapshot = ?, base_price_charged = ?, additional_hours = ?, additional_hours_cost = ?
+      WHERE id = ? AND user_id = ?
+    `);
+    stmt.run(name, finalBasePrice, finalAddHours, addHoursCost, id, req.user.id);
+    
+    const rows = db.prepare('SELECT * FROM job_services WHERE job_id = ? AND user_id = ?').all(jobId, req.user.id);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error updating job service:', error);
+    res.status(500).json({ error: 'Database error updating job service' });
+  }
+});
+
+app.delete('/api/jobs/:jobId/services/:id', (req, res) => {
+  try {
+    const { jobId, id } = req.params;
+    
+    // Verify job ownership
+    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(jobId, req.user.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    
+    const info = db.prepare('DELETE FROM job_services WHERE id = ? AND job_id = ? AND user_id = ?').run(id, jobId, req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Job service not found' });
+    
+    const rows = db.prepare('SELECT * FROM job_services WHERE job_id = ? AND user_id = ?').all(jobId, req.user.id);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error deleting job service:', error);
+    res.status(500).json({ error: 'Database error deleting job service' });
   }
 });
 

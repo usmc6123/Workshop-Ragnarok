@@ -143,6 +143,9 @@ export interface Job {
   actual_completion?: string;
   labor_cost: number;
   estimated_hours?: number | null;
+  mileage_at_intake?: number | null;
+  priority?: 'Standard' | 'Rush';
+  customer_approved?: boolean | number;
   created_at?: string;
   updated_at?: string;
   // Joined Fields
@@ -278,6 +281,28 @@ export interface InventoryAdjustment {
   item_id: number;
   delta: number;
   reason: string;
+  created_at?: string;
+  user_id?: number;
+}
+
+export interface Service {
+  id: number;
+  user_id?: number;
+  name: string;
+  base_price: number;
+  included_hours?: number | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface JobService {
+  id: number;
+  job_id: number;
+  service_id?: number | null;
+  service_name_snapshot: string;
+  base_price_charged: number;
+  additional_hours?: number | null;
+  additional_hours_cost?: number | null;
   created_at?: string;
   user_id?: number;
 }

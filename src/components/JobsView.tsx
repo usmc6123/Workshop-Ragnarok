@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Job, JobPart, Customer, CustomerVehicle, JobPhoto } from '../types';
+import { Job, JobPart, Customer, CustomerVehicle, JobPhoto, Service, JobService } from '../types';
 import { api } from '../lib/api';
 import JobsPanelVideo from './JobsPanelVideo';
 import { 
   ClipboardList, Plus, Trash2, Edit2, Calendar, Milestone, 
   User, Phone, Mail, FileText, CheckCircle, Clock, AlertTriangle,
   ArrowLeft, Package, DollarSign, PlusCircle, X, Wrench, FileEdit,
-  Printer, Download, Search, Image, Upload
+  Printer, Download, Search, Image, Upload, Check
 } from 'lucide-react';
 
 interface JobsViewProps {
@@ -93,8 +93,10 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
   const [jStatus, setJStatus] = useState<Job['status']>('Pending');
   const [jEstCompletion, setJEstCompletion] = useState('');
   const [jLaborCost, setJLaborCost] = useState('0');
-  const [hoursWorked, setHoursWorked] = useState('');
   const [jEstHours, setJEstHours] = useState('');
+  const [jMileageAtIntake, setJMileageAtIntake] = useState('');
+  const [jPriority, setJPriority] = useState<'Standard' | 'Rush'>('Standard');
+  const [jCustomerApproved, setJCustomerApproved] = useState(false);
   const [shopSettings, setShopSettings] = useState<any>(null);
 
   // Part Form state
@@ -108,6 +110,44 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
   const [selectedInventoryId, setSelectedInventoryId] = useState<string>('');
   const [dbStats, setDbStats] = useState<any>(null);
   const [applyMarkup, setApplyMarkup] = useState(false);
+
+  // Edit Part Form state
+  const [editingPartId, setEditingPartId] = useState<number | null>(null);
+  const [editPartName, setEditPartName] = useState('');
+  const [editPartNumber, setEditPartNumber] = useState('');
+  const [editPartQty, setEditPartQty] = useState('');
+  const [editPartPrice, setEditPartPrice] = useState('');
+  const [isSavingPart, setIsSavingPart] = useState(false);
+
+  // Services & Job Services States
+  const [services, setServices] = useState<Service[]>([]);
+  const [jobServices, setJobServices] = useState<JobService[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
+  const [jobServicesLoading, setJobServicesLoading] = useState(false);
+
+  // Add Service Form States
+  const [selectedServiceId, setSelectedServiceId] = useState<string>('');
+  const [serviceSearchQuery, setServiceSearchQuery] = useState('');
+  const [serviceName, setServiceName] = useState('');
+  const [servicePrice, setServicePrice] = useState('');
+  const [serviceHours, setServiceHours] = useState('');
+  const [serviceAddHours, setServiceAddHours] = useState('');
+  const [isAddingService, setIsAddingService] = useState(false);
+
+  // Manage Services Modal States
+  const [isManageServicesOpen, setIsManageServicesOpen] = useState(false);
+  const [editingServiceId, setEditingServiceId] = useState<number | null>(null);
+  const [manageServiceName, setManageServiceName] = useState('');
+  const [manageServicePrice, setManageServicePrice] = useState('');
+  const [manageServiceHours, setManageServiceHours] = useState('');
+  const [isSavingManageService, setIsSavingManageService] = useState(false);
+
+  // Edit Job Service State
+  const [editingJobServiceId, setEditingJobServiceId] = useState<number | null>(null);
+  const [editJobServiceName, setEditJobServiceName] = useState('');
+  const [editJobServicePrice, setEditJobServicePrice] = useState('');
+  const [editJobServiceAddHours, setEditJobServiceAddHours] = useState('');
+  const [isSavingJobService, setIsSavingJobService] = useState(false);
 
   const fetchDbStats = async () => {
     try {
@@ -123,7 +163,32 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
     fetchFormAssociations();
     fetchShopSettings();
     fetchDbStats();
+    fetchServices();
   }, [refreshTrigger]);
+
+  const fetchServices = async () => {
+    setServicesLoading(true);
+    try {
+      const data = await api.getServices();
+      setServices(data || []);
+    } catch (err) {
+      console.error('Failed to load standard services:', err);
+    } finally {
+      setServicesLoading(false);
+    }
+  };
+
+  const fetchJobServices = async (jobId: number) => {
+    setJobServicesLoading(true);
+    try {
+      const data = await api.getJobServices(jobId);
+      setJobServices(data || []);
+    } catch (err) {
+      console.error('Failed to load job services:', err);
+    } finally {
+      setJobServicesLoading(false);
+    }
+  };
 
   const fetchShopSettings = async () => {
     try {
@@ -205,6 +270,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
     setSelectedJob(job);
     fetchJobParts(job.id);
     fetchJobPhotos(job.id);
+    fetchJobServices(job.id);
   };
 
   // Jumps straight to a specific ticket's detail view instead of the queue
@@ -270,11 +336,9 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       setJEstCompletion(job.estimated_completion);
       setJLaborCost(job.labor_cost?.toString() || '0');
       setJEstHours(job.estimated_hours?.toString() || '');
-      if (shopSettings && shopSettings.default_labor_rate > 0 && job.labor_cost) {
-        setHoursWorked((job.labor_cost / shopSettings.default_labor_rate).toFixed(2));
-      } else {
-        setHoursWorked('');
-      }
+      setJMileageAtIntake(job.mileage_at_intake?.toString() || '');
+      setJPriority(job.priority || 'Standard');
+      setJCustomerApproved(job.customer_approved === 1 || job.customer_approved === true);
     } else {
       setEditingJob(null);
       setVCustomerId(customers.length > 0 ? customers[0].id.toString() : '');
@@ -285,8 +349,10 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       setJStatus('Pending');
       setJEstCompletion(new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0]); // 2 days default
       setJLaborCost('0');
-      setHoursWorked('');
       setJEstHours('');
+      setJMileageAtIntake('');
+      setJPriority('Standard');
+      setJCustomerApproved(false);
     }
     setIsJobModalOpen(true);
   };
@@ -307,18 +373,31 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       status: jStatus,
       estimated_completion: jEstCompletion,
       labor_cost: parseFloat(jLaborCost) || 0,
-      estimated_hours: (jEstHours !== undefined && jEstHours !== null && jEstHours !== '') ? parseFloat(jEstHours) : null
+      estimated_hours: (jEstHours !== undefined && jEstHours !== null && jEstHours !== '') ? parseFloat(jEstHours) : null,
+      mileage_at_intake: jMileageAtIntake ? parseInt(jMileageAtIntake, 10) : null,
+      priority: jPriority,
+      customer_approved: jCustomerApproved ? 1 : 0
     };
 
     try {
       if (editingJob) {
         await api.updateJob(editingJob.id, { ...editingJob, ...payload });
+        setIsJobModalOpen(false);
+        fetchJobs();
+        fetchDbStats();
       } else {
-        await api.addJob(payload);
+        const newJob = await api.addJob(payload);
+        setIsJobModalOpen(false);
+        const data = await api.getJobs();
+        setJobs(data);
+        const matchedJob = data.find(j => j.id === newJob.id);
+        if (matchedJob) {
+          setSelectedJob(matchedJob);
+        } else {
+          setSelectedJob(newJob);
+        }
+        fetchDbStats();
       }
-      setIsJobModalOpen(false);
-      fetchJobs();
-      fetchDbStats();
     } catch (err: any) {
       alert(err.message || 'Failed to save job details.');
     }
@@ -456,6 +535,231 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
     }
   };
 
+  const handleStartEditPart = (part: JobPart) => {
+    setEditingPartId(part.id);
+    setEditPartName(part.part_name || '');
+    setEditPartNumber(part.part_number || '');
+    setEditPartQty(part.quantity?.toString() || '1');
+    setEditPartPrice(part.unit_cost?.toString() || '0');
+  };
+
+  const handleCancelEditPart = () => {
+    setEditingPartId(null);
+    setEditPartName('');
+    setEditPartNumber('');
+    setEditPartQty('');
+    setEditPartPrice('');
+  };
+
+  const handleSaveEditPart = async (partId: number) => {
+    if (!selectedJob) return;
+    const q = parseInt(editPartQty, 10);
+    const qty = isNaN(q) || q < 0 ? 0 : q;
+    const u = parseFloat(editPartPrice);
+    const price = isNaN(u) || u < 0 ? 0 : u;
+
+    setIsSavingPart(true);
+    try {
+      await api.updateJobPart(selectedJob.id, partId, {
+        id: partId,
+        job_id: selectedJob.id,
+        part_name: editPartName,
+        part_number: editPartNumber,
+        quantity: qty,
+        unit_cost: price,
+        notes: ''
+      });
+
+      setEditingPartId(null);
+      setEditPartName('');
+      setEditPartNumber('');
+      setEditPartQty('');
+      setEditPartPrice('');
+
+      // Refresh job parts immediately to update totals
+      fetchJobParts(selectedJob.id);
+    } catch (err: any) {
+      alert(err.message || 'Failed to update part item.');
+    } finally {
+      setIsSavingPart(false);
+    }
+  };
+
+  // --- Standard Services Catalog Management ---
+  const handleAddService = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manageServiceName) return;
+    const price = parseFloat(manageServicePrice) || 0;
+    const hours = manageServiceHours ? parseFloat(manageServiceHours) : null;
+    
+    setIsSavingManageService(true);
+    try {
+      await api.addService({
+        name: manageServiceName,
+        base_price: price,
+        included_hours: hours
+      });
+      setManageServiceName('');
+      setManageServicePrice('');
+      setManageServiceHours('');
+      fetchServices();
+    } catch (err: any) {
+      alert(err.message || 'Failed to add service');
+    } finally {
+      setIsSavingManageService(false);
+    }
+  };
+
+  const handleUpdateService = async (id: number) => {
+    if (!manageServiceName) return;
+    const price = parseFloat(manageServicePrice) || 0;
+    const hours = manageServiceHours ? parseFloat(manageServiceHours) : null;
+
+    setIsSavingManageService(true);
+    try {
+      await api.updateService(id, {
+        name: manageServiceName,
+        base_price: price,
+        included_hours: hours
+      });
+      setEditingServiceId(null);
+      setManageServiceName('');
+      setManageServicePrice('');
+      setManageServiceHours('');
+      fetchServices();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update service');
+    } finally {
+      setIsSavingManageService(false);
+    }
+  };
+
+  const handleDeleteService = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this service? It will no longer be available in the catalog (historical work orders will not be affected).')) return;
+    try {
+      await api.deleteService(id);
+      if (editingServiceId === id) {
+        setEditingServiceId(null);
+        setManageServiceName('');
+        setManageServicePrice('');
+        setManageServiceHours('');
+      }
+      fetchServices();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete service');
+    }
+  };
+
+  const handleStartEditService = (service: Service) => {
+    setEditingServiceId(service.id);
+    setManageServiceName(service.name);
+    setManageServicePrice(service.base_price.toString());
+    setManageServiceHours(service.included_hours !== undefined && service.included_hours !== null ? service.included_hours.toString() : '');
+  };
+
+  const handleCancelEditService = () => {
+    setEditingServiceId(null);
+    setManageServiceName('');
+    setManageServicePrice('');
+    setManageServiceHours('');
+  };
+
+  // --- Job Services Management ---
+  const handleAddJobService = async () => {
+    if (!selectedJob) return;
+    
+    let finalName = serviceName;
+    let finalPrice = parseFloat(servicePrice) || 0;
+    const addHours = parseFloat(serviceAddHours) || 0;
+
+    if (selectedServiceId !== 'custom') {
+      const selected = services.find(s => s.id.toString() === selectedServiceId);
+      if (selected) {
+        if (!finalName) finalName = selected.name;
+        if (servicePrice === '') finalPrice = selected.base_price;
+      }
+    }
+
+    if (!finalName) {
+      alert('Service name is required.');
+      return;
+    }
+
+    setIsAddingService(true);
+    try {
+      const updated = await api.addJobService(selectedJob.id, {
+        service_id: selectedServiceId === 'custom' ? null : parseInt(selectedServiceId, 10),
+        service_name_snapshot: finalName,
+        base_price_charged: finalPrice,
+        additional_hours: addHours
+      });
+      setJobServices(updated);
+      
+      // Reset form
+      setSelectedServiceId('');
+      setServiceSearchQuery('');
+      setServiceName('');
+      setServicePrice('');
+      setServiceHours('');
+      setServiceAddHours('');
+    } catch (err: any) {
+      alert(err.message || 'Failed to add service to job.');
+    } finally {
+      setIsAddingService(false);
+    }
+  };
+
+  const handleDeleteJobService = async (jobServiceId: number) => {
+    if (!selectedJob) return;
+    if (!confirm('Are you sure you want to remove this service from this work order?')) return;
+    try {
+      const updated = await api.deleteJobService(selectedJob.id, jobServiceId);
+      setJobServices(updated);
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete service from job.');
+    }
+  };
+
+  const handleStartEditJobService = (js: JobService) => {
+    setEditingJobServiceId(js.id);
+    setEditJobServiceName(js.service_name_snapshot);
+    setEditJobServicePrice(js.base_price_charged.toString());
+    setEditJobServiceAddHours(js.additional_hours !== undefined && js.additional_hours !== null ? js.additional_hours.toString() : '0');
+  };
+
+  const handleCancelEditJobService = () => {
+    setEditingJobServiceId(null);
+    setEditJobServiceName('');
+    setEditJobServicePrice('');
+    setEditJobServiceAddHours('');
+  };
+
+  const handleSaveEditJobService = async (jobServiceId: number) => {
+    if (!selectedJob) return;
+    const price = parseFloat(editJobServicePrice);
+    const finalPrice = isNaN(price) || price < 0 ? 0 : price;
+    const addHours = parseFloat(editJobServiceAddHours);
+    const finalAddHours = isNaN(addHours) || addHours < 0 ? 0 : addHours;
+
+    setIsSavingJobService(true);
+    try {
+      const updated = await api.updateJobService(selectedJob.id, jobServiceId, {
+        service_name_snapshot: editJobServiceName,
+        base_price_charged: finalPrice,
+        additional_hours: finalAddHours
+      });
+      setJobServices(updated);
+      setEditingJobServiceId(null);
+      setEditJobServiceName('');
+      setEditJobServicePrice('');
+      setEditJobServiceAddHours('');
+    } catch (err: any) {
+      alert(err.message || 'Failed to update job service.');
+    } finally {
+      setIsSavingJobService(false);
+    }
+  };
+
   const handleUploadPhoto = async (e: React.ChangeEvent<HTMLInputElement>, photoType: 'before' | 'after') => {
     if (!selectedJob) return;
     const file = e.target.files?.[0];
@@ -500,11 +804,16 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
     const cost = isNaN(u) || u < 0 ? 0 : u;
     return sum + (qty * cost);
   }, 0);
+  const totalServicesCost = jobServices.reduce((sum, item) => {
+    const base = parseFloat(item.base_price_charged as any) || 0;
+    const overage = parseFloat(item.additional_hours_cost as any) || 0;
+    return sum + base + overage;
+  }, 0);
   const safeLaborCost = selectedJob?.labor_cost && !isNaN(parseFloat(selectedJob.labor_cost as any)) ? parseFloat(selectedJob.labor_cost as any) : 0;
-  const totalWorkOrderCost = totalPartsCost + safeLaborCost;
+  const totalWorkOrderCost = totalPartsCost + totalServicesCost + safeLaborCost;
   const taxRatePercent = shopSettings?.tax_rate && !isNaN(parseFloat(shopSettings.tax_rate as any)) ? parseFloat(shopSettings.tax_rate as any) : 0;
-  const taxAmount = totalWorkOrderCost * (taxRatePercent / 100);
-  const grandTotal = totalWorkOrderCost + taxAmount;
+  const taxAmount = (totalPartsCost + safeLaborCost) * (taxRatePercent / 100);
+  const grandTotal = totalPartsCost + totalServicesCost + safeLaborCost + taxAmount;
 
   const shopName = shopSettings?.shop_name || 'WORKSHOP: RAGNARÖK';
   const tagline = shopSettings?.shop_name ? '' : 'Automotive Service & Repair';
@@ -532,6 +841,18 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       setVVehicleId('');
     }
   }, [vCustomerId, vehicles]);
+
+  // Sync mileage at intake when vehicle selection changes in form (only for new creation)
+  useEffect(() => {
+    if (!editingJob && vVehicleId) {
+      const selectedVeh = vehicles.find(v => v.id.toString() === vVehicleId);
+      if (selectedVeh && selectedVeh.current_mileage) {
+        setJMileageAtIntake(selectedVeh.current_mileage.toString());
+      } else {
+        setJMileageAtIntake('');
+      }
+    }
+  }, [vVehicleId, editingJob, vehicles]);
 
   const handlePrintInvoice = () => {
     window.print();
@@ -782,6 +1103,58 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       }
     });
 
+    // Services Table
+    currentY += 20;
+    if (currentY > 700) {
+      doc.addPage();
+      currentY = 50;
+    }
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text('SERVICES & LABOR LOG', 40, currentY);
+    currentY += 10;
+
+    const servicesTableBody = jobServices.length === 0
+      ? [['No services logged on this ticket.', '', '', '']]
+      : jobServices.map(js => {
+          const base = parseFloat(js.base_price_charged as any) || 0;
+          const hours = parseFloat(js.additional_hours as any) || 0;
+          const overage = parseFloat(js.additional_hours_cost as any) || 0;
+          return [
+            js.service_name_snapshot,
+            `$${base.toFixed(2)}`,
+            hours > 0 ? `${hours.toFixed(1)} hrs` : '—',
+            `$${(base + overage).toFixed(2)}`
+          ];
+        });
+
+    autoTable(doc, {
+      startY: currentY,
+      margin: { left: 40, right: 40 },
+      head: [['Service/Labor Item', 'Base Price', 'Overage Hours', 'Total Charged']],
+      body: servicesTableBody,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [60, 60, 60],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 9
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 6
+      },
+      columnStyles: {
+        1: { halign: 'right' },
+        2: { halign: 'right' },
+        3: { halign: 'right' }
+      },
+      didDrawPage: (data) => {
+        currentY = data.cursor ? data.cursor.y : currentY + 40;
+      }
+    });
+
     currentY += 20;
 
     // Attached Repair Photos in PDF
@@ -878,6 +1251,13 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
     doc.text(`$${totalPartsCost.toFixed(2)}`, totalX, currentY, { align: 'right' });
     currentY += 15;
 
+    // Services Subtotal
+    doc.setFont('Helvetica', 'normal');
+    doc.text('Services Subtotal:', totalX - 120, currentY);
+    doc.setFont('Helvetica', 'bold');
+    doc.text(`$${totalServicesCost.toFixed(2)}`, totalX, currentY, { align: 'right' });
+    currentY += 15;
+
     doc.setFont('Helvetica', 'normal');
     doc.text('Labor Cost:', totalX - 120, currentY);
     doc.setFont('Helvetica', 'bold');
@@ -886,7 +1266,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
 
     // Calculate dynamic Tax rate and Grand Total
     const taxAmount = (totalPartsCost + (selectedJob?.labor_cost || 0)) * (taxRatePercent / 100);
-    const grandTotal = totalPartsCost + (selectedJob?.labor_cost || 0) + taxAmount;
+    const grandTotal = totalPartsCost + totalServicesCost + (selectedJob?.labor_cost || 0) + taxAmount;
 
     doc.setFont('Helvetica', 'normal');
     doc.text(`Tax (${taxRatePercent.toFixed(2)}%):`, totalX - 120, currentY);
@@ -993,13 +1373,22 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                     <div
                       key={job.id}
                       onClick={() => handleSelectJob(job)}
-                      className="bg-gradient-to-b from-[#13141a]/80 to-bg-theme/80 backdrop-blur-sm border border-[#1e2028] hover:border-slate-700 hover:border-l-primary-theme border-l-[3px] border-l-[#1e2028] rounded-xl p-5 flex flex-col justify-between transition-all duration-200 cursor-pointer group shadow-lg"
+                      className={`bg-gradient-to-b from-[#13141a]/80 to-bg-theme/80 backdrop-blur-sm border border-[#1e2028] hover:border-slate-700 rounded-xl p-5 flex flex-col justify-between transition-all duration-200 cursor-pointer group shadow-lg ${
+                        job.priority === 'Rush' 
+                          ? 'border-l-[4px] border-l-rose-500 hover:border-l-rose-400 shadow-[0_0_15px_rgba(239,68,68,0.08)]' 
+                          : 'border-l-[3px] border-l-[#1e2028] hover:border-l-primary-theme'
+                      }`}
                       id={`job-ticket-card-${job.id}`}
                     >
                       <div className="space-y-3">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-mono text-slate-500 uppercase block">
+                          <span className="text-[10px] font-mono text-slate-500 uppercase flex items-center gap-2">
                             Ticket #{job.id.toString().padStart(4, '0')}
+                            {job.priority === 'Rush' && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 uppercase flex items-center gap-0.5 animate-pulse">
+                                ⚡ RUSH
+                              </span>
+                            )}
                           </span>
                           {renderStatusBadge(job.status)}
                         </div>
@@ -1034,8 +1423,8 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                             </span>
                           )}
 
-                          <span className="text-slate-300 font-bold bg-surface-theme border border-border-theme px-2 py-0.5 rounded shrink-0">
-                            {job.vehicle_current_mileage?.toLocaleString() || 0} mi
+                          <span className="text-slate-300 font-bold bg-surface-theme border border-border-theme px-2 py-0.5 rounded shrink-0" title={job.mileage_at_intake ? "Odometer at Intake" : "Current Vehicle Mileage"}>
+                            {job.mileage_at_intake ? `${job.mileage_at_intake.toLocaleString()} mi` : `${job.vehicle_current_mileage?.toLocaleString() || 0} mi`}
                           </span>
                         </div>
                       </div>
@@ -1097,11 +1486,25 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
               <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-6 space-y-6 shadow-xl">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-border-theme pb-4">
                   <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs font-mono font-bold bg-bg-theme border border-border-theme text-slate-300 px-2.5 py-0.5 rounded">
                         Ticket #{selectedJob.id.toString().padStart(4, '0')}
                       </span>
                       {renderStatusBadge(selectedJob.status)}
+                      {selectedJob.priority === 'Rush' && (
+                        <span className="px-2.5 py-0.5 rounded text-xs font-black bg-rose-500/20 text-rose-400 border border-rose-500/30 uppercase flex items-center gap-1 animate-pulse">
+                          ⚡ RUSH
+                        </span>
+                      )}
+                      {selectedJob.customer_approved === 1 || selectedJob.customer_approved === true ? (
+                        <span className="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 uppercase flex items-center gap-1" title="Customer approved the estimated work before service began">
+                          ✓ APPROVED ESTIMATE
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-amber-500/15 text-amber-500 border border-amber-500/30 uppercase flex items-center gap-1" title="Awaiting estimated work authorization from customer">
+                          ⚠ AWAITING APPROVAL
+                        </span>
+                      )}
                     </div>
                     <h2 className="text-lg font-black text-white uppercase tracking-tight font-sans">
                       {selectedJob.vehicle_year} {selectedJob.vehicle_make} {selectedJob.vehicle_model}
@@ -1291,6 +1694,10 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                             <span>${totalPartsCost.toFixed(2)}</span>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555', marginBottom: '4px' }}>
+                            <span>Services:</span>
+                            <span>${totalServicesCost.toFixed(2)}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555', marginBottom: '4px' }}>
                             <span>Labor Cost:</span>
                             <span>${selectedJob.labor_cost?.toFixed(2) || '0.00'}</span>
                           </div>
@@ -1315,10 +1722,10 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                  <div className="bg-bg-theme border border-border-theme p-3.5 rounded-lg">
+                  <div className="bg-bg-theme border border-border-theme p-3.5 rounded-lg" title={selectedJob.mileage_at_intake ? "Odometer reading taken at intake" : "Overall Vehicle Mileage"}>
                     <span className="text-[10px] font-mono text-slate-500 uppercase block">Odometer In</span>
                     <span className="text-xs text-slate-200 font-bold block mt-1">
-                      {selectedJob.vehicle_current_mileage?.toLocaleString() || '0'} mi
+                      {selectedJob.mileage_at_intake ? `${selectedJob.mileage_at_intake.toLocaleString()} mi` : `${selectedJob.vehicle_current_mileage?.toLocaleString() || '0'} mi`}
                     </span>
                   </div>
                   <div className="bg-bg-theme border border-border-theme p-3.5 rounded-lg">
@@ -1380,6 +1787,9 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                   <div className="flex flex-wrap gap-2 text-xs font-mono font-bold">
                     <span className="text-slate-350 bg-bg-theme border border-border-theme px-3 py-1 rounded">
                       Parts: ${totalPartsCost.toFixed(2)}
+                    </span>
+                    <span className="text-slate-350 bg-bg-theme border border-border-theme px-3 py-1 rounded">
+                      Services: ${totalServicesCost.toFixed(2)}
                     </span>
                     <span className="text-slate-350 bg-bg-theme border border-border-theme px-3 py-1 rounded">
                       Labor: ${selectedJob.labor_cost?.toFixed(2) || '0.00'}
@@ -1542,10 +1952,78 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                       </thead>
                       <tbody className="divide-y divide-border-theme text-slate-300">
                         {jobParts.map((part) => {
+                          const isEditing = part.id === editingPartId;
                           const q = parseInt(part.quantity as any, 10);
                           const qty = isNaN(q) || q < 0 ? 0 : q;
                           const u = parseFloat(part.unit_cost as any);
                           const cost = isNaN(u) || u < 0 ? 0 : u;
+
+                          if (isEditing) {
+                            return (
+                              <tr key={part.id} className="bg-bg-theme/50 transition">
+                                <td className="py-2.5">
+                                  <input
+                                    type="text"
+                                    required
+                                    value={editPartName}
+                                    onChange={(e) => setEditPartName(e.target.value)}
+                                    className="bg-surface-theme border border-border-theme rounded px-2 py-1 text-xs text-slate-200 focus:border-primary-theme focus:outline-none w-full font-semibold"
+                                  />
+                                </td>
+                                <td className="py-2.5">
+                                  <input
+                                    type="text"
+                                    value={editPartNumber}
+                                    onChange={(e) => setEditPartNumber(e.target.value)}
+                                    className="bg-surface-theme border border-border-theme rounded px-2 py-1 font-mono text-xs text-slate-200 focus:border-primary-theme focus:outline-none w-full"
+                                    placeholder="Part Number"
+                                  />
+                                </td>
+                                <td className="py-2.5 text-right">
+                                  <input
+                                    type="number"
+                                    required
+                                    min="1"
+                                    value={editPartQty}
+                                    onChange={(e) => setEditPartQty(e.target.value)}
+                                    className="bg-surface-theme border border-border-theme rounded px-2 py-1 text-right font-mono text-xs text-slate-200 focus:border-primary-theme focus:outline-none w-16 inline-block"
+                                  />
+                                </td>
+                                <td className="py-2.5 text-right">
+                                  <input
+                                    type="text"
+                                    required
+                                    value={editPartPrice}
+                                    onChange={(e) => setEditPartPrice(e.target.value)}
+                                    className="bg-surface-theme border border-border-theme rounded px-2 py-1 text-right font-mono text-xs text-slate-200 focus:border-primary-theme focus:outline-none w-20 inline-block"
+                                  />
+                                </td>
+                                <td className="py-2.5 text-right font-bold text-slate-101 font-mono">
+                                  ${((parseInt(editPartQty, 10) || 0) * (parseFloat(editPartPrice) || 0)).toFixed(2)}
+                                </td>
+                                <td className="py-2.5 text-right">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      onClick={() => handleSaveEditPart(part.id)}
+                                      disabled={isSavingPart}
+                                      className="text-green-400 hover:text-green-300 p-1 rounded bg-green-500/10 border border-green-500/20 hover:bg-green-500/25 transition cursor-pointer"
+                                      title="Save Changes"
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={handleCancelEditPart}
+                                      className="text-red-400 hover:text-red-350 p-1 rounded bg-red-500/10 border border-red-500/20 hover:bg-red-500/25 transition cursor-pointer"
+                                      title="Cancel"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          }
+
                           return (
                             <tr key={part.id} className="hover:bg-bg-theme/35 transition">
                               <td className="py-3 font-semibold text-slate-200">{part.part_name}</td>
@@ -1556,12 +2034,293 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                                 ${(qty * cost).toFixed(2)}
                               </td>
                               <td className="py-3 text-right">
-                                <button
-                                  onClick={() => handleDeleteJobPart(part.id)}
-                                  className="text-slate-500 hover:text-red-400 p-1 rounded transition"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    onClick={() => handleStartEditPart(part)}
+                                    className="text-slate-500 hover:text-primary-theme p-1 rounded transition cursor-pointer"
+                                    title="Edit Part"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteJobPart(part.id)}
+                                    className="text-slate-500 hover:text-red-400 p-1 rounded transition cursor-pointer"
+                                    title="Remove Part"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Workshop Services & Labor Operations */}
+              <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-6 space-y-6 shadow-xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border-theme pb-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <Wrench className="w-4.5 h-4.5 text-primary-theme" />
+                    Services & Labor Operations ({jobServices.length})
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsManageServicesOpen(true);
+                      fetchServices();
+                    }}
+                    className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-primary-theme hover:text-white bg-primary-theme/10 hover:bg-primary-theme border border-primary-theme/30 rounded px-2.5 py-1 transition cursor-pointer self-start sm:self-auto"
+                  >
+                    <ClipboardList className="w-3.5 h-3.5" />
+                    Manage Services Catalog
+                  </button>
+                </div>
+
+                {/* Add Service form */}
+                <div className="bg-bg-theme border border-border-theme rounded-lg p-4 space-y-3">
+                  <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-black block">
+                    Add Service / Labor Operation
+                  </span>
+
+                  <div className="space-y-1">
+                    <label className="block text-[9px] font-mono text-slate-500 uppercase">Search & Select Service</label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="text"
+                        placeholder="Filter catalog..."
+                        value={serviceSearchQuery}
+                        onChange={(e) => setServiceSearchQuery(e.target.value)}
+                        className="bg-surface-theme border border-border-theme rounded px-2.5 py-1.5 text-xs text-slate-202 focus:border-primary-theme focus:outline-none w-full sm:w-48"
+                      />
+                      <select
+                        value={selectedServiceId}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSelectedServiceId(val);
+                          if (val === 'custom') {
+                            setServiceName('');
+                            setServicePrice('');
+                            setServiceHours('');
+                            setServiceAddHours('0');
+                          } else if (val) {
+                            const s = services.find(item => item.id.toString() === val);
+                            if (s) {
+                              setServiceName(s.name);
+                              setServicePrice(s.base_price.toString());
+                              setServiceHours(s.included_hours !== null && s.included_hours !== undefined ? `${s.included_hours} hrs` : 'Flat rate');
+                              setServiceAddHours('0');
+                            }
+                          } else {
+                            setServiceName('');
+                            setServicePrice('');
+                            setServiceHours('');
+                            setServiceAddHours('');
+                          }
+                        }}
+                        className="flex-1 bg-surface-theme border border-border-theme rounded px-2.5 py-1.5 text-xs text-slate-202 focus:border-primary-theme focus:outline-none"
+                      >
+                        <option value="">-- Choose a standard service from catalog --</option>
+                        <option value="custom">-- Custom One-Off Service --</option>
+                        {services
+                          .filter(s => s.name.toLowerCase().includes(serviceSearchQuery.toLowerCase()))
+                          .map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name} — ${s.base_price.toFixed(2)} {s.included_hours ? `(${s.included_hours} hrs incl.)` : '(Flat rate)'}
+                            </option>
+                          ))
+                        }
+                      </select>
+                    </div>
+                  </div>
+
+                  {selectedServiceId && (
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end pt-2 border-t border-border-theme/40">
+                      <div className="md:col-span-4 space-y-1">
+                        <label className="block text-[9px] font-mono text-slate-500 uppercase">Service Name</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Dynamic Tire Balance"
+                          value={serviceName}
+                          onChange={(e) => setServiceName(e.target.value)}
+                          className="w-full bg-surface-theme border border-border-theme rounded px-2.5 py-1.5 text-xs text-slate-202 focus:border-primary-theme focus:outline-none"
+                        />
+                      </div>
+                      <div className="md:col-span-2 space-y-1">
+                        <label className="block text-[9px] font-mono text-slate-500 uppercase">Base Price ($)</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. 50.00"
+                          value={servicePrice}
+                          onChange={(e) => setServicePrice(e.target.value)}
+                          className="w-full bg-surface-theme border border-border-theme rounded px-2.5 py-1.5 text-xs text-slate-202 focus:border-primary-theme focus:outline-none font-mono"
+                        />
+                      </div>
+                      <div className="md:col-span-2 space-y-1">
+                        <label className="block text-[9px] font-mono text-slate-500 uppercase">Covered Time</label>
+                        <div className="w-full bg-surface-theme/50 border border-border-theme/60 text-slate-400 rounded px-2.5 py-1.5 text-xs font-semibold select-none">
+                          {serviceHours || 'Flat rate'}
+                        </div>
+                      </div>
+                      <div className="md:col-span-2 space-y-1">
+                        <label className="block text-[9px] font-mono text-slate-500 uppercase">Additional Hours</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          placeholder="0"
+                          value={serviceAddHours}
+                          onChange={(e) => setServiceAddHours(e.target.value)}
+                          className="w-full bg-surface-theme border border-border-theme rounded px-2.5 py-1.5 text-xs text-slate-202 focus:border-primary-theme focus:outline-none font-mono"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <button
+                          type="button"
+                          onClick={handleAddJobService}
+                          disabled={isAddingService}
+                          className="w-full bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-bold py-2 rounded text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <PlusCircle className="w-3.5 h-3.5" />
+                          <span>Add</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedServiceId && parseFloat(serviceAddHours) > 0 && (
+                    <div className="text-[10px] text-primary-theme font-mono pl-1">
+                      Overage Calculation: + {parseFloat(serviceAddHours).toFixed(1)} hrs overage @ ${shopSettings?.default_labor_rate || 120}/hr = <span className="font-bold">${(parseFloat(serviceAddHours) * (shopSettings?.default_labor_rate || 120)).toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Job Services Table */}
+                {jobServicesLoading ? (
+                  <div className="text-center py-6 text-slate-500 text-xs">Loading services...</div>
+                ) : jobServices.length === 0 ? (
+                  <div className="text-center py-6 border border-dashed border-border-theme text-slate-500 text-xs rounded-lg select-none">
+                    No services logged on this service ticket bill yet.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto select-none">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="border-b border-border-theme text-slate-500 uppercase font-mono tracking-wider">
+                          <th className="pb-2">Service Operation</th>
+                          <th className="pb-2 text-right">Base Price</th>
+                          <th className="pb-2 text-right">Overage Hours</th>
+                          <th className="pb-2 text-right">Overage Cost</th>
+                          <th className="pb-2 text-right">Total Price</th>
+                          <th className="pb-2 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border-theme text-slate-300">
+                        {jobServices.map((js) => {
+                          const isEditing = js.id === editingJobServiceId;
+                          const base = parseFloat(js.base_price_charged as any) || 0;
+                          const addHrs = parseFloat(js.additional_hours as any) || 0;
+                          const overageCost = parseFloat(js.additional_hours_cost as any) || 0;
+                          const total = base + overageCost;
+
+                          if (isEditing) {
+                            const curOverageCost = (parseFloat(editJobServiceAddHours) || 0) * (shopSettings?.default_labor_rate || 120);
+                            const curTotal = (parseFloat(editJobServicePrice) || 0) + curOverageCost;
+
+                            return (
+                              <tr key={js.id} className="bg-bg-theme/50 transition">
+                                <td className="py-2.5">
+                                  <input
+                                    type="text"
+                                    required
+                                    value={editJobServiceName}
+                                    onChange={(e) => setEditJobServiceName(e.target.value)}
+                                    className="bg-surface-theme border border-border-theme rounded px-2 py-1 text-xs text-slate-200 focus:border-primary-theme focus:outline-none w-full font-semibold"
+                                  />
+                                </td>
+                                <td className="py-2.5 text-right">
+                                  <input
+                                    type="text"
+                                    required
+                                    value={editJobServicePrice}
+                                    onChange={(e) => setEditJobServicePrice(e.target.value)}
+                                    className="bg-surface-theme border border-border-theme rounded px-2 py-1 text-right font-mono text-xs text-slate-200 focus:border-primary-theme focus:outline-none w-24 inline-block"
+                                  />
+                                </td>
+                                <td className="py-2.5 text-right">
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    min="0"
+                                    value={editJobServiceAddHours}
+                                    onChange={(e) => setEditJobServiceAddHours(e.target.value)}
+                                    className="bg-surface-theme border border-border-theme rounded px-2 py-1 text-right font-mono text-xs text-slate-200 focus:border-primary-theme focus:outline-none w-16 inline-block"
+                                  />
+                                </td>
+                                <td className="py-2.5 text-right font-mono text-slate-400">
+                                  ${curOverageCost.toFixed(2)}
+                                </td>
+                                <td className="py-2.5 text-right font-bold text-slate-101 font-mono">
+                                  ${curTotal.toFixed(2)}
+                                </td>
+                                <td className="py-2.5 text-right">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      onClick={() => handleSaveEditJobService(js.id)}
+                                      disabled={isSavingJobService}
+                                      className="text-green-400 hover:text-green-300 p-1 rounded bg-green-500/10 border border-green-500/20 hover:bg-green-500/25 transition cursor-pointer"
+                                      title="Save Changes"
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={handleCancelEditJobService}
+                                      className="text-red-400 hover:text-red-350 p-1 rounded bg-red-500/10 border border-red-500/20 hover:bg-red-500/25 transition cursor-pointer"
+                                      title="Cancel"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          return (
+                            <tr key={js.id} className="hover:bg-bg-theme/35 transition">
+                              <td className="py-3 font-semibold text-slate-200">{js.service_name_snapshot}</td>
+                              <td className="py-3 text-right font-mono">${base.toFixed(2)}</td>
+                              <td className="py-3 text-right font-mono">
+                                {addHrs > 0 ? `${addHrs.toFixed(1)} hrs` : '—'}
+                              </td>
+                              <td className="py-3 text-right font-mono text-slate-400">
+                                {overageCost > 0 ? `$${overageCost.toFixed(2)}` : '—'}
+                              </td>
+                              <td className="py-3 text-right font-bold text-slate-101 font-mono">
+                                ${total.toFixed(2)}
+                              </td>
+                              <td className="py-3 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    onClick={() => handleStartEditJobService(js)}
+                                    className="text-slate-500 hover:text-primary-theme p-1 rounded transition cursor-pointer"
+                                    title="Edit Service"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteJobService(js.id)}
+                                    className="text-slate-500 hover:text-red-400 p-1 rounded transition cursor-pointer"
+                                    title="Remove Service"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -1889,33 +2648,21 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                     className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3 py-2.5 focus:border-primary-theme focus:outline-none"
                   />
                 </div>
-                {shopSettings && shopSettings.default_labor_rate > 0 && (
-                  <div className="space-y-1.5">
-                    <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Hours Worked</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 2.5"
-                      value={hoursWorked}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setHoursWorked(val);
-                        const hrs = parseFloat(val);
-                        if (!isNaN(hrs) && hrs >= 0) {
-                          const calculatedCost = hrs * shopSettings.default_labor_rate;
-                          setJLaborCost(calculatedCost.toFixed(2));
-                        }
-                      }}
-                      className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3 py-2.5 focus:border-primary-theme focus:outline-none font-mono"
-                    />
-                  </div>
-                )}
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Est. Hours</label>
                   <input
                     type="text"
                     placeholder="e.g. 1.5"
                     value={jEstHours}
-                    onChange={(e) => setJEstHours(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setJEstHours(val);
+                      const hrs = parseFloat(val);
+                      if (!isNaN(hrs) && hrs >= 0 && shopSettings && shopSettings.default_labor_rate > 0) {
+                        const calculatedCost = hrs * shopSettings.default_labor_rate;
+                        setJLaborCost(calculatedCost.toFixed(2));
+                      }
+                    }}
                     className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3 py-2.5 focus:border-primary-theme focus:outline-none font-mono"
                   />
                 </div>
@@ -1950,6 +2697,46 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                   rows={3}
                   className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3.5 py-2.5 focus:border-primary-theme focus:outline-none resize-none"
                 />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 text-left border-t border-border-theme pt-4">
+                {/* Odometer / Mileage at Intake */}
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Odometer at Intake (mi)</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 120500"
+                    value={jMileageAtIntake}
+                    onChange={(e) => setJMileageAtIntake(e.target.value)}
+                    className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3 py-2.5 focus:border-primary-theme focus:outline-none font-mono"
+                  />
+                </div>
+
+                {/* Priority / Rush Flag */}
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Priority</label>
+                  <select
+                    value={jPriority}
+                    onChange={(e) => setJPriority(e.target.value as 'Standard' | 'Rush')}
+                    className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3 py-2.5 focus:border-primary-theme focus:outline-none cursor-pointer"
+                  >
+                    <option value="Standard">Standard</option>
+                    <option value="Rush">Rush ⚡</option>
+                  </select>
+                </div>
+
+                {/* Customer Approved Estimate Checkbox */}
+                <div className="flex items-center h-full pt-6">
+                  <label className="flex items-center space-x-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={jCustomerApproved}
+                      onChange={(e) => setJCustomerApproved(e.target.checked)}
+                      className="w-5 h-5 rounded border-border-theme text-primary-theme focus:ring-primary-theme bg-bg-theme cursor-pointer"
+                    />
+                    <span className="text-xs font-mono text-slate-300 uppercase tracking-wider">Approved Estimate</span>
+                  </label>
+                </div>
               </div>
 
               <div className="pt-2 border-t border-border-theme flex justify-end gap-3">
@@ -1998,6 +2785,168 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                 </span>
               </div>
             )}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {isManageServicesOpen && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#13141a] border border-[#2b2d37] rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border-theme/40 p-4">
+              <div className="flex items-center gap-2">
+                <Wrench className="w-5 h-5 text-primary-theme" />
+                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-200">
+                  Manage Services Catalog
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsManageServicesOpen(false);
+                  handleCancelEditService();
+                }}
+                className="text-slate-400 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 flex-1 overflow-y-auto space-y-6">
+              {/* Form to Add / Edit a Service offering */}
+              <form onSubmit={editingServiceId ? (e) => { e.preventDefault(); handleUpdateService(editingServiceId); } : handleAddService} className="bg-bg-theme border border-border-theme/60 rounded-lg p-4 space-y-3">
+                <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-black block">
+                  {editingServiceId ? 'Edit Service Offering' : 'Create New Service Offering'}
+                </span>
+
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                  <div className="md:col-span-5 space-y-1">
+                    <label className="block text-[9px] font-mono text-slate-500 uppercase">Service Name</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Tire Rotation & Balance"
+                      value={manageServiceName}
+                      onChange={(e) => setManageServiceName(e.target.value)}
+                      className="w-full bg-surface-theme border border-border-theme rounded px-2.5 py-1.5 text-xs text-slate-202 focus:border-primary-theme focus:outline-none"
+                    />
+                  </div>
+                  <div className="md:col-span-3 space-y-1">
+                    <label className="block text-[9px] font-mono text-slate-500 uppercase">Base Price ($)</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 45.00"
+                      value={manageServicePrice}
+                      onChange={(e) => setManageServicePrice(e.target.value)}
+                      className="w-full bg-surface-theme border border-border-theme rounded px-2.5 py-1.5 text-xs text-slate-202 focus:border-primary-theme focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div className="md:col-span-2 space-y-1">
+                    <label className="block text-[9px] font-mono text-slate-500 uppercase">Included Hours</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      placeholder="0.5 (optional)"
+                      value={manageServiceHours}
+                      onChange={(e) => setManageServiceHours(e.target.value)}
+                      className="w-full bg-surface-theme border border-border-theme rounded px-2.5 py-1.5 text-xs text-slate-202 focus:border-primary-theme focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div className="md:col-span-2 flex gap-1.5">
+                    <button
+                      type="submit"
+                      disabled={isSavingManageService}
+                      className="w-full bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-bold py-2 rounded text-xs uppercase tracking-wider transition-all cursor-pointer"
+                    >
+                      {editingServiceId ? 'Save' : 'Create'}
+                    </button>
+                    {editingServiceId && (
+                      <button
+                        type="button"
+                        onClick={handleCancelEditService}
+                        className="bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 px-2 py-2 rounded text-xs transition-all cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </form>
+
+              {/* List of services currently in catalog */}
+              <div className="space-y-3">
+                <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-black block">
+                  Active Service Catalog ({services.length})
+                </span>
+
+                {servicesLoading ? (
+                  <div className="text-center py-6 text-slate-500 text-xs">Loading services list...</div>
+                ) : services.length === 0 ? (
+                  <div className="text-center py-6 border border-dashed border-border-theme text-slate-500 text-xs rounded-lg select-none">
+                    No services in your workshop catalog yet. Add one above!
+                  </div>
+                ) : (
+                  <div className="border border-border-theme/40 rounded-lg overflow-hidden">
+                    <table className="w-full text-left border-collapse text-xs bg-bg-theme/20">
+                      <thead>
+                        <tr className="border-b border-border-theme text-slate-500 uppercase font-mono tracking-wider bg-[#17181f]/60">
+                          <th className="p-2.5">Service Name</th>
+                          <th className="p-2.5 text-right">Base Price</th>
+                          <th className="p-2.5 text-right">Included Hours</th>
+                          <th className="p-2.5 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border-theme text-slate-300">
+                        {services.map((item) => (
+                          <tr key={item.id} className="hover:bg-bg-theme/35 transition">
+                            <td className="p-2.5 font-semibold text-slate-200">{item.name}</td>
+                            <td className="p-2.5 text-right font-mono">${item.base_price.toFixed(2)}</td>
+                            <td className="p-2.5 text-right font-mono">
+                              {item.included_hours !== undefined && item.included_hours !== null ? `${item.included_hours} hrs` : 'Flat rate'}
+                            </td>
+                            <td className="p-2.5 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditService(item)}
+                                  className="text-slate-500 hover:text-primary-theme transition cursor-pointer"
+                                  title="Edit Service offering"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteService(item.id)}
+                                  className="text-slate-500 hover:text-red-400 transition cursor-pointer"
+                                  title="Delete Service offering"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-[#17181f] border-t border-border-theme/40 p-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsManageServicesOpen(false);
+                  handleCancelEditService();
+                }}
+                className="bg-surface-theme hover:bg-surface-theme/85 border border-border-theme/80 text-slate-300 font-bold px-4 py-1.5 rounded text-xs uppercase tracking-wider transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>,
         document.body

@@ -6,7 +6,7 @@
 import { 
   Vehicle, GarageItem, PageResponse, Customer, CustomerVehicle, 
   ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual, ShopSettings, JobPhoto,
-  InventoryItem, WorkOrderPart
+  InventoryItem, WorkOrderPart, Service, JobService
 } from '../types';
 
 import { 
@@ -1200,6 +1200,59 @@ export const api = {
 
   async deleteJobPart(jobId: number, partId: number): Promise<{ success: boolean }> {
     return await request<{ success: boolean }>(`/api/jobs/${jobId}/parts/${partId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // --- SERVICES & JOB SERVICES ---
+  async getServices(): Promise<Service[]> {
+    return await request<Service[]>('/api/services');
+  },
+
+  async addService(service: Omit<Service, 'id'>): Promise<Service> {
+    return await request<Service>('/api/services', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(service)
+    });
+  },
+
+  async updateService(id: number, service: Partial<Service>): Promise<Service> {
+    return await request<Service>(`/api/services/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(service)
+    });
+  },
+
+  async deleteService(id: number): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/services/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async getJobServices(jobId: number): Promise<JobService[]> {
+    return await request<JobService[]>(`/api/jobs/${jobId}/services`);
+  },
+
+  async addJobService(jobId: number, data: { service_id?: number | null; service_name_snapshot: string; base_price_charged: number; additional_hours?: number }): Promise<JobService[]> {
+    return await request<JobService[]>(`/api/jobs/${jobId}/services`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async updateJobService(jobId: number, id: number, data: { service_name_snapshot?: string; base_price_charged?: number; additional_hours?: number }): Promise<JobService[]> {
+    return await request<JobService[]>(`/api/jobs/${jobId}/services/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async deleteJobService(jobId: number, id: number): Promise<JobService[]> {
+    return await request<JobService[]>(`/api/jobs/${jobId}/services/${id}`, {
       method: 'DELETE'
     });
   }
