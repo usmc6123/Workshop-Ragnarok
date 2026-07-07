@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getApiBase } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import { Users, UserPlus, KeyRound, Trash2, CheckCircle2, AlertTriangle, ShieldCheck, User as UserIcon } from 'lucide-react';
+import { Users, UserPlus, KeyRound, Trash2, CheckCircle2, AlertTriangle, ShieldCheck, User as UserIcon, Edit2, Save, X } from 'lucide-react';
 
 interface DBUser {
   id: number;
@@ -26,6 +26,12 @@ export default function AdminPage() {
   // Form states - Change Password
   const [selectedUserId, setSelectedUserId] = useState<number | ''>('');
   const [changePasswordVal, setChangePasswordVal] = useState('');
+
+  // Form states - Edit User
+  const [editingUser, setEditingUser] = useState<DBUser | null>(null);
+  const [editUsername, setEditUsername] = useState('');
+  const [editRole, setEditRole] = useState<'admin' | 'user'>('user');
+  const [editError, setEditError] = useState<string | null>(null);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -170,6 +176,71 @@ export default function AdminPage() {
     }
   };
 
+  const handleStartEdit = (user: DBUser) => {
+    setEditingUser(user);
+    setEditUsername(user.username);
+    setEditRole(user.role);
+    setEditError(null);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    if (!editUsername || editUsername.trim() === '') {
+      setEditError('Username cannot be empty.');
+      return;
+    }
+
+    // Client-side validations
+    const exists = users.some(u => u.username.toLowerCase() === editUsername.trim().toLowerCase() && u.id !== editingUser.id);
+    if (exists) {
+      setEditError('Username is already taken by another account.');
+      return;
+    }
+
+    // Prevent admin from demoting their own account if they're the last remaining admin
+    if (currentUser?.id === editingUser.id && editRole !== 'admin') {
+      const totalAdmins = users.filter(u => u.role === 'admin').length;
+      if (totalAdmins <= 1) {
+        setEditError('Cannot demote yourself. You are the last remaining administrator in the system.');
+        return;
+      }
+    }
+
+    setLoading(true);
+    setEditError(null);
+
+    try {
+      const base = getApiBase();
+      const token = localStorage.getItem('workshop_token');
+      const res = await fetch(`${base}/api/auth/users/${editingUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          username: editUsername.trim(),
+          role: editRole
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to update user');
+      }
+
+      setSuccess(`User credentials for "${editUsername}" updated successfully.`);
+      setEditingUser(null);
+      fetchUsers();
+    } catch (err: any) {
+      setEditError(err.message || 'Error updating user credentials');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* Top Welcome Title */}
@@ -252,7 +323,7 @@ export default function AdminPage() {
                     <th className="px-5 py-4">Username</th>
                     <th className="px-5 py-4">Clearance Role</th>
                     <th className="px-5 py-4">Date Registered</th>
-                    <th className="px-5 py-4 text-right">Emergency Purge</th>
+                    <th className="px-5 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#1e202d]">
@@ -280,14 +351,23 @@ export default function AdminPage() {
                         {u.created_at ? new Date(u.created_at).toLocaleString() : 'N/A'}
                       </td>
                       <td className="px-5 py-4 text-right">
-                        <button
-                          onClick={() => handleDeleteUser(u.id, u.username)}
-                          disabled={currentUser?.id === u.id}
-                          className="p-1.5 text-red-500 hover:text-red-400 bg-red-950/20 hover:bg-red-950/40 rounded border border-red-900/20 transition disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center cursor-pointer"
-                          title="Purge credentials from database"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleStartEdit(u)}
+                            className="p-1.5 text-amber-500 hover:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 rounded border border-amber-500/20 transition inline-flex items-center cursor-pointer"
+                            title="Edit user credentials"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUser(u.id, u.username)}
+                            disabled={currentUser?.id === u.id}
+                            className="p-1.5 text-red-500 hover:text-red-400 bg-red-950/20 hover:bg-red-950/40 rounded border border-red-900/20 transition disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center cursor-pointer"
+                            title="Purge credentials from database"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -408,6 +488,98 @@ export default function AdminPage() {
               <KeyRound className="w-4 h-4" /> Force Passcode Update
             </button>
           </form>
+        </div>
+      )}
+
+      {/* Edit User Modal Overlay */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#07080b]/85 backdrop-blur-sm">
+          <div className="bg-[#12131a] border border-[#212330] w-full max-w-md rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-150">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-[#212330] flex justify-between items-center bg-[#0d0e12]">
+              <h3 className="text-sm font-black font-mono uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                <Edit2 className="w-4 h-4 text-amber-500" /> Edit User Profile
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingUser(null)}
+                className="text-slate-400 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body / Form */}
+            <form onSubmit={handleSaveEdit}>
+              <div className="p-6 space-y-4">
+                {editError && (
+                  <div className="bg-red-950/20 border border-red-900/40 text-red-400 p-3 rounded-xl text-xs font-mono flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>{editError}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                    User ID reference
+                  </label>
+                  <input
+                    type="text"
+                    disabled
+                    value={`#${editingUser.id}`}
+                    className="block w-full px-4 py-2.5 bg-[#090a0d] border border-[#212330]/40 rounded-lg text-xs font-mono text-slate-500 cursor-not-allowed select-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Account Username
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editUsername}
+                    onChange={(e) => setEditUsername(e.target.value)}
+                    placeholder="Username"
+                    className="block w-full px-4 py-2.5 bg-[#0d0e12] border border-[#212330] rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-amber-500/50 transition duration-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Clearance Role Assignment
+                  </label>
+                  <select
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value as any)}
+                    className="block w-full px-4 py-2.5 bg-[#0d0e12] border border-[#212330] rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-amber-500/50 transition duration-200"
+                  >
+                    <option value="user">User Clearance</option>
+                    <option value="admin">Administrator Clearance</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Modal Footer Controls */}
+              <div className="p-4 bg-[#0d0e12] border-t border-[#212330] flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="px-4 py-2 text-xs font-mono font-bold text-slate-400 hover:text-white uppercase transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-[#0f1016] font-mono font-bold text-xs uppercase rounded-lg tracking-wider transition duration-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

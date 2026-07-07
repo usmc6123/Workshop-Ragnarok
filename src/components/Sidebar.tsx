@@ -37,7 +37,7 @@ export default function Sidebar({
   ];
 
   if (isAdmin) {
-    navItems.push({ id: 'admin', label: 'Security Core', icon: ShieldCheck });
+    navItems.push({ id: 'admin', label: 'Manage Users', icon: ShieldCheck });
   }
 
   navItems.push({ id: 'settings', label: 'Settings', icon: Settings });

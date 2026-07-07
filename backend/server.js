@@ -913,6 +913,50 @@ app.delete('/api/auth/users/:id', adminOnly, (req, res) => {
   }
 });
 
+app.put('/api/auth/users/:id', adminOnly, (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username, role } = req.body;
+
+    if (!username || username.trim() === '') {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+    if (!role) {
+      return res.status(400).json({ error: 'Role is required' });
+    }
+
+    if (role !== 'admin' && role !== 'user') {
+      return res.status(400).json({ error: 'Invalid role. Must be "admin" or "user"' });
+    }
+
+    // Check if another user has the same username
+    const existing = db.prepare('SELECT id FROM users WHERE username = ? AND id != ?').get(username, id);
+    if (existing) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+
+    // Prevent admin from demoting their own account if they're the last remaining admin
+    if (parseInt(id, 10) === req.user.id && role !== 'admin') {
+      const otherAdmins = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND id != ?").get(id);
+      if (otherAdmins.count === 0) {
+        return res.status(400).json({ error: 'Cannot demote yourself. You are the last remaining administrator in the system.' });
+      }
+    }
+
+    const stmt = db.prepare('UPDATE users SET username = ?, role = ? WHERE id = ?');
+    const result = stmt.run(username, role, id);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ success: true, user: { id: parseInt(id, 10), username, role } });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: 'Database error updating user' });
+  }
+});
+
 app.patch('/api/auth/users/:id/password', adminOnly, (req, res) => {
   try {
     const { id } = req.params;

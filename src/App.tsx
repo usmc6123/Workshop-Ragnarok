@@ -184,7 +184,7 @@ export default function App() {
       case 'manual-library': return 'Service Manual Catalog';
       case 'settings': return 'System Settings';
       case 'manual': return 'Active Service Manual';
-      case 'admin': return 'Security Core';
+      case 'admin': return 'Manage Users';
       case 'login': return 'Terminal Auth';
       default: return 'Workshop Management';
     }
