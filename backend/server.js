@@ -207,7 +207,8 @@ try {
       shop_logo_url TEXT,
       tax_rate REAL DEFAULT 0,
       default_labor_rate REAL DEFAULT 0,
-      zip_code TEXT
+      zip_code TEXT,
+      default_parts_markup REAL DEFAULT 0
     )
   `);
 
@@ -283,7 +284,8 @@ try {
     { name: 'shop_logo_url', type: 'TEXT' },
     { name: 'tax_rate', type: 'REAL DEFAULT 0' },
     { name: 'default_labor_rate', type: 'REAL DEFAULT 0' },
-    { name: 'zip_code', type: 'TEXT' }
+    { name: 'zip_code', type: 'TEXT' },
+    { name: 'default_parts_markup', type: 'REAL DEFAULT 0' }
   ];
   try {
     const columns = db.prepare('PRAGMA table_info(shop_settings)').all();
@@ -1612,10 +1614,10 @@ app.get('/api/shop-settings', (req, res) => {
     if (!settings) {
       // Create a default empty shop settings row for the user
       const stmt = db.prepare(`
-        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(req.user.id, '', '', '', '', '', '', 0, 0, '');
+      stmt.run(req.user.id, '', '', '', '', '', '', 0, 0, '', 0);
       settings = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(req.user.id);
     }
     res.json(settings);
@@ -1627,22 +1629,22 @@ app.get('/api/shop-settings', (req, res) => {
 
 app.put('/api/shop-settings', (req, res) => {
   try {
-    const { shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code } = req.body;
+    const { shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup } = req.body;
     
     const settings = db.prepare('SELECT id FROM shop_settings WHERE user_id = ?').get(req.user.id);
     if (!settings) {
       const stmt = db.prepare(`
-        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(req.user.id, shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '');
+      stmt.run(req.user.id, shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0);
     } else {
       const stmt = db.prepare(`
         UPDATE shop_settings
-        SET shop_name = ?, shop_address = ?, shop_city = ?, shop_state = ?, shop_phone = ?, shop_logo_url = ?, tax_rate = ?, default_labor_rate = ?, zip_code = ?
+        SET shop_name = ?, shop_address = ?, shop_city = ?, shop_state = ?, shop_phone = ?, shop_logo_url = ?, tax_rate = ?, default_labor_rate = ?, zip_code = ?, default_parts_markup = ?
         WHERE user_id = ?
       `);
-      stmt.run(shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', req.user.id);
+      stmt.run(shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, req.user.id);
     }
     
     const updated = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(req.user.id);

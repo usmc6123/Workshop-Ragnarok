@@ -233,6 +233,7 @@ export interface ShopSettings {
   tax_rate: number;
   default_labor_rate: number;
   zip_code: string;
+  default_parts_markup?: number;
 }
 
 export interface InventoryItem {

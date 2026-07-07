@@ -33,7 +33,8 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
     shop_logo_url: '',
     tax_rate: 0,
     default_labor_rate: 0,
-    zip_code: ''
+    zip_code: '',
+    default_parts_markup: 0
   });
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'failed'>('idle');
   const [saveError, setSaveError] = useState('');
@@ -337,6 +338,21 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
                     onChange={(e) => setSettings({ ...settings, default_labor_rate: parseFloat(e.target.value) || 0 })}
                     className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:border-primary-theme focus:outline-none"
                     id="shop-labor-rate-input"
+                  />
+                </div>
+
+                {/* Default Parts Markup (%) */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Default Parts Markup (%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="e.g. 30.00"
+                    value={(settings.default_parts_markup === undefined || settings.default_parts_markup === 0) ? '' : settings.default_parts_markup}
+                    onChange={(e) => setSettings({ ...settings, default_parts_markup: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:border-primary-theme focus:outline-none"
+                    id="shop-parts-markup-input"
                   />
                 </div>
 

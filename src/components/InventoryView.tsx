@@ -34,6 +34,21 @@ const CATEGORIES = [
 export default function InventoryView() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [defaultMarkupPercent, setDefaultMarkupPercent] = useState<number>(0);
+
+  useEffect(() => {
+    const loadMarkup = async () => {
+      try {
+        const data = await api.getShopSettings();
+        if (data && typeof data.default_parts_markup === 'number') {
+          setDefaultMarkupPercent(data.default_parts_markup);
+        }
+      } catch (err) {
+        console.error('Failed to load shop settings for markup percent:', err);
+      }
+    };
+    loadMarkup();
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -281,7 +296,7 @@ export default function InventoryView() {
       
       const mappedReviewItems: ReviewItem[] = parsed.line_items.map((pi, idx) => {
         const matched = findMatchingItem(pi.name, pi.part_number);
-        const defaultSell = pi.unit_price ? Math.round(pi.unit_price * 1.5 * 100) / 100 : 0;
+        const defaultSell = pi.unit_price ? Math.round(pi.unit_price * (1 + defaultMarkupPercent / 100) * 100) / 100 : 0;
         return {
           id: `review-${idx}-${Date.now()}`,
           name: pi.name || '',
@@ -784,7 +799,12 @@ export default function InventoryView() {
                     step="0.01"
                     min="0"
                     value={costPrice}
-                    onChange={(e) => setCostPrice(Math.max(0, parseFloat(e.target.value) || 0))}
+                    onChange={(e) => {
+                      const cost = Math.max(0, parseFloat(e.target.value) || 0);
+                      setCostPrice(cost);
+                      const calculatedSell = Math.round(cost * (1 + defaultMarkupPercent / 100) * 100) / 100;
+                      setSellPrice(calculatedSell);
+                    }}
                     className="w-full bg-bg-theme/60 border border-border-theme/40 text-white px-3 py-2 rounded font-mono text-xs focus:outline-none focus:border-amber-500"
                   />
                 </div>
@@ -961,7 +981,12 @@ export default function InventoryView() {
                     step="0.01"
                     min="0"
                     value={costPrice}
-                    onChange={(e) => setCostPrice(Math.max(0, parseFloat(e.target.value) || 0))}
+                    onChange={(e) => {
+                      const cost = Math.max(0, parseFloat(e.target.value) || 0);
+                      setCostPrice(cost);
+                      const calculatedSell = Math.round(cost * (1 + defaultMarkupPercent / 100) * 100) / 100;
+                      setSellPrice(calculatedSell);
+                    }}
                     className="w-full bg-bg-theme/60 border border-border-theme/40 text-white px-3 py-2 rounded font-mono text-xs focus:outline-none focus:border-amber-500"
                   />
                 </div>
@@ -1372,7 +1397,7 @@ export default function InventoryView() {
                                   updated[index].total_price = updated[index].quantity * updated[index].unit_price;
                                   setReviewItems(updated);
                                 }}
-                                className="w-16 bg-bg-theme/40 border border-border-theme/20 text-white px-2 py-1 rounded text-center text-xs focus:outline-none focus:border-amber-500"
+                              className="w-16 bg-bg-theme/40 border border-border-theme/20 text-white px-2 py-1 rounded text-center text-xs focus:outline-none focus:border-amber-500"
                               />
                             </td>
 
@@ -1385,10 +1410,11 @@ export default function InventoryView() {
                                 value={item.unit_price}
                                 onChange={(e) => {
                                   const updated = [...reviewItems];
-                                  updated[index].unit_price = Math.max(0, parseFloat(e.target.value) || 0);
-                                  updated[index].total_price = updated[index].quantity * updated[index].unit_price;
-                                  // Auto sell price recommendation
-                                  updated[index].sell_price = Math.round(updated[index].unit_price * 1.5 * 100) / 100;
+                                  const uPrice = Math.max(0, parseFloat(e.target.value) || 0);
+                                  updated[index].unit_price = uPrice;
+                                  updated[index].total_price = updated[index].quantity * uPrice;
+                                  // Auto sell price recommendation using the default markup percent
+                                  updated[index].sell_price = Math.round(uPrice * (1 + defaultMarkupPercent / 100) * 100) / 100;
                                   setReviewItems(updated);
                                 }}
                                 className="w-20 bg-bg-theme/40 border border-border-theme/20 text-white px-2 py-1 rounded text-right text-xs focus:outline-none focus:border-amber-500"
