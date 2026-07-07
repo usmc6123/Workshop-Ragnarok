@@ -319,3 +319,29 @@ export interface Receipt {
   notes: string | null;
 }
 
+export interface EmailTemplate {
+  id: number;
+  user_id: number;
+  name: string;
+  subject: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmailSent {
+  id: number;
+  user_id: number;
+  to_email: string;
+  to_customer_id: number | null;
+  subject: string;
+  body: string;
+  template_id: number | null;
+  status: 'sent' | 'failed';
+  sent_at: string;
+  
+  // Joined from customers
+  customer_name?: string | null;
+}
+
+

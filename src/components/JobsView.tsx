@@ -16,9 +16,15 @@ interface JobsViewProps {
   refreshTrigger: number;
   initialSelectedJobId?: number | null;
   onInitialJobConsumed?: () => void;
+  onTriggerEmail?: (customerId: number, email?: string) => void;
 }
 
-export default function JobsView({ refreshTrigger, initialSelectedJobId, onInitialJobConsumed }: JobsViewProps) {
+export default function JobsView({ 
+  refreshTrigger, 
+  initialSelectedJobId, 
+  onInitialJobConsumed,
+  onTriggerEmail 
+}: JobsViewProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [jobParts, setJobParts] = useState<JobPart[]>([]);
@@ -1440,6 +1446,18 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                       </div>
 
                       <div className="flex items-center justify-end gap-2 mt-4 pt-2 border-t border-border-theme/40">
+                        {onTriggerEmail && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onTriggerEmail(job.customer_id, job.customer_email || undefined);
+                            }}
+                            className="p-1.5 text-amber-500 hover:text-amber-400 rounded hover:bg-surface-theme transition cursor-pointer"
+                            title="Compose email to customer"
+                          >
+                            <Mail className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -2576,14 +2594,25 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                       </a>
                     </div>
                   </div>
-                  <div className="flex items-start gap-2.5 border-t border-border-theme/40 pt-2.5">
-                    <Mail className="w-4 h-4 text-primary-theme shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-[9px] font-mono text-slate-500 uppercase block">Email Address</span>
-                      <a href={`mailto:${selectedJob.customer_email}`} className="text-xs text-slate-202 hover:text-primary-theme font-mono block underline truncate max-w-[180px]">
-                        {selectedJob.customer_email || 'N/A'}
-                      </a>
+                  <div className="flex items-start gap-2.5 border-t border-border-theme/40 pt-2.5 justify-between">
+                    <div className="flex items-start gap-2.5">
+                      <Mail className="w-4 h-4 text-primary-theme shrink-0 mt-0.5" />
+                      <div>
+                        <span className="text-[9px] font-mono text-slate-500 uppercase block">Email Address</span>
+                        <a href={`mailto:${selectedJob.customer_email}`} className="text-xs text-slate-202 hover:text-primary-theme font-mono block underline truncate max-w-[150px]">
+                          {selectedJob.customer_email || 'N/A'}
+                        </a>
+                      </div>
                     </div>
+                    {onTriggerEmail && selectedJob.customer_email && (
+                      <button
+                        onClick={() => onTriggerEmail(selectedJob.customer_id, selectedJob.customer_email)}
+                        className="p-1 px-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-[10px] font-mono rounded border border-amber-500/20 hover:border-amber-500/40 cursor-pointer transition select-none flex items-center gap-1 mt-1 shrink-0"
+                      >
+                        <Mail className="w-3 h-3" />
+                        <span>Send Center</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

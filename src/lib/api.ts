@@ -6,7 +6,7 @@
 import { 
   Vehicle, GarageItem, PageResponse, Customer, CustomerVehicle, 
   ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual, ShopSettings, JobPhoto,
-  InventoryItem, WorkOrderPart, Service, JobService, Receipt
+  InventoryItem, WorkOrderPart, Service, JobService, Receipt, EmailTemplate, EmailSent
 } from '../types';
 
 import { 
@@ -1281,6 +1281,49 @@ export const api = {
   async deleteReceipt(id: number): Promise<{ success: boolean }> {
     return await request<{ success: boolean }>(`/api/receipts/${id}`, {
       method: 'DELETE'
+    });
+  },
+
+  // --- EMAIL CENTER ---
+  async getEmails(search?: string, startDate?: string, endDate?: string): Promise<EmailSent[]> {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    return await request<EmailSent[]>(`/api/emails?${params.toString()}`);
+  },
+
+  async getEmailTemplates(): Promise<EmailTemplate[]> {
+    return await request<EmailTemplate[]>('/api/email-templates');
+  },
+
+  async addEmailTemplate(data: { name: string; subject: string; body: string }): Promise<EmailTemplate> {
+    return await request<EmailTemplate>('/api/email-templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async updateEmailTemplate(id: number, data: { name: string; subject: string; body: string }): Promise<EmailTemplate> {
+    return await request<EmailTemplate>(`/api/email-templates/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async deleteEmailTemplate(id: number): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/email-templates/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async sendEmail(data: { to: string; customer_id?: number | null; template_id?: number | null; subject?: string; body?: string }): Promise<{ success: boolean; email: EmailSent }> {
+    return await request<{ success: boolean; email: EmailSent }>('/api/emails/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
     });
   }
 };

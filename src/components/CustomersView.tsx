@@ -11,9 +11,10 @@ import {
 interface CustomersViewProps {
   onNavigateToTab: (tab: string, vehicleId?: number) => void;
   onSelectVehicleForManual?: (vehicle: any) => void;
+  onTriggerEmail?: (customerId: number, email?: string) => void;
 }
 
-export default function CustomersView({ onNavigateToTab }: CustomersViewProps) {
+export default function CustomersView({ onNavigateToTab, onTriggerEmail }: CustomersViewProps) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   
@@ -231,6 +232,15 @@ export default function CustomersView({ onNavigateToTab }: CustomersViewProps) {
                         <td className="p-4 font-mono text-slate-400">{c.last_visit || 'Never'}</td>
                         <td className="p-4 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
+                            {onTriggerEmail && (
+                              <button
+                                onClick={() => onTriggerEmail(c.id, c.email || undefined)}
+                                className="p-1.5 text-amber-500 hover:text-amber-400 rounded hover:bg-bg-theme transition cursor-pointer"
+                                title="Compose email to customer"
+                              >
+                                <Mail className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             <button
                               onClick={() => openCustomerModal(c)}
                               className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-bg-theme transition cursor-pointer"
@@ -315,14 +325,25 @@ export default function CustomersView({ onNavigateToTab }: CustomersViewProps) {
                       </a>
                     </div>
                   </div>
-                  <div className="flex items-start gap-2.5 border-t border-border-theme/40 pt-2.5">
-                    <Mail className="w-4 h-4 text-primary-theme shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-[9px] font-mono text-slate-500 uppercase block">Email Address</span>
-                      <a href={`mailto:${selectedCustomer.email}`} className="text-slate-200 hover:text-primary-theme block underline truncate max-w-[200px]">
-                        {selectedCustomer.email || 'No email recorded'}
-                      </a>
+                  <div className="flex items-start gap-2.5 border-t border-border-theme/40 pt-2.5 justify-between">
+                    <div className="flex items-start gap-2.5">
+                      <Mail className="w-4 h-4 text-primary-theme shrink-0 mt-0.5" />
+                      <div>
+                        <span className="text-[9px] font-mono text-slate-500 uppercase block">Email Address</span>
+                        <a href={`mailto:${selectedCustomer.email}`} className="text-slate-200 hover:text-primary-theme block underline truncate max-w-[180px]">
+                          {selectedCustomer.email || 'No email recorded'}
+                        </a>
+                      </div>
                     </div>
+                    {onTriggerEmail && selectedCustomer.email && (
+                      <button
+                        onClick={() => onTriggerEmail(selectedCustomer.id, selectedCustomer.email)}
+                        className="p-1 px-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-[10px] font-mono rounded border border-amber-500/20 hover:border-amber-500/40 cursor-pointer transition select-none flex items-center gap-1 mt-1"
+                      >
+                        <Mail className="w-3 h-3" />
+                        <span>Send Center</span>
+                      </button>
+                    )}
                   </div>
                   <div className="flex items-start gap-2.5 border-t border-border-theme/40 pt-2.5">
                     <MapPin className="w-4 h-4 text-primary-theme shrink-0 mt-0.5" />

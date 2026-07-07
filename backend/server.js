@@ -342,6 +342,34 @@ try {
     )
   `);
 
+  // Create Email Templates Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS email_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Create Emails Sent Log Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS emails_sent (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      to_email TEXT NOT NULL,
+      to_customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      template_id INTEGER REFERENCES email_templates(id) ON DELETE SET NULL,
+      status TEXT NOT NULL,
+      sent_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Migrate columns for shop_settings table
   const shopSettingsCols = [
     { name: 'user_id', type: 'INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE' },
@@ -3096,6 +3124,268 @@ app.delete('/api/receipts/:id', (req, res) => {
   } catch (error) {
     console.error('Error deleting receipt:', error);
     res.status(500).json({ error: 'Database error deleting receipt' });
+  }
+});
+
+// --- EMAIL CENTER ---
+
+// Helper function to render templates with variables
+function renderTemplate(text, variables) {
+  if (!text) return '';
+  let rendered = text;
+  for (const [key, val] of Object.entries(variables)) {
+    const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
+    rendered = rendered.replace(regex, val || '');
+  }
+  return rendered;
+}
+
+// GET /api/emails: Get sent logs, newest first, filterable by search query or date range
+app.get('/api/emails', (req, res) => {
+  try {
+    const { search, startDate, endDate, page = 1, limit = 50 } = req.query;
+    const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+    
+    let query = `
+      SELECT e.*, c.name as customer_name
+      FROM emails_sent e
+      LEFT JOIN customers c ON e.to_customer_id = c.id
+      WHERE e.user_id = ?
+    `;
+    const params = [req.user.id];
+    
+    if (search) {
+      query += ` AND (e.to_email LIKE ? OR e.subject LIKE ? OR e.body LIKE ? OR c.name LIKE ?)`;
+      const searchWild = `%${search}%`;
+      params.push(searchWild, searchWild, searchWild, searchWild);
+    }
+    
+    if (startDate) {
+      query += ` AND e.sent_at >= ?`;
+      params.push(`${startDate} 00:00:00`);
+    }
+    if (endDate) {
+      query += ` AND e.sent_at <= ?`;
+      params.push(`${endDate} 23:59:59`);
+    }
+    
+    query += ` ORDER BY e.sent_at DESC LIMIT ? OFFSET ?`;
+    params.push(parseInt(limit, 10), offset);
+    
+    const stmt = db.prepare(query);
+    const rows = stmt.all(...params);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching sent emails:', error);
+    res.status(500).json({ error: 'Database error fetching sent emails' });
+  }
+});
+
+// GET /api/email-templates: Get templates for the user. Lazy seed defaults on first query.
+app.get('/api/email-templates', (req, res) => {
+  try {
+    const checkStmt = db.prepare('SELECT COUNT(*) as count FROM email_templates WHERE user_id = ?');
+    const { count } = checkStmt.get(req.user.id);
+    
+    if (count === 0) {
+      console.log(`[EMAIL] Seeding default email templates for user ${req.user.id}`);
+      const seedStmt = db.prepare(`
+        INSERT INTO email_templates (user_id, name, subject, body)
+        VALUES (?, ?, ?, ?)
+      `);
+      
+      const invoiceBody = `<div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+  <h2 style="color: #f59e0b; border-bottom: 2px solid #f59e0b; padding-bottom: 8px; margin-top: 0;">Invoice Ready</h2>
+  <p>Hello <strong>{{customer_name}}</strong>,</p>
+  <p>We are pleased to inform you that the service on your vehicle (<strong>{{vehicle}}</strong>) has been completed, and your invoice is ready at <strong>{{shop_name}}</strong>.</p>
+  <p>Please contact us or visit our shop to arrange for pickup and payment.</p>
+  <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+  <p style="font-size: 12px; color: #64748b; text-align: center; margin-bottom: 0;">Sent by {{shop_name}} • Professional Auto Service</p>
+</div>`;
+
+      const reminderBody = `<div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+  <h2 style="color: #f59e0b; border-bottom: 2px solid #f59e0b; padding-bottom: 8px; margin-top: 0;">Appointment Reminder</h2>
+  <p>Hello <strong>{{customer_name}}</strong>,</p>
+  <p>This is a friendly reminder that you have an upcoming service appointment scheduled with us.</p>
+  <div style="background-color: #f8fafc; border-left: 4px solid #f59e0b; padding: 16px; margin: 20px 0; border-radius: 6px;">
+    <p style="margin: 4px 0;"><strong>Vehicle:</strong> {{vehicle}}</p>
+    <p style="margin: 4px 0;"><strong>Date & Time:</strong> {{appointment_date}}</p>
+    <p style="margin: 4px 0;"><strong>Location:</strong> {{shop_name}}</p>
+  </div>
+  <p>If you have any questions or need to reschedule, please give us a call at your earliest convenience.</p>
+  <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+  <p style="font-size: 12px; color: #64748b; text-align: center; margin-bottom: 0;">Thank you for choosing {{shop_name}}!</p>
+</div>`;
+
+      seedStmt.run(req.user.id, 'Invoice Ready', 'Invoice Ready - {{shop_name}}', invoiceBody);
+      seedStmt.run(req.user.id, 'Appointment Reminder', 'Upcoming Service Appointment - {{shop_name}}', reminderBody);
+    }
+    
+    const selectStmt = db.prepare('SELECT * FROM email_templates WHERE user_id = ? ORDER BY name ASC');
+    const rows = selectStmt.all(req.user.id);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching email templates:', error);
+    res.status(500).json({ error: 'Database error fetching email templates' });
+  }
+});
+
+// POST /api/email-templates: Create template
+app.post('/api/email-templates', (req, res) => {
+  try {
+    const { name, subject, body } = req.body;
+    if (!name || !subject || !body) {
+      return res.status(400).json({ error: 'Name, subject, and body are required' });
+    }
+    const stmt = db.prepare(`
+      INSERT INTO email_templates (user_id, name, subject, body, created_at, updated_at)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `);
+    const info = stmt.run(req.user.id, name, subject, body);
+    const inserted = db.prepare('SELECT * FROM email_templates WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
+    res.json(inserted);
+  } catch (error) {
+    console.error('Error creating email template:', error);
+    res.status(500).json({ error: 'Database error creating email template' });
+  }
+});
+
+// PUT /api/email-templates/:id: Update template
+app.put('/api/email-templates/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, subject, body } = req.body;
+    if (!name || !subject || !body) {
+      return res.status(400).json({ error: 'Name, subject, and body are required' });
+    }
+    const stmt = db.prepare(`
+      UPDATE email_templates
+      SET name = ?, subject = ?, body = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `);
+    const info = stmt.run(name, subject, body, id, req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Template not found' });
+    const updated = db.prepare('SELECT * FROM email_templates WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating email template:', error);
+    res.status(500).json({ error: 'Database error updating email template' });
+  }
+});
+
+// DELETE /api/email-templates/:id: Delete template
+app.delete('/api/email-templates/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const info = db.prepare('DELETE FROM email_templates WHERE id = ? AND user_id = ?').run(id, req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Template not found' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting email template:', error);
+    res.status(500).json({ error: 'Database error deleting email template' });
+  }
+});
+
+// POST /api/emails/send: Send email
+app.post('/api/emails/send', async (req, res) => {
+  const { to, customer_id, template_id, subject: customSubject, body: customBody } = req.body;
+  
+  if (!to) {
+    return res.status(400).json({ error: 'Recipient email (to) is required' });
+  }
+
+  let finalSubject = customSubject || '';
+  let finalBody = customBody || '';
+  
+  try {
+    // 1. Gather variables
+    const variables = {
+      customer_name: 'Valued Customer',
+      vehicle: 'your vehicle',
+      shop_name: 'Our Auto Shop',
+      appointment_date: 'your scheduled appointment time'
+    };
+
+    // Load customer info if available
+    if (customer_id) {
+      const customer = db.prepare('SELECT * FROM customers WHERE id = ? AND user_id = ?').get(customer_id, req.user.id);
+      if (customer) {
+        variables.customer_name = customer.name;
+      }
+      
+      const vehicle = db.prepare('SELECT * FROM customer_vehicles WHERE customer_id = ? AND user_id = ? ORDER BY id DESC LIMIT 1').get(customer_id, req.user.id);
+      if (vehicle) {
+        variables.vehicle = `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
+      }
+      
+      const appt = db.prepare('SELECT * FROM appointments WHERE customer_id = ? AND user_id = ? ORDER BY date DESC, time DESC LIMIT 1').get(customer_id, req.user.id);
+      if (appt) {
+        variables.appointment_date = `${appt.date} at ${appt.time}`;
+      }
+    }
+    
+    // Load shop settings
+    const shop = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(req.user.id);
+    if (shop && shop.shop_name) {
+      variables.shop_name = shop.shop_name;
+    }
+
+    // 2. Resolve template subject & body
+    if (template_id) {
+      const template = db.prepare('SELECT * FROM email_templates WHERE id = ? AND user_id = ?').get(template_id, req.user.id);
+      if (!template) {
+        return res.status(404).json({ error: 'Email template not found' });
+      }
+      finalSubject = renderTemplate(template.subject, variables);
+      finalBody = renderTemplate(template.body, variables);
+    } else {
+      finalSubject = renderTemplate(finalSubject, variables);
+      finalBody = renderTemplate(finalBody, variables);
+    }
+
+    if (!finalSubject || !finalBody) {
+      return res.status(400).json({ error: 'Subject and Body are required to send an email' });
+    }
+
+    // 3. Send email via Resend SDK
+    let status = 'sent';
+    try {
+      const { sendEmail } = require('./email');
+      await sendEmail({ to, subject: finalSubject, html: finalBody });
+    } catch (sendErr) {
+      console.error('[EMAIL] Resend delivery failed:', sendErr);
+      status = 'failed';
+    }
+
+    // 4. Log to DB regardless of status
+    const insertLogStmt = db.prepare(`
+      INSERT INTO emails_sent (user_id, to_email, to_customer_id, subject, body, template_id, status, sent_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `);
+    const info = insertLogStmt.run(
+      req.user.id,
+      to,
+      customer_id || null,
+      finalSubject,
+      finalBody,
+      template_id || null,
+      status
+    );
+
+    const loggedEmail = db.prepare('SELECT * FROM emails_sent WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
+
+    if (status === 'failed') {
+      return res.status(500).json({ 
+        error: 'Failed to deliver email. Please check your RESEND_API_KEY environment variable.', 
+        logged: loggedEmail 
+      });
+    }
+
+    res.json({ success: true, email: loggedEmail });
+
+  } catch (error) {
+    console.error('Error in send email endpoint:', error);
+    res.status(500).json({ error: 'Database or server error sending email' });
   }
 });
 

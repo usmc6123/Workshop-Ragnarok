@@ -18,6 +18,7 @@ import CalendarView from './components/CalendarView';
 import SettingsView from './components/SettingsView';
 import NetworkSettingsModal from './components/NetworkSettingsModal';
 import BootSplashScreen from './components/BootSplashScreen';
+import EmailView from './components/EmailView';
 import { LOGO_URL, BACKGROUND_URL } from './constants/branding';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminPage from './pages/AdminPage';
@@ -29,13 +30,21 @@ import {
   Wifi, HelpCircle, CheckSquare, Settings, Car, ClipboardList, LayoutDashboard, Menu
 } from 'lucide-react';
 
-type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login';
+type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email';
 
 export default function App() {
   console.log('APP RENDERING');
   const [view, setView] = useState<ViewType>('dashboard');
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [initialSelectedVehicleId, setInitialSelectedVehicleId] = useState<number | null>(null);
+  
+  // Quick compose state for the Email center
+  const [emailComposeData, setEmailComposeData] = useState<{ customerId?: number; recipientEmail?: string } | null>(null);
+
+  const handleTriggerQuickEmail = (customerId: number, email?: string) => {
+    setEmailComposeData({ customerId, recipientEmail: email });
+    setView('email');
+  };
   
   // Create state to toggle Boot/Splash Screen once per session
   const [showSplash, setShowSplash] = useState(() => {
@@ -314,10 +323,13 @@ export default function App() {
               )}
 
               {view === 'customers' && (
-                <CustomersView onNavigateToTab={(tab, vehicleId) => {
-                  setView(tab as any);
-                  setInitialSelectedVehicleId(vehicleId ?? null);
-                }} />
+                <CustomersView 
+                  onNavigateToTab={(tab, vehicleId) => {
+                    setView(tab as any);
+                    setInitialSelectedVehicleId(vehicleId ?? null);
+                  }} 
+                  onTriggerEmail={handleTriggerQuickEmail}
+                />
               )}
 
               {view === 'vehicles' && (
@@ -333,6 +345,7 @@ export default function App() {
               {view === 'jobs' && (
                 <JobsView 
                   refreshTrigger={refreshTrigger}
+                  onTriggerEmail={handleTriggerQuickEmail}
                 />
               )}
 
@@ -342,6 +355,16 @@ export default function App() {
 
               {view === 'calendar' && (
                 <CalendarView />
+              )}
+
+              {view === 'email' && (
+                <EmailView
+                  initialComposeData={emailComposeData}
+                  onClearComposeData={() => setEmailComposeData(null)}
+                  onNavigateToCustomer={(customerId) => {
+                    setView('customers');
+                  }}
+                />
               )}
 
               {view === 'manual-library' && (
