@@ -22,6 +22,13 @@ interface ReviewItem {
   selectedItemId: number | null;
 }
 
+interface UploadQueueItem {
+  id: string;
+  photoData: string;
+  name: string;
+  status: 'pending' | 'parsed' | 'imported';
+}
+
 const CATEGORIES = [
   { id: 'all', label: 'All Categories' },
   { id: 'brakes', label: 'Brakes' },
@@ -87,6 +94,18 @@ export default function InventoryView() {
   const [isParsing, setIsParsing] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   
+  // Multi-upload queue states
+  const [uploadQueue, setUploadQueue] = useState<UploadQueueItem[]>([]);
+  const [activeQueueIndex, setActiveQueueIndex] = useState<number>(0);
+
+  useEffect(() => {
+    if (uploadQueue.length > 0 && activeQueueIndex >= 0 && activeQueueIndex < uploadQueue.length) {
+      setUploadPreview(uploadQueue[activeQueueIndex].photoData);
+    } else {
+      setUploadPreview(null);
+    }
+  }, [uploadQueue, activeQueueIndex]);
+
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [invoiceSupplier, setInvoiceSupplier] = useState('');
   const [invoiceDate, setInvoiceDate] = useState('');
@@ -275,19 +294,50 @@ export default function InventoryView() {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
+  const addFilesToQueue = async (files: FileList | File[]) => {
     setUploadError(null);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setUploadPreview(reader.result as string);
-    };
-    reader.onerror = () => {
-      setUploadError("Failed to read the selected file.");
-    };
-    reader.readAsDataURL(file);
+    const newItems: UploadQueueItem[] = [];
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.type.startsWith('image/')) {
+        try {
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error("Failed to read file"));
+            reader.readAsDataURL(file);
+          });
+          newItems.push({
+            id: `queue-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            photoData: dataUrl,
+            name: file.name || `Receipt ${uploadQueue.length + newItems.length + 1}`,
+            status: 'pending'
+          });
+        } catch (err) {
+          console.error(err);
+          setUploadError("Failed to read one or more files.");
+        }
+      } else {
+        setUploadError("Please select/drop image files (PNG/JPG/WEBP) only.");
+      }
+    }
+    
+    if (newItems.length > 0) {
+      setUploadQueue(prev => {
+        const nextQueue = [...prev, ...newItems];
+        if (prev.length === 0) {
+          setActiveQueueIndex(0);
+        }
+        return nextQueue;
+      });
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      addFilesToQueue(e.target.files);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -296,20 +346,25 @@ export default function InventoryView() {
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (!file) return;
-    
-    if (!file.type.startsWith('image/')) {
-      setUploadError("Please drop an image file (PNG/JPG/WEBP).");
-      return;
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      addFilesToQueue(e.dataTransfer.files);
     }
-    
-    setUploadError(null);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setUploadPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveFromQueue = (indexToRemove: number) => {
+    setUploadQueue(prev => {
+      const updated = prev.filter((_, idx) => idx !== indexToRemove);
+      if (updated.length === 0) {
+        setActiveQueueIndex(0);
+      } else if (activeQueueIndex >= updated.length) {
+        setActiveQueueIndex(updated.length - 1);
+      } else if (activeQueueIndex === indexToRemove) {
+        setActiveQueueIndex(Math.max(0, indexToRemove - 1));
+      } else if (activeQueueIndex > indexToRemove) {
+        setActiveQueueIndex(activeQueueIndex - 1);
+      }
+      return updated;
+    });
   };
 
   const handleParseInvoice = async () => {
@@ -342,6 +397,16 @@ export default function InventoryView() {
       });
       
       setReviewItems(mappedReviewItems);
+
+      // Update status in queue
+      setUploadQueue(prev => {
+        const updated = [...prev];
+        if (updated[activeQueueIndex]) {
+          updated[activeQueueIndex].status = 'parsed';
+        }
+        return updated;
+      });
+
       setIsUploadOpen(false);
       setIsReviewOpen(true);
     } catch (err: any) {
@@ -410,11 +475,45 @@ export default function InventoryView() {
         }
       }
 
-      setIsReviewOpen(false);
-      setUploadPreview(null);
-      setReviewItems([]);
       fetchInventory();
-      alert(`Invoice imported successfully! Added/adjusted ${itemsToImport.length} items.`);
+
+      if (uploadQueue.length > 0) {
+        let nextPendingIndex = -1;
+        setUploadQueue(prev => {
+          const updated = [...prev];
+          if (updated[activeQueueIndex]) {
+            updated[activeQueueIndex].status = 'imported';
+          }
+          
+          let foundIndex = updated.findIndex((item, idx) => idx > activeQueueIndex && item.status === 'pending');
+          if (foundIndex === -1) {
+            foundIndex = updated.findIndex((item, idx) => item.status === 'pending');
+          }
+          nextPendingIndex = foundIndex;
+          
+          return updated;
+        });
+
+        setIsReviewOpen(false);
+        setReviewItems([]);
+
+        if (nextPendingIndex !== -1) {
+          setActiveQueueIndex(nextPendingIndex);
+          setIsUploadOpen(true);
+          alert(`Invoice imported successfully! Ready for the next invoice in queue.`);
+        } else {
+          setIsUploadOpen(false);
+          setUploadQueue([]);
+          setActiveQueueIndex(0);
+          setUploadPreview(null);
+          alert(`All receipts in the queue have been parsed and imported successfully!`);
+        }
+      } else {
+        setIsReviewOpen(false);
+        setUploadPreview(null);
+        setReviewItems([]);
+        alert(`Invoice imported successfully! Added/adjusted ${itemsToImport.length} items.`);
+      }
     } catch (err: any) {
       console.error(err);
       alert(err.message || "An error occurred during invoice importing.");
@@ -1326,8 +1425,56 @@ export default function InventoryView() {
                 </div>
               )}
 
-              {/* Drag and Drop Zone */}
-              {!uploadPreview ? (
+              {/* Queue List strip */}
+              {uploadQueue.length > 0 && (
+                <div className="space-y-2 bg-bg-theme/35 p-3.5 rounded-xl border border-border-theme/20">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-slate-400">
+                      Receipt {activeQueueIndex + 1} of {uploadQueue.length}
+                    </span>
+                    <span className="text-[10px] font-mono text-emerald-400 font-bold">
+                      {uploadQueue.filter(item => item.status === 'imported').length} / {uploadQueue.length} Imported
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                    {uploadQueue.map((item, idx) => {
+                      const isActive = idx === activeQueueIndex;
+                      return (
+                        <div 
+                          key={item.id} 
+                          onClick={() => setActiveQueueIndex(idx)}
+                          className={`relative flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border cursor-pointer transition select-none ${isActive ? 'border-amber-500 ring-2 ring-amber-500/40' : 'border-border-theme/60 hover:border-slate-400'}`}
+                        >
+                          <img src={item.photoData} alt={item.name} className="w-full h-full object-cover" />
+                          
+                          {/* Status Badge overlay */}
+                          <div className="absolute bottom-0 inset-x-0 bg-black/85 text-[8px] text-center font-mono py-0.5 leading-none truncate scale-90">
+                            {item.status === 'pending' && <span className="text-amber-500 font-black">PENDING</span>}
+                            {item.status === 'parsed' && <span className="text-blue-400 font-black">PARSED</span>}
+                            {item.status === 'imported' && <span className="text-emerald-400 font-black">IMPORTED</span>}
+                          </div>
+
+                          {/* Individual Remove 'x' */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveFromQueue(idx);
+                            }}
+                            className="absolute top-0.5 right-0.5 p-0.5 bg-black/80 hover:bg-red-600 text-white rounded-full transition active:scale-90"
+                            title="Remove from queue"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Drag and Drop Zone or Receipt Preview */}
+              {uploadQueue.length === 0 ? (
                 <div 
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}
@@ -1337,8 +1484,8 @@ export default function InventoryView() {
                     <Upload className="w-6 h-6" />
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs font-mono text-white font-bold">Drag & drop your invoice photo here</p>
-                    <p className="text-[10px] font-mono text-slate-500">Supports PNG, JPG, JPEG, WEBP</p>
+                    <p className="text-xs font-mono text-white font-bold">Drag & drop your invoice photos here</p>
+                    <p className="text-[10px] font-mono text-slate-500">Supports PNG, JPG, JPEG, WEBP (Multiple allowed)</p>
                   </div>
                   <div className="flex flex-wrap gap-2 mt-2">
                     <label className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-mono font-bold text-[10px] rounded cursor-pointer transition active:scale-95 shadow-md">
@@ -1346,6 +1493,7 @@ export default function InventoryView() {
                       <input 
                         type="file" 
                         accept="image/*" 
+                        multiple
                         onChange={handleFileChange} 
                         className="hidden" 
                       />
@@ -1367,26 +1515,60 @@ export default function InventoryView() {
                 <div className="space-y-3">
                   <div className="relative border border-border-theme/40 rounded-xl overflow-hidden bg-black/40 h-64 flex items-center justify-center">
                     <img 
-                      src={uploadPreview} 
+                      src={uploadPreview || ''} 
                       alt="Invoice Preview" 
-                      className="max-h-full max-w-full object-contain"
+                      className="max-h-full max-w-full object-contain animate-fade-in"
                     />
                     <button
-                      onClick={() => setUploadPreview(null)}
-                      className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-full transition"
-                      title="Remove image"
+                      onClick={() => handleRemoveFromQueue(activeQueueIndex)}
+                      className="absolute top-2 right-2 p-1.5 bg-black/70 hover:bg-red-600 text-white rounded-full transition"
+                      title="Remove from queue"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
-                  <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
-                    <span>Image ready for parsing</span>
-                    <button 
-                      onClick={() => setUploadPreview(null)}
-                      className="text-amber-500 hover:underline"
-                    >
-                      Choose another file
-                    </button>
+
+                  <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 bg-bg-theme/20 border border-border-theme/20 p-2.5 rounded-lg">
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => setActiveQueueIndex(prev => Math.max(0, prev - 1))}
+                        disabled={activeQueueIndex === 0}
+                        className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-300 font-bold transition text-[10px] cursor-pointer"
+                      >
+                        ← Prev
+                      </button>
+                      <button
+                        onClick={() => setActiveQueueIndex(prev => Math.min(uploadQueue.length - 1, prev + 1))}
+                        disabled={activeQueueIndex === uploadQueue.length - 1}
+                        className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-300 font-bold transition text-[10px] cursor-pointer"
+                      >
+                        Next →
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <label className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-border-theme/40 text-slate-300 font-bold text-[10px] cursor-pointer transition flex items-center gap-1 select-none">
+                        + Add Files
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          multiple
+                          onChange={handleFileChange} 
+                          className="hidden" 
+                        />
+                      </label>
+                      <label className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-amber-500/20 text-amber-500 font-bold text-[10px] cursor-pointer transition flex items-center gap-1 select-none">
+                        <Camera className="w-2.5 h-2.5" />
+                        + Capture
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          capture="environment" 
+                          onChange={handleFileChange} 
+                          className="hidden" 
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1437,6 +1619,7 @@ export default function InventoryView() {
                 onClick={() => {
                   if (window.confirm("Are you sure you want to cancel? All parsed line items will be lost.")) {
                     setIsReviewOpen(false);
+                    setIsUploadOpen(true);
                   }
                 }}
                 className="text-slate-400 hover:text-white transition"
@@ -1687,6 +1870,7 @@ export default function InventoryView() {
                   onClick={() => {
                     if (window.confirm("Are you sure you want to cancel? All parsed line items will be lost.")) {
                       setIsReviewOpen(false);
+                      setIsUploadOpen(true);
                     }
                   }}
                   className="px-4 py-2 rounded border border-transparent hover:bg-bg-theme text-slate-400 hover:text-white transition text-xs font-mono cursor-pointer"
