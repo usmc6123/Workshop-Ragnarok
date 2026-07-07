@@ -2506,11 +2506,14 @@ app.post('/api/inventory/:id/adjust', (req, res) => {
 });
 
 app.post('/api/inventory/parse-invoice', async (req, res) => {
+  const requestId = Date.now().toString().slice(-6);
+  console.log(`[ParseInvoice ${requestId}] Received invoice parsing request.`);
   try {
     let base64Data = req.body.image;
     let mimeType = req.body.mimeType || 'image/jpeg';
     
     if (!base64Data) {
+      console.warn(`[ParseInvoice ${requestId}] Validation failed: No image data provided.`);
       return res.status(400).json({ error: 'Image data is required' });
     }
 
@@ -2520,7 +2523,15 @@ app.post('/api/inventory/parse-invoice', async (req, res) => {
       base64Data = parts[1];
     }
 
+    console.log(`[ParseInvoice ${requestId}] Image MIME type detected: ${mimeType}. Size: ${Math.round((base64Data.length * 0.75) / 1024)} KB.`);
+
     const { GoogleGenAI, Type } = require('@google/genai');
+    
+    if (!process.env.GEMINI_API_KEY) {
+      console.error(`[ParseInvoice ${requestId}] GEMINI_API_KEY environment variable is not defined.`);
+      return res.status(500).json({ error: 'Gemini API key is not configured on the server.' });
+    }
+
     const aiInventory = new GoogleGenAI({
       apiKey: process.env.GEMINI_API_KEY,
       httpOptions: {
@@ -2530,6 +2541,8 @@ app.post('/api/inventory/parse-invoice', async (req, res) => {
       }
     });
 
+    console.log(`[ParseInvoice ${requestId}] Sending request to Gemini (gemini-3.5-flash)...`);
+    const startTime = Date.now();
     const response = await aiInventory.models.generateContent({
       model: 'gemini-3.5-flash',
       contents: [
@@ -2583,23 +2596,31 @@ If the image is not a receipt or invoice, or if it is too blurry/unreadable to e
       }
     });
 
+    const duration = Date.now() - startTime;
+    console.log(`[ParseInvoice ${requestId}] Gemini responded in ${(duration / 1000).toFixed(2)}s.`);
+
     const text = response.text;
     if (!text) {
+      console.error(`[ParseInvoice ${requestId}] Empty response from Gemini.`);
       throw new Error('No text returned from Gemini API');
     }
 
+    console.log(`[ParseInvoice ${requestId}] Parsing response text:`, text.trim());
     const parsed = JSON.parse(text.trim());
     if (parsed.error) {
+      console.warn(`[ParseInvoice ${requestId}] Gemini returned structured error:`, parsed.error);
       return res.status(422).json({ error: parsed.error });
     }
 
     if (!parsed.line_items || parsed.line_items.length === 0) {
+      console.warn(`[ParseInvoice ${requestId}] No line items found in parsed response.`);
       return res.status(422).json({ error: "Could not find any line items on this receipt. Please ensure it is a clear picture of a receipt or invoice." });
     }
 
+    console.log(`[ParseInvoice ${requestId}] Successfully parsed ${parsed.line_items.length} line items from supplier: ${parsed.supplier_name}`);
     res.json(parsed);
   } catch (error) {
-    console.error('Invoice parsing error:', error);
+    console.error(`[ParseInvoice ${requestId}] Exception during invoice parsing:`, error);
     res.status(500).json({ error: error.message || 'Failed to parse invoice. Please make sure the image is a clear receipt and try again.' });
   }
 });

@@ -244,7 +244,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}, timeout?: number): Promise<T> {
   const base = getApiBase();
   const url = `${base}${path}`;
 
@@ -263,7 +263,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   };
 
   try {
-    const response = await fetchWithTimeout(url, mergedOptions);
+    const response = await fetchWithTimeout(url, mergedOptions, timeout);
     if (!response.ok) {
       throw new ApiError(`Server responded with status ${response.status}: ${response.statusText}`, false);
     }
@@ -272,6 +272,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     console.error('API request failed:', error);
     if (error instanceof ApiError) {
       throw error;
+    }
+    if (error.name === 'AbortError') {
+      throw new ApiError("The request timed out or was cancelled. Invoice parsing with Gemini can take 15-30 seconds — please try again with a clear photo.", false);
     }
     throw new ApiError(
       error.message || "Can't reach the manual server — make sure it's running on Roscoe or your LAN IP.",
@@ -1155,7 +1158,7 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image, mimeType })
-    });
+    }, 120000);
   },
 
   // --- WORK ORDER INTEGRATION ---
