@@ -107,6 +107,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
   const [selectedInventoryId, setSelectedInventoryId] = useState<string>('');
   const [dbStats, setDbStats] = useState<any>(null);
+  const [applyMarkup, setApplyMarkup] = useState(false);
 
   const fetchDbStats = async () => {
     try {
@@ -402,12 +403,17 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       return;
     }
 
+    const defaultMarkupPercent = shopSettings?.default_parts_markup || 0;
+    const finalChargedPrice = applyMarkup && !selectedInventoryId
+      ? Math.round(cost * (1 + defaultMarkupPercent / 100) * 100) / 100
+      : cost;
+
     setIsAddingPart(true);
     const payload = {
       part_name: partName,
       part_number: partNumber,
       quantity: qty,
-      unit_cost: cost,
+      unit_cost: finalChargedPrice,
       notes: partNotes,
       inventory_item_id: selectedInventoryId ? parseInt(selectedInventoryId, 10) : null
     };
@@ -420,6 +426,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       setPartUnitCost('');
       setPartNotes('');
       setSelectedInventoryId('');
+      setApplyMarkup(false);
       fetchJobParts(selectedJob.id);
       
       // Refresh inventory items dropdown so quantities are up-to-date
@@ -1419,10 +1426,12 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                             setPartNumber(item.part_number || '');
                             setPartUnitCost(item.sell_price?.toString() || '0');
                           }
+                          setApplyMarkup(false);
                         } else {
                           setPartName('');
                           setPartNumber('');
                           setPartUnitCost('');
+                          setApplyMarkup(false);
                         }
                       }}
                       className="w-full bg-surface-theme border border-border-theme rounded px-2.5 py-1.5 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
@@ -1479,6 +1488,24 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                         onChange={(e) => setPartUnitCost(e.target.value)}
                         className="w-full bg-surface-theme border border-border-theme rounded px-2.5 py-1.5 text-xs text-slate-202 focus:border-primary-theme focus:outline-none"
                       />
+                      {!selectedInventoryId && (
+                        <div className="flex flex-col gap-1">
+                          <label className="flex items-center gap-1.5 cursor-pointer select-none pt-0.5">
+                            <input
+                              type="checkbox"
+                              checked={applyMarkup}
+                              onChange={(e) => setApplyMarkup(e.target.checked)}
+                              className="w-3.5 h-3.5 rounded border-border-theme text-primary-theme focus:ring-0 focus:ring-offset-0 bg-surface-theme accent-primary-theme cursor-pointer"
+                            />
+                            <span className="text-[10px] text-slate-400 hover:text-slate-200 transition">Apply shop markup</span>
+                          </label>
+                          {applyMarkup && !isNaN(parseFloat(partUnitCost)) && parseFloat(partUnitCost) > 0 && (
+                            <div className="text-[10px] text-primary-theme font-mono leading-none">
+                              Cost: ${parseFloat(partUnitCost).toFixed(2)} → Charged: ${(parseFloat(partUnitCost) * (1 + (shopSettings?.default_parts_markup || 0) / 100)).toFixed(2)}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="md:col-span-2">
                       <button
