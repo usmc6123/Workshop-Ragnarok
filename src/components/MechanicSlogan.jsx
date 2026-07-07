@@ -50,7 +50,7 @@ export default function MechanicSlogan() {
   const longestLine = Math.max(...lines.map((l) => l.length));
   const fontSize = longestLine > 14 ? 155 : longestLine > 10 ? 195 : 245;
   const lineHeight = fontSize * 1.05;
-  const startY = 720 - ((lines.length - 1) * lineHeight) / 2;
+  const startY = 800 - ((lines.length - 1) * lineHeight) / 2;
 
   return (
     <div
