@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Vehicle, GarageItem, CategoryPage, ContentPage, PageResponse, Block } from '../types';
 import { api, getApiBase } from '../lib/api';
 import TreeView from './TreeView';
@@ -1258,7 +1259,7 @@ export default function ManualView({
       />
 
       {/* Nickname bookmark dialog */}
-      {showNicknameModal && (
+      {showNicknameModal && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
           <div className="w-full max-w-sm rounded-xl border border-[#1e2028] bg-[#13141a] text-slate-100 overflow-hidden shadow-2xl">
             <div className="bg-[#1a1c24] border-b border-[#1e2028] p-4 flex items-center gap-2">
@@ -1306,11 +1307,12 @@ export default function ManualView({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Save to Vehicle dialog modal */}
-      {showSaveToVehicleModal && (
+      {showSaveToVehicleModal && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in" id="save-to-vehicle-modal">
           <div className="w-full max-w-sm rounded-xl border border-[#1e2028] bg-[#13141a] text-slate-100 overflow-hidden shadow-2xl">
             <div className="bg-[#1a1c24] border-b border-[#1e2028] p-4 flex items-center gap-2">
@@ -1370,7 +1372,8 @@ export default function ManualView({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Prominent Search/Filter Style Overrides */}

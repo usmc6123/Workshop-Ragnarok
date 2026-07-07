@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Customer, CustomerVehicle, ServiceHistory, Vehicle, VehicleManual } from '../types';
 import { api } from '../lib/api';
 import { 
@@ -846,7 +847,7 @@ export default function VehiclesView({
       )}
 
       {/* Vehicle Register Dialog Modal */}
-      {isVehicleModalOpen && (
+      {isVehicleModalOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none">
           <div className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-xl border border-border-theme bg-surface-theme text-slate-100 overflow-hidden shadow-2xl">
             <div className="bg-bg-theme border-b border-border-theme px-5 py-4 flex items-center justify-between shrink-0">
@@ -1013,11 +1014,12 @@ export default function VehiclesView({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Service Entry Log Dialog Modal */}
-      {isServiceModalOpen && (
+      {isServiceModalOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none">
           <div className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-xl border border-border-theme bg-surface-theme text-slate-100 overflow-hidden shadow-2xl">
             <div className="bg-bg-theme border-b border-border-theme px-5 py-4 flex items-center justify-between shrink-0">
@@ -1134,7 +1136,8 @@ export default function VehiclesView({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

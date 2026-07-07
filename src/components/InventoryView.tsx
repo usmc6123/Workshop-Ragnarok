@@ -834,7 +834,7 @@ export default function InventoryView() {
       </div>
 
       {/* 5. Create Part Modal */}
-      {isAddOpen && (
+      {isAddOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none">
           <div className="bg-[#12131a] border border-border-theme/80 rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in text-left">
             <div className="px-6 py-4 bg-bg-theme/50 border-b border-border-theme/40 flex items-center justify-between">
@@ -1017,11 +1017,12 @@ export default function InventoryView() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 6. Edit Part Modal */}
-      {isEditOpen && activeItem && (
+      {isEditOpen && activeItem && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none">
           <div className="bg-[#12131a] border border-border-theme/80 rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in text-left">
             <div className="px-6 py-4 bg-bg-theme/50 border-b border-border-theme/40 flex items-center justify-between">
@@ -1198,11 +1199,12 @@ export default function InventoryView() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 7. Manual Stock Adjustment Modal */}
-      {isAdjustOpen && activeItem && (
+      {isAdjustOpen && activeItem && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none">
           <div className="bg-[#12131a] border border-border-theme/80 rounded-xl w-full max-w-sm shadow-2xl overflow-hidden animate-fade-in text-left">
             <div className="px-6 py-4 bg-bg-theme/50 border-b border-border-theme/40 flex items-center justify-between">
@@ -1295,11 +1297,12 @@ export default function InventoryView() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Upload Invoice Modal */}
-      {isUploadOpen && (
+      {isUploadOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none">
           <div className="bg-[#12131a] border border-border-theme/80 rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in text-left">
             <div className="px-6 py-4 bg-bg-theme/50 border-b border-border-theme/40 flex items-center justify-between">
@@ -1417,7 +1420,8 @@ export default function InventoryView() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Staging / Review Grid Modal */}

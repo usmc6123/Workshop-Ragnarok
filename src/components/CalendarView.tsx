@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Appointment, Customer, CustomerVehicle } from '../types';
 import { api } from '../lib/api';
 import { 
@@ -307,7 +308,7 @@ export default function CalendarView() {
       )}
 
       {/* Appointment Day Details & Form Modal */}
-      {isModalOpen && (
+      {isModalOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none">
           <div className="w-full max-w-4xl rounded-xl border border-border-theme bg-surface-theme text-slate-100 overflow-hidden shadow-2xl grid grid-cols-1 md:grid-cols-12">
             
@@ -502,7 +503,8 @@ export default function CalendarView() {
             </div>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

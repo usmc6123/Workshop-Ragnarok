@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ZoomIn, ZoomOut, Maximize, RotateCcw } from 'lucide-react';
 
 interface LightboxProps {
@@ -106,7 +107,7 @@ export default function Lightbox({ imageSrc, imageAlt, isOpen, onClose }: Lightb
     touchStartDist.current = null;
   };
 
-  return (
+  return createPortal(
     <div 
       className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-slate-950/98 p-4 md:p-6"
       id="lightbox-backdrop"
@@ -196,6 +197,7 @@ export default function Lightbox({ imageSrc, imageAlt, isOpen, onClose }: Lightb
           <span>Reset</span>
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

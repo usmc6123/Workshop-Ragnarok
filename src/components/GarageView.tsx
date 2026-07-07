@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { GarageVehicle, ServiceHistory, Vehicle, VehicleManual } from '../types';
 import { api } from '../lib/api';
 import { 
@@ -700,7 +701,7 @@ export default function GarageView({ onNavigateToBrowse, onSelectVehicle, refres
       )}
 
       {/* 4. Vehicle Dialog Modal */}
-      {isVehicleModalOpen && (
+      {isVehicleModalOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none">
           <div className="w-full max-w-lg rounded-xl border border-[#1e2028] bg-[#13141a] text-slate-100 overflow-hidden shadow-2xl">
             <div className="bg-[#1a1c24] border-b border-[#1e2028] px-5 py-4 flex items-center justify-between">
@@ -848,11 +849,12 @@ export default function GarageView({ onNavigateToBrowse, onSelectVehicle, refres
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 5. Service Entry Dialog Modal */}
-      {isServiceModalOpen && (
+      {isServiceModalOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none">
           <div className="w-full max-w-lg rounded-xl border border-[#1e2028] bg-[#13141a] text-slate-100 overflow-hidden shadow-2xl">
             <div className="bg-[#1a1c24] border-b border-[#1e2028] px-5 py-4 flex items-center justify-between">
@@ -966,7 +968,8 @@ export default function GarageView({ onNavigateToBrowse, onSelectVehicle, refres
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

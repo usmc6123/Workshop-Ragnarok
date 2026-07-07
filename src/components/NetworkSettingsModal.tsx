@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { getApiBase, setApiBase, fetchWithTimeout } from '../lib/api';
 import { Server, Wifi, WifiOff, X, Check, AlertTriangle, RefreshCw } from 'lucide-react';
 
@@ -66,7 +67,7 @@ export default function NetworkSettingsModal({ isOpen, onClose, onSave }: Networ
     onClose();
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-fade-in" id="settings-modal-overlay">
       <div 
         className="w-full max-w-md overflow-hidden rounded-xl border border-[#1e2028] bg-[#13141a] text-slate-100 shadow-2xl"
@@ -166,6 +167,7 @@ export default function NetworkSettingsModal({ isOpen, onClose, onSave }: Networ
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
