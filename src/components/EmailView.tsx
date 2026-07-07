@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Mail, Send, FileText, Plus, Trash2, Edit2, Search, Calendar, 
-  CheckCircle2, XCircle, Info, Loader2, RefreshCw, User, Eye, ArrowLeft, CheckSquare
+  CheckCircle2, XCircle, Info, Loader2, RefreshCw, User, Eye, ArrowLeft, CheckSquare,
+  Printer
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { Customer, EmailTemplate, EmailSent } from '../types';
@@ -47,6 +49,9 @@ export default function EmailView({
   const [templateName, setTemplateName] = useState('');
   const [templateSubject, setTemplateSubject] = useState('');
   const [templateBody, setTemplateBody] = useState('');
+
+  // Sent Log Detail Modal State
+  const [selectedLog, setSelectedLog] = useState<EmailSent | null>(null);
   
   // Status/Toast Banner
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -240,6 +245,14 @@ export default function EmailView({
     setTemplateBody(prev => prev + ` {{${placeholder}}}`);
   };
 
+  const handleCloseDetailModal = () => {
+    setSelectedLog(null);
+  };
+
+  const handlePrintEmail = () => {
+    window.print();
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 py-6" id="email-center-view">
       
@@ -398,14 +411,21 @@ export default function EmailView({
                       const formattedTime = new Date(log.sent_at).toLocaleString();
                       
                       return (
-                        <tr key={log.id} className="hover:bg-white/[0.02] transition-colors">
+                        <tr 
+                          key={log.id} 
+                          onClick={() => setSelectedLog(log)}
+                          className="hover:bg-white/[0.02] transition-colors cursor-pointer"
+                        >
                           <td className="p-4 text-slate-400 text-[11px] whitespace-nowrap">{formattedTime}</td>
                           <td className="p-4 text-slate-200 font-bold font-sans text-xs">{log.to_email}</td>
                           <td className="p-4 text-slate-300 font-medium font-sans text-xs max-w-xs truncate">{log.subject}</td>
-                          <td className="p-4 whitespace-nowrap">
+                          <td className="p-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                             {log.to_customer_id ? (
                               <button
-                                onClick={() => onNavigateToCustomer && onNavigateToCustomer(log.to_customer_id!)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onNavigateToCustomer && onNavigateToCustomer(log.to_customer_id!);
+                                }}
                                 className="text-amber-500 hover:text-amber-400 font-bold hover:underline flex items-center gap-1 cursor-pointer bg-transparent border-none p-0 text-left"
                               >
                                 <User className="w-3.5 h-3.5" />
@@ -797,6 +817,160 @@ export default function EmailView({
 
             </form>
           </div>
+        </div>
+      )}
+
+      {/* SENT EMAIL DETAIL MODAL */}
+      {selectedLog && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="sent-email-detail-modal">
+          <div className="bg-[#13141a] border border-[#1e2028] rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col">
+            
+            {/* Modal Header */}
+            <div className="p-5 border-b border-[#1e2028] flex justify-between items-center bg-[#0c0d12]/40 select-none">
+              <h2 className="text-xs font-black uppercase tracking-widest text-slate-200 font-mono flex items-center gap-1.5">
+                <Mail className="w-4 h-4 text-amber-500" />
+                Outbound Email Log Details
+              </h2>
+              <button
+                onClick={handleCloseDetailModal}
+                className="text-slate-400 hover:text-white transition p-1.5 hover:bg-slate-800 rounded-lg cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh]">
+              
+              {/* Metadata Details */}
+              <div className="bg-[#0c0d12]/60 border border-[#1e2028] rounded-xl p-4 space-y-3 font-mono text-xs text-slate-300">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase block">Subject Header</span>
+                    <span className="text-slate-200 font-sans font-bold text-sm block mt-0.5">{selectedLog.subject}</span>
+                  </div>
+                  <div className="flex justify-end items-start gap-2">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                      selectedLog.status === 'sent' 
+                        ? 'bg-emerald-950/55 text-emerald-400 border border-emerald-500/20' 
+                        : 'bg-rose-950/55 text-rose-400 border border-rose-500/20'
+                    }`}>
+                      {selectedLog.status === 'sent' ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <XCircle className="w-3 h-3 text-rose-400" />}
+                      <span>{selectedLog.status}</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-[#1e2028]/60">
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase block">Recipient Destination</span>
+                    <span className="text-slate-200 font-sans font-bold block mt-0.5">{selectedLog.to_email}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase block">Associated Customer</span>
+                    {selectedLog.to_customer_id ? (
+                      <button
+                        onClick={() => {
+                          onNavigateToCustomer && onNavigateToCustomer(selectedLog.to_customer_id!);
+                          handleCloseDetailModal();
+                        }}
+                        className="text-amber-500 hover:text-amber-400 font-bold hover:underline flex items-center gap-1 mt-0.5 cursor-pointer bg-transparent border-none p-0 text-left font-sans text-xs"
+                      >
+                        <User className="w-3.5 h-3.5" />
+                        <span>{selectedLog.customer_name || `ID #${selectedLog.to_customer_id}`}</span>
+                      </button>
+                    ) : (
+                      <span className="text-slate-500 block mt-0.5">None</span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase block">Dispatched Timestamp</span>
+                    <span className="text-slate-400 block mt-0.5">{new Date(selectedLog.sent_at).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Rendered HTML Body Preview Section */}
+              <div className="space-y-1.5">
+                <span className="block text-[10px] font-mono uppercase text-slate-400">
+                  Rendered Email Body Message
+                </span>
+                <div className="bg-white text-slate-800 p-6 rounded-xl border border-slate-200 shadow-inner overflow-y-auto max-h-[42vh] font-sans">
+                  <div 
+                    className="email-rendered-body"
+                    dangerouslySetInnerHTML={{ __html: selectedLog.body }} 
+                  />
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Footer Controls */}
+            <div className="p-5 border-t border-[#1e2028] bg-[#0c0d12]/20 flex justify-between items-center select-none">
+              <button
+                type="button"
+                onClick={handlePrintEmail}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-mono font-bold text-xs uppercase tracking-wider py-2.5 px-5 rounded-lg transition active:scale-95 flex items-center gap-1.5 shadow-md shadow-amber-500/10 cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print Email</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCloseDetailModal}
+                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs rounded-lg transition border border-transparent hover:border-[#2d303f] cursor-pointer"
+              >
+                Close Details
+              </button>
+            </div>
+
+          </div>
+
+          {/* PRINT MEDIA STYLES */}
+          <style>{`
+            @media print {
+              body > *:not(#print-only-email-content) {
+                display: none !important;
+              }
+              #print-only-email-content {
+                display: block !important;
+              }
+              tr {
+                page-break-inside: avoid !important;
+              }
+            }
+          `}</style>
+
+          {/* Print only content portal */}
+          {createPortal(
+            <div id="print-only-email-content" style={{ display: 'none' }}>
+              <div style={{ padding: '40px', fontFamily: 'system-ui, -apple-system, sans-serif', color: '#1e293b', backgroundColor: '#ffffff' }}>
+                <div style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '20px', marginBottom: '30px' }}>
+                  <h1 style={{ fontSize: '26px', fontWeight: 800, margin: '0 0 12px 0', color: '#0f172a', letterSpacing: '-0.025em' }}>
+                    {selectedLog.subject}
+                  </h1>
+                  <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '8px', fontSize: '14px', color: '#475569' }}>
+                    <span style={{ fontWeight: '600', color: '#0f172a' }}>Recipient:</span>
+                    <span>{selectedLog.to_email} {selectedLog.customer_name ? `(${selectedLog.customer_name})` : ''}</span>
+                    
+                    <span style={{ fontWeight: '600', color: '#0f172a' }}>Sent Date:</span>
+                    <span>{new Date(selectedLog.sent_at).toLocaleString()}</span>
+                    
+                    <span style={{ fontWeight: '600', color: '#0f172a' }}>Status:</span>
+                    <span style={{ textTransform: 'uppercase', fontWeight: 'bold', color: selectedLog.status === 'sent' ? '#16a34a' : '#dc2626' }}>
+                      {selectedLog.status}
+                    </span>
+                  </div>
+                </div>
+                <div 
+                  style={{ fontSize: '15px', lineHeight: '1.6', color: '#334155' }}
+                  dangerouslySetInnerHTML={{ __html: selectedLog.body }} 
+                />
+              </div>
+            </div>,
+            document.body
+          )}
         </div>
       )}
 
