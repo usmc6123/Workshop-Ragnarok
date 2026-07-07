@@ -6,6 +6,7 @@ import {
   Car, Plus, Search, Edit2, Trash2, ArrowLeft, BookOpen, Calendar, 
   Milestone, User, Phone, Mail, Package, Wrench, X, Info, ClipboardList
 } from 'lucide-react';
+import VehiclesHeaderVideo from './VehiclesHeaderVideo';
 
 interface VehiclesViewProps {
   onNavigateToManualWithSearch: (make: string, year: string, model: string) => void;
@@ -395,27 +396,76 @@ export default function VehiclesView({
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 py-6" id="vehicles-view-container">
       
-      {/* Header Row */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border-theme pb-4">
-        <div>
-          <h1 className="text-xl md:text-2xl font-black text-slate-100 uppercase tracking-wider flex items-center gap-2">
-            <Car className="w-5 h-5 text-primary-theme" />
-            Vehicles Inventory
-          </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Track customer vehicles, maintain service logs, and quickly map manuals.
-          </p>
-        </div>
-
-        <button
-          onClick={() => openVehicleModal()}
-          className="bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-bold rounded-lg px-4 py-2 text-xs uppercase tracking-wider flex items-center gap-1.5 transition shadow self-start md:self-center cursor-pointer"
-          id="btn-add-vehicle"
+      {!selectedVehicle ? (
+        /* Unified Header Zone with video background */
+        <div 
+          className="relative overflow-hidden rounded-2xl border border-[#1e2028] bg-[#0c0d12]/50 p-6 md:p-8 shadow-2xl"
+          id="vehicles-video-header-zone"
         >
-          <Plus className="w-4 h-4" />
-          <span>Register Vehicle</span>
-        </button>
-      </div>
+          {/* Video Background */}
+          <VehiclesHeaderVideo sources={['/vehicle-calm.mp4', '/vehicle-run.mp4']} />
+          
+          {/* Content layered on top with z-index */}
+          <div className="relative z-10 space-y-6">
+            {/* Header Row */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#1e2028]/60 pb-5">
+              <div>
+                <h1 className="text-xl md:text-2xl font-black text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                  <Car className="w-5 h-5 text-primary-theme" />
+                  Vehicles Inventory
+                </h1>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Track customer vehicles, maintain service logs, and quickly map manuals.
+                </p>
+              </div>
+
+              <button
+                onClick={() => openVehicleModal()}
+                className="bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-bold rounded-lg px-4 py-2 text-xs uppercase tracking-wider flex items-center gap-1.5 transition shadow self-start md:self-center cursor-pointer"
+                id="btn-add-vehicle"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Register Vehicle</span>
+              </button>
+            </div>
+
+            {/* Search Bar */}
+            <div className="relative max-w-md select-none">
+              <input
+                type="text"
+                placeholder="Search by make, model, year, or owner..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full rounded-lg bg-surface-theme/80 backdrop-blur-sm border border-border-theme focus:border-primary-theme pl-10 pr-4 py-2.5 text-xs text-text-theme placeholder-slate-500 focus:outline-none transition"
+                id="vehicle-search-input"
+              />
+              <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Normal Header Row when viewing individual vehicle details */
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border-theme pb-4">
+          <div>
+            <h1 className="text-xl md:text-2xl font-black text-slate-100 uppercase tracking-wider flex items-center gap-2">
+              <Car className="w-5 h-5 text-primary-theme" />
+              Vehicles Inventory
+            </h1>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Track customer vehicles, maintain service logs, and quickly map manuals.
+            </p>
+          </div>
+
+          <button
+            onClick={() => openVehicleModal()}
+            className="bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-bold rounded-lg px-4 py-2 text-xs uppercase tracking-wider flex items-center gap-1.5 transition shadow self-start md:self-center cursor-pointer"
+            id="btn-add-vehicle"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Register Vehicle</span>
+          </button>
+        </div>
+      )}
 
       {loading && vehicles.length === 0 ? (
         <div className="py-24 flex flex-col items-center justify-center space-y-3">
@@ -425,17 +475,6 @@ export default function VehiclesView({
       ) : !selectedVehicle ? (
         // TABLE/LIST OF ALL VEHICLES
         <div className="space-y-4">
-          <div className="relative max-w-md select-none">
-            <input
-              type="text"
-              placeholder="Search by make, model, year, or owner..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full rounded-lg bg-surface-theme border border-border-theme focus:border-primary-theme pl-10 pr-4 py-2 text-xs text-text-theme placeholder-slate-500 focus:outline-none transition"
-              id="vehicle-search-input"
-            />
-            <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-500" />
-          </div>
 
           {filteredVehicles.length === 0 ? (
             <div className="py-16 text-center border border-dashed border-border-theme rounded-xl bg-surface-theme/10 max-w-xl mx-auto">
