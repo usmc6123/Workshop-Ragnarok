@@ -28,7 +28,7 @@ if (!fs.existsSync(dbDir)) {
 
 // Enable CORS and JSON parsing
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Apply auth middleware to all API routes
 const { authMiddleware, adminOnly } = require('./middleware/authMiddleware');
@@ -2502,6 +2502,105 @@ app.post('/api/inventory/:id/adjust', (req, res) => {
   } catch (error) {
     console.error('Error adjusting inventory:', error);
     res.status(500).json({ error: 'Database error adjusting inventory' });
+  }
+});
+
+app.post('/api/inventory/parse-invoice', async (req, res) => {
+  try {
+    let base64Data = req.body.image;
+    let mimeType = req.body.mimeType || 'image/jpeg';
+    
+    if (!base64Data) {
+      return res.status(400).json({ error: 'Image data is required' });
+    }
+
+    if (base64Data.includes(';base64,')) {
+      const parts = base64Data.split(';base64,');
+      mimeType = parts[0].replace('data:', '').split(';')[0];
+      base64Data = parts[1];
+    }
+
+    const { GoogleGenAI, Type } = require('@google/genai');
+    const aiInventory = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+
+    const response = await aiInventory.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: [
+        {
+          inlineData: {
+            mimeType: mimeType,
+            data: base64Data
+          }
+        },
+        {
+          text: `You are an expert invoice and receipt parsing assistant.
+Analyze this invoice or receipt image and extract every line item/purchased part as a structured JSON.
+
+Ensure that:
+1. "supplier_name": Extract the business/supplier/seller name from the top header of the receipt. If not visible or unclear, use null.
+2. "date": Extract the date of purchase. Format it as YYYY-MM-DD. If not visible or unclear, use null.
+3. "line_items": An array of each part or item listed in the transaction. Each line item MUST have:
+   - "name": Cleaned up, descriptive, friendly name of the part/item. For example, simplify cryptic codes but keep key words (e.g. "Brake Pads Front Ceramic" instead of "K772 BRK PAD CER").
+   - "part_number": The SKU, product ID, or part number if visible (or null if not visible).
+   - "quantity": The number of units purchased (decimal or integer). If not listed, default to 1.
+   - "unit_price": The cost/price per single unit (a decimal number). If not listed, calculate it from total_price / quantity or use total_price.
+   - "total_price": The total price for this line (a decimal number).
+
+If the image is not a receipt or invoice, or if it is too blurry/unreadable to extract any items, please return an object with an "error" property containing a helpful message or fail the parsing request. Otherwise, return exactly the JSON specified.`
+        }
+      ],
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            supplier_name: { type: Type.STRING, description: "The supplier/store name" },
+            date: { type: Type.STRING, description: "The date of purchase in YYYY-MM-DD format, or null" },
+            line_items: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING },
+                  part_number: { type: Type.STRING },
+                  quantity: { type: Type.NUMBER },
+                  unit_price: { type: Type.NUMBER },
+                  total_price: { type: Type.NUMBER }
+                },
+                required: ['name', 'quantity', 'unit_price', 'total_price']
+              }
+            }
+          },
+          required: ['line_items']
+        }
+      }
+    });
+
+    const text = response.text;
+    if (!text) {
+      throw new Error('No text returned from Gemini API');
+    }
+
+    const parsed = JSON.parse(text.trim());
+    if (parsed.error) {
+      return res.status(422).json({ error: parsed.error });
+    }
+
+    if (!parsed.line_items || parsed.line_items.length === 0) {
+      return res.status(422).json({ error: "Could not find any line items on this receipt. Please ensure it is a clear picture of a receipt or invoice." });
+    }
+
+    res.json(parsed);
+  } catch (error) {
+    console.error('Invoice parsing error:', error);
+    res.status(500).json({ error: error.message || 'Failed to parse invoice. Please make sure the image is a clear receipt and try again.' });
   }
 });
 

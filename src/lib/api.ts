@@ -1150,6 +1150,14 @@ export const api = {
     });
   },
 
+  async parseInvoice(image: string, mimeType?: string): Promise<{ supplier_name: string | null; date: string | null; line_items: Array<{ name: string; part_number: string | null; quantity: number; unit_price: number; total_price: number }> }> {
+    return await request<any>('/api/inventory/parse-invoice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image, mimeType })
+    });
+  },
+
   // --- WORK ORDER INTEGRATION ---
   async getJobParts(jobId: number): Promise<any[]> {
     const raw = await request<any[]>(`/api/jobs/${jobId}/parts`);

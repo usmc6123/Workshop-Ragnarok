@@ -4,8 +4,22 @@ import { InventoryItem } from '../types';
 import { 
   Search, Plus, Edit2, Trash2, Sliders, AlertTriangle, 
   TrendingUp, Layers, DollarSign, MapPin, Package, RotateCcw,
-  CheckCircle, ArrowDown, ArrowUp, RefreshCw, X, AlertCircle
+  CheckCircle, ArrowDown, ArrowUp, RefreshCw, X, AlertCircle,
+  Upload, Camera
 } from 'lucide-react';
+
+interface ReviewItem {
+  id: string;
+  name: string;
+  part_number: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  sell_price: number;
+  category: string;
+  action: 'create' | 'update';
+  selectedItemId: number | null;
+}
 
 const CATEGORIES = [
   { id: 'all', label: 'All Categories' },
@@ -49,6 +63,37 @@ export default function InventoryView() {
   // Adjustment form states
   const [adjustDelta, setAdjustDelta] = useState(1);
   const [adjustReason, setAdjustReason] = useState('manual correction');
+
+  // Invoice Upload & Review States
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+  const [isParsing, setIsParsing] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [invoiceSupplier, setInvoiceSupplier] = useState('');
+  const [invoiceDate, setInvoiceDate] = useState('');
+  const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+
+  const findMatchingItem = (itemName: string, itemPart: string | null) => {
+    if (!itemName) return null;
+    const cleanName = itemName.toLowerCase().trim();
+    const cleanPart = itemPart?.toLowerCase().trim();
+    
+    if (cleanPart) {
+      const match = items.find(i => i.part_number && i.part_number.toLowerCase().trim() === cleanPart);
+      if (match) return match;
+    }
+    
+    const exactMatch = items.find(i => i.name.toLowerCase().trim() === cleanName);
+    if (exactMatch) return exactMatch;
+    
+    const partialMatch = items.find(i => i.name.toLowerCase().includes(cleanName) || cleanName.includes(i.name.toLowerCase()));
+    if (partialMatch) return partialMatch;
+    
+    return null;
+  };
 
   useEffect(() => {
     fetchInventory();
@@ -185,6 +230,130 @@ export default function InventoryView() {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setUploadError(null);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setUploadPreview(reader.result as string);
+    };
+    reader.onerror = () => {
+      setUploadError("Failed to read the selected file.");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+      setUploadError("Please drop an image file (PNG/JPG/WEBP).");
+      return;
+    }
+    
+    setUploadError(null);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setUploadPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleParseInvoice = async () => {
+    if (!uploadPreview) {
+      setUploadError("Please select or capture an invoice image first.");
+      return;
+    }
+    setIsParsing(true);
+    setUploadError(null);
+    try {
+      const parsed = await api.parseInvoice(uploadPreview);
+      setInvoiceSupplier(parsed.supplier_name || '');
+      setInvoiceDate(parsed.date || new Date().toISOString().split('T')[0]);
+      
+      const mappedReviewItems: ReviewItem[] = parsed.line_items.map((pi, idx) => {
+        const matched = findMatchingItem(pi.name, pi.part_number);
+        const defaultSell = pi.unit_price ? Math.round(pi.unit_price * 1.5 * 100) / 100 : 0;
+        return {
+          id: `review-${idx}-${Date.now()}`,
+          name: pi.name || '',
+          part_number: pi.part_number || '',
+          quantity: typeof pi.quantity === 'number' ? pi.quantity : 1,
+          unit_price: typeof pi.unit_price === 'number' ? pi.unit_price : 0,
+          total_price: typeof pi.total_price === 'number' ? pi.total_price : 0,
+          sell_price: defaultSell,
+          category: matched ? matched.category : 'other',
+          action: matched ? 'update' : 'create',
+          selectedItemId: matched ? matched.id : null
+        };
+      });
+      
+      setReviewItems(mappedReviewItems);
+      setIsUploadOpen(false);
+      setIsReviewOpen(true);
+    } catch (err: any) {
+      console.error(err);
+      setUploadError(err.message || "Failed to parse the invoice. Please ensure it is a clear receipt/invoice photo.");
+    } finally {
+      setIsParsing(false);
+    }
+  };
+
+  const handleImportInvoice = async () => {
+    setIsImporting(true);
+    try {
+      for (const rItem of reviewItems) {
+        if (rItem.action === 'create') {
+          const newItem = await api.createInventoryItem({
+            name: rItem.name,
+            part_number: rItem.part_number,
+            category: rItem.category as any,
+            quantity_on_hand: 0,
+            cost_price: rItem.unit_price,
+            sell_price: rItem.sell_price,
+            supplier_name: invoiceSupplier,
+            notes: `Imported via invoice parse on ${invoiceDate || new Date().toLocaleDateString()}`
+          });
+          await api.adjustInventoryItem(newItem.id, rItem.quantity, 'Invoice import');
+        } else {
+          if (rItem.selectedItemId) {
+            const existing = items.find(i => i.id === rItem.selectedItemId);
+            if (existing) {
+              await api.updateInventoryItem(existing.id, {
+                ...existing,
+                name: rItem.name || existing.name,
+                part_number: rItem.part_number || existing.part_number,
+                cost_price: rItem.unit_price,
+                sell_price: rItem.sell_price,
+                supplier_name: invoiceSupplier || existing.supplier_name,
+                category: rItem.category as any || existing.category
+              });
+            }
+            await api.adjustInventoryItem(rItem.selectedItemId, rItem.quantity, 'Invoice import');
+          }
+        }
+      }
+      setIsReviewOpen(false);
+      setUploadPreview(null);
+      setReviewItems([]);
+      fetchInventory();
+      alert(`Invoice imported successfully! Added/adjusted ${reviewItems.length} items.`);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "An error occurred during invoice importing.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   // Stats Calculations
   const totalItems = items.length;
   const lowStockItems = items.filter(item => item.quantity_on_hand <= item.reorder_threshold).length;
@@ -205,14 +374,28 @@ export default function InventoryView() {
             Real-time workshop supply, reorder management, and job-order stock tracking
           </p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-mono font-bold text-xs rounded-lg transition active:scale-95 shadow-md"
-          id="btn-add-inventory"
-        >
-          <Plus className="w-4 h-4 shrink-0" />
-          Add Part to Stock
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => {
+              setUploadPreview(null);
+              setUploadError(null);
+              setIsUploadOpen(true);
+            }}
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-500 font-mono font-bold text-xs rounded-lg border border-amber-500/20 transition active:scale-95 shadow-md cursor-pointer"
+            id="btn-upload-invoice"
+          >
+            <Upload className="w-4 h-4 shrink-0 text-amber-500" />
+            Upload Invoice
+          </button>
+          <button
+            onClick={openAddModal}
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-mono font-bold text-xs rounded-lg transition active:scale-95 shadow-md cursor-pointer"
+            id="btn-add-inventory"
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            Add Part to Stock
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -941,6 +1124,406 @@ export default function InventoryView() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Invoice Modal */}
+      {isUploadOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none">
+          <div className="bg-[#12131a] border border-border-theme/80 rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in text-left">
+            <div className="px-6 py-4 bg-bg-theme/50 border-b border-border-theme/40 flex items-center justify-between">
+              <h2 className="text-sm font-black font-mono tracking-wider uppercase text-white flex items-center gap-2">
+                <Upload className="w-4 h-4 text-amber-500" />
+                Upload Invoice / Receipt
+              </h2>
+              <button 
+                onClick={() => setIsUploadOpen(false)}
+                className="text-slate-400 hover:text-white transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              {uploadError && (
+                <div className="p-3.5 bg-red-950/20 border border-red-800/40 text-red-400 rounded-lg text-xs font-mono flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                  <span>{uploadError}</span>
+                </div>
+              )}
+
+              {/* Drag and Drop Zone */}
+              {!uploadPreview ? (
+                <div 
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  className="border-2 border-dashed border-border-theme/40 hover:border-amber-500/40 rounded-xl p-8 flex flex-col items-center justify-center text-center gap-4 transition bg-bg-theme/20 hover:bg-bg-theme/30 cursor-pointer relative"
+                >
+                  <div className="p-4 bg-amber-500/10 rounded-full text-amber-500 border border-amber-500/10">
+                    <Upload className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-mono text-white font-bold">Drag & drop your invoice photo here</p>
+                    <p className="text-[10px] font-mono text-slate-500">Supports PNG, JPG, JPEG, WEBP</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <label className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-mono font-bold text-[10px] rounded cursor-pointer transition active:scale-95 shadow-md">
+                      Browse Files
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handleFileChange} 
+                        className="hidden" 
+                      />
+                    </label>
+                    <label className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-500 border border-amber-500/20 font-mono font-bold text-[10px] rounded cursor-pointer transition active:scale-95 flex items-center gap-1">
+                      <Camera className="w-3 h-3 shrink-0" />
+                      Take Photo
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        capture="environment" 
+                        onChange={handleFileChange} 
+                        className="hidden" 
+                      />
+                    </label>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="relative border border-border-theme/40 rounded-xl overflow-hidden bg-black/40 h-64 flex items-center justify-center">
+                    <img 
+                      src={uploadPreview} 
+                      alt="Invoice Preview" 
+                      className="max-h-full max-w-full object-contain"
+                    />
+                    <button
+                      onClick={() => setUploadPreview(null)}
+                      className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-full transition"
+                      title="Remove image"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                    <span>Image ready for parsing</span>
+                    <button 
+                      onClick={() => setUploadPreview(null)}
+                      className="text-amber-500 hover:underline"
+                    >
+                      Choose another file
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 border-t border-border-theme/40 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsUploadOpen(false)}
+                  className="px-4 py-2 rounded border border-border-theme/60 hover:bg-bg-theme text-slate-400 hover:text-white transition text-xs font-mono"
+                  disabled={isParsing}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleParseInvoice}
+                  disabled={!uploadPreview || isParsing}
+                  className="px-4 py-2 rounded bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-500 text-slate-950 font-mono font-bold text-xs transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  {isParsing ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Parsing with Gemini...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Parse Invoice
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Staging / Review Grid Modal */}
+      {isReviewOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs select-none overflow-y-auto">
+          <div className="bg-[#12131a] border border-border-theme/80 rounded-xl w-full max-w-6xl shadow-2xl overflow-hidden animate-fade-in text-left my-8">
+            <div className="px-6 py-4 bg-bg-theme/50 border-b border-border-theme/40 flex items-center justify-between">
+              <h2 className="text-sm font-black font-mono tracking-wider uppercase text-white flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-400" />
+                Review Parsed Invoice Items
+              </h2>
+              <button 
+                onClick={() => {
+                  if (window.confirm("Are you sure you want to cancel? All parsed line items will be lost.")) {
+                    setIsReviewOpen(false);
+                  }
+                }}
+                className="text-slate-400 hover:text-white transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+              {/* Receipt Metadata Editor */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-bg-theme/30 p-4 rounded-xl border border-border-theme/20">
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">Supplier Name</label>
+                  <input
+                    type="text"
+                    value={invoiceSupplier}
+                    onChange={(e) => setInvoiceSupplier(e.target.value)}
+                    placeholder="Supplier name"
+                    className="w-full bg-[#12131a] border border-border-theme/40 text-white px-3 py-2 rounded font-mono text-xs focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">Invoice Date</label>
+                  <input
+                    type="date"
+                    value={invoiceDate}
+                    onChange={(e) => setInvoiceDate(e.target.value)}
+                    className="w-full bg-[#12131a] border border-border-theme/40 text-white px-3 py-2 rounded font-mono text-xs focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Items Staging Table */}
+              <div className="border border-border-theme/20 rounded-xl overflow-hidden bg-[#12131a]">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-bg-theme/50 border-b border-border-theme/30 text-[9px] font-mono uppercase font-black text-slate-400 tracking-wider">
+                        <th className="py-3 px-4 w-1/3">Part Name & Part Number</th>
+                        <th className="py-3 px-4">Category</th>
+                        <th className="py-3 px-4 w-20">Quantity</th>
+                        <th className="py-3 px-4 w-24">Unit Cost ($)</th>
+                        <th className="py-3 px-4 w-24">Sell Price ($)</th>
+                        <th className="py-3 px-4">Total Cost</th>
+                        <th className="py-3 px-4 w-1/4">Import Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-theme/20 text-xs font-mono">
+                      {reviewItems.map((item, index) => {
+                        const totalCost = (item.quantity * item.unit_price) || 0;
+                        return (
+                          <tr key={item.id} className="hover:bg-bg-theme/10 transition">
+                            {/* Name & Part Number */}
+                            <td className="py-3 px-4 space-y-1.5">
+                              <input
+                                type="text"
+                                value={item.name}
+                                onChange={(e) => {
+                                  const updated = [...reviewItems];
+                                  updated[index].name = e.target.value;
+                                  setReviewItems(updated);
+                                }}
+                                className="w-full bg-bg-theme/40 border border-border-theme/20 text-white px-2 py-1 rounded text-xs focus:outline-none focus:border-amber-500"
+                              />
+                              <input
+                                type="text"
+                                value={item.part_number}
+                                placeholder="Part Number"
+                                onChange={(e) => {
+                                  const updated = [...reviewItems];
+                                  updated[index].part_number = e.target.value;
+                                  setReviewItems(updated);
+                                }}
+                                className="w-full bg-bg-theme/40 border border-border-theme/20 text-amber-500 font-bold px-2 py-0.5 rounded text-[10px] focus:outline-none focus:border-amber-500"
+                              />
+                            </td>
+
+                            {/* Category Select */}
+                            <td className="py-3 px-4">
+                              <select
+                                value={item.category}
+                                onChange={(e) => {
+                                  const updated = [...reviewItems];
+                                  updated[index].category = e.target.value;
+                                  setReviewItems(updated);
+                                }}
+                                className="bg-[#12131a] border border-border-theme/25 text-white px-1.5 py-1 rounded text-xs focus:outline-none focus:border-amber-500"
+                              >
+                                <option value="brakes">Brakes</option>
+                                <option value="filters">Filters</option>
+                                <option value="fluids">Fluids</option>
+                                <option value="electrical">Electrical</option>
+                                <option value="engine">Engine</option>
+                                <option value="other">Other</option>
+                              </select>
+                            </td>
+
+                            {/* Quantity */}
+                            <td className="py-3 px-4">
+                              <input
+                                type="number"
+                                min="1"
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const updated = [...reviewItems];
+                                  updated[index].quantity = Math.max(1, parseInt(e.target.value) || 1);
+                                  updated[index].total_price = updated[index].quantity * updated[index].unit_price;
+                                  setReviewItems(updated);
+                                }}
+                                className="w-16 bg-bg-theme/40 border border-border-theme/20 text-white px-2 py-1 rounded text-center text-xs focus:outline-none focus:border-amber-500"
+                              />
+                            </td>
+
+                            {/* Unit Cost */}
+                            <td className="py-3 px-4">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={item.unit_price}
+                                onChange={(e) => {
+                                  const updated = [...reviewItems];
+                                  updated[index].unit_price = Math.max(0, parseFloat(e.target.value) || 0);
+                                  updated[index].total_price = updated[index].quantity * updated[index].unit_price;
+                                  // Auto sell price recommendation
+                                  updated[index].sell_price = Math.round(updated[index].unit_price * 1.5 * 100) / 100;
+                                  setReviewItems(updated);
+                                }}
+                                className="w-20 bg-bg-theme/40 border border-border-theme/20 text-white px-2 py-1 rounded text-right text-xs focus:outline-none focus:border-amber-500"
+                              />
+                            </td>
+
+                            {/* Sell Price */}
+                            <td className="py-3 px-4">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={item.sell_price}
+                                onChange={(e) => {
+                                  const updated = [...reviewItems];
+                                  updated[index].sell_price = Math.max(0, parseFloat(e.target.value) || 0);
+                                  setReviewItems(updated);
+                                }}
+                                className="w-20 bg-bg-theme/40 border border-border-theme/20 text-emerald-400 font-bold px-2 py-1 rounded text-right text-xs focus:outline-none focus:border-amber-500"
+                              />
+                            </td>
+
+                            {/* Total Cost Display */}
+                            <td className="py-3 px-4 text-slate-300">
+                              ${totalCost.toFixed(2)}
+                            </td>
+
+                            {/* Import Action / Map Selector */}
+                            <td className="py-3 px-4 space-y-2">
+                              <select
+                                value={item.action}
+                                onChange={(e) => {
+                                  const val = e.target.value as 'create' | 'update';
+                                  const updated = [...reviewItems];
+                                  updated[index].action = val;
+                                  if (val === 'create') {
+                                    updated[index].selectedItemId = null;
+                                  } else {
+                                    const matched = findMatchingItem(item.name, item.part_number);
+                                    updated[index].selectedItemId = matched ? matched.id : (items[0]?.id || null);
+                                    if (matched) {
+                                      updated[index].category = matched.category;
+                                    }
+                                  }
+                                  setReviewItems(updated);
+                                }}
+                                className="w-full bg-[#12131a] border border-border-theme/30 text-white px-2 py-1.5 rounded text-xs focus:outline-none focus:border-amber-500 font-sans font-bold"
+                              >
+                                <option value="create">🆕 Create as new part</option>
+                                <option value="update">📥 Add to existing stock</option>
+                              </select>
+
+                              {item.action === 'update' && (
+                                <div className="space-y-1">
+                                  <label className="text-[9px] uppercase text-slate-500 font-sans tracking-wider block text-left">Select Matching Inventory Item:</label>
+                                  <select
+                                    value={item.selectedItemId || ''}
+                                    onChange={(e) => {
+                                      const updated = [...reviewItems];
+                                      const itemId = parseInt(e.target.value, 10);
+                                      updated[index].selectedItemId = itemId;
+                                      const mapped = items.find(i => i.id === itemId);
+                                      if (mapped) {
+                                        updated[index].category = mapped.category;
+                                      }
+                                      setReviewItems(updated);
+                                    }}
+                                    className="w-full bg-[#161722] border border-amber-500/30 text-amber-400 px-2 py-1 rounded text-[10px] focus:outline-none focus:border-amber-500"
+                                  >
+                                    <option value="" disabled>-- Choose Existing Part --</option>
+                                    {items.map(p => (
+                                      <option key={p.id} value={p.id}>
+                                        {p.name} {p.part_number ? `(${p.part_number})` : ''} - Stock: {p.quantity_on_hand}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between border-t border-border-theme/40 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm("Are you sure you want to go back? All staging review changes will be lost.")) {
+                      setIsReviewOpen(false);
+                      setIsUploadOpen(true);
+                    }
+                  }}
+                  className="px-4 py-2 rounded border border-border-theme/60 hover:bg-bg-theme text-slate-400 hover:text-white transition text-xs font-mono"
+                  disabled={isImporting}
+                >
+                  ← Back to Upload
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm("Are you sure you want to cancel? All parsed line items will be lost.")) {
+                        setIsReviewOpen(false);
+                      }
+                    }}
+                    className="px-4 py-2 rounded border border-transparent hover:bg-bg-theme text-slate-400 hover:text-white transition text-xs font-mono cursor-pointer"
+                    disabled={isImporting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleImportInvoice}
+                    disabled={isImporting}
+                    className="px-5 py-2.5 rounded bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-500 text-slate-950 font-mono font-black text-xs transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {isImporting ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        Importing Parts...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        Import {reviewItems.length} Selected to Inventory
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
