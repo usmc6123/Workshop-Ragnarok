@@ -12,7 +12,8 @@ import {
   ArrowLeft, Star, StarOff, Menu, X, ChevronRight, FolderPlus, 
   HelpCircle, Eye, AlertCircle, CheckCircle, RefreshCw, Compass, 
   CheckSquare, Square, Info, ShieldAlert, Wrench, Folder, ClipboardList, 
-  Sliders, Hammer, FileText, ZoomIn, ZoomOut, RotateCcw, RotateCw
+  Sliders, Hammer, FileText, ZoomIn, ZoomOut, RotateCcw, RotateCw,
+  Printer, Download
 } from 'lucide-react';
 
 interface LightboxProps {
@@ -60,6 +61,52 @@ function Lightbox({ imageSrc, imageAlt, isOpen, onClose }: LightboxProps) {
 
   const handleRotateLeft = () => setRotation((prev) => prev - 90);
   const handleRotateRight = () => setRotation((prev) => prev + 90);
+
+  const handlePrintImage = () => {
+    const win = window.open('', '_blank');
+    if (!win) {
+      alert("Print popup blocked! Please allow popups for this site.");
+      return;
+    }
+    win.document.write(`
+      <html>
+        <head>
+          <title>${imageAlt || 'Service Manual Diagram'}</title>
+          <style>
+            body { margin: 0; display: flex; align-items: center; justify-content: center; height: 100vh; background-color: #fff; }
+            img { max-width: 100%; max-height: 100%; object-fit: contain; }
+            @media print {
+              body { margin: 0; }
+              img { max-width: 100%; max-height: 100%; }
+            }
+          </style>
+        </head>
+        <body>
+          <img src="${imageSrc}" onload="window.print();" />
+        </body>
+      </html>
+    `);
+    win.document.close();
+  };
+
+  const handleDownloadImage = async () => {
+    try {
+      const res = await fetch(imageSrc);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      const safeAlt = (imageAlt || 'diagram').toLowerCase().replace(/[^a-z0-9]/g, '-');
+      a.download = `${safeAlt}-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      // Fallback
+      window.open(imageSrc, '_blank');
+    }
+  };
 
   // Drag/Pan handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -239,6 +286,28 @@ function Lightbox({ imageSrc, imageAlt, isOpen, onClose }: LightboxProps) {
           <RotateCcw className="w-4 h-4" />
           <span>Reset</span>
         </button>
+
+        <div className="w-px h-4 bg-slate-800" />
+
+        <button
+          onClick={handlePrintImage}
+          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-slate-800 transition-all flex items-center gap-1 text-xs font-mono font-medium"
+          title="Print Diagram"
+          aria-label="Print Diagram"
+        >
+          <Printer className="w-4 h-4" />
+          <span>Print</span>
+        </button>
+
+        <button
+          onClick={handleDownloadImage}
+          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-slate-800 transition-all flex items-center gap-1 text-xs font-mono font-medium"
+          title="Download Diagram"
+          aria-label="Download Diagram"
+        >
+          <Download className="w-4 h-4" />
+          <span>Download</span>
+        </button>
       </div>
     </div>
   );
@@ -305,6 +374,218 @@ export default function ManualView({
   const [savingToVehicle, setSavingToVehicle] = useState(false);
   const [selectedGarageVehicleId, setSelectedGarageVehicleId] = useState<number | ''>('');
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+
+  // Active page print & download logic
+  const activePageToHtml = (page: PageResponse, vehicleInfo: string): string => {
+    let contentHtml = '';
+    
+    if (page.pageType === 'content' && page.blocks && page.blocks.length > 0) {
+      page.blocks.forEach((block: any) => {
+        if (block.type === 'heading') {
+          contentHtml += `<h3 style="color: #f59e0b; font-size: 1.25rem; font-weight: 800; text-transform: uppercase; border-left: 3px solid #f59e0b; padding-left: 12px; margin-top: 24px; margin-bottom: 12px; font-family: sans-serif;">${block.text}</h3>`;
+        } else if (block.type === 'text' || block.type === 'paragraph') {
+          const text = block.text || '';
+          const parts = block.parts;
+          const fullText = parts ? parts.map((p: any) => p.text || '').join('') : text;
+          const hasTorque = /[\d.]+[\s]*(?:Nm|N-m|N·m|lb-ft|lb-in|foot-pounds|torque|spec)/i.test(fullText);
+          
+          let formattedText = '';
+          if (parts) {
+            parts.forEach((part: any) => {
+              formattedText += `<span>${part.text}</span>`;
+            });
+          } else {
+            formattedText = text;
+          }
+
+          const bgStyle = hasTorque ? 'background-color: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); padding: 12px; border-radius: 6px; font-weight: 600; font-family: monospace;' : '';
+          contentHtml += `<p style="font-size: 1rem; line-height: 1.6; color: #334155; margin-bottom: 12px; font-family: sans-serif; ${bgStyle}">${formattedText}</p>`;
+        } else if (block.type === 'step') {
+          const stepNumber = block.number !== undefined ? block.number : 1;
+          const stepText = block.text || '';
+          contentHtml += `
+            <div style="padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; border-left: 4px solid #f59e0b; display: flex; gap: 12px; margin-bottom: 12px; font-family: sans-serif; align-items: flex-start; background-color: #f8fafc;">
+              <div style="font-family: monospace; font-weight: bold; color: #f59e0b; background-color: rgba(245, 158, 11, 0.1); padding: 2px 6px; border-radius: 4px;">
+                ${String(stepNumber).padStart(2, '0')}
+              </div>
+              <div style="color: #1e293b; font-size: 1rem; line-height: 1.5;">${stepText}</div>
+            </div>
+          `;
+        } else if (block.type === 'steps') {
+          let itemsHtml = '';
+          if (block.items) {
+            block.items.forEach((item: string, sIdx: number) => {
+              itemsHtml += `
+                <div style="padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; gap: 12px; margin-bottom: 8px; font-family: sans-serif; align-items: flex-start;">
+                  <div style="font-family: monospace; font-weight: bold; color: #f59e0b; background-color: rgba(245, 158, 11, 0.1); padding: 2px 6px; border-radius: 4px;">
+                    ${String(sIdx + 1).padStart(2, '0')}
+                  </div>
+                  <div style="color: #1e293b; font-size: 1rem; line-height: 1.5;">${item}</div>
+                </div>
+              `;
+            });
+          }
+          contentHtml += `<div style="margin: 16px 0;">
+            <h4 style="font-size: 0.875rem; font-weight: bold; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; font-family: monospace; margin-bottom: 8px;">Repair Checklist Procedure</h4>
+            ${itemsHtml}
+          </div>`;
+        } else if (block.type === 'image') {
+          const apiBase = getApiBase();
+          const absoluteSrc = block.src.startsWith('http') ? block.src : `${apiBase}/api/image?src=${block.src}`;
+          contentHtml += `
+            <div style="text-align: center; margin: 24px 0; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px; background-color: #f8fafc;">
+              <img src="${absoluteSrc}" style="max-height: 500px; max-width: 100%; object-fit: contain; border-radius: 6px;" alt="${page.title}" />
+            </div>
+          `;
+        } else if (block.type === 'table') {
+          let rowsHtml = '';
+          const rows = block.rows || [];
+          rows.forEach((row: any[], rIdx: number) => {
+            let cellsHtml = '';
+            const hasHeaderCell = row.some((cell: any) => cell && cell.isHeader);
+            const isHeaderRow = hasHeaderCell;
+            
+            row.forEach((cell: any) => {
+              const isObj = cell && typeof cell === 'object';
+              const text = isObj ? cell.text : String(cell || '');
+              const isHeader = isObj ? !!cell.isHeader : false;
+              
+              if (isHeader || isHeaderRow) {
+                cellsHtml += `<th style="border: 1px solid #cbd5e1; padding: 12px; background-color: #f1f5f9; color: #0f172a; font-weight: bold; font-family: sans-serif; text-align: left; font-size: 0.875rem;">${text}</th>`;
+              } else {
+                cellsHtml += `<td style="border: 1px solid #cbd5e1; padding: 12px; color: #334155; font-family: sans-serif; font-size: 0.875rem;">${text}</td>`;
+              }
+            });
+            
+            rowsHtml += `<tr style="${rIdx % 2 === 0 ? 'background-color: #ffffff;' : 'background-color: #f8fafc;'}">${cellsHtml}</tr>`;
+          });
+          
+          contentHtml += `
+            <div style="overflow-x: auto; margin: 24px 0;">
+              <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1;">
+                <tbody>
+                  ${rowsHtml}
+                </tbody>
+              </table>
+            </div>
+          `;
+        }
+      });
+    } else {
+      contentHtml = '<p style="color: #64748b; font-style: italic; font-family: sans-serif;">This procedure manual page does not define rendering blocks.</p>';
+    }
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>${page.title}</title>
+        <style>
+          body {
+            font-family: Arial, Helvetica, sans-serif;
+            color: #1e293b;
+            line-height: 1.6;
+            padding: 40px;
+            max-width: 850px;
+            margin: 0 auto;
+          }
+          .header {
+            border-bottom: 2px solid #cbd5e1;
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+          }
+          .header h1 {
+            font-size: 1.75rem;
+            font-weight: 900;
+            color: #0f172a;
+            margin: 4px 0 0 0;
+            letter-spacing: -0.025em;
+          }
+          .header .meta {
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: #d97706;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+          }
+          .header .vehicle {
+            font-family: monospace;
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-top: 4px;
+          }
+          .footer {
+            margin-top: 40px;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 16px;
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            text-align: center;
+          }
+          @media print {
+            body {
+              padding: 20px;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="meta">Service Manual Document</div>
+          <h1>${page.title}</h1>
+          <div class="vehicle">${vehicleInfo}</div>
+        </div>
+        
+        <div class="content">
+          ${contentHtml}
+        </div>
+        
+        <div class="footer">
+          Printed via Cooper &amp; Roscoe Spec Manual Suite • ${new Date().toLocaleDateString()}
+        </div>
+      </body>
+      </html>
+    `;
+  };
+
+  const handlePrintPage = () => {
+    if (!activePage) return;
+    const vehicleInfo = `${vehicle.year} ${vehicle.make} ${vehicle.model} (${vehicle.engine})`;
+    const htmlContent = activePageToHtml(activePage, vehicleInfo);
+    
+    const win = window.open('', '_blank');
+    if (!win) {
+      alert("Print popup blocked! Please allow popups for this site.");
+      return;
+    }
+    
+    win.document.write(htmlContent);
+    win.document.close();
+    
+    win.onload = () => {
+      win.print();
+    };
+  };
+
+  const handleDownloadPage = () => {
+    if (!activePage) return;
+    const vehicleInfo = `${vehicle.year} ${vehicle.make} ${vehicle.model} (${vehicle.engine})`;
+    const htmlContent = activePageToHtml(activePage, vehicleInfo);
+    
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    const safeTitle = (activePage.title || 'manual-page').toLowerCase().replace(/[^a-z0-9]/g, '-');
+    a.download = `${safeTitle}-${Date.now()}.html`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objectUrl);
+  };
 
   const handleOpenSaveToVehicleModal = async () => {
     try {
@@ -912,13 +1193,33 @@ export default function ManualView({
                   
                   // 2B. Content rendering mode
                   <div className="space-y-6" id="procedure-reader-content">
-                    <div className="border-b border-[#1e2028] pb-4">
-                      <span className="text-[10px] text-amber-500 font-mono tracking-widest font-semibold uppercase">
-                        {vehicle.source.toUpperCase()} MANUAL • SERVICE DOCUMENT
-                      </span>
-                      <h2 className="text-xl md:text-2xl font-black text-slate-100 tracking-tight mt-1 leading-snug">
-                        {activePage.title}
-                      </h2>
+                    <div className="border-b border-[#1e2028] pb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div>
+                        <span className="text-[10px] text-amber-500 font-mono tracking-widest font-semibold uppercase">
+                          {vehicle.source.toUpperCase()} MANUAL • SERVICE DOCUMENT
+                        </span>
+                        <h2 className="text-xl md:text-2xl font-black text-slate-100 tracking-tight mt-1 leading-snug">
+                          {activePage.title}
+                        </h2>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={handlePrintPage}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#13141a] hover:bg-[#1e2028] border border-[#1e2028] text-slate-300 hover:text-white transition text-xs font-mono font-bold cursor-pointer"
+                          title="Print manual page"
+                        >
+                          <Printer className="w-3.5 h-3.5 text-amber-500" />
+                          <span>Print Page</span>
+                        </button>
+                        <button
+                          onClick={handleDownloadPage}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#13141a] hover:bg-[#1e2028] border border-[#1e2028] text-slate-300 hover:text-white transition text-xs font-mono font-bold cursor-pointer"
+                          title="Download manual page"
+                        >
+                          <Download className="w-3.5 h-3.5 text-amber-500" />
+                          <span>Download</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* Core Sequential Blocks */}
