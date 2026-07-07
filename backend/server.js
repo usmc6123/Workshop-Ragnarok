@@ -26,10 +26,141 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-// Enable CORS and JSON parsing
+// Enable CORS and JSON parsing with rawBody capture
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Inbound email webhook (Resend Svix) - placed before authMiddleware
+app.post('/api/webhooks/inbound-email', (req, res) => {
+  try {
+    const crypto = require('crypto');
+    const svixId = req.headers['svix-id'] || req.headers['Svix-Id'];
+    const svixTimestamp = req.headers['svix-timestamp'] || req.headers['Svix-Timestamp'];
+    const svixSignature = req.headers['svix-signature'] || req.headers['Svix-Signature'];
+
+    if (!svixId || !svixTimestamp || !svixSignature) {
+      console.warn('[Inbound Webhook] Missing svix headers');
+      return res.status(401).json({ error: 'Missing svix verification headers' });
+    }
+
+    const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      console.error('[Inbound Webhook] RESEND_WEBHOOK_SECRET environment variable is not defined.');
+      return res.status(500).json({ error: 'Webhook secret not configured' });
+    }
+
+    let secret = webhookSecret.trim();
+    if (secret.startsWith('whsec_')) {
+      secret = secret.substring(6);
+    }
+
+    let secretBuffer;
+    try {
+      secretBuffer = Buffer.from(secret, 'base64');
+    } catch (e) {
+      console.error('[Inbound Webhook] Failed to decode webhook secret from base64:', e);
+      return res.status(500).json({ error: 'Invalid secret format' });
+    }
+
+    // Check timestamp drift (5 minutes / 300 seconds)
+    const timestampSec = parseInt(svixTimestamp, 10);
+    const nowSec = Math.floor(Date.now() / 1000);
+    const tolerance = 300;
+    if (isNaN(timestampSec) || Math.abs(nowSec - timestampSec) > tolerance) {
+      console.warn(`[Inbound Webhook] Timestamp drift too large. Header: ${svixTimestamp}, Server: ${nowSec}`);
+      return res.status(401).json({ error: 'Timestamp tolerance exceeded' });
+    }
+
+    // Reconstruct raw body
+    const rawBodyString = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body);
+    const toSign = `${svixId}.${svixTimestamp}.${rawBodyString}`;
+
+    // Compute expected signature
+    const hmac = crypto.createHmac('sha256', secretBuffer);
+    hmac.update(toSign);
+    const expectedSignature = hmac.digest('base64');
+
+    // Split and compare
+    const passedSignatures = svixSignature.split(' ').map(sig => {
+      const parts = sig.split(',');
+      if (parts.length === 2 && parts[0] === 'v1') {
+        return parts[1];
+      }
+      return null;
+    }).filter(Boolean);
+
+    function safeCompare(a, b) {
+      if (typeof a !== 'string' || typeof b !== 'string') return false;
+      const bufA = Buffer.from(a);
+      const bufB = Buffer.from(b);
+      if (bufA.length !== bufB.length) return false;
+      return crypto.timingSafeEqual(bufA, bufB);
+    }
+
+    const verified = passedSignatures.some(sig => safeCompare(sig, expectedSignature));
+    if (!verified) {
+      console.warn('[Inbound Webhook] Signature verification failed');
+      return res.status(401).json({ error: 'Invalid webhook signature' });
+    }
+
+    // Process Resend inbound email payload
+    const payload = req.body;
+    const data = payload.data || payload;
+
+    const rawFrom = data.from || data.from_email || data.sender || '';
+    const subject = data.subject || '';
+    const body = data.text || data.body || data.html || '';
+    const receivedAt = data.received_at || data.receivedAt || data.created_at || new Date().toISOString();
+
+    // Helper to extract email from "Name <email>"
+    function extractEmailAddress(fromStr) {
+      if (!fromStr) return '';
+      const match = fromStr.match(/<([^>]+)>/);
+      if (match) {
+        return match[1].trim();
+      }
+      return fromStr.trim();
+    }
+
+    const fromEmail = extractEmailAddress(rawFrom);
+    if (!fromEmail) {
+      console.warn('[Inbound Webhook] Could not extract from email');
+      return res.json({ success: true, warning: 'No sender email found' });
+    }
+
+    // Find all matching customers to see who owns this sender email
+    const matchingCustomers = db.prepare('SELECT id, user_id FROM customers WHERE TRIM(LOWER(email)) = TRIM(LOWER(?))').all(fromEmail);
+
+    if (matchingCustomers.length > 0) {
+      const insertStmt = db.prepare(`
+        INSERT INTO emails_received (user_id, from_email, from_customer_id, subject, body, received_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+      for (const cust of matchingCustomers) {
+        insertStmt.run(cust.user_id, rawFrom, cust.id, subject, body, receivedAt);
+      }
+      console.log(`[Inbound Webhook] Stored inbound email from ${fromEmail} mapped to ${matchingCustomers.length} customers`);
+    } else {
+      // Unmatchable email - store with NULL user_id and from_customer_id
+      db.prepare(`
+        INSERT INTO emails_received (user_id, from_email, from_customer_id, subject, body, received_at)
+        VALUES (NULL, ?, NULL, ?, ?, ?)
+      `).run(rawFrom, subject, body, receivedAt);
+      console.log(`[Inbound Webhook] Stored unmapped inbound email from ${fromEmail}`);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Inbound Webhook] Error processing webhook:', err);
+    res.status(500).json({ error: 'Internal server error processing webhook' });
+  }
+});
 
 // Apply auth middleware to all API routes
 const { authMiddleware, adminOnly } = require('./middleware/authMiddleware');
@@ -233,7 +364,8 @@ try {
       tax_rate REAL DEFAULT 0,
       default_labor_rate REAL DEFAULT 0,
       zip_code TEXT,
-      default_parts_markup REAL DEFAULT 0
+      default_parts_markup REAL DEFAULT 0,
+      admin_notification_email TEXT
     )
   `);
 
@@ -283,7 +415,9 @@ try {
       notes TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      low_stock_threshold INTEGER DEFAULT 5,
+      low_stock_alert_sent INTEGER DEFAULT 0
     )
   `);
 
@@ -370,6 +504,19 @@ try {
     )
   `);
 
+  // Create Emails Received (Inbox) Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS emails_received (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      from_email TEXT NOT NULL,
+      from_customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      received_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Migrate columns for shop_settings table
   const shopSettingsCols = [
     { name: 'user_id', type: 'INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE' },
@@ -382,7 +529,8 @@ try {
     { name: 'tax_rate', type: 'REAL DEFAULT 0' },
     { name: 'default_labor_rate', type: 'REAL DEFAULT 0' },
     { name: 'zip_code', type: 'TEXT' },
-    { name: 'default_parts_markup', type: 'REAL DEFAULT 0' }
+    { name: 'default_parts_markup', type: 'REAL DEFAULT 0' },
+    { name: 'admin_notification_email', type: 'TEXT' }
   ];
   try {
     const columns = db.prepare('PRAGMA table_info(shop_settings)').all();
@@ -395,6 +543,24 @@ try {
     }
   } catch (err) {
     console.error('Error migrating shop_settings columns:', err);
+  }
+
+  // Migrate columns for inventory_items table
+  const inventoryItemsCols = [
+    { name: 'low_stock_threshold', type: 'INTEGER DEFAULT 5' },
+    { name: 'low_stock_alert_sent', type: 'INTEGER DEFAULT 0' }
+  ];
+  try {
+    const columns = db.prepare('PRAGMA table_info(inventory_items)').all();
+    for (const col of inventoryItemsCols) {
+      const hasCol = columns.some(c => c.name === col.name);
+      if (!hasCol) {
+        db.exec(`ALTER TABLE inventory_items ADD COLUMN ${col.name} ${col.type}`);
+        console.log(`Successfully migrated inventory_items to include ${col.name} column.`);
+      }
+    }
+  } catch (err) {
+    console.error('Error migrating inventory_items columns:', err);
   }
 
   // Migration: Ensure user_id column exists in all target tables
@@ -1723,10 +1889,10 @@ app.get('/api/shop-settings', (req, res) => {
     if (!settings) {
       // Create a default empty shop settings row for the user
       const stmt = db.prepare(`
-        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup, admin_notification_email)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(req.user.id, '', '', '', '', '', '', 0, 0, '', 0);
+      stmt.run(req.user.id, '', '', '', '', '', '', 0, 0, '', 0, '');
       settings = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(req.user.id);
     }
     res.json(settings);
@@ -1738,22 +1904,22 @@ app.get('/api/shop-settings', (req, res) => {
 
 app.put('/api/shop-settings', (req, res) => {
   try {
-    const { shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup } = req.body;
+    const { shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup, admin_notification_email } = req.body;
     
     const settings = db.prepare('SELECT id FROM shop_settings WHERE user_id = ?').get(req.user.id);
     if (!settings) {
       const stmt = db.prepare(`
-        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup, admin_notification_email)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(req.user.id, shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0);
+      stmt.run(req.user.id, shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, admin_notification_email || '');
     } else {
       const stmt = db.prepare(`
         UPDATE shop_settings
-        SET shop_name = ?, shop_address = ?, shop_city = ?, shop_state = ?, shop_phone = ?, shop_logo_url = ?, tax_rate = ?, default_labor_rate = ?, zip_code = ?, default_parts_markup = ?
+        SET shop_name = ?, shop_address = ?, shop_city = ?, shop_state = ?, shop_phone = ?, shop_logo_url = ?, tax_rate = ?, default_labor_rate = ?, zip_code = ?, default_parts_markup = ?, admin_notification_email = ?
         WHERE user_id = ?
       `);
-      stmt.run(shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, req.user.id);
+      stmt.run(shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, admin_notification_email || '', req.user.id);
     }
     
     const updated = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(req.user.id);
@@ -2195,6 +2361,9 @@ app.post('/api/jobs', (req, res) => {
       mileageVal, priorityVal, approvedVal, req.user.id
     );
     const inserted = db.prepare('SELECT * FROM jobs WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
+    if (inserted) {
+      triggerNewJobNotification(inserted.id, req.user.id);
+    }
     res.json(inserted);
   } catch (error) {
     console.error('Error creating job:', error);
@@ -2374,6 +2543,9 @@ app.post('/api/appointments', (req, res) => {
     `);
     const info = stmt.run(title, customer_id, vehicle_id, date, time, duration_minutes || 60, notes, req.user.id);
     const inserted = db.prepare('SELECT * FROM appointments WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
+    if (inserted) {
+      triggerNewAppointmentNotification(inserted.id, req.user.id);
+    }
     res.json(inserted);
   } catch (error) {
     console.error('Error creating appointment:', error);
@@ -2469,6 +2641,9 @@ app.post('/api/inventory', (req, res) => {
       cost_price || 0, sell_price || 0, supplier_name || '', location || '', core_charge || 0, notes || '', req.user.id
     );
     const inserted = db.prepare('SELECT * FROM inventory_items WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
+    if (inserted) {
+      checkLowStockAlert(inserted.id, req.user.id);
+    }
     res.json(inserted);
   } catch (error) {
     console.error('Error creating inventory item:', error);
@@ -2506,6 +2681,9 @@ app.put('/api/inventory/:id', (req, res) => {
     );
     if (info.changes === 0) return res.status(404).json({ error: 'Inventory item not found' });
     const updated = db.prepare('SELECT * FROM inventory_items WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (updated) {
+      checkLowStockAlert(id, req.user.id);
+    }
     res.json(updated);
   } catch (error) {
     console.error('Error updating inventory item:', error);
@@ -2549,6 +2727,9 @@ app.post('/api/inventory/:id/adjust', (req, res) => {
     db.prepare('UPDATE inventory_items SET quantity_on_hand = quantity_on_hand + ? WHERE id = ? AND user_id = ?').run(d, id, req.user.id);
     
     const updated = db.prepare('SELECT * FROM inventory_items WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (updated) {
+      checkLowStockAlert(id, req.user.id);
+    }
     res.json(updated);
   } catch (error) {
     console.error('Error adjusting inventory:', error);
@@ -2730,6 +2911,9 @@ app.post('/api/jobs/:jobId/parts', (req, res) => {
       // Get updated stock to check threshold
       const updatedItem = db.prepare('SELECT quantity_on_hand, reorder_threshold FROM inventory_items WHERE id = ? AND user_id = ?').get(inventory_item_id, req.user.id);
       belowThreshold = updatedItem.quantity_on_hand < updatedItem.reorder_threshold;
+
+      // Trigger low stock check
+      checkLowStockAlert(inventory_item_id, req.user.id);
     }
     
     const qty = parseInt(quantity_used, 10) || 1;
@@ -2819,6 +3003,9 @@ app.delete('/api/jobs/:jobId/parts/:partId', (req, res) => {
       // Restock
       db.prepare('UPDATE inventory_items SET quantity_on_hand = quantity_on_hand + ? WHERE id = ? AND user_id = ?')
         .run(part.quantity_used, part.inventory_item_id, req.user.id);
+        
+      // Trigger checkLowStockAlert to reset flag if it rises back above threshold
+      checkLowStockAlert(part.inventory_item_id, req.user.id);
     }
     
     db.prepare('DELETE FROM work_order_parts WHERE id = ? AND user_id = ?').run(partId, req.user.id);
@@ -3129,6 +3316,233 @@ app.delete('/api/receipts/:id', (req, res) => {
 
 // --- EMAIL CENTER ---
 
+function sendAdminNotification(userId, subject, bodyHtml) {
+  try {
+    const shop = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(userId);
+    if (!shop || !shop.admin_notification_email || !shop.admin_notification_email.trim()) {
+      return; // Skip if no admin email set
+    }
+
+    const { sendEmail } = require('./email');
+    sendEmail({
+      to: shop.admin_notification_email.trim(),
+      subject: `[Admin Alert] ${subject}`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; color: #1e293b;">
+          <div style="background-color: #f8fafc; padding: 16px; border-bottom: 2px solid #e2e8f0; border-radius: 8px 8px 0 0; margin-bottom: 24px;">
+            <h2 style="margin: 0; color: #0f172a; font-size: 18px; font-weight: 700;">${shop.shop_name || 'Workshop Auto'}</h2>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Admin Notification Alert System</p>
+          </div>
+          <div style="line-height: 1.6; color: #334155; font-size: 14px; margin-bottom: 24px;">
+            ${bodyHtml}
+          </div>
+          <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center; line-height: 1.5;">
+            This is an automated system notification for <strong>${shop.shop_name || 'your workshop'}</strong>.<br/>
+            ${[shop.shop_address, shop.shop_city, shop.shop_state, shop.zip_code].filter(Boolean).join(', ')}<br/>
+            ${shop.shop_phone || ''}
+          </div>
+        </div>
+      `
+    }).catch(err => {
+      console.error('[Admin Notification] Failed to send email silently:', err);
+    });
+  } catch (error) {
+    console.error('[Admin Notification] Error triggering notification:', error);
+  }
+}
+
+function checkLowStockAlert(itemId, userId) {
+  try {
+    const item = db.prepare('SELECT * FROM inventory_items WHERE id = ? AND user_id = ?').get(itemId, userId);
+    if (!item) return;
+
+    // Determine the threshold to use: check low_stock_threshold, fall back to reorder_threshold, fall back to 5
+    let threshold = 5;
+    if (item.low_stock_threshold !== null && item.low_stock_threshold !== undefined) {
+      threshold = item.low_stock_threshold;
+    } else if (item.reorder_threshold !== null && item.reorder_threshold !== undefined && item.reorder_threshold !== 0) {
+      threshold = item.reorder_threshold;
+    }
+
+    if (item.quantity_on_hand <= threshold) {
+      if (!item.low_stock_alert_sent) {
+        // Mark as sent in database first to prevent duplicate emails from being fired while the email is being prepared
+        db.prepare('UPDATE inventory_items SET low_stock_alert_sent = 1 WHERE id = ? AND user_id = ?').run(itemId, userId);
+        
+        // Trigger alert email
+        const subject = `Low Stock Alert: ${item.name}`;
+        const bodyHtml = `
+          <p style="font-size: 16px; color: #dc2626; font-weight: bold; margin-top: 0;">⚠️ Low Stock Alert</p>
+          <p>The inventory level for the following item has fallen to or below its threshold:</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;">
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600; color: #475569; width: 140px;">Item Name:</td>
+              <td style="padding: 8px 0; color: #0f172a; font-weight: bold;">${item.name}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600; color: #475569;">Part Number:</td>
+              <td style="padding: 8px 0; color: #334155; font-family: monospace;">${item.part_number || 'N/A'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600; color: #475569;">Current Stock:</td>
+              <td style="padding: 8px 0; color: #dc2626; font-weight: bold; font-size: 16px;">${item.quantity_on_hand} ${item.unit_type || 'each'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600; color: #475569;">Low Stock Limit:</td>
+              <td style="padding: 8px 0; color: #334155;">${threshold} ${item.unit_type || 'each'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600; color: #475569;">Supplier Name:</td>
+              <td style="padding: 8px 0; color: #334155;">${item.supplier_name || 'N/A'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600; color: #475569;">Location:</td>
+              <td style="padding: 8px 0; color: #334155;">${item.location || 'N/A'}</td>
+            </tr>
+          </table>
+          <p style="margin-bottom: 0;">Please review your inventory levels and reorder as necessary to avoid project delays.</p>
+        `;
+        sendAdminNotification(userId, subject, bodyHtml);
+      }
+    } else {
+      // Quantity is above threshold, reset the flag so another alert can be sent if it crosses back down
+      if (item.low_stock_alert_sent) {
+        db.prepare('UPDATE inventory_items SET low_stock_alert_sent = 0 WHERE id = ? AND user_id = ?').run(itemId, userId);
+      }
+    }
+  } catch (error) {
+    console.error('Error in checkLowStockAlert:', error);
+  }
+}
+
+function triggerNewJobNotification(jobId, userId) {
+  try {
+    const job = db.prepare(`
+      SELECT j.*, 
+             c.name as customer_name, c.email as customer_email, c.phone as customer_phone,
+             v.make, v.model, v.year, v.license_plate
+      FROM jobs j
+      LEFT JOIN customers c ON j.customer_id = c.id
+      LEFT JOIN customer_vehicles v ON j.vehicle_id = v.id
+      WHERE j.id = ? AND j.user_id = ?
+    `).get(jobId, userId);
+
+    if (!job) return;
+
+    // Fetch any services for the job
+    const services = db.prepare('SELECT service_name_snapshot, base_price_charged FROM job_services WHERE job_id = ? AND user_id = ?').all(jobId, userId);
+    const servicesHtml = services.length > 0 
+      ? `
+        <div style="margin-top: 16px;">
+          <strong style="color: #0f172a; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;">Assigned Services:</strong>
+          <ul style="margin: 8px 0 0 0; padding-left: 20px; color: #334155;">
+            ${services.map(s => `<li><strong>${s.service_name_snapshot}</strong> - $${s.base_price_charged.toFixed(2)}</li>`).join('')}
+          </ul>
+        </div>
+      `
+      : '';
+
+    const subject = `New Job Created - Job #${jobId}`;
+    const bodyHtml = `
+      <p style="font-size: 16px; color: #0284c7; font-weight: bold; margin-top: 0;">🔧 New Job Work Order Created</p>
+      <p>A new work order has been successfully opened in the system. Details below:</p>
+      <table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;">
+        <tr>
+          <td style="padding: 8px 0; font-weight: 600; color: #475569; width: 140px;">Job ID:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: bold;">#${jobId}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; font-weight: 600; color: #475569;">Customer:</td>
+          <td style="padding: 8px 0; color: #0f172a;">${job.customer_name || 'N/A'} (${job.customer_email || 'No Email'})</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; font-weight: 600; color: #475569;">Vehicle:</td>
+          <td style="padding: 8px 0; color: #334155;">${[job.year, job.make, job.model].filter(Boolean).join(' ')} ${job.license_plate ? `[Plate: ${job.license_plate}]` : ''}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; font-weight: 600; color: #475569;">Status:</td>
+          <td style="padding: 8px 0; color: #0284c7; font-weight: bold; text-transform: uppercase;">${job.status || 'Pending'}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; font-weight: 600; color: #475569;">Priority:</td>
+          <td style="padding: 8px 0; color: #334155;">${job.priority || 'Standard'}</td>
+        </tr>
+        <tr style="vertical-align: top;">
+          <td style="padding: 8px 0; font-weight: 600; color: #475569;">Description:</td>
+          <td style="padding: 8px 0; color: #334155; white-space: pre-line;">${job.description || 'No description provided.'}</td>
+        </tr>
+      </table>
+      ${servicesHtml}
+      <p style="margin-top: 24px; margin-bottom: 0;">You can view and manage this work order inside your dashboard.</p>
+    `;
+
+    sendAdminNotification(userId, subject, bodyHtml);
+  } catch (error) {
+    console.error('Error in triggerNewJobNotification:', error);
+  }
+}
+
+function triggerNewAppointmentNotification(apptId, userId) {
+  try {
+    const appt = db.prepare(`
+      SELECT a.*, 
+             c.name as customer_name, c.email as customer_email,
+             v.make, v.model, v.year, v.license_plate
+      FROM appointments a
+      LEFT JOIN customers c ON a.customer_id = c.id
+      LEFT JOIN customer_vehicles v ON a.vehicle_id = v.id
+      WHERE a.id = ? AND a.user_id = ?
+    `).get(apptId, userId);
+
+    if (!appt) return;
+
+    const subject = `New Appointment Booked: ${appt.customer_name || 'Customer'}`;
+    const bodyHtml = `
+      <p style="font-size: 16px; color: #16a34a; font-weight: bold; margin-top: 0;">📅 New Appointment Booked</p>
+      <p>A new customer service appointment has been scheduled. Here are the booking details:</p>
+      <table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;">
+        <tr>
+          <td style="padding: 8px 0; font-weight: 600; color: #475569; width: 140px;">Customer Name:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: bold;">${appt.customer_name || 'N/A'}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; font-weight: 600; color: #475569;">Contact Email:</td>
+          <td style="padding: 8px 0; color: #334155;">${appt.customer_email || 'N/A'}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; font-weight: 600; color: #475569;">Scheduled Date:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: bold;">${appt.date}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; font-weight: 600; color: #475569;">Scheduled Time:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: bold;">${appt.time}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; font-weight: 600; color: #475569;">Vehicle Details:</td>
+          <td style="padding: 8px 0; color: #334155;">${[appt.year, appt.make, appt.model].filter(Boolean).join(' ')} ${appt.license_plate ? `[Plate: ${appt.license_plate}]` : ''}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; font-weight: 600; color: #475569;">Service Title:</td>
+          <td style="padding: 8px 0; color: #334155; font-weight: 600;">${appt.title}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; font-weight: 600; color: #475569;">Est. Duration:</td>
+          <td style="padding: 8px 0; color: #334155;">${appt.duration_minutes || 60} minutes</td>
+        </tr>
+        <tr style="vertical-align: top;">
+          <td style="padding: 8px 0; font-weight: 600; color: #475569;">Booking Notes:</td>
+          <td style="padding: 8px 0; color: #334155; white-space: pre-line;">${appt.notes || 'No notes provided.'}</td>
+        </tr>
+      </table>
+      <p style="margin-top: 24px; margin-bottom: 0;">Please review the appointment calendar to confirm availability and plan accordingly.</p>
+    `;
+
+    sendAdminNotification(userId, subject, bodyHtml);
+  } catch (error) {
+    console.error('Error in triggerNewAppointmentNotification:', error);
+  }
+}
+
 // Helper function to render templates with variables
 function renderTemplate(text, variables) {
   if (!text) return '';
@@ -3178,6 +3592,47 @@ app.get('/api/emails', (req, res) => {
   } catch (error) {
     console.error('Error fetching sent emails:', error);
     res.status(500).json({ error: 'Database error fetching sent emails' });
+  }
+});
+
+// GET /api/emails/received: Get inbound emails, newest first, filterable by search query or date range
+app.get('/api/emails/received', (req, res) => {
+  try {
+    const { search, startDate, endDate, page = 1, limit = 50 } = req.query;
+    const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+    
+    let query = `
+      SELECT er.*, c.name as customer_name
+      FROM emails_received er
+      LEFT JOIN customers c ON er.from_customer_id = c.id
+      WHERE er.user_id = ?
+    `;
+    const params = [req.user.id];
+    
+    if (search) {
+      query += ` AND (er.from_email LIKE ? OR er.subject LIKE ? OR er.body LIKE ? OR c.name LIKE ?)`;
+      const searchWild = `%${search}%`;
+      params.push(searchWild, searchWild, searchWild, searchWild);
+    }
+    
+    if (startDate) {
+      query += ` AND er.received_at >= ?`;
+      params.push(`${startDate} 00:00:00`);
+    }
+    if (endDate) {
+      query += ` AND er.received_at <= ?`;
+      params.push(`${endDate} 23:59:59`);
+    }
+    
+    query += ` ORDER BY er.received_at DESC LIMIT ? OFFSET ?`;
+    params.push(parseInt(limit, 10), offset);
+    
+    const stmt = db.prepare(query);
+    const rows = stmt.all(...params);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching received emails:', error);
+    res.status(500).json({ error: 'Database error fetching received emails' });
   }
 });
 

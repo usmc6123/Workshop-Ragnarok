@@ -6,7 +6,7 @@
 import { 
   Vehicle, GarageItem, PageResponse, Customer, CustomerVehicle, 
   ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual, ShopSettings, JobPhoto,
-  InventoryItem, WorkOrderPart, Service, JobService, Receipt, EmailTemplate, EmailSent
+  InventoryItem, WorkOrderPart, Service, JobService, Receipt, EmailTemplate, EmailSent, EmailReceived
 } from '../types';
 
 import { 
@@ -1291,6 +1291,14 @@ export const api = {
     if (startDate) params.append('startDate', startDate);
     if (endDate) params.append('endDate', endDate);
     return await request<EmailSent[]>(`/api/emails?${params.toString()}`);
+  },
+
+  async getReceivedEmails(search?: string, startDate?: string, endDate?: string): Promise<EmailReceived[]> {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    return await request<EmailReceived[]>(`/api/emails/received?${params.toString()}`);
   },
 
   async getEmailTemplates(): Promise<EmailTemplate[]> {

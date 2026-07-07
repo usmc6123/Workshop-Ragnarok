@@ -6,7 +6,7 @@ import {
   Printer
 } from 'lucide-react';
 import { api } from '../lib/api';
-import { Customer, EmailTemplate, EmailSent } from '../types';
+import { Customer, EmailTemplate, EmailSent, EmailReceived } from '../types';
 
 interface EmailViewProps {
   initialComposeData?: { customerId?: number; recipientEmail?: string } | null;
@@ -19,19 +19,21 @@ export default function EmailView({
   onClearComposeData,
   onNavigateToCustomer 
 }: EmailViewProps) {
-  const [activeTab, setActiveTab] = useState<'sent' | 'templates' | 'compose'>('sent');
+  const [activeTab, setActiveTab] = useState<'inbox' | 'sent' | 'templates' | 'compose'>('inbox');
   
   // Lists
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [sentLog, setSentLog] = useState<EmailSent[]>([]);
+  const [receivedLog, setReceivedLog] = useState<EmailReceived[]>([]);
   
   // Loading states
   const [loadingLog, setLoadingLog] = useState(false);
+  const [loadingReceived, setLoadingReceived] = useState(false);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [sending, setSending] = useState(false);
   
-  // Search & Filters for Sent Log
+  // Search & Filters for Sent/Received Log
   const [logSearch, setLogSearch] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -52,6 +54,7 @@ export default function EmailView({
 
   // Sent Log Detail Modal State
   const [selectedLog, setSelectedLog] = useState<EmailSent | null>(null);
+  const [selectedReceived, setSelectedReceived] = useState<EmailReceived | null>(null);
   
   // Status/Toast Banner
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -61,6 +64,7 @@ export default function EmailView({
     fetchCustomers();
     fetchTemplates();
     fetchSentLog();
+    fetchReceivedEmails();
   }, []);
 
   // Handle external compose triggers (quick-send)
@@ -137,6 +141,18 @@ export default function EmailView({
       console.error('Failed to fetch sent logs:', err);
     } finally {
       setLoadingLog(false);
+    }
+  };
+
+  const fetchReceivedEmails = async () => {
+    setLoadingReceived(true);
+    try {
+      const res = await api.getReceivedEmails(logSearch || undefined, startDate || undefined, endDate || undefined);
+      setReceivedLog(res || []);
+    } catch (err) {
+      console.error('Failed to fetch received emails:', err);
+    } finally {
+      setLoadingReceived(false);
     }
   };
 
@@ -247,6 +263,7 @@ export default function EmailView({
 
   const handleCloseDetailModal = () => {
     setSelectedLog(null);
+    setSelectedReceived(null);
   };
 
   const handlePrintEmail = () => {
@@ -301,9 +318,25 @@ export default function EmailView({
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex border-b border-[#1e2028] bg-[#0c0d12]/50 p-1.5 rounded-xl max-w-md select-none">
+      <div className="flex border-b border-[#1e2028] bg-[#0c0d12]/50 p-1.5 rounded-xl max-w-lg select-none">
         <button
-          onClick={() => setActiveTab('sent')}
+          onClick={() => {
+            fetchReceivedEmails();
+            setActiveTab('inbox');
+          }}
+          className={`flex-1 py-2 text-center text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${
+            activeTab === 'inbox' 
+              ? 'bg-[#181922] text-primary-theme border border-[#2d303f] shadow-md' 
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          Inbox
+        </button>
+        <button
+          onClick={() => {
+            fetchSentLog();
+            setActiveTab('sent');
+          }}
           className={`flex-1 py-2 text-center text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${
             activeTab === 'sent' 
               ? 'bg-[#181922] text-primary-theme border border-[#2d303f] shadow-md' 
@@ -336,6 +369,113 @@ export default function EmailView({
           Compose
         </button>
       </div>
+
+      {/* TAB CONTENT: INBOX */}
+      {activeTab === 'inbox' && (
+        <div className="space-y-4">
+          {/* Filters Bar */}
+          <div className="bg-[#13141a]/60 border border-[#1e2028] rounded-xl p-4 flex flex-col md:flex-row items-stretch md:items-center gap-4">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                placeholder="Search sender, subject, customer..."
+                value={logSearch}
+                onChange={(e) => setLogSearch(e.target.value)}
+                className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+              />
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono uppercase text-slate-500">From</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 rounded-lg text-xs px-3 py-1.5 text-white font-mono"
+              />
+              <span className="text-[10px] font-mono uppercase text-slate-500">To</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 rounded-lg text-xs px-3 py-1.5 text-white font-mono"
+              />
+            </div>
+
+            <button
+              onClick={fetchReceivedEmails}
+              disabled={loadingReceived}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs uppercase tracking-wider font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              {loadingReceived ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+              <span>Filter</span>
+            </button>
+          </div>
+
+          {/* Table list */}
+          <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl overflow-hidden shadow-xl">
+            {loadingReceived && receivedLog.length === 0 ? (
+              <div className="py-24 text-center text-slate-400 font-mono text-xs flex flex-col items-center justify-center gap-3">
+                <Loader2 className="w-8 h-8 text-primary-theme animate-spin" />
+                <span>Synchronizing incoming email inbox...</span>
+              </div>
+            ) : receivedLog.length === 0 ? (
+              <div className="py-16 text-center border border-dashed border-[#1e2028] rounded-xl bg-[#13141a]/10 max-w-xl mx-auto my-6 font-mono text-xs text-slate-500">
+                <Mail className="w-8 h-8 mx-auto mb-2 text-slate-600" />
+                <p>No incoming emails found.</p>
+                <p className="text-[10px] text-slate-600 mt-1">Try broadening your search keywords or checking Webhook integrations.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-[#0c0d12]/60 border-b border-[#1e2028] font-mono uppercase text-slate-500 text-[10px] tracking-widest select-none">
+                      <th className="p-4">Received Time</th>
+                      <th className="p-4">Sender</th>
+                      <th className="p-4">Subject</th>
+                      <th className="p-4">Associated Client</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#1e2028]/40 font-mono">
+                    {receivedLog.map((log) => {
+                      const formattedTime = new Date(log.received_at).toLocaleString();
+                      
+                      return (
+                        <tr 
+                          key={log.id} 
+                          onClick={() => setSelectedReceived(log)}
+                          className="hover:bg-white/[0.02] transition-colors cursor-pointer"
+                        >
+                          <td className="p-4 text-slate-400 text-[11px] whitespace-nowrap">{formattedTime}</td>
+                          <td className="p-4 text-slate-200 font-bold font-sans text-xs">{log.from_email}</td>
+                          <td className="p-4 text-slate-300 font-medium font-sans text-xs max-w-xs truncate">{log.subject}</td>
+                          <td className="p-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            {log.from_customer_id ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onNavigateToCustomer && onNavigateToCustomer(log.from_customer_id!);
+                                }}
+                                className="text-amber-500 hover:text-amber-400 font-bold hover:underline flex items-center gap-1 cursor-pointer bg-transparent border-none p-0 text-left"
+                              >
+                                <User className="w-3.5 h-3.5" />
+                                <span>{log.customer_name || `ID #${log.from_customer_id}`}</span>
+                              </button>
+                            ) : (
+                              <span className="text-slate-600">None</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* TAB CONTENT: SENT LOG */}
       {activeTab === 'sent' && (
@@ -967,6 +1107,152 @@ export default function EmailView({
                   style={{ fontSize: '15px', lineHeight: '1.6', color: '#334155' }}
                   dangerouslySetInnerHTML={{ __html: selectedLog.body }} 
                 />
+              </div>
+            </div>,
+            document.body
+          )}
+        </div>
+      )}
+
+      {/* RECEIVED EMAIL DETAIL MODAL */}
+      {selectedReceived && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="received-email-detail-modal">
+          <div className="bg-[#13141a] border border-[#1e2028] rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col">
+            
+            {/* Modal Header */}
+            <div className="p-5 border-b border-[#1e2028] flex justify-between items-center bg-[#0c0d12]/40 select-none">
+              <h2 className="text-xs font-black uppercase tracking-widest text-slate-200 font-mono flex items-center gap-1.5">
+                <Mail className="w-4 h-4 text-amber-500" />
+                Inbound Email Details
+              </h2>
+              <button
+                onClick={handleCloseDetailModal}
+                className="text-slate-400 hover:text-white transition p-1.5 hover:bg-slate-800 rounded-lg cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh]">
+              
+              {/* Metadata Details */}
+              <div className="bg-[#0c0d12]/60 border border-[#1e2028] rounded-xl p-4 space-y-3 font-mono text-xs text-slate-300">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase block">Subject Header</span>
+                    <span className="text-slate-200 font-sans font-bold text-sm block mt-0.5">{selectedReceived.subject}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-[#1e2028]/60">
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase block">Sender Address</span>
+                    <span className="text-slate-200 font-sans font-bold block mt-0.5">{selectedReceived.from_email}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase block">Associated Customer</span>
+                    {selectedReceived.from_customer_id ? (
+                      <button
+                        onClick={() => {
+                          onNavigateToCustomer && onNavigateToCustomer(selectedReceived.from_customer_id!);
+                          handleCloseDetailModal();
+                        }}
+                        className="text-amber-500 hover:text-amber-400 font-bold hover:underline flex items-center gap-1 mt-0.5 cursor-pointer bg-transparent border-none p-0 text-left font-sans text-xs"
+                      >
+                        <User className="w-3.5 h-3.5" />
+                        <span>{selectedReceived.customer_name || `ID #${selectedReceived.from_customer_id}`}</span>
+                      </button>
+                    ) : (
+                      <span className="text-slate-500 block mt-0.5">None</span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase block">Received Timestamp</span>
+                    <span className="text-slate-400 block mt-0.5">{new Date(selectedReceived.received_at).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Rendered HTML/Text Body Preview Section */}
+              <div className="space-y-1.5">
+                <span className="block text-[10px] font-mono uppercase text-slate-400">
+                  Email Message Body
+                </span>
+                <div className="bg-white text-slate-800 p-6 rounded-xl border border-slate-200 shadow-inner overflow-y-auto max-h-[42vh] font-sans whitespace-pre-wrap">
+                  {selectedReceived.body.includes('<') && selectedReceived.body.includes('>') ? (
+                    <div dangerouslySetInnerHTML={{ __html: selectedReceived.body }} />
+                  ) : (
+                    <div>{selectedReceived.body}</div>
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Footer Controls */}
+            <div className="p-5 border-t border-[#1e2028] bg-[#0c0d12]/20 flex justify-between items-center select-none">
+              <button
+                type="button"
+                onClick={handlePrintEmail}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-mono font-bold text-xs uppercase tracking-wider py-2.5 px-5 rounded-lg transition active:scale-95 flex items-center gap-1.5 shadow-md shadow-amber-500/10 cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print Email</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCloseDetailModal}
+                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs rounded-lg transition border border-transparent hover:border-[#2d303f] cursor-pointer"
+              >
+                Close Details
+              </button>
+            </div>
+
+          </div>
+
+          {/* PRINT MEDIA STYLES */}
+          <style>{`
+            @media print {
+              body > *:not(#print-only-email-content) {
+                display: none !important;
+              }
+              #print-only-email-content {
+                display: block !important;
+              }
+              tr {
+                page-break-inside: avoid !important;
+              }
+            }
+          `}</style>
+
+          {/* Print only content portal */}
+          {createPortal(
+            <div id="print-only-email-content" style={{ display: 'none' }}>
+              <div style={{ padding: '40px', fontFamily: 'system-ui, -apple-system, sans-serif', color: '#1e293b', backgroundColor: '#ffffff' }}>
+                <div style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '20px', marginBottom: '30px' }}>
+                  <h1 style={{ fontSize: '26px', fontWeight: 800, margin: '0 0 12px 0', color: '#0f172a', letterSpacing: '-0.025em' }}>
+                    {selectedReceived.subject}
+                  </h1>
+                  <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '8px', fontSize: '14px', color: '#475569' }}>
+                    <span style={{ fontWeight: '600', color: '#0f172a' }}>Sender:</span>
+                    <span>{selectedReceived.from_email} {selectedReceived.customer_name ? `(${selectedReceived.customer_name})` : ''}</span>
+                    
+                    <span style={{ fontWeight: '600', color: '#0f172a' }}>Received:</span>
+                    <span>{new Date(selectedReceived.received_at).toLocaleString()}</span>
+                  </div>
+                </div>
+                {selectedReceived.body.includes('<') && selectedReceived.body.includes('>') ? (
+                  <div 
+                    style={{ fontSize: '15px', lineHeight: '1.6', color: '#334155' }}
+                    dangerouslySetInnerHTML={{ __html: selectedReceived.body }} 
+                  />
+                ) : (
+                  <div style={{ fontSize: '15px', lineHeight: '1.6', color: '#334155', whiteSpace: 'pre-wrap' }}>
+                    {selectedReceived.body}
+                  </div>
+                )}
               </div>
             </div>,
             document.body

@@ -34,7 +34,8 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
     tax_rate: 0,
     default_labor_rate: 0,
     zip_code: '',
-    default_parts_markup: 0
+    default_parts_markup: 0,
+    admin_notification_email: ''
   });
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'failed'>('idle');
   const [saveError, setSaveError] = useState('');
@@ -366,6 +367,19 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
                     onChange={(e) => setSettings({ ...settings, zip_code: e.target.value })}
                     className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:border-primary-theme focus:outline-none"
                     id="shop-zip-code-input"
+                  />
+                </div>
+
+                {/* Admin Notification Email */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Admin Notification Email</label>
+                  <input
+                    type="email"
+                    placeholder="e.g. admin@yourshop.com"
+                    value={settings.admin_notification_email || ''}
+                    onChange={(e) => setSettings({ ...settings, admin_notification_email: e.target.value })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
+                    id="shop-admin-notification-email-input"
                   />
                 </div>
 

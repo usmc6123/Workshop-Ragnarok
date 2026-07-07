@@ -237,6 +237,7 @@ export interface ShopSettings {
   default_labor_rate: number;
   zip_code: string;
   default_parts_markup?: number;
+  admin_notification_email?: string;
 }
 
 export interface InventoryItem {
@@ -339,6 +340,19 @@ export interface EmailSent {
   template_id: number | null;
   status: 'sent' | 'failed';
   sent_at: string;
+  
+  // Joined from customers
+  customer_name?: string | null;
+}
+
+export interface EmailReceived {
+  id: number;
+  user_id: number | null;
+  from_email: string;
+  from_customer_id: number | null;
+  subject: string;
+  body: string;
+  received_at: string;
   
   // Joined from customers
   customer_name?: string | null;
