@@ -28,7 +28,7 @@ async function sendEmail({ to, subject, html }) {
   }
 
   const client = getResend();
-  const fromEmail = 'shop@homeslab.uk';
+  const fromEmail = 'mail@homeslab.uk';
 
   console.log(`[EMAIL] Attempting to send email to ${to} with subject "${subject}"`);
   
