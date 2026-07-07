@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { 
   Mail, Send, FileText, Plus, Trash2, Edit2, Search, Calendar, 
   CheckCircle2, XCircle, Info, Loader2, RefreshCw, User, Eye, ArrowLeft, CheckSquare,
-  Printer
+  Printer, CornerUpLeft, CornerUpRight
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { Customer, EmailTemplate, EmailSent, EmailReceived } from '../types';
@@ -19,18 +19,21 @@ export default function EmailView({
   onClearComposeData,
   onNavigateToCustomer 
 }: EmailViewProps) {
-  const [activeTab, setActiveTab] = useState<'inbox' | 'sent' | 'templates' | 'compose'>('inbox');
+  const [activeTab, setActiveTab] = useState<'inbox' | 'sent' | 'templates' | 'compose' | 'trash'>('inbox');
+  const [trashSubTab, setTrashSubTab] = useState<'received' | 'sent'>('received');
   
   // Lists
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [sentLog, setSentLog] = useState<EmailSent[]>([]);
   const [receivedLog, setReceivedLog] = useState<EmailReceived[]>([]);
+  const [trashLog, setTrashLog] = useState<any[]>([]);
   
   // Loading states
   const [loadingLog, setLoadingLog] = useState(false);
   const [loadingReceived, setLoadingReceived] = useState(false);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [loadingTrash, setLoadingTrash] = useState(false);
   const [sending, setSending] = useState(false);
   
   // Search & Filters for Sent/Received Log
@@ -65,6 +68,7 @@ export default function EmailView({
     fetchTemplates();
     fetchSentLog();
     fetchReceivedEmails();
+    fetchTrashLog();
   }, []);
 
   // Handle external compose triggers (quick-send)
@@ -153,6 +157,18 @@ export default function EmailView({
       console.error('Failed to fetch received emails:', err);
     } finally {
       setLoadingReceived(false);
+    }
+  };
+
+  const fetchTrashLog = async () => {
+    setLoadingTrash(true);
+    try {
+      const res = await api.getTrashedEmails();
+      setTrashLog(res || []);
+    } catch (err) {
+      console.error('Failed to fetch trashed emails:', err);
+    } finally {
+      setLoadingTrash(false);
     }
   };
 
@@ -266,6 +282,46 @@ export default function EmailView({
     setSelectedReceived(null);
   };
 
+  const handleReply = (email: EmailReceived) => {
+    if (email.from_customer_id) {
+      setSelectedCustomerId(email.from_customer_id.toString());
+    } else {
+      setSelectedCustomerId('');
+    }
+    setRecipientEmail(email.from_email);
+    
+    let subject = email.subject || '';
+    if (!subject.toLowerCase().startsWith('re:')) {
+      subject = `Re: ${subject}`;
+    }
+    setEmailSubject(subject);
+    
+    const dateStr = new Date(email.received_at).toLocaleString();
+    const quotedBody = `\n\nOn ${dateStr}, ${email.from_email} wrote:\n> ${email.body.replace(/\n/g, '\n> ')}`;
+    setEmailBody(quotedBody);
+    
+    setActiveTab('compose');
+    handleCloseDetailModal();
+  };
+
+  const handleForward = (email: EmailReceived) => {
+    setSelectedCustomerId('');
+    setRecipientEmail('');
+    
+    let subject = email.subject || '';
+    if (!subject.toLowerCase().startsWith('fwd:')) {
+      subject = `Fwd: ${subject}`;
+    }
+    setEmailSubject(subject);
+    
+    const dateStr = new Date(email.received_at).toLocaleString();
+    const quotedBody = `\n\n---------- Forwarded message ---------\nFrom: ${email.from_email}\nDate: ${dateStr}\nSubject: ${email.subject}\n\n${email.body}`;
+    setEmailBody(quotedBody);
+    
+    setActiveTab('compose');
+    handleCloseDetailModal();
+  };
+
   const handlePrintEmail = () => {
     window.print();
   };
@@ -318,7 +374,7 @@ export default function EmailView({
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex border-b border-[#1e2028] bg-[#0c0d12]/50 p-1.5 rounded-xl max-w-lg select-none">
+      <div className="flex border-b border-[#1e2028] bg-[#0c0d12]/50 p-1.5 rounded-xl max-w-xl select-none">
         <button
           onClick={() => {
             fetchReceivedEmails();
@@ -367,6 +423,19 @@ export default function EmailView({
           }`}
         >
           Compose
+        </button>
+        <button
+          onClick={() => {
+            fetchTrashLog();
+            setActiveTab('trash');
+          }}
+          className={`flex-1 py-2 text-center text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${
+            activeTab === 'trash' 
+              ? 'bg-[#181922] text-primary-theme border border-[#2d303f] shadow-md' 
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          Trash
         </button>
       </div>
 
@@ -435,6 +504,7 @@ export default function EmailView({
                       <th className="p-4">Sender</th>
                       <th className="p-4">Subject</th>
                       <th className="p-4">Associated Client</th>
+                      <th className="p-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#1e2028]/40 font-mono">
@@ -443,7 +513,7 @@ export default function EmailView({
                       
                       return (
                         <tr 
-                          key={log.id} 
+                           key={log.id} 
                           onClick={() => setSelectedReceived(log)}
                           className="hover:bg-white/[0.02] transition-colors cursor-pointer"
                         >
@@ -465,6 +535,28 @@ export default function EmailView({
                             ) : (
                               <span className="text-slate-600">None</span>
                             )}
+                          </td>
+                          <td className="p-4 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (confirm('Are you sure you want to move this email to trash?')) {
+                                  try {
+                                    await api.trashEmail('received', log.id);
+                                    showToast('Email moved to trash');
+                                    fetchReceivedEmails();
+                                    fetchTrashLog();
+                                  } catch (err) {
+                                    console.error(err);
+                                    showToast('Failed to move email to trash', 'error');
+                                  }
+                                }
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-rose-500 rounded-lg hover:bg-rose-500/10 transition cursor-pointer bg-transparent border-none"
+                              title="Move to Trash"
+                            >
+                              <Trash2 className="w-4.5 h-4.5" />
+                            </button>
                           </td>
                         </tr>
                       );
@@ -543,6 +635,7 @@ export default function EmailView({
                       <th className="p-4">Subject</th>
                       <th className="p-4">Associated Client</th>
                       <th className="p-4 text-center">Status</th>
+                      <th className="p-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#1e2028]/40 font-mono">
@@ -584,6 +677,176 @@ export default function EmailView({
                               {isSent ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <XCircle className="w-3 h-3 text-rose-400" />}
                               <span>{log.status}</span>
                             </span>
+                          </td>
+                          <td className="p-4 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (confirm('Are you sure you want to move this email to trash?')) {
+                                  try {
+                                    await api.trashEmail('sent', log.id);
+                                    showToast('Email moved to trash');
+                                    fetchSentLog();
+                                    fetchTrashLog();
+                                  } catch (err) {
+                                    console.error(err);
+                                    showToast('Failed to move email to trash', 'error');
+                                  }
+                                }
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-rose-500 rounded-lg hover:bg-rose-500/10 transition cursor-pointer bg-transparent border-none"
+                              title="Move to Trash"
+                            >
+                              <Trash2 className="w-4.5 h-4.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT: TRASH */}
+      {activeTab === 'trash' && (
+        <div className="space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex border-b border-[#1e2028] bg-[#0c0d12]/50 p-1 rounded-lg select-none self-start">
+              <button
+                onClick={() => setTrashSubTab('received')}
+                className={`py-1.5 px-4 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${
+                  trashSubTab === 'received'
+                    ? 'bg-[#181922] text-primary-theme border border-[#2d303f] shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Received Emails
+              </button>
+              <button
+                onClick={() => setTrashSubTab('sent')}
+                className={`py-1.5 px-4 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${
+                  trashSubTab === 'sent'
+                    ? 'bg-[#181922] text-primary-theme border border-[#2d303f] shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Sent Emails
+              </button>
+            </div>
+
+            <button
+              onClick={fetchTrashLog}
+              disabled={loadingTrash}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs uppercase tracking-wider font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              {loadingTrash ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+              <span>Refresh Trash</span>
+            </button>
+          </div>
+
+          {/* Table list */}
+          <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl overflow-hidden shadow-xl">
+            {loadingTrash && trashLog.length === 0 ? (
+              <div className="py-24 text-center text-slate-400 font-mono text-xs flex flex-col items-center justify-center gap-3">
+                <Loader2 className="w-8 h-8 text-primary-theme animate-spin" />
+                <span>Loading trash archive...</span>
+              </div>
+            ) : trashLog.filter(x => x.type === trashSubTab).length === 0 ? (
+              <div className="py-16 text-center border border-dashed border-[#1e2028] rounded-xl bg-[#13141a]/10 max-w-xl mx-auto my-6 font-mono text-xs text-slate-500">
+                <Trash2 className="w-8 h-8 mx-auto mb-2 text-slate-600" />
+                <p>No trashed {trashSubTab} emails found.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-[#0c0d12]/60 border-b border-[#1e2028] font-mono uppercase text-slate-500 text-[10px] tracking-widest select-none">
+                      <th className="p-4">Original Date</th>
+                      <th className="p-4">Deleted Date</th>
+                      <th className="p-4">{trashSubTab === 'received' ? 'Sender' : 'Recipient'}</th>
+                      <th className="p-4">Subject</th>
+                      <th className="p-4">Associated Client</th>
+                      <th className="p-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#1e2028]/40 font-mono">
+                    {trashLog.filter(x => x.type === trashSubTab).map((item) => {
+                      const formattedOrigTime = new Date(item.date).toLocaleString();
+                      const formattedDelTime = item.deleted_at ? new Date(item.deleted_at).toLocaleString() : 'N/A';
+                      
+                      return (
+                        <tr 
+                          key={`${item.type}-${item.id}`} 
+                          className="hover:bg-white/[0.02] transition-colors"
+                        >
+                          <td className="p-4 text-slate-400 text-[11px] whitespace-nowrap">{formattedOrigTime}</td>
+                          <td className="p-4 text-slate-400 text-[11px] whitespace-nowrap">{formattedDelTime}</td>
+                          <td className="p-4 text-slate-200 font-bold font-sans text-xs">{item.email}</td>
+                          <td className="p-4 text-slate-300 font-medium font-sans text-xs max-w-xs truncate">{item.subject}</td>
+                          <td className="p-4 whitespace-nowrap">
+                            {item.customer_id ? (
+                              <button
+                                onClick={() => {
+                                  onNavigateToCustomer && onNavigateToCustomer(item.customer_id!);
+                                }}
+                                className="text-amber-500 hover:text-amber-400 font-bold hover:underline flex items-center gap-1 cursor-pointer bg-transparent border-none p-0 text-left font-sans text-xs"
+                              >
+                                <User className="w-3.5 h-3.5" />
+                                <span>{item.customer_name || `ID #${item.customer_id}`}</span>
+                              </button>
+                            ) : (
+                              <span className="text-slate-600">None</span>
+                            )}
+                          </td>
+                          <td className="p-4 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await api.restoreEmail(item.type, item.id);
+                                    showToast('Email restored successfully');
+                                    fetchTrashLog();
+                                    if (item.type === 'received') {
+                                      fetchReceivedEmails();
+                                    } else {
+                                      fetchSentLog();
+                                    }
+                                  } catch (err) {
+                                    console.error(err);
+                                    showToast('Failed to restore email', 'error');
+                                  }
+                                }}
+                                className="px-2.5 py-1.5 bg-emerald-950/60 text-emerald-400 hover:bg-emerald-900/60 font-sans font-bold text-[10px] uppercase tracking-wider rounded transition flex items-center gap-1 border border-emerald-500/20 cursor-pointer"
+                                title="Restore Email"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Restore</span>
+                              </button>
+                              
+                              <button
+                                onClick={async () => {
+                                  if (confirm('Are you sure you want to permanently delete this email? This cannot be undone.')) {
+                                    try {
+                                      await api.deleteEmailPermanently(item.type, item.id);
+                                      showToast('Email deleted permanently');
+                                      fetchTrashLog();
+                                    } catch (err) {
+                                      console.error(err);
+                                      showToast('Failed to delete email permanently', 'error');
+                                    }
+                                  }
+                                }}
+                                className="px-2.5 py-1.5 bg-rose-950/60 text-rose-400 hover:bg-rose-900/60 font-sans font-bold text-[10px] uppercase tracking-wider rounded transition flex items-center gap-1 border border-rose-500/20 cursor-pointer"
+                                title="Delete Permanently"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Purge</span>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1046,15 +1309,39 @@ export default function EmailView({
             </div>
 
             {/* Modal Footer Controls */}
-            <div className="p-5 border-t border-[#1e2028] bg-[#0c0d12]/20 flex justify-between items-center select-none">
-              <button
-                type="button"
-                onClick={handlePrintEmail}
-                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-mono font-bold text-xs uppercase tracking-wider py-2.5 px-5 rounded-lg transition active:scale-95 flex items-center gap-1.5 shadow-md shadow-amber-500/10 cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Print Email</span>
-              </button>
+            <div className="p-5 border-t border-[#1e2028] bg-[#0c0d12]/20 flex flex-wrap gap-3 items-center justify-between select-none">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handlePrintEmail}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-mono font-bold text-xs uppercase tracking-wider py-2.5 px-5 rounded-lg transition active:scale-95 flex items-center gap-1.5 shadow-md shadow-amber-500/10 cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Print Email</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (confirm('Are you sure you want to move this email to trash?')) {
+                      try {
+                        await api.trashEmail('sent', selectedLog.id);
+                        showToast('Email moved to trash');
+                        fetchSentLog();
+                        fetchTrashLog();
+                        handleCloseDetailModal();
+                      } catch (err) {
+                        console.error(err);
+                        showToast('Failed to move email to trash', 'error');
+                      }
+                    }
+                  }}
+                  className="bg-rose-950/40 text-rose-400 hover:bg-rose-900/40 font-mono font-bold text-xs uppercase tracking-wider py-2.5 px-4 rounded-lg transition active:scale-95 flex items-center gap-1.5 border border-rose-500/20 cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete</span>
+                </button>
+              </div>
 
               <button
                 type="button"
@@ -1191,15 +1478,57 @@ export default function EmailView({
             </div>
 
             {/* Modal Footer Controls */}
-            <div className="p-5 border-t border-[#1e2028] bg-[#0c0d12]/20 flex justify-between items-center select-none">
-              <button
-                type="button"
-                onClick={handlePrintEmail}
-                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-mono font-bold text-xs uppercase tracking-wider py-2.5 px-5 rounded-lg transition active:scale-95 flex items-center gap-1.5 shadow-md shadow-amber-500/10 cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Print Email</span>
-              </button>
+            <div className="p-5 border-t border-[#1e2028] bg-[#0c0d12]/20 flex flex-wrap gap-3 items-center justify-between select-none">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleReply(selectedReceived)}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-mono font-bold text-xs uppercase tracking-wider py-2.5 px-4 rounded-lg transition active:scale-95 flex items-center gap-1.5 shadow-md shadow-amber-500/10 cursor-pointer"
+                >
+                  <CornerUpLeft className="w-4 h-4" />
+                  <span>Reply</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleForward(selectedReceived)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono font-bold text-xs uppercase tracking-wider py-2.5 px-4 rounded-lg transition active:scale-95 flex items-center gap-1.5 border border-[#2d303f] cursor-pointer"
+                >
+                  <CornerUpRight className="w-4 h-4" />
+                  <span>Forward</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrintEmail}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono font-bold text-xs uppercase tracking-wider py-2.5 px-4 rounded-lg transition active:scale-95 flex items-center gap-1.5 border border-[#2d303f] cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Print Email</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (confirm('Are you sure you want to move this email to trash?')) {
+                      try {
+                        await api.trashEmail('received', selectedReceived.id);
+                        showToast('Email moved to trash');
+                        fetchReceivedEmails();
+                        fetchTrashLog();
+                        handleCloseDetailModal();
+                      } catch (err) {
+                        console.error(err);
+                        showToast('Failed to move email to trash', 'error');
+                      }
+                    }
+                  }}
+                  className="bg-rose-950/40 text-rose-400 hover:bg-rose-900/40 font-mono font-bold text-xs uppercase tracking-wider py-2.5 px-4 rounded-lg transition active:scale-95 flex items-center gap-1.5 border border-rose-500/20 cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete</span>
+                </button>
+              </div>
 
               <button
                 type="button"

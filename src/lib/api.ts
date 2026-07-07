@@ -1333,5 +1333,27 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
+  },
+
+  async getTrashedEmails(): Promise<any[]> {
+    return await request<any[]>('/api/emails/trash');
+  },
+
+  async trashEmail(type: 'sent' | 'received', id: number): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/emails/${type}/${id}/trash`, {
+      method: 'POST'
+    });
+  },
+
+  async restoreEmail(type: 'sent' | 'received', id: number): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/emails/${type}/${id}/restore`, {
+      method: 'POST'
+    });
+  },
+
+  async deleteEmailPermanently(type: 'sent' | 'received', id: number): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/emails/${type}/${id}`, {
+      method: 'DELETE'
+    });
   }
 };

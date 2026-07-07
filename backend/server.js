@@ -37,7 +37,7 @@ app.use(express.json({
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Inbound email webhook (Resend Svix) - placed before authMiddleware
-app.post('/api/webhooks/inbound-email', (req, res) => {
+app.post('/api/webhooks/inbound-email', async (req, res) => {
   try {
     const crypto = require('crypto');
     const svixId = req.headers['svix-id'] || req.headers['Svix-Id'];
@@ -109,14 +109,65 @@ app.post('/api/webhooks/inbound-email', (req, res) => {
       return res.status(401).json({ error: 'Invalid webhook signature' });
     }
 
+    // Helper to strip HTML tags
+    function stripHtml(html) {
+      if (!html) return '';
+      let text = html.replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, '');
+      text = text.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, '');
+      text = text.replace(/<br\s*\/?>/gi, '\n');
+      text = text.replace(/<\/p>/gi, '\n\n');
+      text = text.replace(/<\/div>/gi, '\n');
+      text = text.replace(/<[^>]*>/g, '');
+      text = text.replace(/&nbsp;/g, ' ')
+                 .replace(/&amp;/g, '&')
+                 .replace(/&lt;/g, '<')
+                 .replace(/&gt;/g, '>')
+                 .replace(/&quot;/g, '"')
+                 .replace(/&#39;/g, "'");
+      return text.trim();
+    }
+
     // Process Resend inbound email payload
     const payload = req.body;
     const data = payload.data || payload;
 
     const rawFrom = data.from || data.from_email || data.sender || '';
     const subject = data.subject || '';
-    const body = data.text || data.body || data.html || '';
     const receivedAt = data.received_at || data.receivedAt || data.created_at || new Date().toISOString();
+
+    let body = '';
+    const emailId = data.email_id || data.id;
+
+    if (emailId) {
+      try {
+        const { getResend } = require('./email');
+        const resend = getResend();
+        console.log(`[Inbound Webhook] Fetching content for Resend email ID: ${emailId}`);
+        const res = await resend.emails.receiving.get(emailId);
+        if (res && res.data) {
+          const emailContent = res.data;
+          if (emailContent.text) {
+            body = emailContent.text;
+          } else if (emailContent.html) {
+            body = stripHtml(emailContent.html);
+          }
+        }
+      } catch (getErr) {
+        console.error('[Inbound Webhook] Error fetching email content from Resend:', getErr);
+      }
+    }
+
+    // Fallback to payload body if API fetch didn't return a body
+    if (!body) {
+      const payloadBody = data.text || data.body || data.html || '';
+      if (payloadBody) {
+        if (payloadBody === data.html) {
+          body = stripHtml(payloadBody);
+        } else {
+          body = payloadBody;
+        }
+      }
+    }
 
     // Helper to extract email from "Name <email>"
     function extractEmailAddress(fromStr) {
@@ -500,7 +551,8 @@ try {
       body TEXT NOT NULL,
       template_id INTEGER REFERENCES email_templates(id) ON DELETE SET NULL,
       status TEXT NOT NULL,
-      sent_at TEXT DEFAULT CURRENT_TIMESTAMP
+      sent_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TEXT
     )
   `);
 
@@ -513,9 +565,31 @@ try {
       from_customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
       subject TEXT NOT NULL,
       body TEXT NOT NULL,
-      received_at TEXT DEFAULT CURRENT_TIMESTAMP
+      received_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TEXT
     )
   `);
+
+  // Migrate emails_sent & emails_received to include deleted_at
+  try {
+    const sentCols = db.prepare('PRAGMA table_info(emails_sent)').all();
+    if (!sentCols.some(c => c.name === 'deleted_at')) {
+      db.exec('ALTER TABLE emails_sent ADD COLUMN deleted_at TEXT');
+      console.log('Successfully migrated emails_sent to include deleted_at column.');
+    }
+  } catch (err) {
+    console.error('Error migrating emails_sent deleted_at column:', err);
+  }
+
+  try {
+    const receivedCols = db.prepare('PRAGMA table_info(emails_received)').all();
+    if (!receivedCols.some(c => c.name === 'deleted_at')) {
+      db.exec('ALTER TABLE emails_received ADD COLUMN deleted_at TEXT');
+      console.log('Successfully migrated emails_received to include deleted_at column.');
+    }
+  } catch (err) {
+    console.error('Error migrating emails_received deleted_at column:', err);
+  }
 
   // Migrate columns for shop_settings table
   const shopSettingsCols = [
@@ -3554,7 +3628,7 @@ function renderTemplate(text, variables) {
   return rendered;
 }
 
-// GET /api/emails: Get sent logs, newest first, filterable by search query or date range
+// GET /api/emails: Get sent logs, newest first, filterable by search query or date range (excluding trashed)
 app.get('/api/emails', (req, res) => {
   try {
     const { search, startDate, endDate, page = 1, limit = 50 } = req.query;
@@ -3564,7 +3638,7 @@ app.get('/api/emails', (req, res) => {
       SELECT e.*, c.name as customer_name
       FROM emails_sent e
       LEFT JOIN customers c ON e.to_customer_id = c.id
-      WHERE e.user_id = ?
+      WHERE e.user_id = ? AND e.deleted_at IS NULL
     `;
     const params = [req.user.id];
     
@@ -3595,7 +3669,7 @@ app.get('/api/emails', (req, res) => {
   }
 });
 
-// GET /api/emails/received: Get inbound emails, newest first, filterable by search query or date range
+// GET /api/emails/received: Get inbound emails, newest first, filterable by search query or date range (excluding trashed)
 app.get('/api/emails/received', (req, res) => {
   try {
     const { search, startDate, endDate, page = 1, limit = 50 } = req.query;
@@ -3605,7 +3679,7 @@ app.get('/api/emails/received', (req, res) => {
       SELECT er.*, c.name as customer_name
       FROM emails_received er
       LEFT JOIN customers c ON er.from_customer_id = c.id
-      WHERE er.user_id = ?
+      WHERE er.user_id = ? AND er.deleted_at IS NULL
     `;
     const params = [req.user.id];
     
@@ -3633,6 +3707,109 @@ app.get('/api/emails/received', (req, res) => {
   } catch (error) {
     console.error('Error fetching received emails:', error);
     res.status(500).json({ error: 'Database error fetching received emails' });
+  }
+});
+
+// GET /api/emails/trash: Get trashed emails (both sent and received) where deleted_at IS NOT NULL
+app.get('/api/emails/trash', (req, res) => {
+  try {
+    const query = `
+      SELECT 'sent' AS email_type, e.id, e.user_id, e.to_email, NULL AS from_email, e.to_customer_id, NULL AS from_customer_id,
+             e.subject, e.body, e.sent_at, NULL AS received_at, e.deleted_at, c.name AS customer_name
+      FROM emails_sent e
+      LEFT JOIN customers c ON e.to_customer_id = c.id
+      WHERE e.user_id = ? AND e.deleted_at IS NOT NULL
+      
+      UNION ALL
+      
+      SELECT 'received' AS email_type, er.id, er.user_id, NULL AS to_email, er.from_email AS from_email, NULL AS to_customer_id, er.from_customer_id,
+             er.subject, er.body, NULL AS sent_at, er.received_at AS received_at, er.deleted_at, c.name AS customer_name
+      FROM emails_received er
+      LEFT JOIN customers c ON er.from_customer_id = c.id
+      WHERE er.user_id = ? AND er.deleted_at IS NOT NULL
+      
+      ORDER BY deleted_at DESC
+    `;
+    
+    const stmt = db.prepare(query);
+    const rows = stmt.all(req.user.id, req.user.id);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching trashed emails:', error);
+    res.status(500).json({ error: 'Database error fetching trashed emails' });
+  }
+});
+
+// POST /api/emails/:type/:id/trash: Move an email to trash
+app.post('/api/emails/:type/:id/trash', (req, res) => {
+  try {
+    const { type, id } = req.params;
+    const tableName = type === 'sent' ? 'emails_sent' : 'emails_received';
+    
+    if (type !== 'sent' && type !== 'received') {
+      return res.status(400).json({ error: 'Invalid email type' });
+    }
+
+    const currentTimestamp = new Date().toISOString();
+    const stmt = db.prepare(`UPDATE ${tableName} SET deleted_at = ? WHERE id = ? AND user_id = ?`);
+    const result = stmt.run(currentTimestamp, id, req.user.id);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Email not found or unauthorized' });
+    }
+
+    res.json({ success: true, message: 'Email moved to trash' });
+  } catch (error) {
+    console.error('Error trashing email:', error);
+    res.status(500).json({ error: 'Database error trashing email' });
+  }
+});
+
+// POST /api/emails/:type/:id/restore: Restore an email from trash
+app.post('/api/emails/:type/:id/restore', (req, res) => {
+  try {
+    const { type, id } = req.params;
+    const tableName = type === 'sent' ? 'emails_sent' : 'emails_received';
+    
+    if (type !== 'sent' && type !== 'received') {
+      return res.status(400).json({ error: 'Invalid email type' });
+    }
+
+    const stmt = db.prepare(`UPDATE ${tableName} SET deleted_at = NULL WHERE id = ? AND user_id = ?`);
+    const result = stmt.run(id, req.user.id);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Email not found or unauthorized' });
+    }
+
+    res.json({ success: true, message: 'Email restored' });
+  } catch (error) {
+    console.error('Error restoring email:', error);
+    res.status(500).json({ error: 'Database error restoring email' });
+  }
+});
+
+// DELETE /api/emails/:type/:id: Permanently delete an email
+app.delete('/api/emails/:type/:id', (req, res) => {
+  try {
+    const { type, id } = req.params;
+    const tableName = type === 'sent' ? 'emails_sent' : 'emails_received';
+    
+    if (type !== 'sent' && type !== 'received') {
+      return res.status(400).json({ error: 'Invalid email type' });
+    }
+
+    const stmt = db.prepare(`DELETE FROM ${tableName} WHERE id = ? AND user_id = ?`);
+    const result = stmt.run(id, req.user.id);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Email not found or unauthorized' });
+    }
+
+    res.json({ success: true, message: 'Email permanently deleted' });
+  } catch (error) {
+    console.error('Error deleting email:', error);
+    res.status(500).json({ error: 'Database error deleting email' });
   }
 });
 
