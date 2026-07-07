@@ -1788,10 +1788,18 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
               </div>
 
               {/* Parts billing line items list */}
-              <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-6 space-y-6 shadow-xl">
+              <div 
+                className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-6 space-y-6 shadow-xl"
+                style={{
+                  borderLeft: '4px solid #378ADD',
+                  borderTopLeftRadius: 0,
+                  borderBottomLeftRadius: 0,
+                  backgroundColor: 'rgba(55,138,221,0.06)'
+                }}
+              >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border-theme pb-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                    <Package className="w-4.5 h-4.5 text-primary-theme" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: '#85B7EB' }}>
+                    <Package className="w-4.5 h-4.5 text-[#85B7EB]" />
                     Parts List Bill / Materials ({jobParts.length})
                   </h3>
                   <div className="flex flex-wrap gap-2 text-xs font-mono font-bold">
@@ -2071,10 +2079,18 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
               </div>
 
               {/* Workshop Services & Labor Operations */}
-              <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-6 space-y-6 shadow-xl">
+              <div 
+                className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-6 space-y-6 shadow-xl"
+                style={{
+                  borderLeft: '4px solid #7F77DD',
+                  borderTopLeftRadius: 0,
+                  borderBottomLeftRadius: 0,
+                  backgroundColor: 'rgba(127,119,221,0.06)'
+                }}
+              >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border-theme pb-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                    <Wrench className="w-4.5 h-4.5 text-primary-theme" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: '#AFA9EC' }}>
+                    <Wrench className="w-4.5 h-4.5 text-[#AFA9EC]" />
                     Services & Labor Operations ({jobServices.length})
                   </h3>
                   <button
@@ -2342,10 +2358,18 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
               </div>
 
               {/* Photos Section */}
-              <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-6 space-y-6 shadow-xl">
+              <div 
+                className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-6 space-y-6 shadow-xl"
+                style={{
+                  borderLeft: '4px solid #EF9F27',
+                  borderTopLeftRadius: 0,
+                  borderBottomLeftRadius: 0,
+                  backgroundColor: 'rgba(239,159,39,0.06)'
+                }}
+              >
                 <div className="border-b border-border-theme pb-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                    <Image className="w-4.5 h-4.5 text-primary-theme" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: '#FAC775' }}>
+                    <Image className="w-4.5 h-4.5 text-[#FAC775]" />
                     Ticket Photo Attachments / Repair Records
                   </h3>
                 </div>
@@ -2636,78 +2660,92 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                 />
               </div>
 
-              <div className={`grid ${shopSettings && shopSettings.default_labor_rate > 0 ? 'grid-cols-5' : 'grid-cols-4'} gap-4 text-left`}>
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Job Status</label>
-                  <select
-                    value={jStatus}
-                    onChange={(e) => setJStatus(e.target.value as Job['status'])}
-                    className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3 py-2.5 focus:border-primary-theme focus:outline-none"
-                  >
-                    <option value="Pending">Pending</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Complete">Complete</option>
-                    <option value="Cancelled">Cancelled</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Est. Completion</label>
-                  <input
-                    type="date"
-                    value={jEstCompletion}
-                    onChange={(e) => setJEstCompletion(e.target.value)}
-                    className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3 py-2.5 focus:border-primary-theme focus:outline-none"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Est. Hours</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 1.5"
-                    value={jEstHours}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setJEstHours(val);
-                      const hrs = parseFloat(val);
-                      if (!isNaN(hrs) && hrs >= 0 && shopSettings && shopSettings.default_labor_rate > 0) {
-                        const calculatedCost = hrs * shopSettings.default_labor_rate;
-                        setJLaborCost(calculatedCost.toFixed(2));
-                      }
-                    }}
-                    className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3 py-2.5 focus:border-primary-theme focus:outline-none font-mono"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Labor Cost ($)</label>
-                  <input
-                    type="text"
-                    value={jLaborCost}
-                    onChange={(e) => setJLaborCost(e.target.value)}
-                    className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3 py-2.5 focus:border-primary-theme focus:outline-none font-mono"
-                  />
-                </div>
-              </div>
+              <div 
+                className="p-5 rounded-xl border border-border-theme/60 space-y-4 text-left"
+                style={{
+                  borderLeft: '4px solid #7F77DD',
+                  borderTopLeftRadius: 0,
+                  borderBottomLeftRadius: 0,
+                  backgroundColor: 'rgba(127,119,221,0.06)'
+                }}
+              >
+                <h4 className="text-[10px] font-mono font-bold tracking-wider uppercase" style={{ color: '#AFA9EC' }}>
+                  Services &amp; Labor Details
+                </h4>
 
-              <div className="space-y-1.5 text-left">
-                <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Diagnosis Findings & Notes</label>
-                <textarea
-                  placeholder="Insert findings from initial diagnostic check..."
-                  value={jDiagnosisNotes}
-                  onChange={(e) => setJDiagnosisNotes(e.target.value)}
-                  rows={2}
-                  className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3.5 py-2.5 focus:border-primary-theme focus:outline-none resize-none"
-                />
-              </div>
+                <div className={`grid ${shopSettings && shopSettings.default_labor_rate > 0 ? 'grid-cols-5' : 'grid-cols-4'} gap-4 text-left`}>
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Job Status</label>
+                    <select
+                      value={jStatus}
+                      onChange={(e) => setJStatus(e.target.value as Job['status'])}
+                      className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3 py-2.5 focus:border-primary-theme focus:outline-none"
+                    >
+                      <option value="Pending">Pending</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Complete">Complete</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Est. Completion</label>
+                    <input
+                      type="date"
+                      value={jEstCompletion}
+                      onChange={(e) => setJEstCompletion(e.target.value)}
+                      className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3 py-2.5 focus:border-primary-theme focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Est. Hours</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 1.5"
+                      value={jEstHours}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setJEstHours(val);
+                        const hrs = parseFloat(val);
+                        if (!isNaN(hrs) && hrs >= 0 && shopSettings && shopSettings.default_labor_rate > 0) {
+                          const calculatedCost = hrs * shopSettings.default_labor_rate;
+                          setJLaborCost(calculatedCost.toFixed(2));
+                        }
+                      }}
+                      className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3 py-2.5 focus:border-primary-theme focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Labor Cost ($)</label>
+                    <input
+                      type="text"
+                      value={jLaborCost}
+                      onChange={(e) => setJLaborCost(e.target.value)}
+                      className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3 py-2.5 focus:border-primary-theme focus:outline-none font-mono"
+                    />
+                  </div>
+                </div>
 
-              <div className="space-y-1.5 text-left">
-                <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Detailed Technicians Labor / Action Instructions</label>
-                <textarea
-                  placeholder="Mechanic instructions... e.g. check spark plug gap, check coil packs"
-                  value={jLaborNotes}
-                  onChange={(e) => setJNotes(e.target.value)}
-                  rows={3}
-                  className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3.5 py-2.5 focus:border-primary-theme focus:outline-none resize-none"
-                />
+                <div className="space-y-1.5 text-left">
+                  <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Diagnosis Findings & Notes</label>
+                  <textarea
+                    placeholder="Insert findings from initial diagnostic check..."
+                    value={jDiagnosisNotes}
+                    onChange={(e) => setJDiagnosisNotes(e.target.value)}
+                    rows={2}
+                    className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3.5 py-2.5 focus:border-primary-theme focus:outline-none resize-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5 text-left">
+                  <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Detailed Technicians Labor / Action Instructions</label>
+                  <textarea
+                    placeholder="Mechanic instructions... e.g. check spark plug gap, check coil packs"
+                    value={jLaborNotes}
+                    onChange={(e) => setJNotes(e.target.value)}
+                    rows={3}
+                    className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3.5 py-2.5 focus:border-primary-theme focus:outline-none resize-none"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-4 text-left border-t border-border-theme pt-4">
