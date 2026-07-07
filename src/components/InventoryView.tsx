@@ -187,7 +187,7 @@ export default function InventoryView() {
 
   // Stats Calculations
   const totalItems = items.length;
-  const lowStockItems = items.filter(item => item.quantity_on_hand < item.reorder_threshold).length;
+  const lowStockItems = items.filter(item => item.quantity_on_hand <= item.reorder_threshold).length;
   const totalValuation = items.reduce((sum, item) => sum + (item.quantity_on_hand * item.cost_price), 0);
   const potentialRevenue = items.reduce((sum, item) => sum + (item.quantity_on_hand * item.sell_price), 0);
   const potentialProfit = potentialRevenue - totalValuation;

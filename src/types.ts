@@ -142,6 +142,7 @@ export interface Job {
   estimated_completion: string;
   actual_completion?: string;
   labor_cost: number;
+  estimated_hours?: number | null;
   created_at?: string;
   updated_at?: string;
   // Joined Fields
@@ -202,6 +203,10 @@ export interface DatabaseStats {
   totalCustomers: number;
   totalVehicles: number;
   activeJobs: number;
+  avgRepairHours?: number;
+  totalPendingHours?: number;
+  lowStockCount?: number;
+  queueCount?: number;
 }
 
 export interface VehicleManual {

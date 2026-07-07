@@ -94,6 +94,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
   const [jEstCompletion, setJEstCompletion] = useState('');
   const [jLaborCost, setJLaborCost] = useState('0');
   const [hoursWorked, setHoursWorked] = useState('');
+  const [jEstHours, setJEstHours] = useState('');
   const [shopSettings, setShopSettings] = useState<any>(null);
 
   // Part Form state
@@ -105,11 +106,22 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
   const [isAddingPart, setIsAddingPart] = useState(false);
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
   const [selectedInventoryId, setSelectedInventoryId] = useState<string>('');
+  const [dbStats, setDbStats] = useState<any>(null);
+
+  const fetchDbStats = async () => {
+    try {
+      const s = await api.getStats();
+      setDbStats(s);
+    } catch (err) {
+      console.error('Failed to load db stats for video panel:', err);
+    }
+  };
 
   useEffect(() => {
     fetchJobs();
     fetchFormAssociations();
     fetchShopSettings();
+    fetchDbStats();
   }, [refreshTrigger]);
 
   const fetchShopSettings = async () => {
@@ -134,6 +146,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
           setSelectedJob(updated);
         }
       }
+      fetchDbStats();
     } catch (err: any) {
       setError(err.message || 'Failed to load shop jobs.');
     } finally {
@@ -158,7 +171,16 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
     setPartsLoading(true);
     try {
       const data = await api.getJobParts(jobId);
-      setJobParts(data);
+      const normalized = (data || []).map((p: any) => {
+        const q = parseInt(p.quantity, 10);
+        const u = parseFloat(p.unit_cost);
+        return {
+          ...p,
+          quantity: isNaN(q) || q < 0 ? 0 : q,
+          unit_cost: isNaN(u) || u < 0 ? 0 : u
+        };
+      });
+      setJobParts(normalized);
     } catch (err) {
       console.error('Failed to load job parts:', err);
     } finally {
@@ -246,6 +268,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       setJStatus(job.status);
       setJEstCompletion(job.estimated_completion);
       setJLaborCost(job.labor_cost?.toString() || '0');
+      setJEstHours(job.estimated_hours?.toString() || '');
       if (shopSettings && shopSettings.default_labor_rate > 0 && job.labor_cost) {
         setHoursWorked((job.labor_cost / shopSettings.default_labor_rate).toFixed(2));
       } else {
@@ -262,6 +285,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       setJEstCompletion(new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0]); // 2 days default
       setJLaborCost('0');
       setHoursWorked('');
+      setJEstHours('');
     }
     setIsJobModalOpen(true);
   };
@@ -281,7 +305,8 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       labor_notes: jLaborNotes,
       status: jStatus,
       estimated_completion: jEstCompletion,
-      labor_cost: parseFloat(jLaborCost) || 0
+      labor_cost: parseFloat(jLaborCost) || 0,
+      estimated_hours: (jEstHours !== undefined && jEstHours !== null && jEstHours !== '') ? parseFloat(jEstHours) : null
     };
 
     try {
@@ -292,6 +317,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       }
       setIsJobModalOpen(false);
       fetchJobs();
+      fetchDbStats();
     } catch (err: any) {
       alert(err.message || 'Failed to save job details.');
     }
@@ -365,12 +391,23 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
     e.preventDefault();
     if (!selectedJob) return;
 
+    const qty = parseInt(partQuantity, 10);
+    const cost = parseFloat(partUnitCost);
+    if (isNaN(qty) || qty <= 0) {
+      alert('Quantity must be a valid positive number.');
+      return;
+    }
+    if (isNaN(cost) || cost <= 0) {
+      alert('Unit Price must be a valid positive number.');
+      return;
+    }
+
     setIsAddingPart(true);
     const payload = {
       part_name: partName,
       part_number: partNumber,
-      quantity: parseInt(partQuantity, 10) || 1,
-      unit_cost: parseFloat(partUnitCost) || 0,
+      quantity: qty,
+      unit_cost: cost,
       notes: partNotes,
       inventory_item_id: selectedInventoryId ? parseInt(selectedInventoryId, 10) : null
     };
@@ -388,6 +425,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       // Refresh inventory items dropdown so quantities are up-to-date
       const inv = await api.getInventory();
       setInventoryItems(inv);
+      fetchDbStats();
     } catch (err: any) {
       alert(err.message || 'Failed to add part billing line.');
     } finally {
@@ -405,6 +443,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
       // Refresh inventory items dropdown so quantities are restored
       const inv = await api.getInventory();
       setInventoryItems(inv);
+      fetchDbStats();
     } catch (err: any) {
       alert(err.message || 'Failed to delete part item.');
     }
@@ -447,11 +486,18 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
   };
 
   // Calculations
-  const totalPartsCost = jobParts.reduce((sum, item) => sum + (item.quantity * item.unit_cost), 0);
-  const totalWorkOrderCost = totalPartsCost + (selectedJob?.labor_cost || 0);
-  const taxRatePercent = shopSettings?.tax_rate || 0;
-  const taxAmount = (totalPartsCost + (selectedJob?.labor_cost || 0)) * (taxRatePercent / 100);
-  const grandTotal = totalPartsCost + (selectedJob?.labor_cost || 0) + taxAmount;
+  const totalPartsCost = jobParts.reduce((sum, item) => {
+    const q = parseInt(item.quantity as any, 10);
+    const qty = isNaN(q) || q < 0 ? 0 : q;
+    const u = parseFloat(item.unit_cost as any);
+    const cost = isNaN(u) || u < 0 ? 0 : u;
+    return sum + (qty * cost);
+  }, 0);
+  const safeLaborCost = selectedJob?.labor_cost && !isNaN(parseFloat(selectedJob.labor_cost as any)) ? parseFloat(selectedJob.labor_cost as any) : 0;
+  const totalWorkOrderCost = totalPartsCost + safeLaborCost;
+  const taxRatePercent = shopSettings?.tax_rate && !isNaN(parseFloat(shopSettings.tax_rate as any)) ? parseFloat(shopSettings.tax_rate as any) : 0;
+  const taxAmount = totalWorkOrderCost * (taxRatePercent / 100);
+  const grandTotal = totalWorkOrderCost + taxAmount;
 
   const shopName = shopSettings?.shop_name || 'WORKSHOP: RAGNARÖK';
   const tagline = shopSettings?.shop_name ? '' : 'Automotive Service & Repair';
@@ -689,13 +735,19 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
 
     const tableBody = jobParts.length === 0
       ? [['No parts logged on this ticket.', '', '', '', '']]
-      : jobParts.map(part => [
-          part.part_name,
-          part.part_number || 'N/A',
-          part.quantity.toString(),
-          `$${part.unit_cost?.toFixed(2)}`,
-          `$${(part.quantity * part.unit_cost)?.toFixed(2)}`
-        ]);
+      : jobParts.map(part => {
+          const q = parseInt(part.quantity as any, 10);
+          const qty = isNaN(q) || q < 0 ? 0 : q;
+          const u = parseFloat(part.unit_cost as any);
+          const cost = isNaN(u) || u < 0 ? 0 : u;
+          return [
+            part.part_name,
+            part.part_number || 'N/A',
+            qty.toString(),
+            `$${cost.toFixed(2)}`,
+            `$${(qty * cost).toFixed(2)}`
+          ];
+        });
 
     autoTable(doc, {
       startY: currentY,
@@ -958,11 +1010,24 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                         </div>
 
                         <div className="pt-2 border-t border-border-theme/40 flex items-center justify-between text-[11px] font-mono text-slate-400">
-                          <span className="flex items-center gap-1">
+                          <span className="flex items-center gap-1 shrink-0">
                             <Calendar className="w-3.5 h-3.5 text-slate-600" />
                             Est: {job.estimated_completion || 'N/A'}
                           </span>
-                          <span className="text-slate-300 font-bold bg-surface-theme border border-border-theme px-2 py-0.5 rounded">
+                          
+                          {job.estimated_hours !== undefined && job.estimated_hours !== null && job.estimated_hours !== '' ? (
+                            <span className="flex items-center gap-1 text-slate-300 font-bold" title="Estimated Repair Time">
+                              <Wrench className="w-3 h-3 text-primary-theme" />
+                              <span>{parseFloat(job.estimated_hours as any).toFixed(1)} HRS</span>
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-yellow-500/90 font-bold animate-pulse" title="Missing estimated hours!">
+                              <AlertTriangle className="w-3 h-3 text-yellow-500 shrink-0" />
+                              <span>NO HRS</span>
+                            </span>
+                          )}
+
+                          <span className="text-slate-300 font-bold bg-surface-theme border border-border-theme px-2 py-0.5 rounded shrink-0">
                             {job.vehicle_current_mileage?.toLocaleString() || 0} mi
                           </span>
                         </div>
@@ -995,7 +1060,12 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                 </div>
               </div>
               <div className="w-full lg:w-[420px] shrink-0 flex justify-center lg:justify-start">
-                <JobsPanelVideo sources={['/jobs-calm.mp4', '/jobs-buff.mp4']} />
+                <JobsPanelVideo 
+                  sources={['/jobs-calm.mp4', '/jobs-buff.mp4']} 
+                  hoursPendingValue={dbStats && dbStats.totalPendingHours !== undefined ? dbStats.totalPendingHours.toFixed(1) + " HRS" : "0.0 HRS"}
+                  lowStockValue={dbStats && dbStats.lowStockCount !== undefined ? dbStats.lowStockCount + " ITEMS" : "3 ITEMS"}
+                  queueValue={dbStats && dbStats.queueCount !== undefined ? dbStats.queueCount + " VEHICLES" : "12 VEHICLES"}
+                />
               </div>
             </div>
           )}
@@ -1237,7 +1307,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   <div className="bg-bg-theme border border-border-theme p-3.5 rounded-lg">
                     <span className="text-[10px] font-mono text-slate-500 uppercase block">Odometer In</span>
                     <span className="text-xs text-slate-200 font-bold block mt-1">
@@ -1254,6 +1324,16 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                     <span className="text-[10px] font-mono text-slate-500 uppercase block">Est. Completion</span>
                     <span className="text-xs text-primary-theme font-bold block mt-1 font-mono">
                       {selectedJob.estimated_completion || 'N/A'}
+                    </span>
+                  </div>
+                  <div className="bg-bg-theme border border-border-theme p-3.5 rounded-lg">
+                    <span className="text-[10px] font-mono text-slate-500 uppercase block">Est. Hours</span>
+                    <span className="text-xs text-slate-200 font-bold block mt-1 font-mono">
+                      {selectedJob.estimated_hours !== undefined && selectedJob.estimated_hours !== null && selectedJob.estimated_hours !== '' ? (
+                        `${parseFloat(selectedJob.estimated_hours as any).toFixed(1)} hrs`
+                      ) : (
+                        <span className="text-yellow-500 font-bold animate-pulse">NO HRS</span>
+                      )}
                     </span>
                   </div>
                   <div className="bg-bg-theme border border-border-theme p-3.5 rounded-lg">
@@ -1434,25 +1514,31 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border-theme text-slate-300">
-                        {jobParts.map((part) => (
-                          <tr key={part.id} className="hover:bg-bg-theme/35 transition">
-                            <td className="py-3 font-semibold text-slate-200">{part.part_name}</td>
-                            <td className="py-3 font-mono text-slate-400">{part.part_number || 'N/A'}</td>
-                            <td className="py-3 text-right font-mono">{part.quantity}</td>
-                            <td className="py-3 text-right font-mono">${part.unit_cost?.toFixed(2)}</td>
-                            <td className="py-3 text-right font-bold text-slate-101 font-mono">
-                              ${(part.quantity * part.unit_cost)?.toFixed(2)}
-                            </td>
-                            <td className="py-3 text-right">
-                              <button
-                                onClick={() => handleDeleteJobPart(part.id)}
-                                className="text-slate-500 hover:text-red-400 p-1 rounded transition"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                        {jobParts.map((part) => {
+                          const q = parseInt(part.quantity as any, 10);
+                          const qty = isNaN(q) || q < 0 ? 0 : q;
+                          const u = parseFloat(part.unit_cost as any);
+                          const cost = isNaN(u) || u < 0 ? 0 : u;
+                          return (
+                            <tr key={part.id} className="hover:bg-bg-theme/35 transition">
+                              <td className="py-3 font-semibold text-slate-200">{part.part_name}</td>
+                              <td className="py-3 font-mono text-slate-400">{part.part_number || 'N/A'}</td>
+                              <td className="py-3 text-right font-mono">{qty}</td>
+                              <td className="py-3 text-right font-mono">${cost.toFixed(2)}</td>
+                              <td className="py-3 text-right font-bold text-slate-101 font-mono">
+                                ${(qty * cost).toFixed(2)}
+                              </td>
+                              <td className="py-3 text-right">
+                                <button
+                                  onClick={() => handleDeleteJobPart(part.id)}
+                                  className="text-slate-500 hover:text-red-400 p-1 rounded transition"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1753,7 +1839,7 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                 />
               </div>
 
-              <div className={`grid ${shopSettings && shopSettings.default_labor_rate > 0 ? 'grid-cols-4' : 'grid-cols-3'} gap-4 text-left`}>
+              <div className={`grid ${shopSettings && shopSettings.default_labor_rate > 0 ? 'grid-cols-5' : 'grid-cols-4'} gap-4 text-left`}>
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Job Status</label>
                   <select
@@ -1796,6 +1882,16 @@ export default function JobsView({ refreshTrigger, initialSelectedJobId, onIniti
                     />
                   </div>
                 )}
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Est. Hours</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 1.5"
+                    value={jEstHours}
+                    onChange={(e) => setJEstHours(e.target.value)}
+                    className="w-full rounded bg-bg-theme border border-border-theme text-slate-202 text-sm px-3 py-2.5 focus:border-primary-theme focus:outline-none font-mono"
+                  />
+                </div>
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-mono tracking-wider uppercase text-slate-400">Labor Cost ($)</label>
                   <input

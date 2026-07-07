@@ -126,11 +126,19 @@ try {
       estimated_completion TEXT,
       actual_completion TEXT,
       labor_cost REAL DEFAULT 0,
+      estimated_hours REAL DEFAULT NULL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  try {
+    db.exec(`ALTER TABLE jobs ADD COLUMN estimated_hours REAL DEFAULT NULL`);
+    console.log("Successfully ran migration: ALTER TABLE jobs ADD COLUMN estimated_hours");
+  } catch (err) {
+    // Column already exists
+  }
 
   // 5. Create Job Parts Table
   db.exec(`
@@ -1548,11 +1556,48 @@ app.get('/api/stats', (req, res) => {
     const vehiclesCount = db.prepare('SELECT count(*) as count FROM customer_vehicles WHERE user_id = ?').get(req.user.id).count || 0;
     const activeJobsCount = db.prepare("SELECT count(*) as count FROM jobs WHERE status != 'Complete' AND status != 'Cancelled' AND user_id = ?").get(req.user.id).count || 0;
 
+    // FIX 2 Additions
+    let avgRepairHours = 0;
+    const completedOrInProgressJobs = db.prepare(`
+      SELECT created_at, actual_completion, updated_at, status FROM jobs 
+      WHERE user_id = ? AND (status = 'Complete' OR status = 'In Progress')
+    `).all(req.user.id);
+
+    if (completedOrInProgressJobs.length > 0) {
+      let totalHours = 0;
+      let count = 0;
+      for (const j of completedOrInProgressJobs) {
+        const start = new Date(j.created_at).getTime();
+        const endStr = j.actual_completion || j.updated_at || new Date().toISOString();
+        const end = new Date(endStr).getTime();
+        if (!isNaN(start) && !isNaN(end) && end >= start) {
+          totalHours += (end - start) / (1000 * 60 * 60);
+          count++;
+        }
+      }
+      if (count > 0) {
+        avgRepairHours = totalHours / count;
+      }
+    }
+
+    const lowStockCount = db.prepare('SELECT count(*) as count FROM inventory_items WHERE quantity_on_hand <= reorder_threshold AND user_id = ?').get(req.user.id).count || 0;
+    const queueCount = db.prepare("SELECT count(*) as count FROM jobs WHERE (status = 'Pending' OR status = 'In Progress') AND user_id = ?").get(req.user.id).count || 0;
+
+    const pendingHoursRow = db.prepare(`
+      SELECT SUM(COALESCE(estimated_hours, 0)) as total_hours FROM jobs
+      WHERE user_id = ? AND (status = 'Pending' OR status = 'In Progress')
+    `).get(req.user.id);
+    const totalPendingHours = pendingHoursRow ? (pendingHoursRow.total_hours || 0) : 0;
+
     res.json({
       totalManuals,
       totalCustomers: customersCount,
       totalVehicles: vehiclesCount,
-      activeJobs: activeJobsCount
+      activeJobs: activeJobsCount,
+      avgRepairHours,
+      totalPendingHours,
+      lowStockCount,
+      queueCount
     });
   } catch (error) {
     console.error('Error fetching database stats:', error);
@@ -2010,7 +2055,7 @@ app.get('/api/jobs/:id', (req, res) => {
 app.post('/api/jobs', (req, res) => {
   try {
     const {
-      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost
+      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost, estimated_hours
     } = req.body;
     if (!customer_id || !vehicle_id) return res.status(400).json({ error: 'customer_id and vehicle_id are required' });
 
@@ -2021,14 +2066,16 @@ app.post('/api/jobs', (req, res) => {
     const vehicle = db.prepare('SELECT id FROM customer_vehicles WHERE id = ? AND user_id = ?').get(vehicle_id, req.user.id);
     if (!vehicle) return res.status(400).json({ error: 'Invalid or unauthorized vehicle_id' });
 
+    const estHoursVal = (estimated_hours !== undefined && estimated_hours !== null && estimated_hours !== '') ? parseFloat(estimated_hours) : null;
+
     const stmt = db.prepare(`
       INSERT INTO jobs (
-        customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost, user_id
+        customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost, estimated_hours, user_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
-      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status || 'Pending', estimated_completion, actual_completion || null, labor_cost || 0, req.user.id
+      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status || 'Pending', estimated_completion, actual_completion || null, labor_cost || 0, estHoursVal, req.user.id
     );
     const inserted = db.prepare('SELECT * FROM jobs WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
     res.json(inserted);
@@ -2042,7 +2089,7 @@ app.put('/api/jobs/:id', (req, res) => {
   try {
     const { id } = req.params;
     const {
-      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost
+      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost, estimated_hours
     } = req.body;
 
     // Verify ownership of the job
@@ -2059,13 +2106,15 @@ app.put('/api/jobs/:id', (req, res) => {
       if (!vehicle) return res.status(400).json({ error: 'Invalid or unauthorized vehicle_id' });
     }
 
+    const estHoursVal = (estimated_hours !== undefined && estimated_hours !== null && estimated_hours !== '') ? parseFloat(estimated_hours) : null;
+
     const stmt = db.prepare(`
       UPDATE jobs
-      SET customer_id = ?, vehicle_id = ?, description = ?, diagnosis_notes = ?, labor_notes = ?, status = ?, estimated_completion = ?, actual_completion = ?, labor_cost = ?, updated_at = CURRENT_TIMESTAMP
+      SET customer_id = ?, vehicle_id = ?, description = ?, diagnosis_notes = ?, labor_notes = ?, status = ?, estimated_completion = ?, actual_completion = ?, labor_cost = ?, estimated_hours = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
     `);
     const info = stmt.run(
-      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost || 0, id, req.user.id
+      customer_id, vehicle_id, description, diagnosis_notes, labor_notes, status, estimated_completion, actual_completion, labor_cost || 0, estHoursVal, id, req.user.id
     );
     if (info.changes === 0) return res.status(404).json({ error: 'Job not found' });
     const updated = db.prepare('SELECT * FROM jobs WHERE id = ? AND user_id = ?').get(id, req.user.id);

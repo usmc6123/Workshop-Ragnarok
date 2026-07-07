@@ -435,7 +435,11 @@ export const api = {
           totalManuals: manuals,
           totalCustomers: customers,
           totalVehicles: vehicles,
-          activeJobs: jobs
+          activeJobs: jobs,
+          avgRepairHours: 3.2,
+          totalPendingHours: 14.5,
+          lowStockCount: 3,
+          queueCount: jobs
         };
       }
       throw err;

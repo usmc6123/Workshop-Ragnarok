@@ -54,7 +54,12 @@ function StatPlate({ label, value, style }) {
   );
 }
 
-export default function JobsPanelVideo({ sources }) {
+export default function JobsPanelVideo({ 
+  sources, 
+  hoursPendingValue = "14.5 HRS", 
+  lowStockValue = "3 ITEMS", 
+  queueValue = "12 VEHICLES" 
+}) {
   const [index, setIndex] = useState(0);
   const videoRef = useRef(null);
 
@@ -126,18 +131,18 @@ export default function JobsPanelVideo({ sources }) {
       <MechanicSlogan />
 
       <StatPlate
-        label="Avg Repair"
-        value="3.2 HRS"
+        label="Hours Pending"
+        value={hoursPendingValue}
         style={{ top: '30%', left: '4%', zIndex: 2 }}
       />
       <StatPlate
         label="Low Stock"
-        value="3 ITEMS"
+        value={lowStockValue}
         style={{ top: '42%', left: '4%', zIndex: 2 }}
       />
       <StatPlate
         label="Queue"
-        value="12 VEHICLES"
+        value={queueValue}
         style={{ top: '54%', left: '4%', zIndex: 2 }}
       />
     </div>
