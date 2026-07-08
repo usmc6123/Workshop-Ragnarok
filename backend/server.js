@@ -1493,7 +1493,17 @@ app.get('/api/page', async (req, res) => {
   try {
     const uri = req.query.uri;
     if (!uri) return res.status(400).json({ error: 'Missing uri parameter' });
-    const targetUrl = `${LEMON_SERVER_URL}${uri}`;
+
+    let encodedUri = uri;
+    if (uri) {
+      try {
+        const decoded = decodeURIComponent(uri);
+        encodedUri = decoded.split('/').map(segment => encodeURIComponent(segment)).join('/');
+      } catch (e) {
+        encodedUri = uri.split('/').map(segment => encodeURIComponent(segment)).join('/');
+      }
+    }
+    const targetUrl = `${LEMON_SERVER_URL}${encodedUri}`;
     console.log(`Fetching from lemon-server: ${targetUrl}`);
 
     const response = await fetch(targetUrl);
@@ -1505,6 +1515,7 @@ app.get('/api/page', async (req, res) => {
     }
 
     const html = await response.text();
+    console.log('[DEBUG] HTML length:', html.length, 'preview:', html.substring(0, 200).replace(/\r?\n/g, ' '));
     const $ = cheerio.load(html);
 
     // Target div.main, fallback to body
@@ -1537,7 +1548,10 @@ app.get('/api/page', async (req, res) => {
     });
     const hasCategoryLinks = categoryLinks.length > 0 && !isLemonContent && !isCharmContent;
 
+    console.log('[DEBUG] Page Detection - isLemon:', isLemonContent, '| isCharm:', isCharmContent, '| hasCategoryLinks:', hasCategoryLinks, '| categoryLinksCount:', categoryLinks.length, '| title:', title);
+
     if (hasCategoryLinks) {
+      console.log('[DEBUG] Processing as categoryLinks');
       const tree = [];
 
       // Process only top-level lists to avoid double-processing nested <ul> elements.
@@ -1950,6 +1964,57 @@ app.get('/api/page', async (req, res) => {
                 blocks.push({ type: 'table', rows: tableData });
               }
             }
+          } else if (tagName === 'dl') {
+            flushParts();
+            const rows = [
+              [
+                { text: 'Abbreviation', isHeader: true },
+                { text: 'Meaning / Description', isHeader: true }
+              ]
+            ];
+            let currentTerm = '';
+            $node.contents().each((idx, child) => {
+              const childTag = child.name ? child.name.toLowerCase() : '';
+              if (childTag === 'dt') {
+                currentTerm = $(child).text().trim();
+              } else if (childTag === 'dd') {
+                const definition = $(child).text().trim();
+                if (currentTerm || definition) {
+                  rows.push([
+                    { text: currentTerm || '', isHeader: false },
+                    { text: definition || '', isHeader: false }
+                  ]);
+                }
+                currentTerm = '';
+              }
+            });
+            if (rows.length > 1) {
+              blocks.push({ type: 'table', rows });
+            }
+          } else if (tagName === 'ul' || tagName === 'ol') {
+            flushParts();
+            $node.children('li').each((liIdx, liEl) => {
+              const $li = $(liEl);
+              const liImageHolders = $li.find('div.imageHolder');
+
+              if (liImageHolders.length > 0) {
+                processLemonListItemContent($, $li, blocks);
+                return;
+              }
+
+              const $a = $li.children('a').first();
+              if ($a.length > 0) {
+                let href = $a.attr('href') || '';
+                if (href.startsWith('/hyperlink/')) href = href.substring(11);
+                else if (href.startsWith('hyperlink/')) href = href.substring(10);
+                if (!href.startsWith('/')) href = '/' + href;
+                const linkText = $a.text().trim();
+                if (linkText) blocks.push({ type: 'paragraph', parts: [{ type: 'internalLink', text: linkText, href }] });
+              } else {
+                const text = $li.text().trim();
+                if (text) blocks.push({ type: 'paragraph', text });
+              }
+            });
           }
         });
         
@@ -2242,6 +2307,57 @@ app.get('/api/page', async (req, res) => {
               const text = $node.text().trim();
               if (text) blocks.push({ type: 'paragraph', text });
             }
+          } else if (tagName === 'dl') {
+            flushCurrentParts();
+            const rows = [
+              [
+                { text: 'Abbreviation', isHeader: true },
+                { text: 'Meaning / Description', isHeader: true }
+              ]
+            ];
+            let currentTerm = '';
+            $node.contents().each((idx, child) => {
+              const childTag = child.name ? child.name.toLowerCase() : '';
+              if (childTag === 'dt') {
+                currentTerm = $(child).text().trim();
+              } else if (childTag === 'dd') {
+                const definition = $(child).text().trim();
+                if (currentTerm || definition) {
+                  rows.push([
+                    { text: currentTerm || '', isHeader: false },
+                    { text: definition || '', isHeader: false }
+                  ]);
+                }
+                currentTerm = '';
+              }
+            });
+            if (rows.length > 1) {
+              blocks.push({ type: 'table', rows });
+            }
+          } else if (tagName === 'ul' || tagName === 'ol') {
+            flushCurrentParts();
+            $node.children('li').each((liIdx, liEl) => {
+              const $li = $(liEl);
+              const liImageHolders = $li.find('div.imageHolder');
+
+              if (liImageHolders.length > 0) {
+                processLemonListItemContent($, $li, blocks);
+                return;
+              }
+
+              const $a = $li.children('a').first();
+              if ($a.length > 0) {
+                let href = $a.attr('href') || '';
+                if (href.startsWith('/hyperlink/')) href = href.substring(11);
+                else if (href.startsWith('hyperlink/')) href = href.substring(10);
+                if (!href.startsWith('/')) href = '/' + href;
+                const linkText = $a.text().trim();
+                if (linkText) blocks.push({ type: 'paragraph', parts: [{ type: 'internalLink', text: linkText, href }] });
+              } else {
+                const text = $li.text().trim();
+                if (text) blocks.push({ type: 'paragraph', text });
+              }
+            });
           } else {
             processInlineNode(node, currentParts);
           }
