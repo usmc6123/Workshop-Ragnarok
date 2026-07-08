@@ -724,14 +724,24 @@ export default function ManualView({
   // Refetch when currentUri path transitions
   useEffect(() => {
     if (!initialContent) {
-      loadActivePageDetails(currentUri);
-      // Track navigation history so Back can step through visited pages reliably
-      setUriHistory(prev => {
-        if (prev[prev.length - 1] === currentUri) return prev;
-        return [...prev, currentUri];
-      });
+      if (currentUri === vehicle.uriPath) {
+        setNavLevel('root');
+        if (rootCategoryPage) {
+          setActivePage(rootCategoryPage);
+        } else {
+          loadActivePageDetails(currentUri);
+        }
+        setUriHistory([vehicle.uriPath]);
+      } else {
+        loadActivePageDetails(currentUri);
+        // Track navigation history so Back can step through visited pages reliably
+        setUriHistory(prev => {
+          if (prev[prev.length - 1] === currentUri) return prev;
+          return [...prev, currentUri];
+        });
+      }
     }
-  }, [currentUri, initialContent]);
+  }, [currentUri, initialContent, rootCategoryPage, vehicle.uriPath]);
 
   // Toggle checklist checkbox step
   const toggleStepCompleted = (idx: number) => {
@@ -1076,19 +1086,31 @@ export default function ManualView({
             ) : rootCategoryPage ? (
               <div className="space-y-3">
                 {navLevel === 'section' && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNavLevel('root');
-                      setActivePage(rootCategoryPage);
-                      setCurrentUri(vehicle.uriPath);
-                      setDynamicChildren({});
-                    }}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-amber-500/10 hover:bg-amber-500 hover:text-slate-950 text-amber-400 hover:border-amber-500/30 border border-amber-500/10 rounded-lg text-xs font-bold uppercase tracking-wider transition duration-150 select-none cursor-pointer"
-                  >
-                    <ArrowLeft className="w-4 h-4 shrink-0" />
-                    <span>Back to Sections</span>
-                  </button>
+                  <div className="grid grid-cols-2 gap-2" id="sidebar-nav-actions">
+                    <button
+                      type="button"
+                      id="sidebar-back-button"
+                      onClick={goUpOneLevel}
+                      className="flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-800/60 hover:bg-slate-700 hover:text-white text-slate-300 border border-[#1e2028] hover:border-slate-600 rounded-lg text-xs font-bold uppercase tracking-wider transition duration-150 select-none cursor-pointer"
+                    >
+                      <ArrowLeft className="w-4 h-4 shrink-0 text-amber-500" />
+                      <span>Back</span>
+                    </button>
+                    <button
+                      type="button"
+                      id="sidebar-back-to-sections-button"
+                      onClick={() => {
+                        setNavLevel('root');
+                        setActivePage(rootCategoryPage);
+                        setCurrentUri(vehicle.uriPath);
+                        setDynamicChildren({});
+                        setUriHistory([vehicle.uriPath]);
+                      }}
+                      className="flex items-center justify-center gap-1.5 py-2 px-3 bg-amber-500/10 hover:bg-amber-500 hover:text-slate-950 text-amber-400 hover:border-amber-500/30 border border-amber-500/10 rounded-lg text-xs font-bold uppercase tracking-wider transition duration-150 select-none cursor-pointer"
+                    >
+                      <span>To Sections</span>
+                    </button>
+                  </div>
                 )}
 
                 <TreeView
