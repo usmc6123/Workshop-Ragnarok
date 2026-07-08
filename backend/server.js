@@ -1342,6 +1342,152 @@ app.delete('/api/garage/:garageId', (req, res) => {
   }
 });
 
+// Recursively converts a LEMON <li>'s content into proper content blocks (paragraph/
+// heading/image/table), instead of the single-level scan this replaces which fell back to
+// flattening anything it didn't recognize (nested <ol>/<ul> sub-steps, <table>s, extra <p>s)
+// into one giant unreadable text blob via .text(). This shows up on pages whose first step
+// is itself a multi-part procedure — e.g. "Road Test" pages where step 1 contains lettered
+// sub-steps (<ol class="LOWERALPHA">), each with its own "TEXT IN ILLUSTRATION" <table> and
+// <div class="imageHolder"> figure, and its own nested <ol class="ARABICNUM"> sub-sub-steps.
+// Block-level children (<p>, <ul>/<ol>, <table>, imageHolder, other <div>s) each flush the
+// current paragraph and either become their own block or get recursed into in turn; inline
+// children (<span>, <b>, <a>) accumulate into the current paragraph, matching how the rest
+// of this parser already treats them elsewhere.
+function processLemonListItemContent($, $el, blocks) {
+  let parts = [];
+  const flush = () => {
+    if (parts.length === 0) return;
+    if (parts.length === 1 && parts[0].type === 'text') {
+      blocks.push({ type: 'paragraph', text: parts[0].text });
+    } else {
+      blocks.push({ type: 'paragraph', parts });
+    }
+    parts = [];
+  };
+
+  $el.contents().each((idx, node) => {
+    const $node = $(node);
+    const tag = node.name ? node.name.toLowerCase() : '';
+
+    if (node.type === 'text') {
+      const text = node.data ? node.data.trim() : '';
+      if (text) parts.push({ type: 'text', text });
+      return;
+    }
+
+    if (tag === 'br') {
+      flush();
+      return;
+    }
+
+    if (tag === 'a' && $node.hasClass('clsGraphicLink')) {
+      // Skip — redundant "Fig N" label; the real image renders as its own block below.
+      return;
+    }
+
+    if (tag === 'a') {
+      const linkText = $node.text().trim();
+      let href = $node.attr('href') || '';
+      if (href.startsWith('/hyperlink/')) href = href.substring(11);
+      else if (href.startsWith('hyperlink/')) href = href.substring(10);
+      if (!href.startsWith('/')) href = '/' + href;
+      if (linkText) parts.push({ type: 'internalLink', text: linkText, href });
+      return;
+    }
+
+    if (tag === 'span' || tag === 'b') {
+      // Inline emphasis/label runs (e.g. class="clsEmphBOLD") stay part of the current paragraph.
+      const text = $node.text().trim();
+      if (text) parts.push({ type: 'text', text });
+      return;
+    }
+
+    if (tag === 'div' && $node.hasClass('imageHolder')) {
+      flush();
+      const caption = $node.find('.imageCaption').first().text().trim();
+      const src = $node.find('img').first().attr('src');
+      if (caption) blocks.push({ type: 'heading', text: caption });
+      if (src) blocks.push({ type: 'image', src });
+      return;
+    }
+
+    if (tag === 'div' && $node.hasClass('clsTableTitle')) {
+      flush();
+      const text = $node.text().trim();
+      if (text) blocks.push({ type: 'heading', text });
+      return;
+    }
+
+    if (tag === 'table') {
+      flush();
+      // Mirrors the imageHolder-in-table-cell handling used elsewhere in this parser.
+      const imageCells = $node.find('div.imageHolder');
+      if (imageCells.length > 0 && $node.find('td').length === imageCells.length) {
+        imageCells.each((k, holder) => {
+          const $holder = $(holder);
+          const caption = $holder.find('.imageCaption').first().text().trim();
+          const src = $holder.find('img').first().attr('src');
+          if (caption) blocks.push({ type: 'heading', text: caption });
+          if (src) blocks.push({ type: 'image', src });
+        });
+      } else {
+        const tableData = [];
+        $node.find('tr').each((i, row) => {
+          const rowData = [];
+          $(row).find('td, th').each((j, cell) => {
+            const $cell = $(cell);
+            const $imgHolder = $cell.find('div.imageHolder').first();
+            if ($imgHolder.length > 0) {
+              const src = $imgHolder.find('img').first().attr('src');
+              if (src) blocks.push({ type: 'image', src });
+              return;
+            }
+            const cellLinks = [];
+            $cell.find('a').each((k, link) => {
+              const $link = $(link);
+              let href = $link.attr('href') || '';
+              if (href.startsWith('/hyperlink/')) href = href.substring(11);
+              else if (href.startsWith('hyperlink/')) href = href.substring(10);
+              if (!href.startsWith('/')) href = '/' + href;
+              cellLinks.push({ text: $link.text().trim(), href });
+            });
+            rowData.push({
+              text: $cell.text().trim(),
+              isHeader: (cell.name || '').toLowerCase() === 'th',
+              links: cellLinks
+            });
+          });
+          if (rowData.length > 0) tableData.push(rowData);
+        });
+        if (tableData.length > 0) blocks.push({ type: 'table', rows: tableData });
+      }
+      return;
+    }
+
+    if (tag === 'ul' || tag === 'ol') {
+      flush();
+      $node.children('li').each((i, liEl) => {
+        processLemonListItemContent($, $(liEl), blocks);
+      });
+      return;
+    }
+
+    if (tag === 'p' || tag === 'div') {
+      // Nested paragraphs/wrapper divs are their own block boundary — flush what came
+      // before, then recurse so their own text/links/images/tables get handled the same way.
+      flush();
+      processLemonListItemContent($, $node, blocks);
+      return;
+    }
+
+    // Fallback for any other unexpected inline tag: keep its text in the current paragraph.
+    const text = $node.text().trim();
+    if (text) parts.push({ type: 'text', text });
+  });
+
+  flush();
+}
+
 // GET /api/page?uri=<uriPath>
 app.get('/api/page', async (req, res) => {
   try {
@@ -1682,42 +1828,11 @@ app.get('/api/page', async (req, res) => {
                     // to) and silently dropping both the step text and the real image.
                     // Instead: keep the step text, drop the redundant "Fig N" label link
                     // (the image immediately below already carries that reference), and emit
-                    // each imageHolder as a proper captioned image block.
-                    const stepParts = [];
-                    $li.contents().each((ciIdx, childNode) => {
-                      const $child = $(childNode);
-                      const childTag = childNode.name ? childNode.name.toLowerCase() : '';
-                      if (childNode.type === 'text') {
-                        const text = childNode.data ? childNode.data.trim() : '';
-                        if (text) stepParts.push({ type: 'text', text });
-                      } else if (childTag === 'a' && $child.hasClass('clsGraphicLink')) {
-                        // Skip — redundant "Fig N" label for the image rendered below.
-                      } else if (childTag === 'a') {
-                        const linkText = $child.text().trim();
-                        let href = $child.attr('href') || '';
-                        if (href.startsWith('/hyperlink/')) href = href.substring(11);
-                        else if (href.startsWith('hyperlink/')) href = href.substring(10);
-                        if (!href.startsWith('/')) href = '/' + href;
-                        if (linkText) stepParts.push({ type: 'internalLink', text: linkText, href });
-                      } else if (childTag === 'div' && $child.hasClass('imageHolder')) {
-                        // Rendered separately below, in order.
-                      } else {
-                        const text = $child.text().trim();
-                        if (text) stepParts.push({ type: 'text', text });
-                      }
-                    });
-                    if (stepParts.length === 1 && stepParts[0].type === 'text') {
-                      blocks.push({ type: 'paragraph', text: stepParts[0].text });
-                    } else if (stepParts.length > 0) {
-                      blocks.push({ type: 'paragraph', parts: stepParts });
-                    }
-                    liImageHolders.each((holderIdx, holderEl) => {
-                      const $holder = $(holderEl);
-                      const caption = $holder.find('.imageCaption').first().text().trim();
-                      const src = $holder.find('img').first().attr('src');
-                      if (caption) blocks.push({ type: 'heading', text: caption });
-                      if (src) blocks.push({ type: 'image', src });
-                    });
+                    // each imageHolder as a proper captioned image block. Some steps (e.g.
+                    // "Road Test" procedures) nest a whole lettered sub-procedure inside this
+                    // same li — their own <table>s, imageHolders, and <ol>/<ul> sub-steps — so
+                    // this walk is fully recursive rather than a single flat pass.
+                    processLemonListItemContent($, $li, blocks);
                     return;
                   }
 
