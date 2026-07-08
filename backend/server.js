@@ -1512,9 +1512,34 @@ app.get('/api/page', async (req, res) => {
           } else if (tagName === 'p') {
             // Mirrors the same fix applied inside nested div[id^="S"] wrappers —
             // catches paragraphs that sit directly under div.main with no wrapper div.
+            // Walk child nodes instead of using .text() so inline <a> tags (e.g. "See
+            // PARTS LOCATION") survive as real internalLink parts instead of being
+            // flattened into plain unclickable text.
             flushParts();
-            const text = $node.text().trim();
-            if (text) blocks.push({ type: 'paragraph', text });
+            const pParts = [];
+            $node.contents().each((pIdx, pNode) => {
+              const $pChild = $(pNode);
+              const pChildTag = pNode.name ? pNode.name.toLowerCase() : '';
+              if (pNode.type === 'text') {
+                const text = pNode.data ? pNode.data.trim() : '';
+                if (text) pParts.push({ type: 'text', text });
+              } else if (pChildTag === 'a') {
+                const linkText = $pChild.text().trim();
+                let href = $pChild.attr('href') || '';
+                if (href.startsWith('/hyperlink/')) href = href.substring(11);
+                else if (href.startsWith('hyperlink/')) href = href.substring(10);
+                if (!href.startsWith('/')) href = '/' + href;
+                if (linkText) pParts.push({ type: 'internalLink', text: linkText, href });
+              } else {
+                const text = $pChild.text().trim();
+                if (text) pParts.push({ type: 'text', text });
+              }
+            });
+            if (pParts.length === 1 && pParts[0].type === 'text') {
+              blocks.push({ type: 'paragraph', text: pParts[0].text });
+            } else if (pParts.length > 0) {
+              blocks.push({ type: 'paragraph', parts: pParts });
+            }
           } else if (tagName === 'div') {
             flushParts();
             // Recursively process children of wrapper divs (like div[id^="S"])
@@ -1666,11 +1691,37 @@ app.get('/api/page', async (req, res) => {
                 });
               } else if (dTagName === 'p') {
                 // Some LEMON pages wrap plain paragraph text directly in <p> tags
-                // inside the div[id^="S"] wrapper (e.g. wiring diagram intro pages).
+                // inside the div[id^="S"] wrapper (e.g. wiring diagram intro pages,
+                // and pages like "See PARTS LOCATION" cross-reference stubs).
                 // Without this case, all such paragraph text was silently dropped.
+                // Walk child nodes instead of using .text() so inline <a> tags survive
+                // as real internalLink parts instead of being flattened into plain
+                // unclickable text.
                 flushParts();
-                const text = $dNode.text().trim();
-                if (text) blocks.push({ type: 'paragraph', text });
+                const pParts = [];
+                $dNode.contents().each((pIdx, pNode) => {
+                  const $pChild = $(pNode);
+                  const pChildTag = pNode.name ? pNode.name.toLowerCase() : '';
+                  if (pNode.type === 'text') {
+                    const text = pNode.data ? pNode.data.trim() : '';
+                    if (text) pParts.push({ type: 'text', text });
+                  } else if (pChildTag === 'a') {
+                    const linkText = $pChild.text().trim();
+                    let href = $pChild.attr('href') || '';
+                    if (href.startsWith('/hyperlink/')) href = href.substring(11);
+                    else if (href.startsWith('hyperlink/')) href = href.substring(10);
+                    if (!href.startsWith('/')) href = '/' + href;
+                    if (linkText) pParts.push({ type: 'internalLink', text: linkText, href });
+                  } else {
+                    const text = $pChild.text().trim();
+                    if (text) pParts.push({ type: 'text', text });
+                  }
+                });
+                if (pParts.length === 1 && pParts[0].type === 'text') {
+                  blocks.push({ type: 'paragraph', text: pParts[0].text });
+                } else if (pParts.length > 0) {
+                  blocks.push({ type: 'paragraph', parts: pParts });
+                }
               } else if (dTagName === 'div' && $dNode.hasClass('imageHolder')) {
                 // imageHolder wraps an imageHeader (caption) plus an <img> tag.
                 // The generic div fallback below only grabs combined .text(), which
