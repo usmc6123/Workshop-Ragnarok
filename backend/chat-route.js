@@ -81,7 +81,25 @@ Table of Contents
 09 Setting Up Your Shop Profile
    Branding, tax rate, and labor rate — do this first
 
-10 Quick Reference & Tips
+10 Dashboard & Quick Search
+   Overview cards and universal search
+
+11 Managing Inventory & Parts Stock
+   Stock levels, adjustments, and receipt scanning
+
+12 Using the Email Center
+   Inbox, Sent Log, Templates, Compose, Reply/Forward, and Trash
+
+13 Payments Dashboard
+   Revenue summary and Stripe transaction history
+
+14 Automations (n8n)
+   Building custom shop workflow automations
+
+15 Managing Users & Permissions
+   Admin-only account and role management
+
+16 Quick Reference & Tips
    Shortcuts and habits that save time
 
 ---
@@ -359,6 +377,164 @@ Do this before your first real invoice — everything here feeds directly into e
 
 SECTION 10
 
+Dashboard & Quick Search
+
+WHERE: Dashboard tab (the screen you land on after login)
+
+1     Check the overview cards
+      at the top — total customers, active jobs, vehicles registered, and manuals indexed, at a glance.
+
+2     Use the universal search bar
+      to search by make, model, year, or a repair keyword (e.g. "brake pads") — it returns both matching vehicles and matching
+      manual procedures in one dropdown.
+
+3     Jump to a result
+      — picking a vehicle from search takes you straight into the Manual Library for it; picking a procedure opens that section
+      directly.
+
+4     Scan the Recent Repair Orders, Upcoming Appointments, and Recent Clients panels
+      below the search bar — each links straight through to the full Jobs, Appointments, or Customers view.
+
+    FASTEST WAY TO A MANUAL
+
+    Typing a repair keyword into the Dashboard search (not just a vehicle) can take you straight to a matching procedure without
+    browsing the tree at all.
+
+---
+
+SECTION 11
+
+Managing Inventory & Parts Stock
+
+WHERE: Inventory tab
+
+1     Open the Inventory tab
+      to see every part currently in stock, with quantity on hand and reorder threshold.
+
+2     Add a part manually
+      with Add Item — name, part number, category, cost/sell price, supplier, and storage location.
+
+3     Adjust stock levels
+      from a part's row whenever you use, receive, or correct a quantity — every adjustment is logged with a reason.
+
+4     Scan a supplier invoice or receipt
+      with the receipt upload tool — a photo of the paper invoice is parsed automatically (via Gemini AI) into a list of line
+      items you can review before importing; you choose whether each line creates a new part or updates an existing one's
+      quantity.
+
+5     Browse your Receipts Archive
+      any time to search past scanned invoices by supplier or date.
+
+    LOW STOCK
+
+    Items at or below their reorder threshold are flagged automatically so you can see what needs reordering at a glance.
+
+---
+
+SECTION 12
+
+Using the Email Center
+
+WHERE: Email tab
+
+1     Compose
+      lets you send a one-off email or a saved Template to any customer, or a raw address — template variables like customer
+      name and vehicle fill in automatically.
+
+2     Inbox
+      shows incoming replies from customers, automatically matched to their customer record when the sender's address is on
+      file.
+
+3     Sent Log
+      is a searchable history of everything sent from the shop, filterable by date range.
+
+4     Reply or Forward
+      directly from an open message in Inbox or Sent Log — no need to start a new Compose from scratch.
+
+5     Templates
+      are reusable email bodies (e.g. "Invoice Ready", "Appointment Reminder") you can edit any time — changes only affect
+      future sends.
+
+6     Trash
+      holds anything you delete from Inbox or Sent Log — nothing is gone for good until you restore it, use Delete Permanently
+      on that one item, or Empty Trash to clear everything at once.
+
+    GOOD TO KNOW
+
+    Deleting an email from Inbox or Sent Log only moves it to Trash — it's fully recoverable until you explicitly permanently
+    delete it or empty the trash.
+
+---
+
+SECTION 13
+
+Payments Dashboard
+
+WHERE: Payments tab
+
+1     Open the Payments tab
+      to see shop-wide revenue at a glance — total revenue, revenue this month, transaction count, and average transaction
+      size.
+
+2     Browse the transaction table
+      below the summary cards — sortable by date, searchable by customer name, and filterable by date range or status
+      (Succeeded, Failed, Refunded).
+
+3     Click any row
+      to open full payment detail, including the Stripe checkout session and payment intent IDs, with a link straight back to
+      that job's invoice.
+
+4     Payments arrive here automatically
+      whenever a customer pays a job invoice online — see Section 08 for how a job gets a payable invoice (the "Pay Now"
+      button on an unpaid job).
+
+---
+
+SECTION 14
+
+Automations (n8n)
+
+WHERE: Automations tab
+
+1     Open the Automations tab
+      to access the shop's embedded n8n workspace — a visual, drag-and-drop tool for building custom workflow automations
+      (e.g. auto-texting a customer when a job status changes, syncing data to another system).
+
+2     Build or edit a workflow
+      directly inside that embedded workspace, the same as using n8n on its own.
+
+    ADMIN-LEVEL TOOL
+
+    This is a power-user area meant for building integrations — most day-to-day shop work happens in the other tabs.
+
+---
+
+SECTION 15
+
+Managing Users & Permissions
+
+WHERE: Manage Users (admin accounts only)
+
+1     Open Manage Users
+      — only visible to accounts with Administrator clearance.
+
+2     Add a new user
+      with a username, password, and role — Administrator (full CRM + credentials control) or standard User.
+
+3     Edit an existing user's profile or role
+      any time from their row.
+
+4     Reset a user's password
+      from the same screen if they're locked out.
+
+5     Remove a user
+      who no longer needs access — the system won't let the last remaining administrator demote or delete themselves, so the
+      shop is never left without an admin.
+
+---
+
+SECTION 16
+
 Quick Reference & Tips
 
  Fastest paths to common tasks
@@ -377,12 +553,24 @@ Quick Reference & Tips
 
  Fix your labor rate shop-wide                            Settings → Shop Profile — updates future jobs automatically
 
+ Check this month's revenue                                Payments tab — summary cards at the top
+
+ Get a customer paid online instead of in person           Job → Pay Now (unpaid jobs only) → sends a Stripe checkout link
+
+ Turn a paper parts invoice into inventory                 Inventory → scan/upload the receipt photo → review → import
+
+ Reply to a customer's email                               Email → Inbox or Sent Log → open the message → Reply
+
+ Give a teammate shop access                               Manage Users (admin only) → Add User
+
  Habits worth building
   Set up Shop Profile (Section 09) before your first invoice — it saves redoing branding on every job.
   Attach before/after photos as you go on a job rather than all at the end — easier to remember what each one was for.
   Use the Garage to pin vehicles you reference often, rather than re-browsing the tree every time.
   Double-check parts and labor entries before printing an invoice — the tax total recalculates live, but it's still worth a glance
   before handing it to a customer.
+  Reuse Email Templates for repeat messages (invoice ready, appointment reminders) instead of typing them fresh every time.
+  Scan supplier receipts into Inventory as they come in rather than batching a big pile later — it keeps stock counts accurate.
 
   NEED THE TECHNICAL SIDE?
 
@@ -427,6 +615,15 @@ appointments, and parts, browse the factory service manual library for any of
 the 304,923 vehicles in the system, and you can also create new customers,
 add vehicles to existing customers, and book appointments.
 
+You can additionally look up inventory/parts stock, the shop's profile
+settings (tax rate, labor rate, branding), Stripe payment/transaction
+history, and past sent/received email correspondence — and you can jot a
+note onto an existing customer or job record, or add a brand-new part to
+inventory. All data you look up or change is scoped to Josh's own shop
+only; you never see or touch another shop's records. Mention these
+abilities proactively when they're relevant to what someone's asking,
+even if they didn't ask for them by name.
+
 You also have the app's own User Guide memorized below — use it to answer
 "how do I..." or "where do I find..." questions about USING THE APP ITSELF
 (navigating the UI, invoicing, shop settings, photos, etc.), as opposed to
@@ -443,7 +640,8 @@ what you did (e.g. "Added a 2019 Toyota Tacoma to John Doe's account" or
 "Booked an appointment for Sarah Connor's Caprice on 2026-07-10 at 09:00").
 If create_vehicle or create_appointment returns an "ambiguous" result with
 multiple matches, list the options clearly and ask the user to pick one
-before trying again — never guess which one they meant.
+before trying again — never guess which one they meant. The same applies
+to add_customer_note when it matches more than one customer by name.
 
 For manual questions: first call find_vehicle_manual to get the vehicle's
 uriPath, then call browse_manual with that uriPath to get its table of contents.
@@ -580,6 +778,132 @@ const functionDeclarations = [
         notes: { type: Type.STRING },
       },
       required: ['title', 'customer_name', 'vehicle_description', 'date', 'time'],
+    },
+  },
+
+  // ---- New read tools (added alongside the above; none of the existing ----
+  // ---- tools above this point were modified). ----
+  {
+    name: 'list_vehicles',
+    description: "Search all vehicles across every customer by make, model, year, and/or VIN (partial match). Use this when you don't already know which customer owns the vehicle, or want to find every vehicle matching a description — unlike get_customer, this doesn't require a customer name.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        make: { type: Type.STRING },
+        model: { type: Type.STRING },
+        year: { type: Type.STRING },
+        vin: { type: Type.STRING },
+      },
+    },
+  },
+  {
+    name: 'get_job_details',
+    description: 'Get full details for one job ticket by job_id: customer, vehicle, status, diagnosis/labor notes, cost, and payment status. Use get_job_parts alongside this for the parts line items.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: { job_id: { type: Type.INTEGER } },
+      required: ['job_id'],
+    },
+  },
+  {
+    name: 'list_inventory',
+    description: 'Search shop inventory/parts stock by name, category, or low-stock status.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        name: { type: Type.STRING },
+        category: { type: Type.STRING, description: 'one of: brakes, filters, fluids, electrical, engine, parts, other' },
+        low_stock_only: { type: Type.BOOLEAN, description: 'if true, only return items at or below their reorder threshold' },
+      },
+    },
+  },
+  {
+    name: 'search_appointments',
+    description: "Search appointments by customer name and/or a date range (YYYY-MM-DD) — more flexible than get_upcoming_appointments, which only looks at the next N days from today.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        customer_name: { type: Type.STRING },
+        start_date: { type: Type.STRING, description: 'YYYY-MM-DD' },
+        end_date: { type: Type.STRING, description: 'YYYY-MM-DD' },
+      },
+    },
+  },
+  {
+    name: 'get_shop_settings',
+    description: "Get the shop's own profile info: name, address, phone, tax rate, and default labor rate.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {},
+    },
+  },
+  {
+    name: 'list_payments',
+    description: 'List recent Stripe payments/transactions for this shop, optionally filtered by status (succeeded, failed, refunded) or a date range.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        status: { type: Type.STRING, description: 'succeeded, failed, or refunded' },
+        start_date: { type: Type.STRING, description: 'YYYY-MM-DD' },
+        end_date: { type: Type.STRING, description: 'YYYY-MM-DD' },
+      },
+    },
+  },
+  {
+    name: 'search_email_history',
+    description: 'Search sent and received email history (excludes trashed emails) by a keyword matched against subject or customer name.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        query: { type: Type.STRING },
+      },
+      required: ['query'],
+    },
+  },
+
+  // ---- New write tools — all safe/non-destructive (create or append only, ----
+  // ---- never delete or overwrite existing data). ----
+  {
+    name: 'add_customer_note',
+    description: "Append a note to an existing customer's record (adds to their notes, never overwrites or removes existing notes). Pass the customer's name (partial match ok).",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        customer_name: { type: Type.STRING },
+        note: { type: Type.STRING },
+      },
+      required: ['customer_name', 'note'],
+    },
+  },
+  {
+    name: 'add_job_note',
+    description: 'Append a diagnostic/progress note to an existing job ticket by job_id (adds to its notes, never overwrites or removes existing notes).',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        job_id: { type: Type.INTEGER },
+        note: { type: Type.STRING },
+      },
+      required: ['job_id', 'note'],
+    },
+  },
+  {
+    name: 'create_inventory_item',
+    description: 'Add a brand-new part/item to shop inventory.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        name: { type: Type.STRING },
+        part_number: { type: Type.STRING },
+        category: { type: Type.STRING, description: 'one of: brakes, filters, fluids, electrical, engine, parts, other' },
+        quantity_on_hand: { type: Type.INTEGER },
+        reorder_threshold: { type: Type.INTEGER },
+        cost_price: { type: Type.NUMBER },
+        sell_price: { type: Type.NUMBER },
+        supplier_name: { type: Type.STRING },
+        location: { type: Type.STRING },
+      },
+      required: ['name'],
     },
   },
 ];
@@ -745,6 +1069,152 @@ async function runTool(name, input, userId, authHeader) {
         )
         .run(input.title, customerId, vehicles[0].id, input.date, input.time, input.duration_minutes || 60, input.notes || null, userId);
       return db.prepare(`SELECT * FROM appointments WHERE id = ? AND user_id = ?`).get(info.lastInsertRowid, userId);
+    }
+
+    // ---- New read tools (implementations for the declarations added above) ----
+
+    case 'list_vehicles': {
+      let query = `
+        SELECT cv.id, cv.year, cv.make, cv.model, cv.engine, cv.vin, cv.color, cv.current_mileage,
+               c.id AS customer_id, c.name AS customer_name
+        FROM customer_vehicles cv
+        JOIN customers c ON c.id = cv.customer_id AND c.user_id = cv.user_id
+        WHERE cv.user_id = ?`;
+      const params = [userId];
+      if (input.make) { query += ` AND cv.make LIKE ?`; params.push(`%${input.make}%`); }
+      if (input.model) { query += ` AND cv.model LIKE ?`; params.push(`%${input.model}%`); }
+      if (input.year) { query += ` AND cv.year LIKE ?`; params.push(`%${input.year}%`); }
+      if (input.vin) { query += ` AND cv.vin LIKE ?`; params.push(`%${input.vin}%`); }
+      query += ` ORDER BY cv.created_at DESC LIMIT 20`;
+      return db.prepare(query).all(...params);
+    }
+
+    case 'get_job_details': {
+      const job = db
+        .prepare(
+          `SELECT j.*, c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
+                  cv.year AS vehicle_year, cv.make AS vehicle_make, cv.model AS vehicle_model, cv.vin AS vehicle_vin
+           FROM jobs j
+           LEFT JOIN customers c ON c.id = j.customer_id AND c.user_id = j.user_id
+           LEFT JOIN customer_vehicles cv ON cv.id = j.vehicle_id AND cv.user_id = j.user_id
+           WHERE j.user_id = ? AND j.id = ?`
+        )
+        .get(userId, input.job_id);
+      if (!job) return { error: 'Job not found for this account.' };
+      return job;
+    }
+
+    case 'list_inventory': {
+      let query = `
+        SELECT id, part_number, name, category, quantity_on_hand, reorder_threshold, unit_type,
+               cost_price, sell_price, supplier_name, location
+        FROM inventory_items WHERE user_id = ?`;
+      const params = [userId];
+      if (input.name) { query += ` AND name LIKE ?`; params.push(`%${input.name}%`); }
+      if (input.category) { query += ` AND category = ?`; params.push(input.category); }
+      if (input.low_stock_only) { query += ` AND quantity_on_hand <= reorder_threshold`; }
+      query += ` ORDER BY name ASC LIMIT 30`;
+      return db.prepare(query).all(...params);
+    }
+
+    case 'search_appointments': {
+      let query = `
+        SELECT a.id, a.title, a.date, a.time, a.duration_minutes, a.notes, c.name AS customer_name
+        FROM appointments a
+        JOIN customers c ON c.id = a.customer_id AND c.user_id = a.user_id
+        WHERE a.user_id = ?`;
+      const params = [userId];
+      if (input.customer_name) { query += ` AND c.name LIKE ?`; params.push(`%${input.customer_name}%`); }
+      if (input.start_date) { query += ` AND a.date >= ?`; params.push(input.start_date); }
+      if (input.end_date) { query += ` AND a.date <= ?`; params.push(input.end_date); }
+      query += ` ORDER BY a.date ASC, a.time ASC LIMIT 30`;
+      return db.prepare(query).all(...params);
+    }
+
+    case 'get_shop_settings': {
+      const settings = db
+        .prepare(
+          `SELECT shop_name, shop_address, shop_city, shop_state, shop_phone, tax_rate, default_labor_rate, zip_code
+           FROM shop_settings WHERE user_id = ?`
+        )
+        .get(userId);
+      return settings || { message: 'No shop profile configured yet — see Settings → Shop Profile & Billing Preferences.' };
+    }
+
+    case 'list_payments': {
+      let query = `
+        SELECT p.id, p.amount_cents, p.currency, p.status, p.created_at, p.job_id, c.name AS customer_name
+        FROM payments p
+        LEFT JOIN customers c ON c.id = p.customer_id AND c.user_id = p.user_id
+        WHERE p.user_id = ?`;
+      const params = [userId];
+      if (input.status) { query += ` AND p.status = ?`; params.push(input.status); }
+      if (input.start_date) { query += ` AND date(p.created_at) >= ?`; params.push(input.start_date); }
+      if (input.end_date) { query += ` AND date(p.created_at) <= ?`; params.push(input.end_date); }
+      query += ` ORDER BY p.created_at DESC LIMIT 30`;
+      return db.prepare(query).all(...params);
+    }
+
+    case 'search_email_history': {
+      const q = `%${input.query || ''}%`;
+      const sent = db
+        .prepare(
+          `SELECT 'sent' AS type, e.id, e.subject, e.to_email AS other_party_email, e.sent_at AS date, c.name AS customer_name
+           FROM emails_sent e LEFT JOIN customers c ON c.id = e.to_customer_id AND c.user_id = e.user_id
+           WHERE e.user_id = ? AND e.deleted_at IS NULL AND (e.subject LIKE ? OR c.name LIKE ?)
+           ORDER BY e.sent_at DESC LIMIT 15`
+        )
+        .all(userId, q, q);
+      const received = db
+        .prepare(
+          `SELECT 'received' AS type, er.id, er.subject, er.from_email AS other_party_email, er.received_at AS date, c.name AS customer_name
+           FROM emails_received er LEFT JOIN customers c ON c.id = er.from_customer_id AND c.user_id = er.user_id
+           WHERE er.user_id = ? AND er.deleted_at IS NULL AND (er.subject LIKE ? OR c.name LIKE ?)
+           ORDER BY er.received_at DESC LIMIT 15`
+        )
+        .all(userId, q, q);
+      return [...sent, ...received].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    }
+
+    // ---- New write tools — safe/non-destructive only: create or append, ----
+    // ---- never delete or overwrite existing data. ----
+
+    case 'add_customer_note': {
+      const customers = db
+        .prepare(`SELECT id, name, notes FROM customers WHERE user_id = ? AND name LIKE ?`)
+        .all(userId, `%${input.customer_name}%`);
+      if (customers.length === 0) return { error: `No customer found matching "${input.customer_name}".` };
+      if (customers.length > 1) {
+        return { ambiguous: true, matches: customers.map((c) => ({ id: c.id, name: c.name })), message: 'Multiple customers matched — ask which one.' };
+      }
+      const stamp = new Date().toISOString().slice(0, 10);
+      const updatedNotes = customers[0].notes ? `${customers[0].notes}\n[${stamp}] ${input.note}` : `[${stamp}] ${input.note}`;
+      db.prepare(`UPDATE customers SET notes = ? WHERE id = ? AND user_id = ?`).run(updatedNotes, customers[0].id, userId);
+      return db.prepare(`SELECT id, name, notes FROM customers WHERE id = ? AND user_id = ?`).get(customers[0].id, userId);
+    }
+
+    case 'add_job_note': {
+      const job = db.prepare(`SELECT id, diagnosis_notes FROM jobs WHERE user_id = ? AND id = ?`).get(userId, input.job_id);
+      if (!job) return { error: 'Job not found for this account.' };
+      const stamp = new Date().toISOString().slice(0, 10);
+      const updatedNotes = job.diagnosis_notes ? `${job.diagnosis_notes}\n[${stamp}] ${input.note}` : `[${stamp}] ${input.note}`;
+      db.prepare(`UPDATE jobs SET diagnosis_notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`).run(updatedNotes, job.id, userId);
+      return db.prepare(`SELECT id, description, diagnosis_notes FROM jobs WHERE id = ? AND user_id = ?`).get(job.id, userId);
+    }
+
+    case 'create_inventory_item': {
+      const info = db
+        .prepare(
+          `INSERT INTO inventory_items (part_number, name, category, quantity_on_hand, reorder_threshold, cost_price, sell_price, supplier_name, location, user_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          input.part_number || null, input.name, input.category || 'other',
+          input.quantity_on_hand || 0, input.reorder_threshold || 0,
+          input.cost_price || 0, input.sell_price || 0,
+          input.supplier_name || null, input.location || null, userId
+        );
+      return db.prepare(`SELECT * FROM inventory_items WHERE id = ? AND user_id = ?`).get(info.lastInsertRowid, userId);
     }
 
     default:
