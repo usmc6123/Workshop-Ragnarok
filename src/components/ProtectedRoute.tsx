@@ -11,6 +11,11 @@ interface ProtectedRouteProps {
 export default function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
   const { currentUser, isLoading, logout, isSandboxMode } = useAuth();
 
+  const isPortalRoute = window.location.pathname.startsWith('/portal/');
+  if (isPortalRoute) {
+    return <>{children}</>;
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center font-mono text-slate-400">

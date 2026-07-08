@@ -278,6 +278,10 @@ app.post('/api/webhooks/stripe', async (req, res) => {
   }
 });
 
+// Portal routes (unauthenticated)
+const portalRouter = require('./portal-routes');
+app.use('/api/portal', portalRouter);
+
 // Apply auth middleware to all API routes
 const { authMiddleware, adminOnly } = require('./middleware/authMiddleware');
 app.use('/api', authMiddleware);
@@ -788,6 +792,34 @@ try {
     }
   } catch (err) {
     console.error("Error migrating work_order_parts part_number column:", err);
+  }
+
+  // Create line_item_approvals table for public customer portal
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS line_item_approvals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
+      line_item_type TEXT CHECK (line_item_type IN ('part', 'service')),
+      line_item_id INTEGER,
+      status TEXT CHECK (status IN ('pending', 'approved', 'declined')) DEFAULT 'pending',
+      responded_at TEXT,
+      UNIQUE(job_id, line_item_type, line_item_id)
+    )
+  `);
+
+  // Migrate jobs table to include portal_token and portal_token_created_at
+  try {
+    const jobsCols = db.prepare('PRAGMA table_info(jobs)').all();
+    if (!jobsCols.some(c => c.name === 'portal_token')) {
+      db.exec(`ALTER TABLE jobs ADD COLUMN portal_token TEXT UNIQUE`);
+      console.log('Successfully migrated jobs to include portal_token column.');
+    }
+    if (!jobsCols.some(c => c.name === 'portal_token_created_at')) {
+      db.exec(`ALTER TABLE jobs ADD COLUMN portal_token_created_at TEXT`);
+      console.log('Successfully migrated jobs to include portal_token_created_at column.');
+    }
+  } catch (err) {
+    console.error('Error migrating jobs portal token columns:', err);
   }
 
   // Seed the admin user if not exists
@@ -2666,6 +2698,35 @@ app.get('/api/jobs/:id', (req, res) => {
   } catch (error) {
     console.error('Error fetching job details:', error);
     res.status(500).json({ error: 'Database error fetching job details' });
+  }
+});
+
+app.post('/api/jobs/:jobId/generate-portal-link', (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const crypto = require('crypto');
+
+    // Verify job ownership
+    const job = db.prepare('SELECT id, portal_token FROM jobs WHERE id = ? AND user_id = ?').get(jobId, req.user.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+
+    let token = job.portal_token;
+    if (!token) {
+      token = crypto.randomUUID();
+      db.prepare(`
+        UPDATE jobs 
+        SET portal_token = ?, portal_token_created_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ?
+      `).run(token, jobId, req.user.id);
+    }
+
+    const appBaseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const portalUrl = `${appBaseUrl.replace(/\/$/, '')}/portal/${token}`;
+
+    res.json({ success: true, portal_token: token, portal_url: portalUrl });
+  } catch (error) {
+    console.error('Error generating portal link:', error);
+    res.status(500).json({ error: 'Failed to generate portal link' });
   }
 });
 

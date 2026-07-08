@@ -9,7 +9,7 @@ import {
   ClipboardList, Plus, Trash2, Edit2, Calendar, Milestone,
   User, Phone, Mail, FileText, CheckCircle, Clock, AlertTriangle,
   ArrowLeft, Package, DollarSign, PlusCircle, X, Wrench, FileEdit,
-  Printer, Download, Search, Image, Upload, Check, StickyNote, Paperclip
+  Printer, Download, Search, Image, Upload, Check, StickyNote, Paperclip, Share2
 } from 'lucide-react';
 
 interface JobsViewProps {
@@ -33,6 +33,18 @@ export default function JobsView({
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<Record<string, boolean>>({});
   const [selectedLightboxPhoto, setSelectedLightboxPhoto] = useState<JobPhoto | null>(null);
   const [photoCaptions, setPhotoCaptions] = useState<Record<string, string>>({ before: '', after: '' });
+  const [portalLink, setPortalLink] = useState<string>('');
+
+  useEffect(() => {
+    if (selectedJob) {
+      if (selectedJob.portal_token) {
+        const appBaseUrl = window.location.origin;
+        setPortalLink(`${appBaseUrl}/portal/${selectedJob.portal_token}`);
+      } else {
+        setPortalLink('');
+      }
+    }
+  }, [selectedJob]);
 
   // Job Notes state (general notes/call logs — separate from diagnosis_notes/labor_notes)
   const [jobNotes, setJobNotes] = useState<JobNote[]>([]);
@@ -1881,6 +1893,81 @@ export default function JobsView({
                       </div>
                     </div>,
                     document.body
+                  )}
+                </div>
+
+                {/* Secure Portal Link Share Panel */}
+                <div className="bg-[#111218] border border-border-theme p-5 rounded-xl space-y-4 shadow-lg">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-bold text-slate-100 uppercase font-mono tracking-wider flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>Customer Portal Link & Approvals</span>
+                      </h4>
+                      <p className="text-xs text-slate-400">
+                        Generate and share a secure, unauthenticated, token-gated link with the vehicle owner to view diagnostic photos, approve recommendations, and make online payments.
+                      </p>
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const res = await api.generatePortalLink(selectedJob.id);
+                            if (res && res.portal_token) {
+                              const url = `${window.location.origin}/portal/${res.portal_token}`;
+                              setPortalLink(url);
+                              alert('Secure portal link generated successfully!');
+                            }
+                          } catch (err: any) {
+                            console.error(err);
+                            alert('Failed to generate portal link.');
+                          }
+                        }}
+                        className="bg-amber-500 hover:bg-amber-600 text-black font-black px-4 py-2 rounded-lg text-xs uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        <span>{portalLink ? 'Re-generate Portal Link' : 'Generate Portal Link'}</span>
+                      </button>
+
+                      {portalLink && onTriggerEmail && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const subject = `Secure Portal Link: Your ${selectedJob.vehicle_year || ''} ${selectedJob.vehicle_make || ''} ${selectedJob.vehicle_model || ''} Workshop Update`;
+                            const body = `Hello ${selectedJob.customer_name || 'Customer'},\n\nWe have prepared a secure live update portal for your vehicle (${selectedJob.vehicle_year || ''} ${selectedJob.vehicle_make || ''} ${selectedJob.vehicle_model || ''}) at Workshop: Ragnarök.\n\nYou can use this private link to view active inspection photos, review itemized parts and services recommendations, and authorize repairs directly:\n\n${portalLink}\n\nIf you have any questions, feel free to reply to this email or call us directly.\n\nBest regards,\nWorkshop: Ragnarök`;
+                            
+                            localStorage.setItem('ragnarok_quick_email_subject', subject);
+                            localStorage.setItem('ragnarok_quick_email_body', body);
+                            
+                            onTriggerEmail(selectedJob.customer_id, selectedJob.customer_email);
+                          }}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          <span>Email Portal Link</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {portalLink && (
+                    <div className="bg-[#090a0f] border border-border-theme p-3 rounded-lg flex items-center justify-between gap-4">
+                      <span className="text-[11px] font-mono text-emerald-400 select-all truncate">
+                        {portalLink}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(portalLink);
+                          alert('Copied link to clipboard!');
+                        }}
+                        className="bg-white/5 hover:bg-white/10 text-xs text-white px-3 py-1.5 rounded-lg font-mono tracking-wider border border-border-theme transition cursor-pointer shrink-0"
+                      >
+                        Copy Link
+                      </button>
+                    </div>
                   )}
                 </div>
 

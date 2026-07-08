@@ -81,6 +81,18 @@ export default function EmailView({
       if (initialComposeData.recipientEmail) {
         setRecipientEmail(initialComposeData.recipientEmail);
       }
+
+      // Check for quick email pre-population from portal link sharing
+      const quickSubject = localStorage.getItem('ragnarok_quick_email_subject');
+      const quickBody = localStorage.getItem('ragnarok_quick_email_body');
+      if (quickSubject) {
+        setEmailSubject(quickSubject);
+        localStorage.removeItem('ragnarok_quick_email_subject');
+      }
+      if (quickBody) {
+        setEmailBody(quickBody);
+        localStorage.removeItem('ragnarok_quick_email_body');
+      }
       
       // Clear trigger so user can navigate away or compose multiple times
       if (onClearComposeData) {

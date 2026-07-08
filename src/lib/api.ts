@@ -1414,5 +1414,47 @@ export const api = {
     return await request<{ success: boolean; deletedCount: number }>('/api/emails/trash/empty', {
       method: 'DELETE'
     });
+  },
+
+  // --- CUSTOMER PORTAL ---
+  async generatePortalLink(jobId: number): Promise<{ success: boolean; portal_token: string; portal_url: string }> {
+    return await request<{ success: boolean; portal_token: string; portal_url: string }>(`/api/jobs/${jobId}/generate-portal-link`, {
+      method: 'POST'
+    });
+  },
+
+  async getPortalData(token: string): Promise<{
+    job: any;
+    parts: any[];
+    services: any[];
+    photos: any[];
+    shopSettings: any;
+  }> {
+    return await request<{
+      job: any;
+      parts: any[];
+      services: any[];
+      photos: any[];
+      shopSettings: any;
+    }>(`/api/portal/${token}`);
+  },
+
+  async approvePortalLineItem(
+    token: string,
+    lineItemType: 'part' | 'service',
+    lineItemId: number,
+    status: 'approved' | 'declined'
+  ): Promise<{ success: boolean; line_item_type: string; line_item_id: number; status: string }> {
+    return await request<{ success: boolean; line_item_type: string; line_item_id: number; status: string }>(`/api/portal/${token}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ line_item_type: lineItemType, line_item_id: lineItemId, status })
+    });
+  },
+
+  async createPortalCheckoutSession(token: string): Promise<{ url: string }> {
+    return await request<{ url: string }>(`/api/portal/${token}/create-checkout-session`, {
+      method: 'POST'
+    });
   }
 };

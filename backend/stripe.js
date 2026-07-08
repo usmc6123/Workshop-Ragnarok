@@ -22,7 +22,7 @@ function getStripe() {
  * @param {number} params.amountCents - Total invoice amount, in cents.
  * @param {string} params.appBaseUrl - Base URL of the app, used to build redirect URLs back to the job detail page.
  */
-async function createCheckoutSession({ jobId, customerEmail, description, amountCents, appBaseUrl }) {
+async function createCheckoutSession({ jobId, customerEmail, description, amountCents, appBaseUrl, portalToken }) {
   if (!process.env.STRIPE_SECRET_KEY) {
     throw new Error('STRIPE_SECRET_KEY environment variable is not configured on the server.');
   }
@@ -31,7 +31,17 @@ async function createCheckoutSession({ jobId, customerEmail, description, amount
   }
 
   const stripe = getStripe();
-  const jobUrl = `${appBaseUrl.replace(/\/$/, '')}/?view=jobs&jobId=${jobId}`;
+  let successUrl, cancelUrl;
+
+  if (portalToken) {
+    const portalUrl = `${appBaseUrl.replace(/\/$/, '')}/portal/${portalToken}`;
+    successUrl = `${portalUrl}?payment=success`;
+    cancelUrl = `${portalUrl}?payment=cancelled`;
+  } else {
+    const jobUrl = `${appBaseUrl.replace(/\/$/, '')}/?view=jobs&jobId=${jobId}`;
+    successUrl = `${jobUrl}&payment=success`;
+    cancelUrl = `${jobUrl}&payment=cancelled`;
+  }
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
@@ -49,8 +59,8 @@ async function createCheckoutSession({ jobId, customerEmail, description, amount
         quantity: 1,
       },
     ],
-    success_url: `${jobUrl}&payment=success`,
-    cancel_url: `${jobUrl}&payment=cancelled`,
+    success_url: successUrl,
+    cancel_url: cancelUrl,
     metadata: {
       job_id: String(jobId),
     },

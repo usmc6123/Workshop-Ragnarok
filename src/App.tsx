@@ -21,6 +21,7 @@ import BootSplashScreen from './components/BootSplashScreen';
 import EmailView from './components/EmailView';
 import AutomationsView from './components/AutomationsView';
 import PaymentsView from './components/PaymentsView';
+import CustomerPortalView from './components/CustomerPortalView';
 import { LOGO_URL, BACKGROUND_URL } from './constants/branding';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminPage from './pages/AdminPage';
@@ -223,6 +224,18 @@ export default function App() {
       backgroundRepeat: 'no-repeat',
     };
   };
+
+  const pathParts = window.location.pathname.split('/');
+  const isPortal = pathParts[1] === 'portal' && pathParts[2];
+
+  if (isPortal) {
+    const portalToken = pathParts[2];
+    return (
+      <ProtectedRoute>
+        <CustomerPortalView token={portalToken} />
+      </ProtectedRoute>
+    );
+  }
 
   return (
     <ProtectedRoute>
