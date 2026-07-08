@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Job, JobPart, Customer, CustomerVehicle, JobPhoto, Service, JobService } from '../types';
-import { api } from '../lib/api';
+import { Job, JobPart, Customer, CustomerVehicle, JobPhoto, Service, JobService, JobNote } from '../types';
+import { api, getApiBase } from '../lib/api';
 import JobsPanelVideo from './JobsPanelVideo';
-import { 
-  ClipboardList, Plus, Trash2, Edit2, Calendar, Milestone, 
+import {
+  ClipboardList, Plus, Trash2, Edit2, Calendar, Milestone,
   User, Phone, Mail, FileText, CheckCircle, Clock, AlertTriangle,
   ArrowLeft, Package, DollarSign, PlusCircle, X, Wrench, FileEdit,
-  Printer, Download, Search, Image, Upload, Check
+  Printer, Download, Search, Image, Upload, Check, StickyNote, Paperclip
 } from 'lucide-react';
 
 interface JobsViewProps {
@@ -33,6 +33,34 @@ export default function JobsView({
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<Record<string, boolean>>({});
   const [selectedLightboxPhoto, setSelectedLightboxPhoto] = useState<JobPhoto | null>(null);
   const [photoCaptions, setPhotoCaptions] = useState<Record<string, string>>({ before: '', after: '' });
+
+  // Job Notes state (general notes/call logs — separate from diagnosis_notes/labor_notes)
+  const [jobNotes, setJobNotes] = useState<JobNote[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [newNoteText, setNewNoteText] = useState('');
+  const [pendingNoteFiles, setPendingNoteFiles] = useState<File[]>([]);
+  const [isSavingNote, setIsSavingNote] = useState(false);
+  const [noteLightboxUrl, setNoteLightboxUrl] = useState<string | null>(null);
+
+  // job_note_attachments.file_url is a backend-relative path (e.g. "/uploads/job_notes/...");
+  // resolve it against the configured API host the same way getImageUrl does for manual images,
+  // since the frontend and backend can be served from different origins.
+  const resolveNoteAttachmentUrl = (fileUrl: string): string => {
+    if (!fileUrl) return fileUrl;
+    if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://') || fileUrl.startsWith('data:')) {
+      return fileUrl;
+    }
+    return `${getApiBase()}${fileUrl}`;
+  };
+
+  const readFileAsBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (err) => reject(err);
+    });
+  };
 
   const compressImage = (file: File, maxDimension = 1200): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -272,11 +300,24 @@ export default function JobsView({
     }
   };
 
+  const fetchJobNotes = async (jobId: number) => {
+    setNotesLoading(true);
+    try {
+      const data = await api.getJobNotes(jobId);
+      setJobNotes(data);
+    } catch (err) {
+      console.error('Failed to load job notes:', err);
+    } finally {
+      setNotesLoading(false);
+    }
+  };
+
   const handleSelectJob = (job: Job) => {
     setSelectedJob(job);
     fetchJobParts(job.id);
     fetchJobPhotos(job.id);
     fetchJobServices(job.id);
+    fetchJobNotes(job.id);
   };
 
   // Jumps straight to a specific ticket's detail view instead of the queue
@@ -799,6 +840,76 @@ export default function JobsView({
       await fetchJobPhotos(selectedJob.id);
     } catch (err: any) {
       alert(err.message || 'Failed to delete photo.');
+    }
+  };
+
+  // --- Job Notes handlers ---
+
+  const NOTE_ATTACHMENT_ACCEPT = 'image/*,application/pdf';
+
+  const handleSelectNoteFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files: File[] = Array.from(e.target.files || []);
+    const valid = files.filter((f) => f.type.startsWith('image/') || f.type === 'application/pdf');
+    if (valid.length < files.length) {
+      alert('Only image files and PDFs can be attached to a note.');
+    }
+    setPendingNoteFiles((prev) => [...prev, ...valid]);
+    e.target.value = '';
+  };
+
+  const handleRemovePendingNoteFile = (index: number) => {
+    setPendingNoteFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddNote = async () => {
+    if (!selectedJob) return;
+    if (!newNoteText.trim()) return;
+
+    setIsSavingNote(true);
+    try {
+      const created = await api.addJobNote(selectedJob.id, newNoteText.trim());
+
+      for (const file of pendingNoteFiles) {
+        const isImage = file.type.startsWith('image/');
+        const fileData = isImage ? await compressImage(file) : await readFileAsBase64(file);
+        await api.addJobNoteAttachment(selectedJob.id, created.id, {
+          file_data: fileData,
+          file_type: file.type,
+          file_name: file.name
+        });
+      }
+
+      setNewNoteText('');
+      setPendingNoteFiles([]);
+      await fetchJobNotes(selectedJob.id);
+    } catch (err: any) {
+      alert(err.message || 'Failed to add note.');
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: number) => {
+    if (!selectedJob) return;
+    if (!window.confirm('Delete this note and any attachments on it?')) return;
+
+    try {
+      await api.deleteJobNote(selectedJob.id, noteId);
+      await fetchJobNotes(selectedJob.id);
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete note.');
+    }
+  };
+
+  const handleDeleteNoteAttachment = async (noteId: number, attachmentId: number) => {
+    if (!selectedJob) return;
+    if (!window.confirm('Remove this attachment?')) return;
+
+    try {
+      await api.deleteJobNoteAttachment(selectedJob.id, noteId, attachmentId);
+      await fetchJobNotes(selectedJob.id);
+    } catch (err: any) {
+      alert(err.message || 'Failed to remove attachment.');
     }
   };
 
@@ -1825,6 +1936,154 @@ export default function JobsView({
                     <p className="text-xs text-slate-300 leading-relaxed bg-bg-theme/40 p-3.5 border border-border-theme rounded-lg font-sans">
                       {selectedJob.labor_notes}
                     </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Notes Section — general notes/call logs, separate from Diagnostics & Findings / Labor Comments above */}
+              <div
+                className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-6 space-y-6 shadow-xl"
+                style={{
+                  borderLeft: '4px solid #A78BFA',
+                  borderTopLeftRadius: 0,
+                  borderBottomLeftRadius: 0,
+                  backgroundColor: 'rgba(167,139,250,0.06)'
+                }}
+              >
+                <div className="border-b border-border-theme pb-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: '#C4B5FD' }}>
+                    <StickyNote className="w-4.5 h-4.5" style={{ color: '#C4B5FD' }} />
+                    Notes ({jobNotes.length})
+                  </h3>
+                </div>
+
+                {/* Add Note composer */}
+                <div className="bg-bg-theme border border-border-theme rounded-lg p-4 space-y-3">
+                  <textarea
+                    value={newNoteText}
+                    onChange={(e) => setNewNoteText(e.target.value)}
+                    placeholder="Add a note or call log..."
+                    rows={3}
+                    className="w-full bg-surface-theme border border-[#2b2d37] rounded px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-primary-theme resize-none font-sans"
+                  />
+
+                  {pendingNoteFiles.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {pendingNoteFiles.map((file, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5 bg-surface-theme border border-[#2b2d37] rounded px-2 py-1 text-[10px] text-slate-300 font-mono">
+                          {file.type.startsWith('image/') ? (
+                            <Image className="w-3 h-3 text-slate-400 shrink-0" />
+                          ) : (
+                            <FileText className="w-3 h-3 text-slate-400 shrink-0" />
+                          )}
+                          <span className="max-w-[140px] truncate">{file.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePendingNoteFile(idx)}
+                            className="text-slate-500 hover:text-red-400 cursor-pointer bg-transparent border-none p-0"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                    <label className="flex items-center justify-center gap-1.5 border border-border-theme hover:border-primary-theme text-slate-350 px-3 py-1.5 rounded text-[10px] uppercase tracking-wider font-bold transition cursor-pointer">
+                      <Paperclip className="w-3.5 h-3.5" />
+                      <span>Attach File/Photo</span>
+                      <input
+                        type="file"
+                        accept={NOTE_ATTACHMENT_ACCEPT}
+                        multiple
+                        className="hidden"
+                        onChange={handleSelectNoteFiles}
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={handleAddNote}
+                      disabled={isSavingNote || !newNoteText.trim()}
+                      className="flex items-center justify-center gap-1.5 bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-bold px-4 py-1.5 rounded text-[10px] uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>{isSavingNote ? 'Saving...' : 'Add Note'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Notes list, newest first */}
+                {notesLoading ? (
+                  <div className="text-center py-4 text-slate-500 text-xs">Loading notes...</div>
+                ) : jobNotes.length === 0 ? (
+                  <div className="text-center py-6 border border-dashed border-border-theme text-slate-500 text-xs rounded-lg select-none">
+                    No notes yet. Add one above.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {jobNotes.map((note) => (
+                      <div key={note.id} className="bg-bg-theme/40 border border-border-theme rounded-lg p-3.5 space-y-2.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="text-xs text-slate-300 leading-relaxed font-sans whitespace-pre-wrap flex-1">
+                            {note.note_text}
+                          </p>
+                          <button
+                            onClick={() => handleDeleteNote(note.id)}
+                            className="text-slate-500 hover:text-red-400 shrink-0 cursor-pointer transition bg-transparent border-none p-0.5"
+                            title="Delete note"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="text-[10px] font-mono text-slate-500">
+                          {note.created_at ? new Date(note.created_at).toLocaleString() : ''}
+                        </div>
+
+                        {note.attachments && note.attachments.length > 0 && (
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {note.attachments.map((att) => {
+                              const isImage = (att.file_type || '').startsWith('image/');
+                              return isImage ? (
+                                <div key={att.id} className="relative group w-16 h-16 rounded border border-border-theme overflow-hidden cursor-pointer shrink-0">
+                                  <img
+                                    src={resolveNoteAttachmentUrl(att.file_url)}
+                                    alt={att.file_name || 'attachment'}
+                                    className="w-full h-full object-cover"
+                                    onClick={() => setNoteLightboxUrl(resolveNoteAttachmentUrl(att.file_url))}
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteNoteAttachment(note.id, att.id); }}
+                                    className="absolute top-0.5 right-0.5 bg-black/60 hover:bg-black/80 text-white rounded p-0.5 opacity-0 group-hover:opacity-100 transition"
+                                  >
+                                    <X className="w-2.5 h-2.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <a
+                                  key={att.id}
+                                  href={resolveNoteAttachmentUrl(att.file_url)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="group flex items-center gap-1.5 bg-surface-theme border border-[#2b2d37] hover:border-primary-theme rounded px-2 py-1.5 text-[10px] text-slate-300 font-mono transition"
+                                >
+                                  <FileText className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span className="max-w-[140px] truncate">{att.file_name || 'file'}</span>
+                                  <button
+                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteNoteAttachment(note.id, att.id); }}
+                                    className="text-slate-500 hover:text-red-400 cursor-pointer bg-transparent border-none p-0"
+                                  >
+                                    <X className="w-2.5 h-2.5" />
+                                  </button>
+                                </a>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -2890,6 +3149,29 @@ export default function JobsView({
                 </span>
               </div>
             )}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {noteLightboxUrl && createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 animate-fade-in"
+          onClick={() => setNoteLightboxUrl(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white/70 hover:text-white p-2 transition-all"
+            onClick={() => setNoteLightboxUrl(null)}
+          >
+            <X className="w-8 h-8" />
+          </button>
+          <div className="max-w-4xl max-h-[85vh] flex flex-col items-center gap-4" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={noteLightboxUrl}
+              alt="Note attachment"
+              className="max-w-full max-h-[85vh] object-contain rounded-lg border border-border-theme/40 shadow-2xl"
+              referrerPolicy="no-referrer"
+            />
           </div>
         </div>,
         document.body

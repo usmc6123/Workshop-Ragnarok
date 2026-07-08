@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { 
-  Vehicle, GarageItem, PageResponse, Customer, CustomerVehicle, 
+import {
+  Vehicle, GarageItem, PageResponse, Customer, CustomerVehicle,
   ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual, ShopSettings, JobPhoto,
-  InventoryItem, WorkOrderPart, Service, JobService, Receipt, EmailTemplate, EmailSent, EmailReceived
+  InventoryItem, WorkOrderPart, Service, JobService, Receipt, EmailTemplate, EmailSent, EmailReceived,
+  JobNote, JobNoteAttachment
 } from '../types';
 
 import { 
@@ -951,6 +952,43 @@ export const api = {
       }
       throw err;
     }
+  },
+
+  // --- JOB NOTES (general notes/call logs — separate from diagnosis_notes/labor_notes) ---
+  async getJobNotes(jobId: number): Promise<JobNote[]> {
+    return await request<JobNote[]>(`/api/jobs/${jobId}/notes`);
+  },
+
+  async addJobNote(jobId: number, noteText: string): Promise<JobNote> {
+    return await request<JobNote>(`/api/jobs/${jobId}/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note_text: noteText })
+    });
+  },
+
+  async deleteJobNote(jobId: number, noteId: number): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/jobs/${jobId}/notes/${noteId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async addJobNoteAttachment(
+    jobId: number,
+    noteId: number,
+    attachment: { file_data: string; file_type: string; file_name: string }
+  ): Promise<JobNoteAttachment> {
+    return await request<JobNoteAttachment>(`/api/jobs/${jobId}/notes/${noteId}/attachments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(attachment)
+    });
+  },
+
+  async deleteJobNoteAttachment(jobId: number, noteId: number, attachmentId: number): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/jobs/${jobId}/notes/${noteId}/attachments/${attachmentId}`, {
+      method: 'DELETE'
+    });
   },
 
   // --- APPOINTMENTS ---

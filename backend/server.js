@@ -498,6 +498,30 @@ try {
     )
   `);
 
+  // Create Job Notes Table — general notes/call logs on a job, separate from the
+  // dedicated diagnosis_notes/labor_notes fields on the jobs table itself.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS job_notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      note_text TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Create Job Note Attachments Table — photo/file attachments on an individual job note
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS job_note_attachments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      note_id INTEGER REFERENCES job_notes(id) ON DELETE CASCADE,
+      file_url TEXT NOT NULL,
+      file_type TEXT,
+      file_name TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Create Receipts Table
   db.exec(`
     CREATE TABLE IF NOT EXISTS receipts (
@@ -2805,7 +2829,7 @@ app.post('/api/jobs/:jobId/photos', (req, res) => {
 app.delete('/api/jobs/:jobId/photos/:photoId', (req, res) => {
   try {
     const { photoId } = req.params;
-    
+
     // Deleting is scoped to user_id for safety
     const stmt = db.prepare('DELETE FROM job_photos WHERE id = ? AND user_id = ?');
     const info = stmt.run(photoId, req.user.id);
@@ -2814,6 +2838,135 @@ app.delete('/api/jobs/:jobId/photos/:photoId', (req, res) => {
   } catch (error) {
     console.error('Error removing job photo:', error);
     res.status(500).json({ error: 'Database error removing job photo' });
+  }
+});
+
+// --- JOB NOTES (general notes/call logs, separate from diagnosis_notes/labor_notes) ---
+
+app.get('/api/jobs/:jobId/notes', (req, res) => {
+  try {
+    const { jobId } = req.params;
+
+    // Verify job ownership
+    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(jobId, req.user.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+
+    const notes = db
+      .prepare('SELECT * FROM job_notes WHERE job_id = ? AND user_id = ? ORDER BY created_at DESC')
+      .all(jobId, req.user.id);
+
+    const attachmentStmt = db.prepare('SELECT * FROM job_note_attachments WHERE note_id = ? ORDER BY created_at ASC');
+    const withAttachments = notes.map((note) => ({
+      ...note,
+      attachments: attachmentStmt.all(note.id),
+    }));
+
+    res.json(withAttachments);
+  } catch (error) {
+    console.error('Error fetching job notes:', error);
+    res.status(500).json({ error: 'Database error fetching job notes' });
+  }
+});
+
+app.post('/api/jobs/:jobId/notes', (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { note_text } = req.body;
+
+    if (!note_text || !note_text.trim()) {
+      return res.status(400).json({ error: 'note_text is required' });
+    }
+
+    // Verify job ownership
+    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(jobId, req.user.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+
+    const info = db
+      .prepare('INSERT INTO job_notes (job_id, user_id, note_text) VALUES (?, ?, ?)')
+      .run(jobId, req.user.id, note_text.trim());
+    const inserted = db.prepare('SELECT * FROM job_notes WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
+    res.json({ ...inserted, attachments: [] });
+  } catch (error) {
+    console.error('Error adding job note:', error);
+    res.status(500).json({ error: 'Database error adding job note' });
+  }
+});
+
+app.delete('/api/jobs/:jobId/notes/:noteId', (req, res) => {
+  try {
+    const { noteId } = req.params;
+
+    // Deleting is scoped to user_id for safety
+    const note = db.prepare('SELECT id FROM job_notes WHERE id = ? AND user_id = ?').get(noteId, req.user.id);
+    if (!note) return res.status(404).json({ error: 'Job note not found' });
+
+    db.prepare('DELETE FROM job_note_attachments WHERE note_id = ?').run(noteId);
+    db.prepare('DELETE FROM job_notes WHERE id = ? AND user_id = ?').run(noteId, req.user.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error removing job note:', error);
+    res.status(500).json({ error: 'Database error removing job note' });
+  }
+});
+
+app.post('/api/jobs/:jobId/notes/:noteId/attachments', (req, res) => {
+  try {
+    const { jobId, noteId } = req.params;
+    const { file_data, file_type, file_name } = req.body;
+
+    if (!file_data) {
+      return res.status(400).json({ error: 'file_data is required' });
+    }
+
+    // Verify the note belongs to this job and this user
+    const note = db
+      .prepare('SELECT id FROM job_notes WHERE id = ? AND job_id = ? AND user_id = ?')
+      .get(noteId, jobId, req.user.id);
+    if (!note) return res.status(404).json({ error: 'Job note not found' });
+
+    // Ensure uploads/job_notes folder exists
+    const notesDir = path.join(__dirname, 'uploads', 'job_notes');
+    if (!fs.existsSync(notesDir)) {
+      fs.mkdirSync(notesDir, { recursive: true });
+    }
+
+    // Strip base64 header if present
+    let rawBase64 = file_data;
+    if (file_data.includes(';base64,')) {
+      rawBase64 = file_data.split(';base64,')[1];
+    }
+
+    const extFromType = (file_type || '').includes('pdf') ? 'pdf' : ((file_type || '').split('/')[1] || 'bin');
+    const filename = `note_${noteId}_${Date.now()}_${Math.floor(Math.random() * 1000)}.${extFromType}`;
+    const fullPath = path.join(notesDir, filename);
+    fs.writeFileSync(fullPath, Buffer.from(rawBase64, 'base64'));
+    const fileUrl = `/uploads/job_notes/${filename}`;
+
+    const info = db
+      .prepare('INSERT INTO job_note_attachments (note_id, file_url, file_type, file_name) VALUES (?, ?, ?, ?)')
+      .run(noteId, fileUrl, file_type || null, file_name || null);
+    const inserted = db.prepare('SELECT * FROM job_note_attachments WHERE id = ?').get(info.lastInsertRowid);
+    res.json(inserted);
+  } catch (error) {
+    console.error('Error adding job note attachment:', error);
+    res.status(500).json({ error: 'Database error adding job note attachment' });
+  }
+});
+
+app.delete('/api/jobs/:jobId/notes/:noteId/attachments/:attachmentId', (req, res) => {
+  try {
+    const { noteId, attachmentId } = req.params;
+
+    // Verify the note belongs to this user before allowing the attachment to be removed
+    const note = db.prepare('SELECT id FROM job_notes WHERE id = ? AND user_id = ?').get(noteId, req.user.id);
+    if (!note) return res.status(404).json({ error: 'Job note not found' });
+
+    const info = db.prepare('DELETE FROM job_note_attachments WHERE id = ? AND note_id = ?').run(attachmentId, noteId);
+    if (info.changes === 0) return res.status(404).json({ error: 'Attachment not found' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error removing job note attachment:', error);
+    res.status(500).json({ error: 'Database error removing job note attachment' });
   }
 });
 

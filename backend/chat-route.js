@@ -877,7 +877,7 @@ const functionDeclarations = [
   },
   {
     name: 'add_job_note',
-    description: 'Append a diagnostic/progress note to an existing job ticket by job_id (adds to its notes, never overwrites or removes existing notes).',
+    description: 'Add a general note/call log to an existing job ticket by job_id (stored as its own dated note entry — separate from and does not modify the job\'s Diagnostics & Findings or Labor Comments fields). Text only; attachments must be added from the job\'s Notes section in the app.',
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -1194,12 +1194,13 @@ async function runTool(name, input, userId, authHeader) {
     }
 
     case 'add_job_note': {
-      const job = db.prepare(`SELECT id, diagnosis_notes FROM jobs WHERE user_id = ? AND id = ?`).get(userId, input.job_id);
+      const job = db.prepare(`SELECT id FROM jobs WHERE user_id = ? AND id = ?`).get(userId, input.job_id);
       if (!job) return { error: 'Job not found for this account.' };
-      const stamp = new Date().toISOString().slice(0, 10);
-      const updatedNotes = job.diagnosis_notes ? `${job.diagnosis_notes}\n[${stamp}] ${input.note}` : `[${stamp}] ${input.note}`;
-      db.prepare(`UPDATE jobs SET diagnosis_notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`).run(updatedNotes, job.id, userId);
-      return db.prepare(`SELECT id, description, diagnosis_notes FROM jobs WHERE id = ? AND user_id = ?`).get(job.id, userId);
+      if (!input.note || !String(input.note).trim()) return { error: 'note text is required.' };
+      const info = db
+        .prepare(`INSERT INTO job_notes (job_id, user_id, note_text) VALUES (?, ?, ?)`)
+        .run(job.id, userId, String(input.note).trim());
+      return db.prepare(`SELECT * FROM job_notes WHERE id = ? AND user_id = ?`).get(info.lastInsertRowid, userId);
     }
 
     case 'create_inventory_item': {

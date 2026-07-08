@@ -182,6 +182,24 @@ export interface JobPhoto {
   uploaded_at?: string;
 }
 
+export interface JobNoteAttachment {
+  id: number;
+  note_id: number;
+  file_url: string;
+  file_type: string | null;
+  file_name: string | null;
+  created_at?: string;
+}
+
+export interface JobNote {
+  id: number;
+  job_id: number;
+  user_id?: number;
+  note_text: string;
+  created_at?: string;
+  attachments: JobNoteAttachment[];
+}
+
 export interface Appointment {
   id: number;
   title: string;
