@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { CategoryTreeNode, CategoryTreeLink } from '../types';
 import { 
   Folder, ChevronRight, ChevronDown, FileText, Search, X, 
@@ -75,6 +75,77 @@ export default function TreeView({
       [pathKey]: !prev[pathKey]
     }));
   };
+
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-expand parent folders of the active leaf node when activeUri changes
+  useEffect(() => {
+    if (!activeUri || !rootTree || rootTree.length === 0) return;
+
+    const parentKeysToExpand: string[] = [];
+
+    function findActivePath(nodes: CategoryTreeNode[], parentPathKey: string, currentBaseUri: string): boolean {
+      for (const node of nodes) {
+        const pathKey = parentPathKey ? `${parentPathKey}/${node.title}` : node.title;
+        const resolvedUri = node.type === 'link' && node.href && !node.href.startsWith('#') ? resolveHref(currentBaseUri, node.href) : '';
+        const dynamicChildrenList = (node.type === 'link' && resolvedUri && dynamicChildren && dynamicChildren[resolvedUri]) || null;
+
+        if (node.type === 'category' || dynamicChildrenList) {
+          const children = node.type === 'category' ? node.children : dynamicChildrenList!;
+          const nextBaseUri = node.type === 'category' ? currentBaseUri : resolvedUri;
+
+          const categoryUri = node.type === 'link' ? resolvedUri : '';
+          if (categoryUri && categoryUri === activeUri) {
+            return true;
+          }
+
+          const found = findActivePath(children, pathKey, nextBaseUri);
+          if (found) {
+            parentKeysToExpand.push(pathKey);
+            return true;
+          }
+        } else {
+          // Leaf link node
+          if (resolvedUri && resolvedUri === activeUri) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    findActivePath(rootTree, '', baseUri);
+
+    if (parentKeysToExpand.length > 0) {
+      setExpandedNodes(prev => {
+        const next = { ...prev };
+        let changed = false;
+        parentKeysToExpand.forEach(key => {
+          if (!next[key]) {
+            next[key] = true;
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    }
+  }, [activeUri, rootTree, baseUri, dynamicChildren]);
+
+  // Scroll active item smoothly into view
+  useEffect(() => {
+    if (!activeUri) return;
+
+    const timer = setTimeout(() => {
+      if (containerRef.current) {
+        const activeEl = containerRef.current.querySelector('[data-active="true"]');
+        if (activeEl) {
+          activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [activeUri, expandedNodes]);
 
   // Helper to expand all categories recursively
   const handleExpandAll = () => {
@@ -257,6 +328,7 @@ export default function TreeView({
       return (
         <button
           type="button"
+          data-active={isCurrentActive ? "true" : undefined}
           onClick={() => handleLinkClick(node, resolvedUri)}
           style={{ paddingLeft: `${depth * 12 + 16}px` }}
           className={`w-full flex items-center justify-between text-left py-1 pr-1.5 rounded transition duration-150 border-l-2 ${
@@ -330,7 +402,7 @@ export default function TreeView({
       </div>
 
       {/* 2. Content Directory Tree */}
-      <div className="flex-1 overflow-y-auto px-1 pr-1 min-h-0" id="tree-container">
+      <div ref={containerRef} className="flex-1 overflow-y-auto px-1 pr-1 min-h-0" id="tree-container">
         <div className="space-y-1 py-1" id="tree-level-list">
           {displayTree && displayTree.length > 0 ? (
             displayTree.map((node, i) => renderNode(node, i, 0, '', baseUri))
