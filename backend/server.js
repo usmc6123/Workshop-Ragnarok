@@ -1526,14 +1526,24 @@ app.get('/api/page', async (req, res) => {
     const uri = req.query.uri;
     if (!uri) return res.status(400).json({ error: 'Missing uri parameter' });
 
+    // Normalize each path segment's encoding individually, splitting on the still-encoded
+    // uri rather than a fully-decoded one. Some manual folder/file names contain a literal
+    // "/" as part of the name itself (e.g. "Heating, Ventilation & A/C (HVAC)"), sent by the
+    // frontend as "%2F" within that segment. Decoding the whole uri first and then splitting
+    // on "/" turns that "%2F" into a real "/", shredding the name into fake extra segments
+    // and 404ing against lemon-server. Splitting on the original (encoded) string first means
+    // a bare "/" only ever appears as a genuine path separator — "%2F" stays intact inside a
+    // segment through the split, and the decode+re-encode below just normalizes that segment's
+    // own encoding without touching segment boundaries.
     let encodedUri = uri;
     if (uri) {
-      try {
-        const decoded = decodeURIComponent(uri);
-        encodedUri = decoded.split('/').map(segment => encodeURIComponent(segment)).join('/');
-      } catch (e) {
-        encodedUri = uri.split('/').map(segment => encodeURIComponent(segment)).join('/');
-      }
+      encodedUri = uri.split('/').map(segment => {
+        try {
+          return encodeURIComponent(decodeURIComponent(segment));
+        } catch (e) {
+          return encodeURIComponent(segment);
+        }
+      }).join('/');
     }
     const targetUrl = `${LEMON_SERVER_URL}${encodedUri}`;
     console.log(`Fetching from lemon-server: ${targetUrl}`);
