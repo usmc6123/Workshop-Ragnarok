@@ -28,6 +28,7 @@ COPY backend/ingestion.js ./
 COPY backend/chat-route.js ./
 COPY backend/db.js ./
 COPY backend/email.js ./
+COPY backend/stripe.js ./
 COPY backend/middleware ./middleware
 
 # Copy compiled frontend from Stage 1 into backend's public folder

@@ -146,6 +146,7 @@ export interface Job {
   mileage_at_intake?: number | null;
   priority?: 'Standard' | 'Rush';
   customer_approved?: boolean | number;
+  payment_status?: 'Paid' | 'Unpaid';
   created_at?: string;
   updated_at?: string;
   // Joined Fields

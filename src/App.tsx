@@ -20,6 +20,7 @@ import NetworkSettingsModal from './components/NetworkSettingsModal';
 import BootSplashScreen from './components/BootSplashScreen';
 import EmailView from './components/EmailView';
 import AutomationsView from './components/AutomationsView';
+import PaymentsView from './components/PaymentsView';
 import { LOGO_URL, BACKGROUND_URL } from './constants/branding';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminPage from './pages/AdminPage';
@@ -31,13 +32,14 @@ import {
   Wifi, HelpCircle, CheckSquare, Settings, Car, ClipboardList, LayoutDashboard, Menu
 } from 'lucide-react';
 
-type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email' | 'automations';
+type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email' | 'automations' | 'payments';
 
 export default function App() {
   console.log('APP RENDERING');
   const [view, setView] = useState<ViewType>('dashboard');
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [initialSelectedVehicleId, setInitialSelectedVehicleId] = useState<number | null>(null);
+  const [initialSelectedJobId, setInitialSelectedJobId] = useState<number | null>(null);
   
   // Quick compose state for the Email center
   const [emailComposeData, setEmailComposeData] = useState<{ customerId?: number; recipientEmail?: string } | null>(null);
@@ -187,6 +189,7 @@ export default function App() {
       case 'manual': return 'Active Service Manual';
       case 'admin': return 'Manage Users';
       case 'automations': return 'Automations';
+      case 'payments': return 'Payments';
       case 'login': return 'Terminal Auth';
       default: return 'Workshop Management';
     }
@@ -348,9 +351,11 @@ export default function App() {
                 )}
 
                 {view === 'jobs' && (
-                  <JobsView 
+                  <JobsView
                     refreshTrigger={refreshTrigger}
                     onTriggerEmail={handleTriggerQuickEmail}
+                    initialSelectedJobId={initialSelectedJobId}
+                    onInitialJobConsumed={() => setInitialSelectedJobId(null)}
                   />
                 )}
 
@@ -369,6 +374,16 @@ export default function App() {
                     onNavigateToCustomer={(customerId) => {
                       setView('customers');
                     }}
+                  />
+                )}
+
+                {view === 'payments' && (
+                  <PaymentsView
+                    onNavigateToJob={(jobId) => {
+                      setInitialSelectedJobId(jobId);
+                      setView('jobs');
+                    }}
+                    onNavigateToCustomer={() => setView('customers')}
                   />
                 )}
 

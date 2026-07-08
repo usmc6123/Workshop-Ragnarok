@@ -738,14 +738,37 @@ export default function EmailView({
               </button>
             </div>
 
-            <button
-              onClick={fetchTrashLog}
-              disabled={loadingTrash}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs uppercase tracking-wider font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-            >
-              {loadingTrash ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-              <span>Refresh Trash</span>
-            </button>
+            <div className="flex items-center gap-2 self-start md:self-center">
+              <button
+                onClick={async () => {
+                  if (confirm('Are you sure you want to permanently delete ALL trashed emails? This cannot be undone.')) {
+                    try {
+                      await api.emptyEmailTrash();
+                      showToast('Trash emptied successfully');
+                      fetchTrashLog();
+                    } catch (err) {
+                      console.error(err);
+                      showToast('Failed to empty trash', 'error');
+                    }
+                  }
+                }}
+                disabled={loadingTrash || trashLog.length === 0}
+                className="px-4 py-2 bg-rose-950/60 hover:bg-rose-900/60 text-rose-400 border border-rose-500/20 rounded-lg text-xs uppercase tracking-wider font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Permanently delete all trashed emails"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Empty Trash</span>
+              </button>
+
+              <button
+                onClick={fetchTrashLog}
+                disabled={loadingTrash}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs uppercase tracking-wider font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {loadingTrash ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                <span>Refresh Trash</span>
+              </button>
+            </div>
           </div>
 
           {/* Table list */}

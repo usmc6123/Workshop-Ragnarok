@@ -870,6 +870,21 @@ export const api = {
     }
   },
 
+  async createCheckoutSession(jobId: number): Promise<{ url: string }> {
+    return await request<{ url: string }>(`/api/jobs/${jobId}/create-checkout-session`, {
+      method: 'POST'
+    });
+  },
+
+  // --- PAYMENTS ---
+  async getPayments(): Promise<any[]> {
+    return await request<any[]>('/api/payments');
+  },
+
+  async getPayment(id: number): Promise<any> {
+    return await request<any>(`/api/payments/${id}`);
+  },
+
   // --- JOB PARTS (INVENTORY INTEGRATED) ---
   async updateJobPart(jobId: number, partId: number, part: JobPart): Promise<JobPart> {
     try {
@@ -1353,6 +1368,12 @@ export const api = {
 
   async deleteEmailPermanently(type: 'sent' | 'received', id: number): Promise<{ success: boolean }> {
     return await request<{ success: boolean }>(`/api/emails/${type}/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async emptyEmailTrash(): Promise<{ success: boolean; deletedCount: number }> {
+    return await request<{ success: boolean; deletedCount: number }>('/api/emails/trash/empty', {
       method: 'DELETE'
     });
   }

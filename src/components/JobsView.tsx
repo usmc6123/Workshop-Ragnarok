@@ -864,6 +864,20 @@ export default function JobsView({
     window.print();
   };
 
+  const [processingPayment, setProcessingPayment] = useState(false);
+
+  const handlePayNow = async () => {
+    if (!selectedJob) return;
+    setProcessingPayment(true);
+    try {
+      const { url } = await api.createCheckoutSession(selectedJob.id);
+      window.location.href = url;
+    } catch (err: any) {
+      alert(err.message || 'Failed to start checkout session.');
+      setProcessingPayment(false);
+    }
+  };
+
   const handleDownloadPDF = () => {
     if (!selectedJob) return;
 
@@ -1562,6 +1576,16 @@ export default function JobsView({
                       <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       Download PDF
                     </button>
+                    {selectedJob.payment_status !== 'Paid' && (
+                      <button
+                        onClick={handlePayNow}
+                        disabled={processingPayment}
+                        className="bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-bold px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs uppercase tracking-wider transition flex items-center gap-1 cursor-pointer shrink-0 disabled:opacity-50"
+                      >
+                        <DollarSign className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                        {processingPayment ? 'Redirecting…' : 'Pay Now'}
+                      </button>
+                    )}
                   </div>
 
                   <style>{`

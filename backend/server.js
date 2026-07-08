@@ -213,6 +213,71 @@ app.post('/api/webhooks/inbound-email', async (req, res) => {
   }
 });
 
+// Stripe checkout webhook - placed before authMiddleware; Stripe calls this directly and
+// authenticates via signature verification instead of a JWT.
+app.post('/api/webhooks/stripe', async (req, res) => {
+  try {
+    const signature = req.headers['stripe-signature'];
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!signature) {
+      console.warn('[Stripe Webhook] Missing stripe-signature header');
+      return res.status(401).json({ error: 'Missing stripe-signature header' });
+    }
+    if (!webhookSecret) {
+      console.error('[Stripe Webhook] STRIPE_WEBHOOK_SECRET environment variable is not defined.');
+      return res.status(500).json({ error: 'Webhook secret not configured' });
+    }
+
+    const { getStripe } = require('./stripe');
+    const stripe = getStripe();
+
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(req.rawBody, signature, webhookSecret);
+    } catch (err) {
+      console.warn('[Stripe Webhook] Signature verification failed:', err.message);
+      return res.status(401).json({ error: 'Invalid webhook signature' });
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+      const jobId = session.metadata && session.metadata.job_id;
+
+      if (jobId) {
+        const job = db.prepare('SELECT id, user_id, customer_id FROM jobs WHERE id = ?').get(jobId);
+        if (job) {
+          db.prepare(`UPDATE jobs SET payment_status = 'Paid', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(job.id);
+
+          db.prepare(`
+            INSERT INTO payments (user_id, job_id, customer_id, amount_cents, currency, status, stripe_session_id, stripe_payment_intent_id)
+            VALUES (?, ?, ?, ?, ?, 'succeeded', ?, ?)
+          `).run(
+            job.user_id,
+            job.id,
+            job.customer_id,
+            session.amount_total || 0,
+            session.currency || 'usd',
+            session.id,
+            session.payment_intent || null
+          );
+
+          console.log(`[Stripe Webhook] Job #${job.id} marked Paid, payment recorded for session ${session.id}`);
+        } else {
+          console.warn(`[Stripe Webhook] checkout.session.completed for unknown job_id ${jobId}`);
+        }
+      } else {
+        console.warn('[Stripe Webhook] checkout.session.completed missing job_id metadata');
+      }
+    }
+
+    res.json({ received: true });
+  } catch (err) {
+    console.error('[Stripe Webhook] Error processing webhook:', err);
+    res.status(500).json({ error: 'Internal server error processing webhook' });
+  }
+});
+
 // Apply auth middleware to all API routes
 const { authMiddleware, adminOnly } = require('./middleware/authMiddleware');
 app.use('/api', authMiddleware);
@@ -590,6 +655,33 @@ try {
   } catch (err) {
     console.error('Error migrating emails_received deleted_at column:', err);
   }
+
+  // Migrate jobs table to include payment_status (for Stripe invoice payments)
+  try {
+    const jobsCols = db.prepare('PRAGMA table_info(jobs)').all();
+    if (!jobsCols.some(c => c.name === 'payment_status')) {
+      db.exec(`ALTER TABLE jobs ADD COLUMN payment_status TEXT DEFAULT 'Unpaid'`);
+      console.log('Successfully migrated jobs to include payment_status column.');
+    }
+  } catch (err) {
+    console.error('Error migrating jobs payment_status column:', err);
+  }
+
+  // Create Payments Table (Stripe Checkout transaction records)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
+      customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+      amount_cents INTEGER NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'usd',
+      status TEXT NOT NULL CHECK (status IN ('succeeded', 'failed', 'refunded')),
+      stripe_session_id TEXT,
+      stripe_payment_intent_id TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
   // Migrate columns for shop_settings table
   const shopSettingsCols = [
@@ -2534,10 +2626,75 @@ app.put('/api/jobs/:id', (req, res) => {
   }
 });
 
+// Computes a job's invoice grand total (parts + services + labor + tax), in cents.
+// Mirrors the calculation used for the printable invoice in JobsView.tsx.
+function computeJobInvoiceTotalCents(jobId, userId) {
+  const parts = db.prepare('SELECT quantity, unit_cost FROM job_parts WHERE job_id = ? AND user_id = ?').all(jobId, userId);
+  const totalPartsCost = parts.reduce((sum, item) => {
+    const qty = Math.max(0, parseInt(item.quantity, 10) || 0);
+    const cost = Math.max(0, parseFloat(item.unit_cost) || 0);
+    return sum + (qty * cost);
+  }, 0);
+
+  const services = db.prepare('SELECT base_price_charged, additional_hours_cost FROM job_services WHERE job_id = ? AND user_id = ?').all(jobId, userId);
+  const totalServicesCost = services.reduce((sum, item) => {
+    return sum + (parseFloat(item.base_price_charged) || 0) + (parseFloat(item.additional_hours_cost) || 0);
+  }, 0);
+
+  const job = db.prepare('SELECT labor_cost FROM jobs WHERE id = ? AND user_id = ?').get(jobId, userId);
+  const laborCost = job && !isNaN(parseFloat(job.labor_cost)) ? parseFloat(job.labor_cost) : 0;
+
+  const shopSettings = db.prepare('SELECT tax_rate FROM shop_settings WHERE user_id = ?').get(userId);
+  const taxRatePercent = shopSettings && !isNaN(parseFloat(shopSettings.tax_rate)) ? parseFloat(shopSettings.tax_rate) : 0;
+  const taxAmount = (totalPartsCost + laborCost) * (taxRatePercent / 100);
+
+  const grandTotal = totalPartsCost + totalServicesCost + laborCost + taxAmount;
+  return Math.round(grandTotal * 100);
+}
+
+// POST /api/jobs/:id/create-checkout-session: Create a Stripe Checkout session for the job's invoice total
+app.post('/api/jobs/:id/create-checkout-session', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const job = db.prepare(`
+      SELECT j.*, c.name as customer_name, c.email as customer_email,
+        cv.year as vehicle_year, cv.make as vehicle_make, cv.model as vehicle_model
+      FROM jobs j
+      LEFT JOIN customers c ON j.customer_id = c.id
+      LEFT JOIN customer_vehicles cv ON j.vehicle_id = cv.id
+      WHERE j.id = ? AND j.user_id = ?
+    `).get(id, req.user.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+
+    const amountCents = computeJobInvoiceTotalCents(id, req.user.id);
+    if (amountCents <= 0) {
+      return res.status(400).json({ error: 'Invoice total must be greater than zero to create a checkout session.' });
+    }
+
+    const vehicleDesc = [job.vehicle_year, job.vehicle_make, job.vehicle_model].filter(Boolean).join(' ');
+    const description = `${vehicleDesc}${vehicleDesc && job.description ? ' — ' : ''}${job.description || ''}`.trim() || `Ticket #${job.id}`;
+
+    const appBaseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const { createCheckoutSession } = require('./stripe');
+    const session = await createCheckoutSession({
+      jobId: job.id,
+      customerEmail: job.customer_email,
+      description,
+      amountCents,
+      appBaseUrl,
+    });
+
+    res.json({ url: session.url });
+  } catch (error) {
+    console.error('Error creating Stripe checkout session:', error);
+    res.status(500).json({ error: error.message || 'Failed to create checkout session' });
+  }
+});
+
 app.delete('/api/jobs/:id', (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Verify job ownership
     const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(id, req.user.id);
     if (!job) return res.status(404).json({ error: 'Job not found' });
@@ -2551,6 +2708,53 @@ app.delete('/api/jobs/:id', (req, res) => {
   } catch (error) {
     console.error('Error deleting job:', error);
     res.status(500).json({ error: 'Database error deleting job' });
+  }
+});
+
+// --- PAYMENTS ---
+
+// GET /api/payments: List all payments for the current user, newest first
+app.get('/api/payments', (req, res) => {
+  try {
+    const stmt = db.prepare(`
+      SELECT p.*, c.name as customer_name,
+        j.description as job_description,
+        cv.year as vehicle_year, cv.make as vehicle_make, cv.model as vehicle_model
+      FROM payments p
+      LEFT JOIN customers c ON p.customer_id = c.id
+      LEFT JOIN jobs j ON p.job_id = j.id
+      LEFT JOIN customer_vehicles cv ON j.vehicle_id = cv.id
+      WHERE p.user_id = ?
+      ORDER BY p.created_at DESC
+    `);
+    const rows = stmt.all(req.user.id);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching payments:', error);
+    res.status(500).json({ error: 'Database error fetching payments' });
+  }
+});
+
+// GET /api/payments/:id: Get a single payment's full detail
+app.get('/api/payments/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const stmt = db.prepare(`
+      SELECT p.*, c.name as customer_name,
+        j.description as job_description, j.id as job_id,
+        cv.year as vehicle_year, cv.make as vehicle_make, cv.model as vehicle_model
+      FROM payments p
+      LEFT JOIN customers c ON p.customer_id = c.id
+      LEFT JOIN jobs j ON p.job_id = j.id
+      LEFT JOIN customer_vehicles cv ON j.vehicle_id = cv.id
+      WHERE p.id = ? AND p.user_id = ?
+    `);
+    const row = stmt.get(id, req.user.id);
+    if (!row) return res.status(404).json({ error: 'Payment not found' });
+    res.json(row);
+  } catch (error) {
+    console.error('Error fetching payment details:', error);
+    res.status(500).json({ error: 'Database error fetching payment details' });
   }
 });
 
@@ -3830,6 +4034,19 @@ app.post('/api/emails/:type/:id/restore', (req, res) => {
   } catch (error) {
     console.error('Error restoring email:', error);
     res.status(500).json({ error: 'Database error restoring email' });
+  }
+});
+
+// DELETE /api/emails/trash/empty: Permanently delete all trashed emails (sent + received) for the current user
+// Registered before the generic /:type/:id route below so 'trash'/'empty' aren't parsed as params.
+app.delete('/api/emails/trash/empty', (req, res) => {
+  try {
+    const sentInfo = db.prepare('DELETE FROM emails_sent WHERE user_id = ? AND deleted_at IS NOT NULL').run(req.user.id);
+    const receivedInfo = db.prepare('DELETE FROM emails_received WHERE user_id = ? AND deleted_at IS NOT NULL').run(req.user.id);
+    res.json({ success: true, deletedCount: sentInfo.changes + receivedInfo.changes });
+  } catch (error) {
+    console.error('Error emptying trash:', error);
+    res.status(500).json({ error: 'Database error emptying trash' });
   }
 });
 
