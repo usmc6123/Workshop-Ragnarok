@@ -1488,6 +1488,38 @@ function processLemonListItemContent($, $el, blocks) {
   flush();
 }
 
+// Converts a LEMON <dl> (e.g. "Commonly Used Abbreviations" pages) into table rows:
+// <dt><span class="clsTermLabel">ABS</span></dt><dd><p>Anti-Lock Brakes</p></dd> pairs become
+// [Abbreviation, Meaning / Description] rows. $(child).text() is recursive, so it reaches the
+// term/definition text through the nested <span>/<p> wrappers without any special-casing.
+// Shared by both the direct-child-of-div.main case and the div[id^="S"]-wrapped case below,
+// since the same <dl> markup shows up in both positions depending on the page.
+function parseLemonDlToTableRows($, $dl) {
+  const rows = [
+    [
+      { text: 'Abbreviation', isHeader: true },
+      { text: 'Meaning / Description', isHeader: true }
+    ]
+  ];
+  let currentTerm = '';
+  $dl.contents().each((idx, child) => {
+    const childTag = child.name ? child.name.toLowerCase() : '';
+    if (childTag === 'dt') {
+      currentTerm = $(child).text().trim();
+    } else if (childTag === 'dd') {
+      const definition = $(child).text().trim();
+      if (currentTerm || definition) {
+        rows.push([
+          { text: currentTerm || '', isHeader: false },
+          { text: definition || '', isHeader: false }
+        ]);
+      }
+      currentTerm = '';
+    }
+  });
+  return rows;
+}
+
 // GET /api/page?uri=<uriPath>
 app.get('/api/page', async (req, res) => {
   try {
@@ -1821,6 +1853,17 @@ app.get('/api/page', async (req, res) => {
                     blocks.push({ type: 'table', rows: tableData });
                   }
                 }
+              } else if (dTagName === 'dl') {
+                // Mirrors the top-level tagName === 'dl' case below — LEMON "Commonly Used
+                // Abbreviations" pages nest their <dl> one level deeper, inside the same
+                // div[id^="S"] wrapper as the paragraphs/lists handled elsewhere in this
+                // block, rather than as a direct child of div.main. Without this case the
+                // <dl> matched none of the branches above and was silently dropped entirely.
+                flushParts();
+                const dlRows = parseLemonDlToTableRows($, $dNode);
+                if (dlRows.length > 1) {
+                  blocks.push({ type: 'table', rows: dlRows });
+                }
               } else if (dTagName === 'ul' || dTagName === 'ol') {
                 flushParts();
                 // Handle bullet/numbered lists inside LEMON content divs
@@ -1966,28 +2009,7 @@ app.get('/api/page', async (req, res) => {
             }
           } else if (tagName === 'dl') {
             flushParts();
-            const rows = [
-              [
-                { text: 'Abbreviation', isHeader: true },
-                { text: 'Meaning / Description', isHeader: true }
-              ]
-            ];
-            let currentTerm = '';
-            $node.contents().each((idx, child) => {
-              const childTag = child.name ? child.name.toLowerCase() : '';
-              if (childTag === 'dt') {
-                currentTerm = $(child).text().trim();
-              } else if (childTag === 'dd') {
-                const definition = $(child).text().trim();
-                if (currentTerm || definition) {
-                  rows.push([
-                    { text: currentTerm || '', isHeader: false },
-                    { text: definition || '', isHeader: false }
-                  ]);
-                }
-                currentTerm = '';
-              }
-            });
+            const rows = parseLemonDlToTableRows($, $node);
             if (rows.length > 1) {
               blocks.push({ type: 'table', rows });
             }
