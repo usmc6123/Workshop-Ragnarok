@@ -18,6 +18,13 @@ interface TreeViewProps {
   onSelectUri: (uri: string, node: CategoryTreeNode) => void;
   dynamicChildren?: Record<string, CategoryTreeNode[]>;
   navigateOnCategoryClick?: boolean;
+  // Sequence of category node titles (e.g. ["Standard Procedure", "Standard Procedure -
+  // Base Brake Bleeding"]) from a "#..." mid-path deep link that pointed at a nested section
+  // within this page's own tree rather than a separate fetchable page. Auto-expands the
+  // ancestor folders leading to that section and highlights/scrolls to it, the same way
+  // activeUri does for a real leaf page — but matched by title path instead of resolved href,
+  // since a category folder has no href of its own.
+  activeCategoryPath?: string[];
 }
 
 // Map semantic icons based on common names
@@ -48,24 +55,28 @@ function resolveHref(baseUri: string, href: string): string {
   return baseUri.split('#')[0] + href; // relative, concatenate
 }
 
-export default function TreeView({ 
-  rootTitle, 
-  rootTree, 
-  baseUri, 
+export default function TreeView({
+  rootTitle,
+  rootTree,
+  baseUri,
   activeUri,
   onSelectUri,
   dynamicChildren = {},
   navigateOnCategoryClick = false,
+  activeCategoryPath,
 }: TreeViewProps) {
-  
+
   // Tracking expanded categories by their unique pathKey
   const [expandedNodes, setExpandedNodes] = useState<{ [key: string]: boolean }>({});
   const [searchQuery, setSearchQuery] = useState('');
+  // pathKey of the category node matched by activeCategoryPath, for highlight + scroll.
+  const [activeCategoryPathKey, setActiveCategoryPathKey] = useState<string | null>(null);
 
   // Reset states on rootTree change
   useEffect(() => {
     setExpandedNodes({});
     setSearchQuery('');
+    setActiveCategoryPathKey(null);
   }, [baseUri, rootTree]);
 
   // Toggle expanded folder
@@ -131,9 +142,68 @@ export default function TreeView({
     }
   }, [activeUri, rootTree, baseUri, dynamicChildren]);
 
+  // Auto-expand + highlight the nested category section pointed at by a "#..." mid-path deep
+  // link. Purely additive to the activeUri matching above: a fragment target is a category
+  // folder with no href of its own, so it's matched by walking node.title down
+  // activeCategoryPath rather than by resolved href.
+  useEffect(() => {
+    if (!activeCategoryPath || activeCategoryPath.length === 0 || !rootTree || rootTree.length === 0) {
+      setActiveCategoryPathKey(null);
+      return;
+    }
+
+    let matchedPathKey: string | null = null;
+    const parentKeysToExpand: string[] = [];
+
+    function findCategoryPath(nodes: CategoryTreeNode[], parentPathKey: string, remaining: string[]): boolean {
+      for (const node of nodes) {
+        if (node.type !== 'category') continue;
+        const pathKey = parentPathKey ? `${parentPathKey}/${node.title}` : node.title;
+
+        if (node.title === remaining[0]) {
+          if (remaining.length === 1) {
+            matchedPathKey = pathKey;
+            parentKeysToExpand.push(pathKey);
+            return true;
+          }
+          if (findCategoryPath(node.children, pathKey, remaining.slice(1))) {
+            parentKeysToExpand.push(pathKey);
+            return true;
+          }
+        }
+
+        // Also try descending with the same remaining path unmatched — trees often have a
+        // synthetic wrapper category matching the base page's own title before the "real"
+        // structure named in the fragment begins, so the match may start one level deeper.
+        if (findCategoryPath(node.children, pathKey, remaining)) {
+          parentKeysToExpand.push(pathKey);
+          return true;
+        }
+      }
+      return false;
+    }
+
+    findCategoryPath(rootTree, '', activeCategoryPath);
+
+    if (parentKeysToExpand.length > 0) {
+      setExpandedNodes(prev => {
+        const next = { ...prev };
+        let changed = false;
+        parentKeysToExpand.forEach(key => {
+          if (!next[key]) {
+            next[key] = true;
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    }
+    setActiveCategoryPathKey(matchedPathKey);
+  }, [activeCategoryPath, rootTree]);
+
   // Scroll active item smoothly into view
   useEffect(() => {
-    if (!activeUri) return;
+    if (!activeUri && !activeCategoryPathKey) return;
 
     const timer = setTimeout(() => {
       if (containerRef.current) {
@@ -145,7 +215,7 @@ export default function TreeView({
     }, 150);
 
     return () => clearTimeout(timer);
-  }, [activeUri, expandedNodes]);
+  }, [activeUri, activeCategoryPathKey, expandedNodes]);
 
   // Helper to expand all categories recursively
   const handleExpandAll = () => {
@@ -257,9 +327,11 @@ export default function TreeView({
       const children = node.type === 'category' ? node.children : dynamicChildrenList!;
       const childrenCount = children.length;
       
-      const isExpanded = isFiltered 
-        ? filteredTreeData.autoExpanded.has(pathKey) 
+      const isExpanded = isFiltered
+        ? filteredTreeData.autoExpanded.has(pathKey)
         : (expandedNodes[pathKey] !== undefined ? expandedNodes[pathKey] : (dynamicChildrenList ? true : false));
+
+      const isCategoryActive = pathKey === activeCategoryPathKey;
 
       const handleCategoryClick = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -280,16 +352,21 @@ export default function TreeView({
         <div key={`cat-${pathKey}-${index}`} className="space-y-0.5">
           <button
             type="button"
+            data-active={isCategoryActive ? "true" : undefined}
             onClick={handleCategoryClick}
             style={{ paddingLeft: `${depth * 12 + 6}px` }}
-            className="w-full flex items-center justify-between text-left py-1 hover:bg-slate-800/40 text-slate-350 hover:text-slate-100 rounded transition duration-150 cursor-pointer group"
+            className={`w-full flex items-center justify-between text-left py-1 rounded transition duration-150 cursor-pointer group ${
+              isCategoryActive
+                ? 'bg-amber-500/10 text-amber-400 font-bold shadow-xs'
+                : 'hover:bg-slate-800/40 text-slate-350 hover:text-slate-100'
+            }`}
           >
             <div className="flex items-center gap-1.5 min-w-0">
-              <span className="shrink-0 text-slate-500 group-hover:text-amber-500 transition duration-150">
+              <span className={`shrink-0 transition duration-150 ${isCategoryActive ? 'text-amber-400' : 'text-slate-500 group-hover:text-amber-500'}`}>
                 {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
               </span>
-              <Folder className="w-3.5 h-3.5 text-amber-500/80 shrink-0" />
-              <span className="text-slate-200 text-xs font-semibold truncate leading-tight select-none">
+              <Folder className={`w-3.5 h-3.5 shrink-0 ${isCategoryActive ? 'text-amber-400' : 'text-amber-500/80'}`} />
+              <span className={`text-xs font-semibold truncate leading-tight select-none ${isCategoryActive ? 'text-amber-400' : 'text-slate-200'}`}>
                 {node.title}
               </span>
             </div>

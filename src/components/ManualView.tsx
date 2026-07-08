@@ -344,6 +344,9 @@ export default function ManualView({
   const [rightPaneBaseUri, setRightPaneBaseUri] = useState<string>('');
   const [uriHistory, setUriHistory] = useState<string[]>([]);
   const latestUriRef = useRef<string>('');
+  // Category title path from a "#..." mid-path link (see loadActivePageDetails) — lets the
+  // tree auto-expand/highlight the nested section that link actually pointed at.
+  const [activeCategoryPath, setActiveCategoryPath] = useState<string[] | undefined>(undefined);
   
   // Right content panel states
   const [activePage, setActivePage] = useState<PageResponse | null>(null);
@@ -684,6 +687,7 @@ export default function ManualView({
       const data = await api.getPage(uri);
       // Ignore stale responses from previous navigations
       if (latestUriRef.current !== uri) return;
+      setActiveCategoryPath((data as any).fragmentPath || undefined);
       if (data.pageType === 'category') {
         const firstNode = data.tree?.[0];
         const children = (firstNode && 'children' in firstNode ? firstNode.children : null) || data.tree || [];
@@ -1120,6 +1124,7 @@ export default function ManualView({
                   activeUri={currentUri}
                   onSelectUri={handleSelectUri}
                   dynamicChildren={dynamicChildren}
+                  activeCategoryPath={activeCategoryPath}
                 />
               </div>
             ) : (
@@ -1219,6 +1224,7 @@ export default function ManualView({
                         onSelectUri={handleSelectUri}
                         dynamicChildren={{}}
                         navigateOnCategoryClick={true}
+                        activeCategoryPath={activeCategoryPath}
                       />
                     </div>
                   </div>
