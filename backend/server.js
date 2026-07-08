@@ -1596,6 +1596,61 @@ app.get('/api/page', async (req, res) => {
                 // Handle bullet/numbered lists inside LEMON content divs
                 $dNode.children('li').each((liIdx, liEl) => {
                   const $li = $(liEl);
+                  const liImageHolders = $li.find('div.imageHolder');
+
+                  if (liImageHolders.length > 0) {
+                    // Rich numbered-step content (e.g. <ol class="ARABICNUM"> repair steps)
+                    // that embeds a figure reference, e.g.:
+                    //   <li>Lift and remove the partition. See <a class="clsGraphicLink"
+                    //     href="/images25/G00513533/">Fig 1</a>.
+                    //     <div class="imageHolder">...<img src="/images25/G00513533/">...</div>
+                    //   </li>
+                    // The old logic below only checked whether the li's first child was an
+                    // <a> and, if so, discarded everything else in the li and rendered just
+                    // that anchor as an internalLink — turning "Fig 1" into a dead link to a
+                    // raw image resource (which then rendered as garbled binary when browsed
+                    // to) and silently dropping both the step text and the real image.
+                    // Instead: keep the step text, drop the redundant "Fig N" label link
+                    // (the image immediately below already carries that reference), and emit
+                    // each imageHolder as a proper captioned image block.
+                    const stepParts = [];
+                    $li.contents().each((ciIdx, childNode) => {
+                      const $child = $(childNode);
+                      const childTag = childNode.name ? childNode.name.toLowerCase() : '';
+                      if (childNode.type === 'text') {
+                        const text = childNode.data ? childNode.data.trim() : '';
+                        if (text) stepParts.push({ type: 'text', text });
+                      } else if (childTag === 'a' && $child.hasClass('clsGraphicLink')) {
+                        // Skip — redundant "Fig N" label for the image rendered below.
+                      } else if (childTag === 'a') {
+                        const linkText = $child.text().trim();
+                        let href = $child.attr('href') || '';
+                        if (href.startsWith('/hyperlink/')) href = href.substring(11);
+                        else if (href.startsWith('hyperlink/')) href = href.substring(10);
+                        if (!href.startsWith('/')) href = '/' + href;
+                        if (linkText) stepParts.push({ type: 'internalLink', text: linkText, href });
+                      } else if (childTag === 'div' && $child.hasClass('imageHolder')) {
+                        // Rendered separately below, in order.
+                      } else {
+                        const text = $child.text().trim();
+                        if (text) stepParts.push({ type: 'text', text });
+                      }
+                    });
+                    if (stepParts.length === 1 && stepParts[0].type === 'text') {
+                      blocks.push({ type: 'paragraph', text: stepParts[0].text });
+                    } else if (stepParts.length > 0) {
+                      blocks.push({ type: 'paragraph', parts: stepParts });
+                    }
+                    liImageHolders.each((holderIdx, holderEl) => {
+                      const $holder = $(holderEl);
+                      const caption = $holder.find('.imageCaption').first().text().trim();
+                      const src = $holder.find('img').first().attr('src');
+                      if (caption) blocks.push({ type: 'heading', text: caption });
+                      if (src) blocks.push({ type: 'image', src });
+                    });
+                    return;
+                  }
+
                   const $a = $li.children('a').first();
                   if ($a.length > 0) {
                     let href = $a.attr('href') || '';
