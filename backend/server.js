@@ -382,11 +382,20 @@ try {
       mileage_at_intake INTEGER DEFAULT NULL,
       priority TEXT DEFAULT 'Standard',
       customer_approved INTEGER DEFAULT 0,
+      portal_token TEXT,
+      portal_token_created_at TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  // Ensure portal token unique index exists for jobs table
+  try {
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_portal_token ON jobs(portal_token)`);
+  } catch (err) {
+    console.error('Error creating jobs portal token unique index:', err);
+  }
 
   try {
     db.exec(`ALTER TABLE jobs ADD COLUMN estimated_hours REAL DEFAULT NULL`);
@@ -811,9 +820,13 @@ try {
   try {
     const jobsCols = db.prepare('PRAGMA table_info(jobs)').all();
     if (!jobsCols.some(c => c.name === 'portal_token')) {
-      db.exec(`ALTER TABLE jobs ADD COLUMN portal_token TEXT UNIQUE`);
+      db.exec(`ALTER TABLE jobs ADD COLUMN portal_token TEXT`);
       console.log('Successfully migrated jobs to include portal_token column.');
     }
+    
+    // Create index to enforce uniqueness of portal_token
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_portal_token ON jobs(portal_token)`);
+    
     if (!jobsCols.some(c => c.name === 'portal_token_created_at')) {
       db.exec(`ALTER TABLE jobs ADD COLUMN portal_token_created_at TEXT`);
       console.log('Successfully migrated jobs to include portal_token_created_at column.');
