@@ -1488,6 +1488,16 @@ function processLemonListItemContent($, $el, blocks) {
   flush();
 }
 
+// decodeURIComponent that falls back to the raw segment on malformed input, instead of
+// throwing and losing an otherwise-usable fragment path segment.
+function decodeURIComponentSafe(segment) {
+  try {
+    return decodeURIComponent(segment);
+  } catch (e) {
+    return segment;
+  }
+}
+
 // Converts a LEMON <dl> (e.g. "Commonly Used Abbreviations" pages) into table rows:
 // <dt><span class="clsTermLabel">ABS</span></dt><dd><p>Anti-Lock Brakes</p></dd> pairs become
 // [Abbreviation, Meaning / Description] rows. $(child).text() is recursive, so it reaches the
@@ -1526,6 +1536,17 @@ app.get('/api/page', async (req, res) => {
     const uri = req.query.uri;
     if (!uri) return res.status(400).json({ error: 'Missing uri parameter' });
 
+    // A "#..." mid-path isn't a separate fetchable resource — on the real source site it's a
+    // same-page deep link into a nested category/section within the base page's own content
+    // tree (e.g. ".../Base Brakes (Service Information) - MK/#Standard Procedure/Standard
+    // Procedure - Base Brake Bleeding/" just points at that nested folder on the base page,
+    // it isn't its own page). Sending the "#..." portion straight to lemon-server 404s, since
+    // it isn't a real filesystem path there. Strip it and fetch only the base page — the
+    // fragment is used further down to auto-expand/scroll the resulting tree to that section.
+    const hashIdx = uri.indexOf('#');
+    const fragment = hashIdx >= 0 ? uri.slice(hashIdx + 1) : '';
+    const baseUri = hashIdx >= 0 ? uri.slice(0, hashIdx) : uri;
+
     // Normalize each path segment's encoding individually, splitting on the still-encoded
     // uri rather than a fully-decoded one. Some manual folder/file names contain a literal
     // "/" as part of the name itself (e.g. "Heating, Ventilation & A/C (HVAC)"), sent by the
@@ -1535,9 +1556,9 @@ app.get('/api/page', async (req, res) => {
     // a bare "/" only ever appears as a genuine path separator — "%2F" stays intact inside a
     // segment through the split, and the decode+re-encode below just normalizes that segment's
     // own encoding without touching segment boundaries.
-    let encodedUri = uri;
-    if (uri) {
-      encodedUri = uri.split('/').map(segment => {
+    let encodedUri = baseUri;
+    if (baseUri) {
+      encodedUri = baseUri.split('/').map(segment => {
         try {
           return encodeURIComponent(decodeURIComponent(segment));
         } catch (e) {
@@ -1688,7 +1709,11 @@ app.get('/api/page', async (req, res) => {
       return res.json({
         pageType: 'category',
         title: title,
-        tree: tree
+        tree: tree,
+        // Present only when the original uri had a "#..." mid-path deep link (see above) — lets
+        // the frontend auto-expand/scroll the tree to the section the link actually pointed at,
+        // instead of just landing on the base page with nothing indicating where to look next.
+        ...(fragment ? { fragmentPath: fragment.split('/').map(decodeURIComponentSafe).filter(Boolean) } : {})
       });
     } else {
       const blocks = [];
