@@ -1243,11 +1243,18 @@ router.post('/', async (req, res) => {
 
     let finalText = '';
 
+    // Computed once per request (not per-turn, since it can't change mid-conversation).
+    // The model has no built-in notion of "today," so relative date phrases like
+    // "this month" or "next week" can't be turned into concrete YYYY-MM-DD values for
+    // tools like list_payments/search_appointments without this anchor.
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const systemInstructionWithDate = `${SYSTEM_PROMPT}\n\nToday's date is ${todayStr}. When a tool needs an explicit date or date range (e.g. list_payments, search_appointments) and the user gave a relative phrase like "this month," "this week," "today," or "the next 7 days," resolve it into concrete YYYY-MM-DD value(s) yourself using today's date before calling the tool — don't ask the user to supply dates for something they already phrased in plain language, and don't claim you're unable to calculate a total; call the tool with the resolved dates and sum/report what it returns.`;
+
     for (let turn = 0; turn < 8; turn++) {
       const response = await generateWithRetry({
         contents,
         config: {
-          systemInstruction: SYSTEM_PROMPT,
+          systemInstruction: systemInstructionWithDate,
           tools: [{ functionDeclarations }],
         },
       });
