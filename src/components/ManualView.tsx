@@ -930,6 +930,17 @@ export default function ManualView({
   const displayTree = navLevel === 'root' ? (rootCategoryPage?.tree || []) : sectionTree;
   const displayTitle = navLevel === 'root' ? (rootCategoryPage?.title || vehicle.model) : sectionTitle;
   const displayBaseUri = navLevel === 'root' ? vehicle.uriPath : sectionBaseUri.split('#')[0];
+  // sectionTree/displayTree gets replaced with deeper nested children as the user drills in
+  // (see loadActivePageDetails), so its hrefs are relative to the last-fetched uri, not the
+  // locked top-level sectionBaseUri. displayBaseUri alone is therefore stale once nested past
+  // the first level and truncates resolved paths. Mirror the right-pane's safe base-selection
+  // logic (falling back to sectionBaseUri if rightPaneBaseUri has diverged) so the left tree
+  // resolves the same complete nested path the right pane already does.
+  const leftPaneBaseUri = navLevel === 'root'
+    ? vehicle.uriPath
+    : (rightPaneBaseUri && rightPaneBaseUri.startsWith(sectionBaseUri)
+        ? rightPaneBaseUri
+        : sectionBaseUri.split('#')[0] || displayBaseUri);
 
   return (
     <div className="flex flex-col flex-1 h-[calc(100vh-64px)] overflow-hidden bg-[#0a0a0f]" id="manual-workspace">
@@ -1083,7 +1094,7 @@ export default function ManualView({
                 <TreeView
                   rootTitle={displayTitle}
                   rootTree={displayTree}
-                  baseUri={displayBaseUri}
+                  baseUri={leftPaneBaseUri}
                   activeUri={currentUri}
                   onSelectUri={handleSelectUri}
                   dynamicChildren={dynamicChildren}
