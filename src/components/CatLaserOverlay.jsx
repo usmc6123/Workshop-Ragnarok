@@ -422,6 +422,7 @@ export default function CatLaserOverlay() {
       raycaster.setFromCamera(mouseVec, camera);
       const birdRoots = birds.map((b) => b.root);
       const hits = raycaster.intersectObjects(birdRoots, true);
+      console.log('[CatLaserOverlay] click at', event.clientX, event.clientY, '| birds alive:', birds.length, '| raycast hits:', hits.length);
       if (hits.length === 0) return;
 
       let obj = hits[0].object;
@@ -445,6 +446,7 @@ export default function CatLaserOverlay() {
       if (best.userData.state === 'aiming') best.userData.aimTimer = 0.3;
     }
     window.addEventListener('click', onClick, true);
+    console.log('[CatLaserOverlay] click listener attached');
 
     function tryStart() {
       if (disposed) return;
