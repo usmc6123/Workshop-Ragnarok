@@ -69,7 +69,7 @@ export default function CatLaserOverlay() {
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.25;
     hostEl.appendChild(renderer.domElement);
@@ -119,7 +119,7 @@ export default function CatLaserOverlay() {
     const textureLoader = new THREE.TextureLoader();
     let featherTexture = null;
     textureLoader.load(ASSET_BASE_URL + 'feather-atlas.png', (tex) => {
-      tex.encoding = THREE.sRGBEncoding;
+      tex.colorSpace = THREE.SRGBColorSpace;
       featherTexture = tex;
     });
 

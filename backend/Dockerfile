@@ -2,7 +2,7 @@
 FROM node:18-slim AS frontend-builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 COPY . .
 ARG VITE_ASSET_BASE_URL
 ENV VITE_ASSET_BASE_URL=$VITE_ASSET_BASE_URL
