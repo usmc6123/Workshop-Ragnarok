@@ -62,12 +62,13 @@ export default function CatLaserOverlay() {
     const scene = new THREE.Scene();
     scene.background = null;
 
-    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+    const initialRect = hostEl.getBoundingClientRect();
+    const camera = new THREE.PerspectiveCamera(50, initialRect.width / initialRect.height, 0.1, 200);
     camera.position.set(0, 16, 15);
     camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(initialRect.width, initialRect.height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -94,9 +95,10 @@ export default function CatLaserOverlay() {
     }
 
     function onResize() {
-      camera.aspect = window.innerWidth / window.innerHeight;
+      const rect = hostEl.getBoundingClientRect();
+      camera.aspect = rect.width / rect.height;
       camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setSize(rect.width, rect.height);
       recomputeBounds();
     }
     window.addEventListener('resize', onResize);
@@ -417,12 +419,13 @@ export default function CatLaserOverlay() {
     const raycaster = new THREE.Raycaster();
     const mouseVec = new THREE.Vector2();
     function onClick(event) {
-      mouseVec.x = (event.clientX / window.innerWidth) * 2 - 1;
-      mouseVec.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouseVec.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouseVec.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(mouseVec, camera);
       const birdRoots = birds.map((b) => b.root);
       const hits = raycaster.intersectObjects(birdRoots, true);
-      console.log('[CatLaserOverlay] click at', event.clientX, event.clientY, '| birds alive:', birds.length, '| raycast hits:', hits.length);
+      console.log('[CatLaserOverlay] click at', event.clientX, event.clientY, '| canvas rect:', rect.width, rect.height, '| birds alive:', birds.length, '| raycast hits:', hits.length);
       if (hits.length === 0) return;
 
       let obj = hits[0].object;
