@@ -35,7 +35,7 @@ export default function CustomersHeaderVideo({ sources }: CustomersHeaderVideoPr
         onEnded={handleEnded}
         className="absolute inset-0 w-full h-full object-cover"
         style={{
-          objectPosition: 'center 15%',
+          objectPosition: 'center 50%',
           maskImage: 'radial-gradient(ellipse at center, black 65%, transparent 100%)',
           WebkitMaskImage: 'radial-gradient(ellipse at center, black 65%, transparent 100%)',
         }}
