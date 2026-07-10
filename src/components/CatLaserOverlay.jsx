@@ -67,6 +67,15 @@ export default function CatLaserOverlay() {
     camera.position.set(0, 16, 15);
     camera.lookAt(0, 0, 0);
 
+    function getMobileZoom(width) {
+      if (width <= 480) return 0.45;
+      if (width <= 768) return 0.6;
+      return 1;
+    }
+
+    camera.zoom = getMobileZoom(initialRect.width);
+    camera.updateProjectionMatrix();
+
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(initialRect.width, initialRect.height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -97,6 +106,7 @@ export default function CatLaserOverlay() {
     function onResize() {
       const rect = hostEl.getBoundingClientRect();
       camera.aspect = rect.width / rect.height;
+      camera.zoom = getMobileZoom(rect.width);
       camera.updateProjectionMatrix();
       renderer.setSize(rect.width, rect.height);
       recomputeBounds();
