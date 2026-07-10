@@ -16,6 +16,60 @@ If you make changes here via Claude and the owner later wants to keep editing in
 Studio, the only thing they need to do is re-sync AI Studio with whatever files
 changed — no other handoff step needed.
 
+## App architecture & features
+
+**Stack:** React 19 + TypeScript + Vite 6 + Tailwind CSS 4 on the frontend. It's a
+single-page app with state-based view switching in `src/App.tsx` — there's no
+react-router, just a `view` state variable that swaps between named view components.
+Backend is Express 4 + `better-sqlite3` (SQLite), with JWT auth (`jsonwebtoken` +
+`bcryptjs`), mostly defined in `backend/server.js` plus a few split-out files.
+
+**Integrations:**
+- **Stripe** — payments/checkout (`backend/stripe.js`), webhook at `/api/webhooks/stripe`
+- **Resend** — outbound email send + inbound email webhook with Svix signature
+  verification (`backend/email.js`)
+- **Google GenAI** (`@google/genai`) — powers the "Cooper & Roscoe" AI shop assistant
+  in `ChatWidget.tsx`, backend route in `backend/chat-route.js`
+- **cheerio + node-fetch** — manual/invoice scraping and ingestion (`backend/ingestion.js`)
+- **three.js** — the animated cat login screen (`LoginCats3D.tsx`)
+- **motion** (Framer Motion) — general UI animation
+
+**Pages** (`src/components/*View.tsx`, routed in `src/App.tsx`, nav list in
+`src/components/Sidebar.tsx`):
+- Dashboard — stats/overview, video hero banner
+- Customers — CRM profiles, video hero banner (`CustomersHeaderVideo.tsx`)
+- Vehicles — fleet profiles, video hero banner (`VehiclesHeaderVideo.tsx`)
+- Jobs / Work Orders — job tracking with notes/parts/photos/services sub-resources,
+  Stripe checkout session creation, customer-portal link generation
+- Inventory — parts stock, adjustments, AI-assisted invoice parsing
+- Calendar — appointments
+- Manual Library (`BrowseView.tsx` + `ManualView.tsx`) — vehicle service manuals,
+  populated via `ingestion.js`
+- Email — Resend-backed inbox, templates, trash; the Customers page can deep-link
+  into a quick-compose here
+- Automations
+- Payments — Stripe-backed, receipts
+- Settings — shop-wide settings
+- Manage Users / Admin (admin-only, JWT-protected) — `pages/AdminPage.tsx`
+- Customer Portal (`CustomerPortalView.tsx`) — separate external-facing view reached
+  via generated links (`backend/portal-routes.js`), not the internal shop UI
+- Login (`pages/LoginPage.tsx`) — 3D animated cat login screen
+- `ChatWidget.tsx` — floating AI shop assistant, present on every page. **This file
+  is on the protected list** (see below) — edits need the mirror-first push.
+
+**Backend API surface** (`backend/server.js`, everything under `/api`): standard
+CRUD-ish routes for customers, vehicles (plus per-customer vehicle lists and
+makes/models/years lookups), jobs (plus notes/parts/photos/services sub-routes),
+inventory (plus stock-adjust and AI invoice parsing), appointments, vehicle-manuals,
+garage, services, service-history, receipts, payments, shop-settings,
+email-templates, emails (received/trash/send), auth (login/me/users), stats
+(dashboard numbers), an image proxy, plus the Stripe and inbound-email webhooks.
+
+**Data:** SQLite at `/data/db/workshop.db` inside the container, mounted from the
+repo's `data/` directory — this is exactly the directory the webhook's
+`git clean --exclude=data/` step preserves across every deploy, so the database
+survives resets. `backend/db.js` owns the connection/schema.
+
 ## The two repos
 
 1. **usmc6123/Workshop-Ragnarok** (this repo) — the actual app, frontend + backend.

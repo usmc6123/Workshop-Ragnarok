@@ -16,6 +16,11 @@ export default function ProtectedRoute({ children, requireAdmin = false }: Prote
     return <>{children}</>;
   }
 
+  const isFunnelRoute = window.location.pathname.startsWith('/funnel/');
+  if (isFunnelRoute) {
+    return <>{children}</>;
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center font-mono text-slate-400">

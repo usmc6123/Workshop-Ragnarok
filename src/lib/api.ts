@@ -7,7 +7,7 @@ import {
   Vehicle, GarageItem, PageResponse, Customer, CustomerVehicle,
   ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual, ShopSettings, JobPhoto,
   InventoryItem, WorkOrderPart, Service, JobService, Receipt, EmailTemplate, EmailSent, EmailReceived,
-  JobNote, JobNoteAttachment
+  JobNote, JobNoteAttachment, Funnel, PublicFunnel, FunnelLead
 } from '../types';
 
 import { 
@@ -1455,6 +1455,59 @@ export const api = {
   async createPortalCheckoutSession(token: string): Promise<{ url: string }> {
     return await request<{ url: string }>(`/api/portal/${token}/create-checkout-session`, {
       method: 'POST'
+    });
+  },
+
+  // --- FUNNELS (authenticated shop-side management) ---
+  async getFunnels(): Promise<Funnel[]> {
+    return await request<Funnel[]>('/api/funnels');
+  },
+
+  async createFunnel(data: Partial<Funnel>): Promise<Funnel> {
+    return await request<Funnel>('/api/funnels', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async updateFunnel(id: number, data: Partial<Funnel>): Promise<Funnel> {
+    return await request<Funnel>(`/api/funnels/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async deleteFunnel(id: number): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/funnels/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async getFunnelLeads(funnelId: number): Promise<FunnelLead[]> {
+    return await request<FunnelLead[]>(`/api/funnels/${funnelId}/leads`);
+  },
+
+  // --- FUNNELS (public, unauthenticated - used by FunnelPageView) ---
+  async getPublicFunnel(slug: string): Promise<PublicFunnel> {
+    return await request<PublicFunnel>(`/api/funnels/${slug}`);
+  },
+
+  async submitFunnelLead(slug: string, data: {
+    name: string;
+    phone: string;
+    email: string;
+    message: string;
+    vehicle_year?: string;
+    vehicle_make?: string;
+    vehicle_model?: string;
+    company_website?: string; // honeypot - always left blank by real users
+  }): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/funnels/${slug}/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
     });
   }
 };

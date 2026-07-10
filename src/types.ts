@@ -220,6 +220,57 @@ export interface Appointment {
   vehicle_engine?: string;
 }
 
+export interface Funnel {
+  id: number;
+  slug: string;
+  headline: string;
+  subheadline: string | null;
+  body: string | null;
+  image_url: string | null;
+  video_url: string | null;
+  service_type: string | null;
+  cta_text: string;
+  active: number; // 0 or 1
+  created_at?: string;
+  updated_at?: string;
+  user_id?: number;
+  // Joined stats (from GET /api/funnels list)
+  lead_count?: number;
+  converted_count?: number;
+}
+
+// Shape returned by the public GET /api/funnels/:slug renderer (no internal fields)
+export interface PublicFunnel {
+  slug: string;
+  headline: string;
+  subheadline: string | null;
+  body: string | null;
+  image_url: string | null;
+  video_url: string | null;
+  service_type: string | null;
+  cta_text: string;
+}
+
+export interface FunnelLead {
+  id: number;
+  funnel_id: number;
+  name: string;
+  phone: string;
+  email: string;
+  vehicle_year: string | null;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  message: string;
+  status: 'new' | 'converted' | 'spam';
+  customer_id: number | null;
+  job_id: number | null;
+  ip_address: string | null;
+  created_at: string;
+  // Joined fields
+  customer_name?: string;
+  job_status?: string;
+}
+
 export interface DatabaseStats {
   totalManuals: number;
   totalCustomers: number;

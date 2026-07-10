@@ -282,6 +282,15 @@ app.post('/api/webhooks/stripe', async (req, res) => {
 const portalRouter = require('./portal-routes');
 app.use('/api/portal', portalRouter);
 
+// Public funnel routes (unauthenticated) - GET render + POST submit only.
+// Mounted before authMiddleware, same pattern as the portal router and the
+// inbound-email webhook above. Authenticated funnel management (list/create/
+// update/delete/leads) lives further below, after authMiddleware — those use
+// different path shapes (no bare "/api/funnels/:something" GET) so they never
+// collide with this public router.
+const funnelRouter = require('./funnel-routes');
+app.use('/api/funnels', funnelRouter);
+
 // Apply auth middleware to all API routes
 const { authMiddleware, adminOnly } = require('./middleware/authMiddleware');
 app.use('/api', authMiddleware);
@@ -834,6 +843,46 @@ try {
   } catch (err) {
     console.error('Error migrating jobs portal token columns:', err);
   }
+
+  // Create Funnels table (public unauthenticated lead-capture landing pages)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS funnels (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT UNIQUE NOT NULL,
+      headline TEXT NOT NULL,
+      subheadline TEXT,
+      body TEXT,
+      image_url TEXT,
+      video_url TEXT,
+      service_type TEXT,
+      cta_text TEXT DEFAULT 'Get My Free Quote',
+      active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create Funnel Leads table (raw submissions from public funnel pages)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS funnel_leads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      funnel_id INTEGER REFERENCES funnels(id) ON DELETE CASCADE,
+      name TEXT,
+      phone TEXT,
+      email TEXT,
+      vehicle_year TEXT,
+      vehicle_make TEXT,
+      vehicle_model TEXT,
+      message TEXT,
+      status TEXT CHECK (status IN ('new', 'converted', 'spam')) DEFAULT 'new',
+      customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+      job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+      ip_address TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
 
   // Seed the admin user if not exists
   const bcrypt = require('bcryptjs');
@@ -3540,6 +3589,127 @@ app.delete('/api/appointments/:id', (req, res) => {
   } catch (error) {
     console.error('Error deleting appointment:', error);
     res.status(500).json({ error: 'Database error deleting appointment' });
+  }
+});
+
+// --- FUNNELS (authenticated management) ---
+// NOTE: the public-facing GET /api/funnels/:slug and POST /api/funnels/:slug/submit
+// routes are handled by ./funnel-routes.js, mounted above BEFORE authMiddleware.
+// Deliberately no authenticated "GET /api/funnels/:id" here (single path segment) —
+// it would never be reached anyway, since the public router already intercepts every
+// GET to /api/funnels/<one segment> before requests reach authMiddleware. The list
+// endpoint below returns full rows, so the admin UI doesn't need a single-item GET.
+
+// List all funnels owned by this user, with lead + conversion counts
+app.get('/api/funnels', (req, res) => {
+  try {
+    const funnels = db.prepare(`
+      SELECT f.*,
+        (SELECT COUNT(*) FROM funnel_leads fl WHERE fl.funnel_id = f.id AND fl.status != 'spam') as lead_count,
+        (SELECT COUNT(*) FROM funnel_leads fl WHERE fl.funnel_id = f.id AND fl.status = 'converted') as converted_count
+      FROM funnels f
+      WHERE f.user_id = ?
+      ORDER BY f.created_at DESC
+    `).all(req.user.id);
+    res.json(funnels);
+  } catch (error) {
+    console.error('Error fetching funnels:', error);
+    res.status(500).json({ error: 'Database error fetching funnels' });
+  }
+});
+
+app.post('/api/funnels', (req, res) => {
+  try {
+    const { slug, headline, subheadline, body, image_url, video_url, service_type, cta_text, active } = req.body;
+    if (!slug || !headline) return res.status(400).json({ error: 'slug and headline are required' });
+
+    const cleanSlug = String(slug).trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+    if (!cleanSlug) return res.status(400).json({ error: 'slug must contain at least one letter or number' });
+
+    const existing = db.prepare('SELECT id FROM funnels WHERE slug = ?').get(cleanSlug);
+    if (existing) return res.status(409).json({ error: `Slug "${cleanSlug}" is already in use` });
+
+    const stmt = db.prepare(`
+      INSERT INTO funnels (slug, headline, subheadline, body, image_url, video_url, service_type, cta_text, active, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const info = stmt.run(
+      cleanSlug, headline, subheadline || null, body || null, image_url || null, video_url || null,
+      service_type || null, cta_text || 'Get My Free Quote', active === false ? 0 : 1, req.user.id
+    );
+    const inserted = db.prepare('SELECT * FROM funnels WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
+    res.json(inserted);
+  } catch (error) {
+    console.error('Error creating funnel:', error);
+    res.status(500).json({ error: 'Database error creating funnel' });
+  }
+});
+
+app.put('/api/funnels/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { slug, headline, subheadline, body, image_url, video_url, service_type, cta_text, active } = req.body;
+    if (!slug || !headline) return res.status(400).json({ error: 'slug and headline are required' });
+
+    const cleanSlug = String(slug).trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+    if (!cleanSlug) return res.status(400).json({ error: 'slug must contain at least one letter or number' });
+
+    const conflict = db.prepare('SELECT id FROM funnels WHERE slug = ? AND id != ?').get(cleanSlug, id);
+    if (conflict) return res.status(409).json({ error: `Slug "${cleanSlug}" is already in use` });
+
+    const stmt = db.prepare(`
+      UPDATE funnels
+      SET slug = ?, headline = ?, subheadline = ?, body = ?, image_url = ?, video_url = ?,
+          service_type = ?, cta_text = ?, active = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `);
+    const info = stmt.run(
+      cleanSlug, headline, subheadline || null, body || null, image_url || null, video_url || null,
+      service_type || null, cta_text || 'Get My Free Quote', active === false ? 0 : 1, id, req.user.id
+    );
+    if (info.changes === 0) return res.status(404).json({ error: 'Funnel not found' });
+    const updated = db.prepare('SELECT * FROM funnels WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating funnel:', error);
+    res.status(500).json({ error: 'Database error updating funnel' });
+  }
+});
+
+app.delete('/api/funnels/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const funnel = db.prepare('SELECT id FROM funnels WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!funnel) return res.status(404).json({ error: 'Funnel not found' });
+    db.prepare('DELETE FROM funnel_leads WHERE funnel_id = ? AND user_id = ?').run(id, req.user.id);
+    const info = db.prepare('DELETE FROM funnels WHERE id = ? AND user_id = ?').run(id, req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Funnel not found' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting funnel:', error);
+    res.status(500).json({ error: 'Database error deleting funnel' });
+  }
+});
+
+// Leads captured by a specific funnel, plus which Customer/Job each one produced
+app.get('/api/funnels/:id/leads', (req, res) => {
+  try {
+    const { id } = req.params;
+    const funnel = db.prepare('SELECT id FROM funnels WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!funnel) return res.status(404).json({ error: 'Funnel not found' });
+
+    const leads = db.prepare(`
+      SELECT fl.*, c.name as customer_name, j.status as job_status
+      FROM funnel_leads fl
+      LEFT JOIN customers c ON fl.customer_id = c.id
+      LEFT JOIN jobs j ON fl.job_id = j.id
+      WHERE fl.funnel_id = ? AND fl.user_id = ?
+      ORDER BY fl.created_at DESC
+    `).all(id, req.user.id);
+    res.json(leads);
+  } catch (error) {
+    console.error('Error fetching funnel leads:', error);
+    res.status(500).json({ error: 'Database error fetching funnel leads' });
   }
 });
 

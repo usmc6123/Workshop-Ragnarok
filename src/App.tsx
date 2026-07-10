@@ -22,6 +22,8 @@ import EmailView from './components/EmailView';
 import AutomationsView from './components/AutomationsView';
 import PaymentsView from './components/PaymentsView';
 import CustomerPortalView from './components/CustomerPortalView';
+import FunnelPageView from './components/FunnelPageView';
+import FunnelsView from './components/FunnelsView';
 import { LOGO_URL, BACKGROUND_URL } from './constants/branding';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminPage from './pages/AdminPage';
@@ -33,7 +35,7 @@ import {
   Wifi, HelpCircle, CheckSquare, Settings, Car, ClipboardList, LayoutDashboard, Menu
 } from 'lucide-react';
 
-type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email' | 'automations' | 'payments';
+type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email' | 'automations' | 'payments' | 'funnels';
 
 export default function App() {
   console.log('APP RENDERING');
@@ -227,12 +229,22 @@ export default function App() {
 
   const pathParts = window.location.pathname.split('/');
   const isPortal = pathParts[1] === 'portal' && pathParts[2];
+  const isFunnel = pathParts[1] === 'funnel' && pathParts[2];
 
   if (isPortal) {
     const portalToken = pathParts[2];
     return (
       <ProtectedRoute>
         <CustomerPortalView token={portalToken} />
+      </ProtectedRoute>
+    );
+  }
+
+  if (isFunnel) {
+    const funnelSlug = pathParts[2];
+    return (
+      <ProtectedRoute>
+        <FunnelPageView slug={funnelSlug} />
       </ProtectedRoute>
     );
   }
@@ -423,6 +435,10 @@ export default function App() {
                     onBackToDashboard={handleBackFromManual}
                     onRefreshGarage={() => setRefreshTrigger((prev) => prev + 1)}
                   />
+                )}
+
+                {view === 'funnels' && (
+                  <FunnelsView />
                 )}
 
                 {view === 'admin' && (

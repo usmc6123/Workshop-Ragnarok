@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   LayoutDashboard, Users, Car, ClipboardList, Calendar, BookOpen, Settings,
-  ChevronLeft, ChevronRight, Menu, ShieldCheck, LogOut, Package, Mail, Zap, DollarSign
+  ChevronLeft, ChevronRight, Menu, ShieldCheck, LogOut, Package, Mail, Zap, DollarSign, Megaphone
 } from 'lucide-react';
 import { LOGO_URL } from '../constants/branding';
 import { useAuth } from '../contexts/AuthContext';
@@ -36,6 +36,7 @@ export default function Sidebar({
     { id: 'email', label: 'Email', icon: Mail },
     { id: 'automations', label: 'Automations', icon: Zap },
     { id: 'payments', label: 'Payments', icon: DollarSign },
+    { id: 'funnels', label: 'Funnels', icon: Megaphone },
   ];
 
   if (isAdmin) {
