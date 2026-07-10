@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
@@ -84,6 +85,7 @@ export default function CatLaserOverlay({ heroRef }) {
   const [loadError, setLoadError] = useState(null);
   const [loadProgress, setLoadProgress] = useState(0);
   const [showFinaleBanner, setShowFinaleBanner] = useState(false);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
 
   const [hudStyle, setHudStyle] = useState({
     position: 'fixed',
@@ -93,9 +95,11 @@ export default function CatLaserOverlay({ heroRef }) {
 
   useEffect(() => {
     function updatePosition() {
+      const viewportWidth = window.innerWidth;
+      setIsMobile(viewportWidth <= 768);
+
       if (!heroRef || !heroRef.current) return;
       const heroRect = heroRef.current.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
       
       const neededWidth = 280 + 24; // HUD width is 280px + margin
       const spaceOnRight = viewportWidth - heroRect.right;
@@ -168,42 +172,19 @@ export default function CatLaserOverlay({ heroRef }) {
     function recomputeBounds() {
       const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
       const raycaster = new THREE.Raycaster();
+      const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
       let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-
-      // Sample a grid across the full screen, not just 4 corners
-      const steps = 6;
-      for (let i = 0; i <= steps; i++) {
-        for (let j = 0; j <= steps; j++) {
-          const nx = -1 + (2 * i) / steps;
-          const ny = -1 + (2 * j) / steps;
-          raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
-          const pt = new THREE.Vector3();
-          const intersected = raycaster.ray.intersectPlane(groundPlane, pt);
-          if (intersected) {
-            const dist = camera.position.distanceTo(pt);
-            if (dist < 190) { // just under the camera's far clipping plane of 200
-              minX = Math.min(minX, pt.x);
-              maxX = Math.max(maxX, pt.x);
-              minZ = Math.min(minZ, pt.z);
-              maxZ = Math.max(maxZ, pt.z);
-            }
-          }
+      corners.forEach(([nx, ny]) => {
+        raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
+        const pt = new THREE.Vector3();
+        raycaster.ray.intersectPlane(groundPlane, pt);
+        if (pt) {
+          minX = Math.min(minX, pt.x); maxX = Math.max(maxX, pt.x);
+          minZ = Math.min(minZ, pt.z); maxZ = Math.max(maxZ, pt.z);
         }
-      }
-
-      minX = Math.max(-14, Math.min(14, minX));
-      maxX = Math.max(-14, Math.min(14, maxX));
-      minZ = Math.max(-12, Math.min(12, minZ));
-      maxZ = Math.max(-12, Math.min(12, maxZ));
-
-      if (minX > maxX) { const tmp = minX; minX = maxX; maxX = tmp; }
-      if (minZ > maxZ) { const tmp = minZ; minZ = maxZ; maxZ = tmp; }
-      if (maxX - minX < 6) { const mid = (minX + maxX) / 2; minX = mid - 3; maxX = mid + 3; }
-      if (maxZ - minZ < 6) { const mid = (minZ + maxZ) / 2; minZ = mid - 3; maxZ = mid + 3; }
-
-      const pad = 1.0;
+      });
+      const pad = 1.2;
       bounds = { minX: minX + pad, maxX: maxX - pad, minZ: minZ + pad, maxZ: maxZ - pad };
-      console.log('bounds', bounds);
     }
 
     function onResize() {
@@ -1081,7 +1062,7 @@ export default function CatLaserOverlay({ heroRef }) {
     };
   }, []);
 
-  return (
+  return createPortal(
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, pointerEvents: 'none' }}>
       <div ref={hostRef} style={{ position: 'absolute', inset: 0 }} />
 
@@ -1137,7 +1118,7 @@ export default function CatLaserOverlay({ heroRef }) {
         </div>
       )}
 
-      {!loading && (
+      {!loading && !isMobile && (
         <div style={{
           ...hudStyle,
           zIndex: 10000,
@@ -1271,6 +1252,7 @@ export default function CatLaserOverlay({ heroRef }) {
           🐾 GOOD KITTY! 🐾
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
