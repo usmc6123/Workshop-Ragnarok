@@ -33,17 +33,23 @@ export default function CustomersHeaderVideo({ sources }: CustomersHeaderVideoPr
         playsInline
         preload="auto"
         onEnded={handleEnded}
-        className="absolute inset-0 w-full h-full object-cover brightness-110 contrast-100"
+        className="absolute inset-0 w-full h-full object-cover"
         style={{
-          maskImage: 'radial-gradient(ellipse at center, black 50%, transparent 100%)',
-          WebkitMaskImage: 'radial-gradient(ellipse at center, black 50%, transparent 100%)',
+          objectPosition: 'center 15%',
+          maskImage: 'radial-gradient(ellipse at center, black 65%, transparent 100%)',
+          WebkitMaskImage: 'radial-gradient(ellipse at center, black 65%, transparent 100%)',
         }}
       >
         <source src={sources[index]} type="video/mp4" />
       </video>
 
-      {/* Dark semi-transparent overlay/scrim */}
-      <div className="absolute inset-0 bg-slate-950/25 mix-blend-multiply pointer-events-none" />
+      {/* Dark semi-transparent overlay/scrim - matches dashboard brightness */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: 'linear-gradient(90deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.35) 45%, rgba(0,0,0,0.15) 100%)',
+        }}
+      />
       <div className="absolute inset-0 bg-gradient-to-t from-bg-theme via-transparent to-bg-theme/40 pointer-events-none" />
     </div>
   );
