@@ -1,0 +1,20 @@
+node_modules
+build
+dist
+coverage
+.git
+.gitignore
+
+# Runtime data - mounted as a volume, never needed at build time
+data
+*.db
+*.db.*
+
+# Local/editor cruft
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Docs/screenshots not needed for the build
+*.md
