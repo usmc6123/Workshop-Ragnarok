@@ -1,6 +1,10 @@
 # Stage 1: Build the React frontend
 FROM node:18-slim AS frontend-builder
 WORKDIR /app
+# Upgrade npm - the version bundled with node:18-slim has a known bug
+# (npm/cli#4828) that can fail to install platform-specific native
+# optional dependencies (e.g. @tailwindcss/oxide's native binding).
+RUN npm install -g npm@latest
 COPY package*.json ./
 RUN npm install
 COPY . .
