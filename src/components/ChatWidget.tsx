@@ -303,6 +303,7 @@ export default function ChatWidget() {
               <img
                 src={MASCOT_LOGO_URL}
                 alt="Cooper & Roscoe"
+                referrerPolicy="no-referrer"
                 style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '50%' }}
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';
@@ -340,6 +341,7 @@ export default function ChatWidget() {
             <img
               src={MASCOT_LOGO_URL}
               alt=""
+              referrerPolicy="no-referrer"
               style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'contain', flexShrink: 0, background: '#1a1d24' }}
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
             />
@@ -392,6 +394,7 @@ export default function ChatWidget() {
                   <img
                     src={MESSAGE_AVATAR_URL}
                     alt=""
+                    referrerPolicy="no-referrer"
                     style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'contain', background: '#1a1d24', flexShrink: 0 }}
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
@@ -434,6 +437,7 @@ export default function ChatWidget() {
                 <img
                   src={MESSAGE_AVATAR_URL}
                   alt=""
+                  referrerPolicy="no-referrer"
                   style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'contain', background: '#1a1d24', flexShrink: 0 }}
                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                 />

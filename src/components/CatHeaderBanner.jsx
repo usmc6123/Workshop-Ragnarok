@@ -1,8 +1,26 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
+import { isSandbox } from '../contexts/AuthContext';
 
 export default function CatHeaderBanner({ sources, height = 280, children }) {
   const [index, setIndex] = useState(0);
   const videoRef = useRef(null);
+
+  useEffect(() => {
+    if (!isSandbox) return;
+    const tryPlay = () => {
+      if (videoRef.current) {
+        videoRef.current.play().catch(() => {});
+      }
+      document.removeEventListener('click', tryPlay);
+      document.removeEventListener('touchstart', tryPlay);
+    };
+    document.addEventListener('click', tryPlay);
+    document.addEventListener('touchstart', tryPlay);
+    return () => {
+      document.removeEventListener('click', tryPlay);
+      document.removeEventListener('touchstart', tryPlay);
+    };
+  }, []);
 
   const handleEnded = useCallback(() => {
     setIndex((prev) => (prev + 1) % sources.length);
@@ -44,6 +62,7 @@ export default function CatHeaderBanner({ sources, height = 280, children }) {
           muted
           playsInline
           preload="auto"
+          referrerPolicy="no-referrer"
           onEnded={handleEnded}
           style={{
             position: 'absolute',
