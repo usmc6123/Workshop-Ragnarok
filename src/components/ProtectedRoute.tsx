@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth, isSandbox } from '../contexts/AuthContext';
 import LoginPage from '../pages/LoginPage';
 import { ShieldAlert } from 'lucide-react';
 
@@ -9,7 +9,7 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
-  const { currentUser, isLoading, logout, isSandboxMode } = useAuth();
+  const { currentUser, isLoading, logout, isSandboxMode, exitSandboxMode } = useAuth();
 
   const isPortalRoute = window.location.pathname.startsWith('/portal/');
   if (isPortalRoute) {
@@ -26,11 +26,22 @@ export default function ProtectedRoute({ children, requireAdmin = false }: Prote
   }
 
   if (isSandboxMode) {
-    return <>{children}</>;
+    return (
+      <>
+        {children}
+        <button
+          onClick={exitSandboxMode}
+          style={{ position: 'fixed', bottom: 14, left: 14, zIndex: 99999 }}
+          className="px-3 py-2 rounded-lg bg-amber-500 text-slate-950 text-[10px] font-mono font-bold uppercase tracking-wider shadow-lg cursor-pointer"
+        >
+          Log In With Real Account
+        </button>
+      </>
+    );
   }
 
   if (!currentUser) {
-    return <LoginPage onSuccess={() => window.location.reload()} />;
+    return <LoginPage onSuccess={() => { if (!isSandbox) window.location.reload(); }} />;
   }
 
   if (requireAdmin && currentUser.role !== 'admin') {

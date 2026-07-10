@@ -15,11 +15,12 @@ interface AuthContextType {
   isAdmin: boolean;
   isLoading: boolean;
   isSandboxMode: boolean;
+  exitSandboxMode: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const isSandbox = window.location.hostname.includes('aistudio.google.com') ||
+export const isSandbox = window.location.hostname.includes('aistudio.google.com') ||
                   window.location.hostname.includes('googleusercontent.com') ||
                   window.location.hostname.includes('google.com') ||
                   window.location.hostname.includes('run.app') ||
@@ -35,7 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isSandboxMode, setIsSandboxMode] = useState<boolean>(isSandbox);
 
   useEffect(() => {
-    if (isSandbox) return;
+    if (isSandbox && !localStorage.getItem('workshop_token')) return;
 
     async function verifyToken() {
       const storedToken = localStorage.getItem('workshop_token');
@@ -52,6 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const data = await res.json();
           setCurrentUser(data.user);
           setToken(storedToken);
+          setIsSandboxMode(false);
         } else {
           // Token is invalid/expired or no token
           localStorage.removeItem('workshop_token');
@@ -95,13 +97,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     localStorage.removeItem('workshop_token');
     setToken(null);
+    if (isSandboxMode) {
+      setCurrentUser({ id: 1, username: 'usmc6123', role: 'admin' });
+    } else {
+      setCurrentUser(null);
+    }
+  };
+
+  const exitSandboxMode = () => {
+    setIsSandboxMode(false);
     setCurrentUser(null);
   };
 
   const isAdmin = currentUser?.role === 'admin';
 
   return (
-    <AuthContext.Provider value={{ currentUser, token, login, logout, isAdmin, isLoading, isSandboxMode }}>
+    <AuthContext.Provider value={{ currentUser, token, login, logout, isAdmin, isLoading, isSandboxMode, exitSandboxMode }}>
       {children}
     </AuthContext.Provider>
   );
