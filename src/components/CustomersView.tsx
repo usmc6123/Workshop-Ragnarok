@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Customer, CustomerVehicle, Job } from '../types';
 import { api } from '../lib/api';
+import CustomersHeaderVideo from './CustomersHeaderVideo';
 import { 
   Users, Plus, Search, Edit2, Trash2, ArrowLeft, Phone, Mail, 
   MapPin, ClipboardList, Car, FileText, ChevronRight, X, User,
@@ -145,27 +146,76 @@ export default function CustomersView({ onNavigateToTab, onTriggerEmail }: Custo
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 py-6" id="customers-view-container">
       
-      {/* Header Panel */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border-theme pb-4">
-        <div>
-          <h1 className="text-xl md:text-2xl font-black text-slate-100 uppercase tracking-wider flex items-center gap-2">
-            <Users className="w-5 h-5 text-primary-theme" />
-            Customer Directory
-          </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Manage contact credentials, client history, vehicle fleets, and billing items.
-          </p>
-        </div>
-
-        <button
-          onClick={() => openCustomerModal()}
-          className="bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-bold rounded-lg px-4 py-2 text-xs uppercase tracking-wider flex items-center gap-1.5 transition shadow self-start md:self-center cursor-pointer"
-          id="btn-add-customer"
+      {!selectedCustomer ? (
+        /* Unified Header Zone with video background */
+        <div
+          className="relative overflow-hidden rounded-2xl border border-[#1e2028] bg-[#0c0d12]/50 p-6 md:p-8 shadow-2xl"
+          id="customers-video-header-zone"
         >
-          <Plus className="w-4 h-4" />
-          <span>Add Customer</span>
-        </button>
-      </div>
+          {/* Video Background */}
+          <CustomersHeaderVideo sources={['/customer-calm.mp4', '/customer-run.mp4']} />
+
+          {/* Content layered on top with z-index */}
+          <div className="relative z-10 space-y-6">
+            {/* Header Row */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#1e2028]/60 pb-5">
+              <div>
+                <h1 className="text-xl md:text-2xl font-black text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                  <Users className="w-5 h-5 text-primary-theme" />
+                  Customer Directory
+                </h1>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Manage contact credentials, client history, vehicle fleets, and billing items.
+                </p>
+              </div>
+
+              <button
+                onClick={() => openCustomerModal()}
+                className="bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-bold rounded-lg px-4 py-2 text-xs uppercase tracking-wider flex items-center gap-1.5 transition shadow self-start md:self-center cursor-pointer"
+                id="btn-add-customer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Customer</span>
+              </button>
+            </div>
+
+            {/* Search Bar */}
+            <div className="relative max-w-md select-none">
+              <input
+                type="text"
+                placeholder="Search by client name, telephone, email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full rounded-lg bg-surface-theme/80 backdrop-blur-sm border border-border-theme focus:border-primary-theme pl-10 pr-4 py-2.5 text-xs text-text-theme placeholder-slate-500 focus:outline-none transition"
+                id="customer-search-input"
+              />
+              <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Normal Header Row when viewing individual customer details */
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border-theme pb-4">
+          <div>
+            <h1 className="text-xl md:text-2xl font-black text-slate-100 uppercase tracking-wider flex items-center gap-2">
+              <Users className="w-5 h-5 text-primary-theme" />
+              Customer Directory
+            </h1>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Manage contact credentials, client history, vehicle fleets, and billing items.
+            </p>
+          </div>
+
+          <button
+            onClick={() => openCustomerModal()}
+            className="bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-bold rounded-lg px-4 py-2 text-xs uppercase tracking-wider flex items-center gap-1.5 transition shadow self-start md:self-center cursor-pointer"
+            id="btn-add-customer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Customer</span>
+          </button>
+        </div>
+      )}
 
       {loading && customers.length === 0 ? (
         <div className="py-24 flex flex-col items-center justify-center space-y-3">
@@ -175,19 +225,6 @@ export default function CustomersView({ onNavigateToTab, onTriggerEmail }: Custo
       ) : !selectedCustomer ? (
         // TABLE/LIST VIEW MODE
         <div className="space-y-4">
-          
-          {/* Search bar */}
-          <div className="relative max-w-md select-none">
-            <input
-              type="text"
-              placeholder="Search by client name, telephone, email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full rounded-lg bg-surface-theme border border-border-theme focus:border-primary-theme pl-10 pr-4 py-2 text-xs text-text-theme placeholder-slate-500 focus:outline-none transition"
-              id="customer-search-input"
-            />
-            <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-500" />
-          </div>
 
           {filteredCustomers.length === 0 ? (
             <div className="py-16 text-center border border-dashed border-border-theme rounded-xl bg-surface-theme/10 max-w-xl mx-auto">
