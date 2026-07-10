@@ -33,7 +33,7 @@ export default function CustomersHeaderVideo({ sources }: CustomersHeaderVideoPr
         playsInline
         preload="auto"
         onEnded={handleEnded}
-        className="absolute inset-0 w-full h-full object-cover brightness-75 contrast-95"
+        className="absolute inset-0 w-full h-full object-cover brightness-110 contrast-100"
         style={{
           maskImage: 'radial-gradient(ellipse at center, black 50%, transparent 100%)',
           WebkitMaskImage: 'radial-gradient(ellipse at center, black 50%, transparent 100%)',
@@ -43,7 +43,7 @@ export default function CustomersHeaderVideo({ sources }: CustomersHeaderVideoPr
       </video>
 
       {/* Dark semi-transparent overlay/scrim */}
-      <div className="absolute inset-0 bg-slate-950/60 mix-blend-multiply pointer-events-none" />
+      <div className="absolute inset-0 bg-slate-950/25 mix-blend-multiply pointer-events-none" />
       <div className="absolute inset-0 bg-gradient-to-t from-bg-theme via-transparent to-bg-theme/40 pointer-events-none" />
     </div>
   );
