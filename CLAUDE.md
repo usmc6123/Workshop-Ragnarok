@@ -115,6 +115,16 @@ just the compose *service* name. `docker compose stop/rm workshop-backend` can f
 to find it; use `docker stop ragnarok-backend && docker rm ragnarok-backend` directly
 by container name if that happens, then `docker compose up -d workshop-backend`.
 
+**Build speed:** routine deploys (small source edits, no dependency/Dockerfile
+changes) are fast — around 1-2 minutes — because Docker reuses cached layers for
+`apt-get install`, `npm install`/`npm ci`, and the base image pull, only re-running
+the steps that actually changed (frontend transform + copy). The ~45+ minute builds
+seen during the Node 18→22 / dependency-fix debugging chain were `--no-cache` runs,
+which force every layer to rebuild from scratch — that's expected and only needed
+when verifying whether a Dockerfile/dependency fix actually landed, not normal
+day-to-day behavior. Don't mistake a slow `--no-cache` verification build for a sign
+that something's newly broken.
+
 ## Bug log — real issues already diagnosed and fixed (don't re-diagnose from scratch)
 
 1. **Missing native binding for `@tailwindcss/oxide`** ("npm has a bug related to
