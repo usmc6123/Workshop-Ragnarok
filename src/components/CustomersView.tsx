@@ -149,7 +149,7 @@ export default function CustomersView({ onNavigateToTab, onTriggerEmail }: Custo
       {!selectedCustomer ? (
         /* Unified Header Zone with video background */
         <div
-          className="relative overflow-hidden rounded-2xl border border-[#1e2028] bg-[#0c0d12]/50 p-6 md:p-8 shadow-2xl min-h-[260px] md:min-h-[340px]"
+          className="relative overflow-hidden rounded-2xl border border-[#1e2028] bg-[#0c0d12]/50 p-6 md:p-8 shadow-2xl"
           id="customers-video-header-zone"
         >
           {/* Video Background */}
