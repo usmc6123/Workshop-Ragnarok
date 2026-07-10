@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { LOGO_URL } from '../constants/branding';
 
 /**
  * Cooper & Roscoe: Laser Patrol
@@ -25,6 +26,37 @@ import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.j
  */
 
 const ASSET_BASE_URL = import.meta.env.VITE_ASSET_BASE_URL || '/models/';
+
+const CREATURE_TIERS = [
+  null,
+  {
+    file: 'charizard.glb',
+    moveClip: 'pm0006_00_00_00030_walk01_loop',
+    hitClips: ['pm0006_00_00_00500_damage01', 'pm0006_00_00_00501_damage02'],
+    flourishClips: ['pm0006_00_00_00300_roar01', 'pm0006_00_00_00320_refresh01', 'pm0006_00_00_00560_notice01', 'pm0006_00_00_00400_attack01', 'pm0006_00_00_00410_attack02', 'pm0006_00_00_00450_rangeattack01', 'pm0006_00_00_00550_glad01', 'pm0006_00_00_00563_hate01'],
+    rootBones: ['origin_109', 'waist_108', 'hips_107'],
+    killsToAdvance: 5,
+  },
+  {
+    file: 'goku.glb',
+    moveClip: 'walk_CINEMA_4D_Main',
+    hitClips: ['hit 1_CINEMA_4D_Main','hit 2_CINEMA_4D_Main','hit 3_CINEMA_4D_Main','hit 4_CINEMA_4D_Main','hit 5_CINEMA_4D_Main','hit 6_CINEMA_4D_Main','hit 7_CINEMA_4D_Main','hit 8_CINEMA_4D_Main','hit 9_CINEMA_4D_Main','hit 10_CINEMA_4D_Main'],
+    flourishClips: ['taunt_CINEMA_4D_Main', 'ready_CINEMA_4D_Main', 'idle_CINEMA_4D_Main', 'kick 1_CINEMA_4D_Main', 'kick 2_CINEMA_4D_Main', 'kick 3_CINEMA_4D_Main', 'kick 4_CINEMA_4D_Main', 'kick 5_CINEMA_4D_Main', 'kick 6_CINEMA_4D_Main', 'kick 7_CINEMA_4D_Main', 'kick 8_CINEMA_4D_Main', 'hit 5_CINEMA_4D_Main', 'hit 6_CINEMA_4D_Main', 'hit 7_CINEMA_4D_Main', 'hit 8_CINEMA_4D_Main', 'hit 9_CINEMA_4D_Main'],
+    rootBones: ['mixamorig_Hips_01'],
+    killsToAdvance: 5,
+  },
+  {
+    file: 'mutant.glb',
+    moveClip: 'walk',
+    hitClips: ['death01'],
+    flourishClips: ['attack01', 'attack02', 'attack03', 'attack04', 'idle01', 'rage01', 'rage02'],
+    rootBones: [],
+    killsToAdvance: 5,
+    waveSize: 10,
+    finalWaveClearCount: 5,
+    isFinalWave: true,
+  },
+];
 
 const CAT_CLIPS = {
   standIdle: 'SKM_Cat|SKM_Cat|Cat_Stand',
@@ -51,6 +83,7 @@ export default function CatLaserOverlay() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [loadProgress, setLoadProgress] = useState(0);
+  const [showFinaleBanner, setShowFinaleBanner] = useState(false);
 
   useEffect(() => {
     const hostEl = hostRef.current;
@@ -140,6 +173,92 @@ export default function CatLaserOverlay() {
     function updateProgress() {
       if (disposed) return;
       setLoadProgress(((cooperProgress + roscoeProgress + birdProgress) / 3) * 100);
+    }
+
+    let tierIndex = 0;
+    let tierKillCount = 0;
+    let finalWaveKillCount = 0;
+    let goldenMode = false;
+    let tierGltf = [null, null, null, null];
+    let tierLoading = [false, false, false, false];
+    let tierLoadCallbacks = [[], [], [], []];
+
+    function loadTierAsset(tier, onDone) {
+      if (tierGltf[tier]) { onDone(tierGltf[tier]); return; }
+      tierLoadCallbacks[tier].push(onDone);
+      if (tierLoading[tier]) return;
+      tierLoading[tier] = true;
+      loader.load(ASSET_BASE_URL + CREATURE_TIERS[tier].file,
+        (gltf) => {
+          const rootBones = CREATURE_TIERS[tier].rootBones || [];
+          if (rootBones.length) {
+            gltf.animations.forEach((clip) => {
+              clip.tracks = clip.tracks.filter((track) => !rootBones.includes(track.name.split('.')[0]));
+            });
+          }
+          tierGltf[tier] = gltf;
+          tierLoading[tier] = false;
+          const callbacks = tierLoadCallbacks[tier];
+          tierLoadCallbacks[tier] = [];
+          callbacks.forEach((cb) => cb(gltf));
+        },
+        undefined,
+        (err) => { console.error(`Failed to load tier ${tier} asset`, err); tierLoading[tier] = false; }
+      );
+    }
+
+    function makeTierCreatureFromGltf(sourceGltf, tier) {
+      const root = cloneSkeleton(sourceGltf.scene);
+      root.scale.setScalar(1.0);
+      scene.add(root);
+
+      if (goldenMode && tier === 2) {
+        root.traverse((obj) => {
+          if (obj.isMesh && obj.material) {
+            obj.material = obj.material.clone();
+            if (obj.material.color) {
+              obj.material.color.multiply(new THREE.Color(0xffd700));
+            } else {
+              obj.material.color = new THREE.Color(0xffd700);
+            }
+          }
+        });
+      }
+
+      const mixer = new THREE.AnimationMixer(root);
+      if (goldenMode && tier === 2) {
+        mixer.timeScale = 1.8;
+      }
+      const clipActions = {};
+      sourceGltf.animations.forEach((clip) => { clipActions[clip.name] = mixer.clipAction(clip); });
+
+      const ang = Math.random() * Math.PI * 2;
+      root.position.set(
+        bounds.minX + Math.random() * (bounds.maxX - bounds.minX),
+        3 + Math.random() * 2,
+        bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ)
+      );
+
+      const speedMult = (goldenMode && tier === 2) ? 2.5 : 1.0;
+
+      const group = {
+        root, mixer, clipActions,
+        userData: {
+          alive: true,
+          vx: Math.cos(ang) * 1.2 * speedMult, vz: Math.sin(ang) * 1.2 * speedMult,
+          bobPhase: Math.random() * Math.PI * 2,
+          baseY: root.position.y,
+          currentClip: null,
+          tier,
+          flourishTimer: 4 + Math.random() * 4,
+          inFlourish: false,
+          flourishTimeLeft: 0,
+        }
+      };
+      const moveClip = CREATURE_TIERS[tier].moveClip;
+      const action = clipActions[moveClip];
+      if (action) { action.reset(); action.setLoop(THREE.LoopRepeat); action.play(); group.userData.currentClip = moveClip; }
+      return group;
     }
 
     const cats = [];
@@ -268,8 +387,20 @@ export default function CatLaserOverlay() {
     }
 
     function spawnBird() {
-      const tint = birdTints[Math.floor(Math.random() * birdTints.length)];
-      birds.push(makeBirdFromGltf(tint));
+      if (tierIndex === 0 && !goldenMode) {
+        const tint = birdTints[Math.floor(Math.random() * birdTints.length)];
+        birds.push(makeBirdFromGltf(tint));
+        return;
+      }
+      const tier = goldenMode ? 2 : tierIndex;
+      if (tierGltf[tier]) {
+        birds.push(makeTierCreatureFromGltf(tierGltf[tier], tier));
+      } else {
+        loadTierAsset(tier, () => {
+          const maxCount = goldenMode ? 10 : (CREATURE_TIERS[tierIndex]?.waveSize || 6);
+          if (!disposed && birds.length < maxCount) birds.push(makeTierCreatureFromGltf(tierGltf[tier], tier));
+        });
+      }
     }
 
     function initBirds() {
@@ -316,7 +447,73 @@ export default function CatLaserOverlay() {
       activeLasers.push({ mesh: flash, life: 0.3, maxLife: 0.3, baseOpacity: 0.9, isFlash: true });
     }
 
+    function triggerConfettiStorm() {
+      const count = 120;
+      const featherSprites = [];
+      const colors = [
+        0xffdd67, // gold
+        0xff4444, // red
+        0x44ff44, // green
+        0x4444ff, // blue
+        0xff44ff, // magenta
+        0x44ffff, // cyan
+        0xffaa44, // orange
+      ];
+
+      for (let i = 0; i < count; i++) {
+        const material = new THREE.SpriteMaterial({
+          color: colors[Math.floor(Math.random() * colors.length)],
+          transparent: true,
+          opacity: 1,
+          rotation: Math.random() * Math.PI * 2
+        });
+        const sprite = new THREE.Sprite(material);
+        
+        const rx = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
+        const rz = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
+        const ry = 10 + Math.random() * 4;
+        sprite.position.set(rx, ry, rz);
+        
+        const scale = 0.25 + Math.random() * 0.35;
+        sprite.scale.set(scale, scale, 1);
+        scene.add(sprite);
+
+        featherSprites.push({
+          sprite,
+          velocity: new THREE.Vector3(
+            (Math.random() - 0.5) * 1.5,
+            -Math.random() * 1.5 - 1.0,
+            (Math.random() - 0.5) * 1.5
+          ),
+          spinSpeed: (Math.random() - 0.5) * 8,
+          driftPhase: Math.random() * Math.PI * 2
+        });
+      }
+      activeBursts.push({ featherSprites, life: 4.5 });
+    }
+
+    function triggerFinaleSequence() {
+      setShowFinaleBanner(true);
+      triggerConfettiStorm();
+      
+      setTimeout(() => {
+        if (!disposed) triggerConfettiStorm();
+      }, 1000);
+
+      setTimeout(() => {
+        if (disposed) return;
+        setShowFinaleBanner(false);
+        goldenMode = true;
+        console.log("Golden mode activated");
+        
+        for (let i = 0; i < 10; i++) {
+          if (!disposed) spawnBird();
+        }
+      }, 3500);
+    }
+
     function explodeBird(bird) {
+      if (bird.userData.dying) return;
       bird.userData.alive = false;
       const origin = bird.root.position.clone();
       const count = 14;
@@ -352,13 +549,105 @@ export default function CatLaserOverlay() {
       }
       activeBursts.push({ featherSprites, life: 2.2 });
 
-      scene.remove(bird.root);
-      const idx = birds.indexOf(bird);
-      if (idx > -1) birds.splice(idx, 1);
+      if (bird.userData.tier && bird.userData.tier > 0) {
+        bird.userData.dying = true;
+        bird.userData.vx = 0;
+        bird.userData.vz = 0;
+        bird.userData.inFlourish = false;
+        bird.userData.flourishTimeLeft = 0;
 
-      scoreCount++;
-      setScore(scoreCount);
-      setTimeout(() => { if (!disposed && birds.length < 6) spawnBird(); }, 1500 + Math.random() * 1500);
+        const tierConfig = CREATURE_TIERS[bird.userData.tier];
+        if (tierConfig && tierConfig.hitClips && tierConfig.hitClips.length) {
+          const clipName = tierConfig.hitClips[Math.floor(Math.random() * tierConfig.hitClips.length)];
+          const action = bird.clipActions[clipName];
+          if (action) {
+            const prev = bird.userData.currentClip ? bird.clipActions[bird.userData.currentClip] : null;
+            action.reset();
+            action.setLoop(THREE.LoopOnce);
+            action.clampWhenFinished = true;
+            action.play();
+            if (prev) prev.crossFadeTo(action, 0.1, false);
+            bird.userData.currentClip = clipName;
+          }
+        }
+
+        setTimeout(() => {
+          if (disposed) return;
+          scene.remove(bird.root);
+          const idx = birds.indexOf(bird);
+          if (idx > -1) birds.splice(idx, 1);
+
+          scoreCount++;
+          setScore(scoreCount);
+
+          if (tierIndex < CREATURE_TIERS.length - 1) {
+            tierKillCount++;
+            if (tierKillCount >= CREATURE_TIERS[tierIndex + 1].killsToAdvance) {
+              tierIndex++;
+              tierKillCount = 0;
+              if (CREATURE_TIERS[tierIndex]?.isFinalWave) {
+                finalWaveKillCount = 0;
+                console.log("Final wave started, resetting finalWaveKillCount");
+              }
+              birds.slice().forEach((b) => { scene.remove(b.root); });
+              birds.length = 0;
+              loadTierAsset(tierIndex, () => {
+                const targetCount = CREATURE_TIERS[tierIndex]?.waveSize || 6;
+                for (let i = 0; i < targetCount; i++) { if (!disposed) spawnBird(); }
+              });
+            }
+          } else {
+            const currentTierConfig = CREATURE_TIERS[tierIndex];
+            if (currentTierConfig && currentTierConfig.isFinalWave) {
+              finalWaveKillCount++;
+              const targetKills = currentTierConfig.finalWaveClearCount || 5;
+              console.log(`Final wave kill registered: ${finalWaveKillCount}/${targetKills}`);
+              if (finalWaveKillCount >= targetKills) {
+                console.log("Final wave depleted, triggering finale");
+                // Clear out any mutants still alive and roaming
+                birds.slice().forEach((b) => { scene.remove(b.root); });
+                birds.length = 0;
+                triggerFinaleSequence();
+              }
+            }
+          }
+
+          if (goldenMode || !CREATURE_TIERS[tierIndex]?.isFinalWave) {
+            const maxCount = goldenMode ? 10 : (CREATURE_TIERS[tierIndex]?.waveSize || 6);
+            setTimeout(() => { if (!disposed && birds.length < maxCount) spawnBird(); }, 1500 + Math.random() * 1500);
+          }
+        }, 450);
+      } else {
+        scene.remove(bird.root);
+        const idx = birds.indexOf(bird);
+        if (idx > -1) birds.splice(idx, 1);
+
+        scoreCount++;
+        setScore(scoreCount);
+
+        if (tierIndex < CREATURE_TIERS.length - 1) {
+          tierKillCount++;
+          if (tierKillCount >= CREATURE_TIERS[tierIndex + 1].killsToAdvance) {
+            tierIndex++;
+            tierKillCount = 0;
+            if (CREATURE_TIERS[tierIndex]?.isFinalWave) {
+              finalWaveKillCount = 0;
+              console.log("Final wave started, resetting finalWaveKillCount");
+            }
+            birds.slice().forEach((b) => { scene.remove(b.root); });
+            birds.length = 0;
+            loadTierAsset(tierIndex, () => {
+              const targetCount = CREATURE_TIERS[tierIndex]?.waveSize || 6;
+              for (let i = 0; i < targetCount; i++) { if (!disposed) spawnBird(); }
+            });
+          }
+        }
+
+        if (goldenMode || !CREATURE_TIERS[tierIndex]?.isFinalWave) {
+          const maxCount = goldenMode ? 10 : (CREATURE_TIERS[tierIndex]?.waveSize || 6);
+          setTimeout(() => { if (!disposed && birds.length < maxCount) spawnBird(); }, 1500 + Math.random() * 1500);
+        }
+      }
     }
 
     function walkToward(cat, dt, point, speed) {
@@ -423,6 +712,39 @@ export default function CatLaserOverlay() {
       if (bird.root.position.z < bounds.minZ || bird.root.position.z > bounds.maxZ) ud.vz *= -1;
       bird.root.position.y = ud.baseY + Math.sin(t * 3 + ud.bobPhase) * 0.35;
       bird.root.rotation.y = Math.atan2(ud.vx, ud.vz);
+
+      if (ud.tier) {
+        const tierConfig = CREATURE_TIERS[ud.tier];
+        if (ud.inFlourish) {
+          ud.flourishTimeLeft -= dt;
+          if (ud.flourishTimeLeft <= 0) {
+            ud.inFlourish = false;
+            ud.flourishTimer = 4 + Math.random() * 5;
+            const moveAction = bird.clipActions[tierConfig.moveClip];
+            if (moveAction) {
+              const prev = bird.clipActions[bird.userData.currentClip];
+              moveAction.reset(); moveAction.setLoop(THREE.LoopRepeat); moveAction.play();
+              if (prev) prev.crossFadeTo(moveAction, 0.3, false);
+              bird.userData.currentClip = tierConfig.moveClip;
+            }
+          }
+        } else if (tierConfig.flourishClips && tierConfig.flourishClips.length) {
+          ud.flourishTimer -= dt;
+          if (ud.flourishTimer <= 0) {
+            const clipName = tierConfig.flourishClips[Math.floor(Math.random() * tierConfig.flourishClips.length)];
+            const action = bird.clipActions[clipName];
+            if (action) {
+              const prev = bird.clipActions[bird.userData.currentClip];
+              action.reset(); action.setLoop(THREE.LoopOnce); action.clampWhenFinished = true; action.play();
+              if (prev) prev.crossFadeTo(action, 0.25, false);
+              bird.userData.currentClip = clipName;
+              ud.inFlourish = true;
+              ud.flourishTimeLeft = action.getClip().duration;
+            }
+          }
+        }
+      }
+
       bird.mixer.update(dt);
     }
 
@@ -445,7 +767,7 @@ export default function CatLaserOverlay() {
         if (matchedBird) break;
         obj = obj.parent;
       }
-      if (!matchedBird) return;
+      if (!matchedBird || matchedBird.userData.dying) return;
 
       let best = null, bd = Infinity;
       cats.forEach((cat) => {
@@ -559,17 +881,49 @@ export default function CatLaserOverlay() {
 
       {loading && (
         <div style={{
-          position: 'fixed', inset: 0, zIndex: 10001, background: '#0d1117',
-          color: '#9cffb0', display: 'flex', flexDirection: 'column',
+          position: 'fixed', inset: 0, zIndex: 10001, background: '#0a0a0f',
+          color: '#f1f5f9', display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
           fontFamily: "'Courier New', monospace", gap: 14, pointerEvents: 'auto'
         }}>
-          <div>Loading Cooper, Roscoe &amp; the bird…</div>
-          <div style={{ width: 280, height: 8, background: '#1a212b', border: '1px solid #2a3a2a', borderRadius: 4, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${loadProgress}%`, background: '#3a9a55', transition: 'width 0.2s' }} />
+          <style>{`
+            @keyframes logoPulse {
+              0%, 100% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.4)); }
+              50% { transform: scale(1.05); filter: drop-shadow(0 0 20px rgba(245, 158, 11, 0.8)); }
+            }
+            .pulsing-logo {
+              animation: logoPulse 2.5s infinite ease-in-out;
+            }
+          `}</style>
+          <img 
+            src={LOGO_URL} 
+            alt="Workshop Ragnarök" 
+            className="pulsing-logo"
+            referrerPolicy="no-referrer"
+            style={{ 
+              width: '80px', 
+              height: '80px', 
+              borderRadius: '50%', 
+              objectFit: 'cover', 
+              border: '2px solid #f59e0b',
+              marginBottom: '10px'
+            }} 
+          />
+          <div style={{ color: '#f59e0b', fontSize: '14px', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: 'bold' }}>
+            Loading minigame… {Math.round(loadProgress)}%
+          </div>
+          <div style={{ width: 280, height: 6, background: '#13141a', border: '1px solid #1e2028', borderRadius: 10, overflow: 'hidden', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
+            <div style={{ 
+              height: '100%', 
+              width: `${loadProgress}%`, 
+              background: '#f59e0b', 
+              borderRadius: 10,
+              boxShadow: '0 0 10px #f59e0b, 0 0 5px #f59e0b',
+              transition: 'width 0.2s' 
+            }} />
           </div>
           {loadError && (
-            <div style={{ color: '#ff6a5a', maxWidth: 400, textAlign: 'center', fontSize: 12, padding: '0 20px' }}>
+            <div style={{ color: '#ef4444', maxWidth: 400, textAlign: 'center', fontSize: 12, padding: '0 20px', marginTop: 10 }}>
               {loadError}. Check that cooper.glb, roscoe.glb, bird.glb, and feather-atlas.png are reachable at{' '}
               {ASSET_BASE_URL}.
             </div>
@@ -587,6 +941,30 @@ export default function CatLaserOverlay() {
           <b style={{ color: '#fff' }}>Cooper &amp; Roscoe patrol</b><br />
           click a bird within range<br />
           vaporized: <b style={{ color: '#fff' }}>{score}</b>
+        </div>
+      )}
+      {showFinaleBanner && (
+        <div style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 10002,
+          fontFamily: "'Courier New', monospace",
+          color: '#ffd700',
+          background: 'rgba(0,0,0,0.85)',
+          padding: '20px 40px',
+          borderRadius: 8,
+          border: '2px solid #ffd700',
+          fontSize: 28,
+          fontWeight: 'bold',
+          textAlign: 'center',
+          boxShadow: '0 0 25px rgba(255, 215, 0, 0.35)',
+          letterSpacing: '2px',
+          textShadow: '0 0 8px rgba(255,215,0,0.5)',
+          pointerEvents: 'none',
+        }}>
+          🐾 GOOD KITTY! 🐾
         </div>
       )}
     </div>
