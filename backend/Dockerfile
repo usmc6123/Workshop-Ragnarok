@@ -1,10 +1,6 @@
 # Stage 1: Build the React frontend
-FROM node:18-slim AS frontend-builder
+FROM node:22-slim AS frontend-builder
 WORKDIR /app
-# Upgrade npm - the version bundled with node:18-slim has a known bug
-# (npm/cli#4828) that can fail to install platform-specific native
-# optional dependencies (e.g. @tailwindcss/oxide's native binding).
-RUN npm install -g npm@10.9.8
 COPY package*.json ./
 RUN npm install
 COPY . .
@@ -13,7 +9,7 @@ ENV VITE_ASSET_BASE_URL=$VITE_ASSET_BASE_URL
 RUN npm run build
 
 # Stage 2: Build the Node.js/Express backend
-FROM node:18-slim
+FROM node:22-slim
 
 # Install system dependencies needed for compiling sqlite3 if prebuild is unavailable
 RUN apt-get update && apt-get install -y \
