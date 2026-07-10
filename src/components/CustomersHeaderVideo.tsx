@@ -33,9 +33,9 @@ export default function CustomersHeaderVideo({ sources }: CustomersHeaderVideoPr
         playsInline
         preload="auto"
         onEnded={handleEnded}
-        className="absolute inset-0 w-full h-full object-contain"
+        className="absolute inset-0 w-full h-full object-cover"
         style={{
-          objectPosition: 'center 50%',
+          objectPosition: 'center 35%',
           maskImage: 'radial-gradient(ellipse at center, black 65%, transparent 100%)',
           WebkitMaskImage: 'radial-gradient(ellipse at center, black 65%, transparent 100%)',
         }}
