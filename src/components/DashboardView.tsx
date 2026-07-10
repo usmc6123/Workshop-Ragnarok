@@ -27,6 +27,30 @@ export default function DashboardView({
   refreshTrigger 
 }: DashboardViewProps) {
   
+  const heroRef = useRef<HTMLDivElement>(null);
+  const [hudBelowBanner, setHudBelowBanner] = useState(false);
+
+  useEffect(() => {
+    const checkHudLayout = () => {
+      const heroEl = heroRef.current;
+      if (!heroEl) return;
+      const heroRect = heroEl.getBoundingClientRect();
+      const neededWidth = 280 + 24;
+      const spaceOnRight = window.innerWidth - heroRect.right;
+      setHudBelowBanner(spaceOnRight < neededWidth);
+    };
+
+    checkHudLayout();
+    window.addEventListener('resize', checkHudLayout);
+    // Periodically recheck in case of layout shifts or scroll shifts
+    const interval = setInterval(checkHudLayout, 250);
+
+    return () => {
+      window.removeEventListener('resize', checkHudLayout);
+      clearInterval(interval);
+    };
+  }, []);
+
   // Dashboard stats and lists
   const [stats, setStats] = useState<DatabaseStats | null>(null);
   const [recentJobs, setRecentJobs] = useState<Job[]>([]);
@@ -277,26 +301,33 @@ export default function DashboardView({
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto px-4 py-6" id="dashboard-view-root">
-      <CatLaserOverlay />
+      <CatLaserOverlay heroRef={heroRef} />
       
       {/* Dashboard Hero Section */}
-      <CatHeaderBanner sources={['/garage-calm.mp4', '/garage-run.mp4']}>
-        <div className="flex flex-col sm:flex-row items-center gap-6 p-6 h-full w-full justify-center sm:justify-start" id="dashboard-hero">
-          <img 
-            src="https://raw.githubusercontent.com/usmc6123/images/main/newlogo.jpg" 
-            alt="Workshop Ragnarök Hero Logo" 
-            className="w-[120px] h-[120px] rounded-full object-cover border-2 border-amber-500/30 ring-2 ring-amber-500/40 shadow-xl shadow-amber-500/20 shrink-0"
-          />
-          <div className="text-center sm:text-left space-y-1">
-            <h1 className="text-3xl sm:text-4xl font-black tracking-widest text-amber-500 uppercase font-mono">
-              WORKSHOP: RAGNARÖK
-            </h1>
-            <p className="text-sm sm:text-base font-mono tracking-wider text-slate-400 uppercase">
-              Auto Shop Management System
-            </p>
+      <div ref={heroRef} className="w-full">
+        <CatHeaderBanner sources={['/garage-calm.mp4', '/garage-run.mp4']}>
+          <div className="flex flex-col sm:flex-row items-center gap-6 p-6 h-full w-full justify-center sm:justify-start" id="dashboard-hero">
+            <img 
+              src="https://raw.githubusercontent.com/usmc6123/images/main/newlogo.jpg" 
+              alt="Workshop Ragnarök Hero Logo" 
+              className="w-[120px] h-[120px] rounded-full object-cover border-2 border-amber-500/30 ring-2 ring-amber-500/40 shadow-xl shadow-amber-500/20 shrink-0"
+            />
+            <div className="text-center sm:text-left space-y-1">
+              <h1 className="text-3xl sm:text-4xl font-black tracking-widest text-amber-500 uppercase font-mono">
+                WORKSHOP: RAGNARÖK
+              </h1>
+              <p className="text-sm sm:text-base font-mono tracking-wider text-slate-400 uppercase">
+                Auto Shop Management System
+              </p>
+            </div>
           </div>
-        </div>
-      </CatHeaderBanner>
+        </CatHeaderBanner>
+      </div>
+
+      {/* Spacer for the "Cooper & Roscoe on patrol" HUD when dropped below the hero banner to avoid any overlap on mobile/narrow screens */}
+      {hudBelowBanner && (
+        <div className="h-[144px] w-full" id="dashboard-hud-spacer" />
+      )}
 
       {/* 1. Overview Metrics Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="dashboard-stats-deck">

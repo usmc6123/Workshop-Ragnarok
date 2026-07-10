@@ -77,13 +77,60 @@ const FEATHER_ATLAS_COLS = 4;
 const FEATHER_ATLAS_ROWS = 2;
 const FIRE_RANGE = 6.5;
 
-export default function CatLaserOverlay() {
+export default function CatLaserOverlay({ heroRef }) {
   const hostRef = useRef(null);
   const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [loadProgress, setLoadProgress] = useState(0);
   const [showFinaleBanner, setShowFinaleBanner] = useState(false);
+
+  const [hudStyle, setHudStyle] = useState({
+    position: 'fixed',
+    top: 14,
+    right: '18%', // default fallback
+  });
+
+  useEffect(() => {
+    function updatePosition() {
+      if (!heroRef || !heroRef.current) return;
+      const heroRect = heroRef.current.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      
+      const neededWidth = 280 + 24; // HUD width is 280px + margin
+      const spaceOnRight = viewportWidth - heroRect.right;
+      
+      if (spaceOnRight >= neededWidth) {
+        setHudStyle({
+          position: 'fixed',
+          top: Math.max(14, heroRect.top),
+          left: heroRect.right + 16,
+          right: 'auto',
+        });
+      } else {
+        // Fallback: drop below the banner, centered
+        setHudStyle({
+          position: 'fixed',
+          top: heroRect.bottom + 16,
+          left: Math.max(16, Math.min(viewportWidth - 296, heroRect.left + (heroRect.width - 280) / 2)),
+          right: 'auto',
+        });
+      }
+    }
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition);
+    
+    // Periodically sync in case of images loading or layout shifts
+    const interval = setInterval(updatePosition, 100);
+
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition);
+      clearInterval(interval);
+    };
+  }, [heroRef]);
 
   useEffect(() => {
     const hostEl = hostRef.current;
@@ -121,19 +168,42 @@ export default function CatLaserOverlay() {
     function recomputeBounds() {
       const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
       const raycaster = new THREE.Raycaster();
-      const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
       let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-      corners.forEach(([nx, ny]) => {
-        raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
-        const pt = new THREE.Vector3();
-        raycaster.ray.intersectPlane(groundPlane, pt);
-        if (pt) {
-          minX = Math.min(minX, pt.x); maxX = Math.max(maxX, pt.x);
-          minZ = Math.min(minZ, pt.z); maxZ = Math.max(maxZ, pt.z);
+
+      // Sample a grid across the full screen, not just 4 corners
+      const steps = 6;
+      for (let i = 0; i <= steps; i++) {
+        for (let j = 0; j <= steps; j++) {
+          const nx = -1 + (2 * i) / steps;
+          const ny = -1 + (2 * j) / steps;
+          raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
+          const pt = new THREE.Vector3();
+          const intersected = raycaster.ray.intersectPlane(groundPlane, pt);
+          if (intersected) {
+            const dist = camera.position.distanceTo(pt);
+            if (dist < 190) { // just under the camera's far clipping plane of 200
+              minX = Math.min(minX, pt.x);
+              maxX = Math.max(maxX, pt.x);
+              minZ = Math.min(minZ, pt.z);
+              maxZ = Math.max(maxZ, pt.z);
+            }
+          }
         }
-      });
-      const pad = 1.2;
+      }
+
+      minX = Math.max(-14, Math.min(14, minX));
+      maxX = Math.max(-14, Math.min(14, maxX));
+      minZ = Math.max(-12, Math.min(12, minZ));
+      maxZ = Math.max(-12, Math.min(12, maxZ));
+
+      if (minX > maxX) { const tmp = minX; minX = maxX; maxX = tmp; }
+      if (minZ > maxZ) { const tmp = minZ; minZ = maxZ; maxZ = tmp; }
+      if (maxX - minX < 6) { const mid = (minX + maxX) / 2; minX = mid - 3; maxX = mid + 3; }
+      if (maxZ - minZ < 6) { const mid = (minZ + maxZ) / 2; minZ = mid - 3; maxZ = mid + 3; }
+
+      const pad = 1.0;
       bounds = { minX: minX + pad, maxX: maxX - pad, minZ: minZ + pad, maxZ: maxZ - pad };
+      console.log('bounds', bounds);
     }
 
     function onResize() {
@@ -209,7 +279,7 @@ export default function CatLaserOverlay() {
 
     function makeTierCreatureFromGltf(sourceGltf, tier) {
       const root = cloneSkeleton(sourceGltf.scene);
-      root.scale.setScalar(1.0);
+      root.scale.setScalar(0.01); // Start small for transition
       scene.add(root);
 
       if (goldenMode && tier === 2) {
@@ -223,6 +293,15 @@ export default function CatLaserOverlay() {
             }
           }
         });
+      } else {
+        root.traverse((obj) => {
+          if (obj.isMesh && obj.material) {
+            obj.material = obj.material.clone();
+            obj.material.metalness = 0.0;
+            obj.material.roughness = 0.85;
+            obj.castShadow = false;
+          }
+        });
       }
 
       const mixer = new THREE.AnimationMixer(root);
@@ -233,11 +312,8 @@ export default function CatLaserOverlay() {
       sourceGltf.animations.forEach((clip) => { clipActions[clip.name] = mixer.clipAction(clip); });
 
       const ang = Math.random() * Math.PI * 2;
-      root.position.set(
-        bounds.minX + Math.random() * (bounds.maxX - bounds.minX),
-        3 + Math.random() * 2,
-        bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ)
-      );
+      const spawnPos = getSafeSpawnPosition(0, 0.3, 3.0); // ground level, walking creature
+      root.position.copy(spawnPos);
 
       const speedMult = (goldenMode && tier === 2) ? 2.5 : 1.0;
 
@@ -253,6 +329,8 @@ export default function CatLaserOverlay() {
           flourishTimer: 4 + Math.random() * 4,
           inFlourish: false,
           flourishTimeLeft: 0,
+          spawnAge: 0,
+          targetScale: 1.0
         }
       };
       const moveClip = CREATURE_TIERS[tier].moveClip;
@@ -263,6 +341,44 @@ export default function CatLaserOverlay() {
 
     const cats = [];
     const birds = [];
+
+    function getSafeSpawnPosition(yMin = 3, yMax = 5, minDist = 2.2) {
+      const bestY = yMin + Math.random() * (yMax - yMin);
+      const maxRetries = 25;
+      let largestMinDist = -1;
+      let chosenX = 0, chosenZ = 0;
+
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        const rx = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
+        const rz = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
+        
+        let currentMinDist = Infinity;
+        cats.forEach((cat) => {
+          const dx = cat.root.position.x - rx;
+          const dz = cat.root.position.z - rz;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist < currentMinDist) currentMinDist = dist;
+        });
+        birds.forEach((bird) => {
+          const dx = bird.root.position.x - rx;
+          const dz = bird.root.position.z - rz;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist < currentMinDist) currentMinDist = dist;
+        });
+
+        if (currentMinDist >= minDist) {
+          return new THREE.Vector3(rx, bestY, rz);
+        }
+
+        if (currentMinDist > largestMinDist) {
+          largestMinDist = currentMinDist;
+          chosenX = rx;
+          chosenZ = rz;
+        }
+      }
+
+      return new THREE.Vector3(chosenX, bestY, chosenZ);
+    }
     const activeLasers = [];
     const activeBursts = [];
     let scoreCount = 0;
@@ -330,10 +446,15 @@ export default function CatLaserOverlay() {
 
     function initCats() {
       const cooper = makeCatFromGltf('Cooper', cooperGltf, 0.45);
+      const cooperPos = getSafeSpawnPosition(0, 0, 3.5);
+      cooper.root.position.copy(cooperPos);
+      cats.push(cooper);
+
       const roscoe = makeCatFromGltf('Roscoe', roscoeGltf, 0.95);
-      cooper.root.position.set(-3, 0, 2);
-      roscoe.root.position.set(3, 0, -2);
-      cats.push(cooper, roscoe);
+      const roscoePos = getSafeSpawnPosition(0, 0, 3.5);
+      roscoe.root.position.copy(roscoePos);
+      cats.push(roscoe);
+
       cats.forEach(pickWaypoint);
     }
 
@@ -347,7 +468,7 @@ export default function CatLaserOverlay() {
           obj.material.color = new THREE.Color(tintColor);
         }
       });
-      root.scale.setScalar(1.0);
+      root.scale.setScalar(0.01); // Start small for transition
       scene.add(root);
 
       const mixer = new THREE.AnimationMixer(root);
@@ -355,11 +476,8 @@ export default function CatLaserOverlay() {
       birdGltf.animations.forEach((clip) => { clipActions[clip.name] = mixer.clipAction(clip); });
 
       const ang = Math.random() * Math.PI * 2;
-      root.position.set(
-        bounds.minX + Math.random() * (bounds.maxX - bounds.minX),
-        3 + Math.random() * 2,
-        bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ)
-      );
+      const spawnPos = getSafeSpawnPosition(1, 4, 3.0); // flying height, wider spread
+      root.position.copy(spawnPos);
 
       const group = {
         root, mixer, clipActions,
@@ -368,7 +486,9 @@ export default function CatLaserOverlay() {
           vx: Math.cos(ang) * 1.2, vz: Math.sin(ang) * 1.2,
           bobPhase: Math.random() * Math.PI * 2,
           baseY: root.position.y,
-          currentClip: null
+          currentClip: null,
+          spawnAge: 0,
+          targetScale: 1.0
         }
       };
       const flyClip = [BIRD_CLIPS.fly1, BIRD_CLIPS.fly2, BIRD_CLIPS.fly3][Math.floor(Math.random() * 3)];
@@ -404,7 +524,12 @@ export default function CatLaserOverlay() {
     }
 
     function initBirds() {
-      for (let i = 0; i < 6; i++) spawnBird();
+      const staggerTimes = [0, 500, 1000, 1500, 2000, 2500].sort(() => Math.random() - 0.5);
+      staggerTimes.forEach((delay) => {
+        setTimeout(() => {
+          if (!disposed) spawnBird();
+        }, delay);
+      });
     }
 
     function orientBeam(mesh, from, to) {
@@ -506,9 +631,12 @@ export default function CatLaserOverlay() {
         goldenMode = true;
         console.log("Golden mode activated");
         
-        for (let i = 0; i < 10; i++) {
-          if (!disposed) spawnBird();
-        }
+        const staggerTimes = Array.from({ length: 10 }, (_, i) => i * (150 + Math.random() * 200)).sort(() => Math.random() - 0.5);
+        staggerTimes.forEach((delay) => {
+          setTimeout(() => {
+            if (!disposed) spawnBird();
+          }, delay);
+        });
       }, 3500);
     }
 
@@ -593,7 +721,12 @@ export default function CatLaserOverlay() {
               birds.length = 0;
               loadTierAsset(tierIndex, () => {
                 const targetCount = CREATURE_TIERS[tierIndex]?.waveSize || 6;
-                for (let i = 0; i < targetCount; i++) { if (!disposed) spawnBird(); }
+                const staggerTimes = Array.from({ length: targetCount }, (_, idx) => idx * (150 + Math.random() * 200)).sort(() => Math.random() - 0.5);
+                staggerTimes.forEach((delay) => {
+                  setTimeout(() => {
+                    if (!disposed) spawnBird();
+                  }, delay);
+                });
               });
             }
           } else {
@@ -638,7 +771,12 @@ export default function CatLaserOverlay() {
             birds.length = 0;
             loadTierAsset(tierIndex, () => {
               const targetCount = CREATURE_TIERS[tierIndex]?.waveSize || 6;
-              for (let i = 0; i < targetCount; i++) { if (!disposed) spawnBird(); }
+              const staggerTimes = Array.from({ length: targetCount }, (_, idx) => idx * (150 + Math.random() * 200)).sort(() => Math.random() - 0.5);
+              staggerTimes.forEach((delay) => {
+                setTimeout(() => {
+                  if (!disposed) spawnBird();
+                }, delay);
+              });
             });
           }
         }
@@ -657,14 +795,39 @@ export default function CatLaserOverlay() {
       if (dist > 0.05) dir.normalize();
       cat.root.rotation.y = Math.atan2(dir.x, dir.z) + cat.root.userData.forwardOffset;
       cat.root.position.addScaledVector(dir, dt * speed);
+
+      // Edge-clamping for cats so they stay strictly within bounds!
+      cat.root.position.x = Math.max(bounds.minX, Math.min(bounds.maxX, cat.root.position.x));
+      cat.root.position.z = Math.max(bounds.minZ, Math.min(bounds.maxZ, cat.root.position.z));
+
       return dist;
     }
 
     function updateCat(cat, dt) {
       const ud = cat.userData;
+
+      // Safety boundary check: if cat is somehow outside bounds, clamp them and pick a new waypoint!
+      const px = cat.root.position.x;
+      const pz = cat.root.position.z;
+      const isOutside = px < bounds.minX - 0.2 || px > bounds.maxX + 0.2 || pz < bounds.minZ - 0.2 || pz > bounds.maxZ + 0.2;
+      if (isOutside) {
+        cat.root.position.x = Math.max(bounds.minX, Math.min(bounds.maxX, px));
+        cat.root.position.z = Math.max(bounds.minZ, Math.min(bounds.maxZ, pz));
+        if (ud.state === 'patrol') {
+          pickWaypoint(cat);
+        }
+      }
+
       if (ud.state === 'patrol') {
         ud.idleTimer -= dt;
         const dist = cat.root.position.distanceTo(ud.waypoint);
+
+        // Verify if waypoint itself is outside the current bounds (could happen on window resize!)
+        const isWaypointOutside = ud.waypoint.x < bounds.minX || ud.waypoint.x > bounds.maxX || ud.waypoint.z < bounds.minZ || ud.waypoint.z > bounds.maxZ;
+        if (isWaypointOutside) {
+          pickWaypoint(cat);
+        }
+
         if (dist < 0.4 && ud.idleTimer <= 0) { pickWaypoint(cat); ud.idleTimer = 0.8 + Math.random() * 1.2; }
 
         if (dist > 0.4) {
@@ -706,10 +869,53 @@ export default function CatLaserOverlay() {
 
     function updateBird(bird, dt, t) {
       const ud = bird.userData;
+
+      // Staggered/smooth scale-up & fade-in transition
+      if (ud.spawnAge === undefined) ud.spawnAge = 0;
+      if (ud.spawnAge < 0.4) {
+        ud.spawnAge += dt;
+        const progress = Math.min(ud.spawnAge / 0.4, 1.0);
+        // Ease out quadratic
+        const scaleVal = progress * (2 - progress) * (ud.targetScale || 1.0);
+        bird.root.scale.setScalar(scaleVal);
+        
+        // Also fade-in materials if they support transparency!
+        bird.root.traverse((obj) => {
+          if (obj.isMesh && obj.material) {
+            obj.material.transparent = true;
+            obj.material.opacity = progress;
+          }
+        });
+      }
+
       bird.root.position.x += ud.vx * dt;
       bird.root.position.z += ud.vz * dt;
-      if (bird.root.position.x < bounds.minX || bird.root.position.x > bounds.maxX) ud.vx *= -1;
-      if (bird.root.position.z < bounds.minZ || bird.root.position.z > bounds.maxZ) ud.vz *= -1;
+
+      // Handle bouncing off edges with explicit boundaries clamp
+      if (bird.root.position.x < bounds.minX) {
+        bird.root.position.x = bounds.minX;
+        ud.vx = Math.abs(ud.vx);
+      } else if (bird.root.position.x > bounds.maxX) {
+        bird.root.position.x = bounds.maxX;
+        ud.vx = -Math.abs(ud.vx);
+      }
+
+      if (bird.root.position.z < bounds.minZ) {
+        bird.root.position.z = bounds.minZ;
+        ud.vz = Math.abs(ud.vz);
+      } else if (bird.root.position.z > bounds.maxZ) {
+        bird.root.position.z = bounds.maxZ;
+        ud.vz = -Math.abs(ud.vz);
+      }
+
+      // Safety check: if way outside bounds (e.g. from resize), teleport bird back to a safe spot
+      const bx = bird.root.position.x;
+      const bz = bird.root.position.z;
+      if (bx < bounds.minX - 2.0 || bx > bounds.maxX + 2.0 || bz < bounds.minZ - 2.0 || bz > bounds.maxZ + 2.0) {
+        bird.root.position.x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
+        bird.root.position.z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
+      }
+
       bird.root.position.y = ud.baseY + Math.sin(t * 3 + ud.bobPhase) * 0.35;
       bird.root.rotation.y = Math.atan2(ud.vx, ud.vz);
 
@@ -933,14 +1139,112 @@ export default function CatLaserOverlay() {
 
       {!loading && (
         <div style={{
-          position: 'fixed', top: 14, right: 14, zIndex: 10000,
-          fontFamily: "'Courier New', monospace", color: '#9cffb0',
-          background: 'rgba(0,0,0,0.55)', padding: '8px 12px', borderRadius: 6,
-          border: '1px solid #2a2', fontSize: 11, lineHeight: 1.4
+          ...hudStyle,
+          zIndex: 10000,
+          fontFamily: "'Courier New', monospace",
+          color: '#f8fafc',
+          background: 'linear-gradient(135deg, rgba(26, 26, 26, 0.9), rgba(20, 20, 20, 0.95))',
+          backgroundImage: 'repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.02) 0px, rgba(255, 255, 255, 0.02) 1.5px, transparent 1.5px, transparent 8px), linear-gradient(135deg, rgba(26, 26, 26, 0.92), rgba(20, 20, 20, 0.96))',
+          padding: '14px 18px',
+          borderRadius: '16px',
+          border: '2px solid #FF7A1A',
+          boxShadow: '0 0 20px rgba(255, 122, 26, 0.35)',
+          width: '280px',
+          pointerEvents: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px'
         }}>
-          <b style={{ color: '#fff' }}>Cooper &amp; Roscoe patrol</b><br />
-          click a bird within range<br />
-          vaporized: <b style={{ color: '#fff' }}>{score}</b>
+          {/* Header row */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            width: '100%'
+          }}>
+            <span style={{ fontSize: '15px', color: '#FF7A1A' }}>🐾</span>
+            <span style={{
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+              fontWeight: '900',
+              fontSize: '11px',
+              letterSpacing: '1.2px',
+              color: '#ffffff',
+              textTransform: 'uppercase',
+              textAlign: 'center',
+              flex: 1,
+              padding: '0 8px'
+            }}>
+              COOPER &amp; ROSCOE ON PATROL
+            </span>
+            <span style={{ fontSize: '15px', color: '#FF7A1A' }}>🎯</span>
+          </div>
+
+          {/* Subtext */}
+          <div style={{
+            color: '#94a3b8',
+            fontSize: '11px',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            textAlign: 'center',
+            marginBottom: '4px'
+          }}>
+            Click a target within laser range.
+          </div>
+
+          {/* LED display box */}
+          <div style={{
+            background: '#0d0d0d',
+            border: '1px solid #222',
+            borderRadius: '8px',
+            padding: '8px 12px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            <span style={{
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+              fontVariant: 'small-caps',
+              fontSize: '10px',
+              fontWeight: 'bold',
+              color: '#FF7A1A',
+              letterSpacing: '1.5px',
+              marginBottom: '2px',
+              opacity: 0.95
+            }}>
+              VAPORIZED
+            </span>
+            
+            {/* Live digital odometer/readout */}
+            <div style={{
+              position: 'relative',
+              fontSize: '28px',
+              fontWeight: 'bold',
+              fontFamily: "'Courier New', monospace",
+              height: '32px',
+              lineHeight: '32px',
+              letterSpacing: '2px'
+            }}>
+              {/* Ghosted segment background */}
+              <span style={{
+                color: 'rgba(255, 100, 0, 0.08)',
+                userSelect: 'none'
+              }}>
+                {'8'.repeat(Math.max(3, score.toString().length))}
+              </span>
+              {/* Actual glowing foreground */}
+              <span style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                color: '#FF8C1A',
+                textShadow: '0 0 6px rgba(255, 140, 26, 0.8), 0 0 12px rgba(255, 140, 26, 0.4)'
+              }}>
+                {score.toString().padStart(Math.max(3, score.toString().length), '0')}
+              </span>
+            </div>
+          </div>
         </div>
       )}
       {showFinaleBanner && (

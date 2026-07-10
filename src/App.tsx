@@ -91,9 +91,9 @@ export default function App() {
   useEffect(() => {
     const saved = localStorage.getItem(`page_scale_${view}`);
     if (saved) {
-      setScale(parseInt(saved, 10) || 100);
+      setScale(parseInt(saved, 10) || (view === 'dashboard' ? 115 : 100));
     } else {
-      setScale(100);
+      setScale(view === 'dashboard' ? 115 : 100);
     }
   }, [view]);
 
@@ -329,9 +329,9 @@ export default function App() {
               <div
                 style={{
                   transform: `scale(${scale / 100})`,
-                  transformOrigin: 'top center'
+                  transformOrigin: view === 'dashboard' ? '97.5% top' : 'top center'
                 }}
-                className="w-full origin-top"
+                className="w-full"
                 id="main-content-scale-wrapper"
               >
                 {view === 'dashboard' && (
