@@ -534,7 +534,7 @@ export default function FunnelsView() {
       {leadsFunnel && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setLeadsFunnel(null)}>
           <div
-            className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl border border-border-theme bg-[#111218] shadow-2xl overflow-hidden"
+            className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-border-theme bg-[#111218] shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-5 border-b border-border-theme shrink-0">
@@ -558,44 +558,50 @@ export default function FunnelsView() {
                   No leads captured yet.
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-border-theme text-[10px] text-slate-500 uppercase tracking-wider">
-                        <th className="px-3 py-2 font-bold">Name</th>
-                        <th className="px-3 py-2 font-bold">Contact</th>
-                        <th className="px-3 py-2 font-bold">Vehicle</th>
-                        <th className="px-3 py-2 font-bold">Message</th>
-                        <th className="px-3 py-2 font-bold">Status</th>
-                        <th className="px-3 py-2 font-bold">Received</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border-theme text-xs">
-                      {leads.map(lead => {
-                        const vehicle = [lead.vehicle_year, lead.vehicle_make, lead.vehicle_model].filter(Boolean).join(' ');
-                        return (
-                          <tr key={lead.id}>
-                            <td className="px-3 py-3 font-bold text-white">{lead.name || '—'}</td>
-                            <td className="px-3 py-3 text-slate-300">
-                              <div>{lead.phone || '—'}</div>
-                              <div className="text-slate-500">{lead.email || '—'}</div>
-                            </td>
-                            <td className="px-3 py-3 text-slate-300">{vehicle || '—'}</td>
-                            <td className="px-3 py-3 text-slate-400 max-w-xs truncate" title={lead.message}>{lead.message || '—'}</td>
-                            <td className="px-3 py-3">
-                              {statusBadge(lead.status)}
-                              {lead.status === 'converted' && lead.job_status && (
-                                <div className="text-[9px] text-slate-500 mt-1 font-mono uppercase">Job: {lead.job_status}</div>
-                              )}
-                            </td>
-                            <td className="px-3 py-3 text-slate-500 font-mono text-[10px]">
+                <div className="space-y-3">
+                  {leads.map(lead => {
+                    const vehicle = [lead.vehicle_year, lead.vehicle_make, lead.vehicle_model].filter(Boolean).join(' ');
+                    return (
+                      <div key={lead.id} className="rounded-xl border border-border-theme bg-bg-theme/40 p-4">
+                        <div className="flex items-start justify-between gap-3 flex-wrap">
+                          <div>
+                            <div className="font-bold text-white text-sm">{lead.name || '—'}</div>
+                            <div className="text-slate-500 font-mono text-[10px] mt-0.5">
                               {new Date(lead.created_at).toLocaleString()}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            {statusBadge(lead.status)}
+                            {lead.status === 'converted' && lead.job_status && (
+                              <div className="text-[9px] text-slate-500 mt-1 font-mono uppercase">Job: {lead.job_status}</div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mt-3 text-xs">
+                          <div className="text-slate-300">
+                            <span className="text-slate-500 uppercase text-[9px] tracking-wider mr-1.5">Phone:</span>
+                            {lead.phone || '—'}
+                          </div>
+                          <div className="text-slate-300 break-all">
+                            <span className="text-slate-500 uppercase text-[9px] tracking-wider mr-1.5">Email:</span>
+                            {lead.email || '—'}
+                          </div>
+                          <div className="text-slate-300 sm:col-span-2">
+                            <span className="text-slate-500 uppercase text-[9px] tracking-wider mr-1.5">Vehicle:</span>
+                            {vehicle || '—'}
+                          </div>
+                        </div>
+
+                        {lead.message && (
+                          <div className="mt-3 pt-3 border-t border-border-theme/60">
+                            <span className="text-slate-500 uppercase text-[9px] tracking-wider">Message:</span>
+                            <p className="text-slate-300 text-xs mt-1 whitespace-pre-wrap break-words">{lead.message}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
