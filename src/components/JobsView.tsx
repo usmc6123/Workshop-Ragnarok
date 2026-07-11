@@ -2031,15 +2031,15 @@ export default function JobsView({
               <div
                 className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-6 space-y-6 shadow-xl"
                 style={{
-                  borderLeft: '4px solid #A78BFA',
+                  borderLeft: '4px solid #FFEB3B',
                   borderTopLeftRadius: 0,
                   borderBottomLeftRadius: 0,
-                  backgroundColor: 'rgba(167,139,250,0.06)'
+                  backgroundColor: 'rgba(255,235,59,0.06)'
                 }}
               >
                 <div className="border-b border-border-theme pb-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: '#C4B5FD' }}>
-                    <StickyNote className="w-4.5 h-4.5" style={{ color: '#C4B5FD' }} />
+                  <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: '#FFEB3B' }}>
+                    <StickyNote className="w-4.5 h-4.5" style={{ color: '#FFEB3B' }} />
                     Notes ({jobNotes.length})
                   </h3>
                 </div>

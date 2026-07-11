@@ -180,15 +180,14 @@ router.post('/:slug/submit', async (req, res) => {
     }
 
     // --- Auto-create pending Job ---
-    const jobDescriptionParts = [];
-    if (funnel.service_type) jobDescriptionParts.push(`Service requested: ${funnel.service_type}`);
-    jobDescriptionParts.push(`Customer's description: ${message}`);
-    jobDescriptionParts.push(`Submitted via funnel "${funnel.headline}" (${funnel.slug}).`);
+    // Kept short and clean on purpose: just a fixed "submitted via funnel" line
+    // followed by exactly what the customer typed, nothing else folded in.
+    const jobDescription = `Service requested: Submitted via funnel\n${message}`;
 
     const jobInfo = db.prepare(`
       INSERT INTO jobs (customer_id, vehicle_id, description, status, priority, user_id)
       VALUES (?, ?, ?, 'Pending', 'Standard', ?)
-    `).run(customerId, vehicleId, jobDescriptionParts.join('\n'), funnel.user_id);
+    `).run(customerId, vehicleId, jobDescription, funnel.user_id);
     const jobId = jobInfo.lastInsertRowid;
 
     // --- Link the lead to what it produced ---
