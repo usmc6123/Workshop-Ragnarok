@@ -158,6 +158,32 @@ function ClassicFunnelLayout({ funnel, form, updateField, handleSubmit, submitti
     }
   };
 
+  // Standalone "video underneath headline" section: same clip-1-then-clip-2 pattern.
+  const secondaryVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [secondaryVideoTurn, setSecondaryVideoTurn] = useState<1 | 2>(1);
+  const hasSecondSecondaryVideo = !!funnel.secondary_video_url_2;
+  const currentSecondaryVideoSrc = secondaryVideoTurn === 2 && hasSecondSecondaryVideo
+    ? funnel.secondary_video_url_2
+    : funnel.secondary_video_url;
+
+  useEffect(() => {
+    setSecondaryVideoTurn(1);
+  }, [funnel.secondary_video_url, funnel.secondary_video_url_2]);
+
+  useEffect(() => {
+    const vid = secondaryVideoRef.current;
+    if (vid) {
+      vid.load();
+      vid.play().catch(() => {});
+    }
+  }, [secondaryVideoTurn]);
+
+  const handleSecondaryVideoEnded = () => {
+    if (hasSecondSecondaryVideo) {
+      setSecondaryVideoTurn(prev => (prev === 1 ? 2 : 1));
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#07070a] text-slate-200 selection:bg-amber-500/30 selection:text-white pb-16">
 
@@ -230,18 +256,20 @@ function ClassicFunnelLayout({ funnel, form, updateField, handleSubmit, submitti
           </div>
         </section>
 
-        {/* Optional standalone video, underneath the headline box */}
+        {/* Optional standalone video, underneath the headline box (clip 1 then clip 2, looping) */}
         {funnel.secondary_video_url && (
           <section
             className="rounded-lg overflow-hidden border-2 border-amber-500/20 shadow-2xl animate-fade-in"
             style={{ animationDelay: '0.05s', animationFillMode: 'backwards' }}
           >
             <video
-              src={funnel.secondary_video_url}
+              ref={secondaryVideoRef}
+              src={currentSecondaryVideoSrc || undefined}
               autoPlay
               muted
-              loop
               playsInline
+              loop={!hasSecondSecondaryVideo}
+              onEnded={handleSecondaryVideoEnded}
               className="w-full h-56 sm:h-72 object-cover"
             />
           </section>

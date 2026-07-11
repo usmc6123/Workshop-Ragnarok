@@ -73,6 +73,7 @@ function publicFunnelFields(funnel) {
     headline_bg_video_url: funnel.headline_bg_video_url,
     headline_bg_video_url_2: funnel.headline_bg_video_url_2,
     secondary_video_url: funnel.secondary_video_url,
+    secondary_video_url_2: funnel.secondary_video_url_2,
     service_type: funnel.service_type,
     cta_text: funnel.cta_text,
     layout: funnel.layout || 'classic',

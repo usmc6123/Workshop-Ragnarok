@@ -21,6 +21,7 @@ const EMPTY_FORM = {
   headline_bg_video_url: '',
   headline_bg_video_url_2: '',
   secondary_video_url: '',
+  secondary_video_url_2: '',
   active: true,
   layout: 'classic' as 'classic' | 'modern',
 };
@@ -89,6 +90,7 @@ export default function FunnelsView() {
       headline_bg_video_url: funnel.headline_bg_video_url || '',
       headline_bg_video_url_2: funnel.headline_bg_video_url_2 || '',
       secondary_video_url: funnel.secondary_video_url || '',
+      secondary_video_url_2: funnel.secondary_video_url_2 || '',
       active: !!funnel.active,
       layout: funnel.layout || 'classic',
     });
@@ -510,7 +512,7 @@ export default function FunnelsView() {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Video Underneath Headline (optional, Classic only)</label>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Video Underneath Headline — Clip 1 (optional, Classic only)</label>
                     <input
                       type="text"
                       value={form.secondary_video_url}
@@ -518,7 +520,19 @@ export default function FunnelsView() {
                       placeholder="https://..."
                       className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
                     />
-                    <p className="text-[9px] text-slate-600 mt-1">Adds a looping video section between the headline box and the quote form.</p>
+                    <p className="text-[9px] text-slate-600 mt-1">Adds a video section between the headline box and the quote form. Plays first if a Clip 2 is also set.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Video Underneath Headline — Clip 2 (optional, Classic only)</label>
+                    <input
+                      type="text"
+                      value={form.secondary_video_url_2}
+                      onChange={(e) => setForm(prev => ({ ...prev, secondary_video_url_2: e.target.value }))}
+                      placeholder="https://..."
+                      className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                    />
+                    <p className="text-[9px] text-slate-600 mt-1">Plays right after Clip 1 finishes, then the pair loops back to Clip 1. Leave blank to just loop Clip 1 alone.</p>
                   </div>
                 </>
               )}
