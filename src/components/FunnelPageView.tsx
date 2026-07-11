@@ -3,8 +3,16 @@ import { api } from '../lib/api';
 import { PublicFunnel } from '../types';
 import {
   Wrench, Car, Phone, Mail, User, MessageSquare, AlertTriangle,
-  CheckCircle, ArrowRight, Loader2
+  CheckCircle, ArrowRight, Loader2, CheckCircle2
 } from 'lucide-react';
+
+// Small inline "filled" indicator shown next to a label once the visitor has
+// typed something in — a tiny bit of live feedback to make the form feel
+// responsive rather than static.
+function FieldCheck({ filled }: { filled: boolean }) {
+  if (!filled) return null;
+  return <CheckCircle2 className="w-3 h-3 text-emerald-400 animate-fade-in" />;
+}
 
 interface FunnelPageViewProps {
   slug: string;
@@ -120,7 +128,7 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
       <main className="max-w-3xl mx-auto px-4 mt-8 space-y-6">
 
         {/* Hero */}
-        <section className="bg-[#111218] border-2 border-amber-500/20 rounded-lg overflow-hidden shadow-2xl">
+        <section className="bg-[#111218] border-2 border-amber-500/20 rounded-lg overflow-hidden shadow-2xl animate-fade-in">
           {funnel.video_url ? (
             <video src={funnel.video_url} autoPlay muted loop playsInline className="w-full h-72 sm:h-80 object-cover" />
           ) : funnel.image_url ? (
@@ -146,7 +154,10 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
         </section>
 
         {/* Lead capture form / thank-you state */}
-        <section className="bg-[#111218] border-2 border-amber-500/20 rounded-lg p-6 shadow-2xl font-mono">
+        <section
+          className="bg-[#111218] border-2 border-amber-500/20 rounded-lg p-6 shadow-2xl font-mono animate-fade-in"
+          style={{ animationDelay: '0.1s', animationFillMode: 'backwards' }}
+        >
           {submitted ? (
             <div className="flex flex-col items-center text-center gap-3 py-6">
               <div className="p-3 bg-emerald-500/10 rounded-full border border-emerald-500/20 text-emerald-400">
@@ -172,27 +183,27 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-wider mb-1">
-                    <User className="w-3 h-3" /> Name *
+                    <User className="w-3 h-3" /> Name * <FieldCheck filled={form.name.trim().length > 0} />
                   </label>
                   <input
                     type="text"
                     required
                     value={form.name}
                     onChange={(e) => updateField('name', e.target.value)}
-                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none"
+                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all duration-150"
                     placeholder="Jane Smith"
                   />
                 </div>
                 <div>
                   <label className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-wider mb-1">
-                    <Phone className="w-3 h-3" /> Phone *
+                    <Phone className="w-3 h-3" /> Phone * <FieldCheck filled={form.phone.trim().length > 0} />
                   </label>
                   <input
                     type="tel"
                     required
                     value={form.phone}
                     onChange={(e) => updateField('phone', e.target.value)}
-                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none"
+                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all duration-150"
                     placeholder="(555) 123-4567"
                   />
                 </div>
@@ -200,14 +211,14 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
 
               <div>
                 <label className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-wider mb-1">
-                  <Mail className="w-3 h-3" /> Email *
+                  <Mail className="w-3 h-3" /> Email * <FieldCheck filled={form.email.trim().length > 0} />
                 </label>
                 <input
                   type="email"
                   required
                   value={form.email}
                   onChange={(e) => updateField('email', e.target.value)}
-                  className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none"
+                  className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all duration-150"
                   placeholder="jane@example.com"
                 />
                 <p className="text-[9px] text-slate-600 mt-1">We'll send your confirmation here.</p>
@@ -215,7 +226,7 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
 
               <div>
                 <label className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-wider mb-1">
-                  <Car className="w-3 h-3" /> Vehicle *
+                  <Car className="w-3 h-3" /> Vehicle * <FieldCheck filled={form.vehicle_year.trim().length > 0 && form.vehicle_make.trim().length > 0 && form.vehicle_model.trim().length > 0} />
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   <input
@@ -223,7 +234,7 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
                     required
                     value={form.vehicle_year}
                     onChange={(e) => updateField('vehicle_year', e.target.value)}
-                    className="rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none"
+                    className="rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all duration-150"
                     placeholder="Year"
                   />
                   <input
@@ -231,7 +242,7 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
                     required
                     value={form.vehicle_make}
                     onChange={(e) => updateField('vehicle_make', e.target.value)}
-                    className="rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none"
+                    className="rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all duration-150"
                     placeholder="Make"
                   />
                   <input
@@ -239,7 +250,7 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
                     required
                     value={form.vehicle_model}
                     onChange={(e) => updateField('vehicle_model', e.target.value)}
-                    className="rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none"
+                    className="rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all duration-150"
                     placeholder="Model"
                   />
                 </div>
@@ -247,14 +258,14 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
 
               <div>
                 <label className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-wider mb-1">
-                  <MessageSquare className="w-3 h-3" /> What's going on? *
+                  <MessageSquare className="w-3 h-3" /> What's going on? * <FieldCheck filled={form.message.trim().length > 0} />
                 </label>
                 <textarea
                   required
                   rows={4}
                   value={form.message}
                   onChange={(e) => updateField('message', e.target.value)}
-                  className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none resize-none"
+                  className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/30 px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none resize-none transition-all duration-150"
                   placeholder="Tell us what you need — a repair, a strange noise, routine service, anything."
                 />
               </div>
@@ -277,7 +288,7 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-5 px-6 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 disabled:from-zinc-800 disabled:to-zinc-800 text-black disabled:text-zinc-500 font-black rounded-md text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] border-2 border-amber-400/60 shadow-[0_6px_24px_rgba(245,158,11,0.35)] cursor-pointer"
+                className={`w-full py-5 px-6 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 hover:scale-[1.015] disabled:from-zinc-800 disabled:to-zinc-800 text-black disabled:text-zinc-500 font-black rounded-md text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.97] border-2 border-amber-400/60 cursor-pointer ${submitting ? '' : 'animate-pulse-glow'}`}
               >
                 {submitting ? (
                   <>
