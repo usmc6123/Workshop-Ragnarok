@@ -328,9 +328,9 @@ export default function FunnelsView() {
 
       {/* Create/Edit Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => !saving && setShowForm(false)}>
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 p-4 overflow-y-auto" onClick={() => !saving && setShowForm(false)}>
           <div
-            className="bg-[#111218] border border-border-theme rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+            className="bg-[#111218] border border-border-theme rounded-2xl shadow-2xl w-full max-w-lg my-8 max-h-[85vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-5 border-b border-border-theme">
@@ -474,9 +474,9 @@ export default function FunnelsView() {
 
       {/* Leads Modal */}
       {leadsFunnel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setLeadsFunnel(null)}>
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 p-4 overflow-y-auto" onClick={() => setLeadsFunnel(null)}>
           <div
-            className="bg-[#111218] border border-border-theme rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-y-auto"
+            className="bg-[#111218] border border-border-theme rounded-2xl shadow-2xl w-full max-w-3xl my-8 max-h-[85vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-5 border-b border-border-theme">
