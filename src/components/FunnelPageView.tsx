@@ -57,6 +57,10 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
       setSubmitError('Please fill in your name, phone, email, and a short description.');
       return;
     }
+    if (!form.vehicle_year.trim() || !form.vehicle_make.trim() || !form.vehicle_model.trim()) {
+      setSubmitError('Please fill in your vehicle year, make, and model.');
+      return;
+    }
 
     setSubmitting(true);
     setSubmitError(null);
@@ -211,11 +215,12 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
 
               <div>
                 <label className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-wider mb-1">
-                  <Car className="w-3 h-3" /> Vehicle (optional)
+                  <Car className="w-3 h-3" /> Vehicle *
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   <input
                     type="text"
+                    required
                     value={form.vehicle_year}
                     onChange={(e) => updateField('vehicle_year', e.target.value)}
                     className="rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none"
@@ -223,6 +228,7 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
                   />
                   <input
                     type="text"
+                    required
                     value={form.vehicle_make}
                     onChange={(e) => updateField('vehicle_make', e.target.value)}
                     className="rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none"
@@ -230,6 +236,7 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
                   />
                   <input
                     type="text"
+                    required
                     value={form.vehicle_model}
                     onChange={(e) => updateField('vehicle_model', e.target.value)}
                     className="rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none"

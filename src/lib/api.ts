@@ -1499,9 +1499,9 @@ export const api = {
     phone: string;
     email: string;
     message: string;
-    vehicle_year?: string;
-    vehicle_make?: string;
-    vehicle_model?: string;
+    vehicle_year: string;
+    vehicle_make: string;
+    vehicle_model: string;
     company_website?: string; // honeypot - always left blank by real users
   }): Promise<{ success: boolean }> {
     return await request<{ success: boolean }>(`/api/funnels/${slug}/submit`, {

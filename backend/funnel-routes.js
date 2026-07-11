@@ -93,6 +93,9 @@ router.post('/:slug/submit', async (req, res) => {
     if (!name || !phone || !email || !message) {
       return res.status(400).json({ error: 'name, phone, email, and message are required' });
     }
+    if (!vehicle_year || !vehicle_make || !vehicle_model) {
+      return res.status(400).json({ error: 'vehicle_year, vehicle_make, and vehicle_model are required' });
+    }
 
     const leadInsert = db.prepare(`
       INSERT INTO funnel_leads (funnel_id, name, phone, email, vehicle_year, vehicle_make, vehicle_model, message, status, ip_address, user_id)
