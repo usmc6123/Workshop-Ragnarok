@@ -39,7 +39,8 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
     default_labor_rate: 0,
     zip_code: '',
     default_parts_markup: 0,
-    admin_notification_email: ''
+    admin_notification_email: '',
+    google_review_url: ''
   });
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'failed'>('idle');
   const [saveError, setSaveError] = useState('');
@@ -594,6 +595,22 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
                     className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
                     id="shop-admin-notification-email-input"
                   />
+                </div>
+
+                {/* Google Review Link — powers the automated post-job review request */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Google Review Link</label>
+                  <input
+                    type="text"
+                    placeholder="https://g.page/r/.../review"
+                    value={settings.google_review_url || ''}
+                    onChange={(e) => setSettings({ ...settings, google_review_url: e.target.value })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
+                    id="shop-google-review-url-input"
+                  />
+                  <p className="text-[9px] text-slate-500 mt-1">
+                    Used by the automated review-request that goes out ~2 days after a job is marked Complete. Nothing sends until this is filled in.
+                  </p>
                 </div>
 
                 {/* Logo Upload & Preview */}

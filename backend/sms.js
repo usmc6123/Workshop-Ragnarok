@@ -58,7 +58,7 @@ function logSmsAttempt({ to, body, status, errorMessage, meta }) {
  * @param {Object} [meta] - logging metadata, all optional
  * @param {number} [meta.userId]
  * @param {number} [meta.customerId]
- * @param {'manual'|'appointment_reminder'|'job_complete'|'funnel_confirmation'|'funnel_admin_alert'} [meta.triggerType]
+ * @param {'manual'|'appointment_reminder'|'job_complete'|'funnel_confirmation'|'funnel_admin_alert'|'stale_lead_followup'|'unpaid_reminder'|'winback'|'review_request'} [meta.triggerType]
  * @param {number} [meta.jobId]
  * @param {number} [meta.appointmentId]
  * @param {number} [meta.funnelId]

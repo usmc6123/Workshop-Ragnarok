@@ -842,7 +842,11 @@ try {
     { name: 'default_parts_markup', type: 'REAL DEFAULT 0' },
     { name: 'admin_notification_email', type: 'TEXT' },
     { name: 'daily_capacity_hours', type: 'REAL DEFAULT 8' },
-    { name: 'ical_token', type: 'TEXT' }
+    { name: 'ical_token', type: 'TEXT' },
+    // Link to your Google Business review page — required for the automated
+    // review-request sweep to actually send anything (it's skipped, not "sent",
+    // while this is blank, so it just starts working the moment you add it).
+    { name: 'google_review_url', type: 'TEXT' }
   ];
   try {
     const columns = db.prepare('PRAGMA table_info(shop_settings)').all();
@@ -940,8 +944,33 @@ try {
       db.exec(`ALTER TABLE jobs ADD COLUMN portal_token_created_at TEXT`);
       console.log('Successfully migrated jobs to include portal_token_created_at column.');
     }
+
+    // Tracking columns for the automated unpaid-invoice-reminder and
+    // review-request sweeps — keeps both idempotent (unpaid reminders can repeat
+    // every few days until paid; review requests fire once per job).
+    if (!jobsCols.some(c => c.name === 'unpaid_reminder_sent_at')) {
+      db.exec(`ALTER TABLE jobs ADD COLUMN unpaid_reminder_sent_at TEXT`);
+      console.log('Successfully migrated jobs to include unpaid_reminder_sent_at column.');
+    }
+    if (!jobsCols.some(c => c.name === 'review_request_sent')) {
+      db.exec(`ALTER TABLE jobs ADD COLUMN review_request_sent INTEGER DEFAULT 0`);
+      console.log('Successfully migrated jobs to include review_request_sent column.');
+    }
   } catch (err) {
     console.error('Error migrating jobs portal token columns:', err);
+  }
+
+  // Tracking column for the automated win-back / service-due nudge sweep — lets a
+  // quiet customer be re-nudged periodically (every ~90 days) instead of either
+  // spamming them daily or only ever messaging them once.
+  try {
+    const customersCols = db.prepare('PRAGMA table_info(customers)').all();
+    if (!customersCols.some(c => c.name === 'last_winback_sent_at')) {
+      db.exec(`ALTER TABLE customers ADD COLUMN last_winback_sent_at TEXT`);
+      console.log('Successfully migrated customers to include last_winback_sent_at column.');
+    }
+  } catch (err) {
+    console.error('Error migrating customers last_winback_sent_at column:', err);
   }
 
   // Create Funnels table (public unauthenticated lead-capture landing pages)
@@ -1037,6 +1066,18 @@ try {
     )
   `);
 
+  // Tracking column for the automated stale-lead follow-up sweep — a lead only
+  // ever gets one nudge, so this keeps it idempotent across hourly sweep runs.
+  try {
+    const funnelLeadsCols = db.prepare('PRAGMA table_info(funnel_leads)').all();
+    if (!funnelLeadsCols.some(c => c.name === 'followup_sent')) {
+      db.exec(`ALTER TABLE funnel_leads ADD COLUMN followup_sent INTEGER DEFAULT 0`);
+      console.log('Successfully migrated funnel_leads to include followup_sent column.');
+    }
+  } catch (err) {
+    console.error('Error migrating funnel_leads followup_sent column:', err);
+  }
+
   // Create SMS Messages table — logs every send attempt (manual + automated),
   // regardless of whether Twilio is actually configured yet, so the Texts page has
   // something to show from day one. direction is 'outbound' now; 'inbound' is
@@ -1058,6 +1099,40 @@ try {
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  // SQLite can't ALTER a CHECK constraint in place, so widening trigger_type to
+  // include the four new automation triggers requires a full rebuild: rename the
+  // old table, recreate it with the expanded CHECK list, copy every row over, drop
+  // the renamed original. Guarded by checking the stored CREATE statement itself so
+  // this only ever runs once, on the first boot after this code ships.
+  try {
+    const smsTableInfo = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='sms_messages'`).get();
+    if (smsTableInfo && smsTableInfo.sql && !smsTableInfo.sql.includes('review_request')) {
+      db.exec(`
+        ALTER TABLE sms_messages RENAME TO sms_messages_pre_automations_migration;
+        CREATE TABLE sms_messages (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+          phone TEXT NOT NULL,
+          body TEXT NOT NULL,
+          direction TEXT CHECK (direction IN ('outbound', 'inbound')) DEFAULT 'outbound',
+          status TEXT CHECK (status IN ('sent', 'failed', 'not_configured')) DEFAULT 'not_configured',
+          error_message TEXT,
+          trigger_type TEXT CHECK (trigger_type IN ('manual', 'appointment_reminder', 'job_complete', 'funnel_confirmation', 'funnel_admin_alert', 'stale_lead_followup', 'unpaid_reminder', 'winback', 'review_request')) DEFAULT 'manual',
+          related_job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+          related_appointment_id INTEGER REFERENCES appointments(id) ON DELETE SET NULL,
+          related_funnel_id INTEGER REFERENCES funnels(id) ON DELETE SET NULL,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+        );
+        INSERT INTO sms_messages SELECT * FROM sms_messages_pre_automations_migration;
+        DROP TABLE sms_messages_pre_automations_migration;
+      `);
+      console.log('Successfully migrated sms_messages.trigger_type to include the new automation trigger types.');
+    }
+  } catch (err) {
+    console.error('Error migrating sms_messages trigger_type CHECK constraint:', err);
+  }
 
   // Seed the admin user if not exists
   const bcrypt = require('bcryptjs');
@@ -2868,22 +2943,22 @@ app.get('/api/shop-settings', (req, res) => {
 
 app.put('/api/shop-settings', (req, res) => {
   try {
-    const { shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup, admin_notification_email, daily_capacity_hours } = req.body;
+    const { shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup, admin_notification_email, daily_capacity_hours, google_review_url } = req.body;
 
     const settings = db.prepare('SELECT id FROM shop_settings WHERE user_id = ?').get(req.user.id);
     if (!settings) {
       const stmt = db.prepare(`
-        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup, admin_notification_email, daily_capacity_hours)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup, admin_notification_email, daily_capacity_hours, google_review_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(req.user.id, shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, admin_notification_email || '', daily_capacity_hours || 8);
+      stmt.run(req.user.id, shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, admin_notification_email || '', daily_capacity_hours || 8, google_review_url || '');
     } else {
       const stmt = db.prepare(`
         UPDATE shop_settings
-        SET shop_name = ?, shop_address = ?, shop_city = ?, shop_state = ?, shop_phone = ?, shop_logo_url = ?, tax_rate = ?, default_labor_rate = ?, zip_code = ?, default_parts_markup = ?, admin_notification_email = ?, daily_capacity_hours = ?
+        SET shop_name = ?, shop_address = ?, shop_city = ?, shop_state = ?, shop_phone = ?, shop_logo_url = ?, tax_rate = ?, default_labor_rate = ?, zip_code = ?, default_parts_markup = ?, admin_notification_email = ?, daily_capacity_hours = ?, google_review_url = ?
         WHERE user_id = ?
       `);
-      stmt.run(shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, admin_notification_email || '', daily_capacity_hours || 8, req.user.id);
+      stmt.run(shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, admin_notification_email || '', daily_capacity_hours || 8, google_review_url || '', req.user.id);
     }
 
     const updated = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(req.user.id);
@@ -4870,6 +4945,321 @@ app.post('/api/sms-messages/send', async (req, res) => {
 
 // --- EMAIL CENTER ---
 
+// Base URL for links inside emails/texts sent from background sweeps below — those
+// run on a timer, not inside an HTTP request, so there's no `req` object to derive
+// protocol/host from the way the portal-link route normally does. Override via
+// APP_BASE_URL if the public hostname ever changes.
+const PUBLIC_APP_BASE_URL = process.env.APP_BASE_URL || 'https://workshop.homeslab.uk';
+
+// Same token-generation logic as POST /api/jobs/:jobId/generate-portal-link, just
+// callable directly from a background sweep (no req/res available there).
+function getOrCreatePortalUrl(jobId, userId) {
+  try {
+    const job = db.prepare('SELECT id, portal_token FROM jobs WHERE id = ? AND user_id = ?').get(jobId, userId);
+    if (!job) return null;
+    let token = job.portal_token;
+    if (!token) {
+      token = require('crypto').randomUUID();
+      db.prepare(`UPDATE jobs SET portal_token = ?, portal_token_created_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`).run(token, jobId, userId);
+    }
+    return `${PUBLIC_APP_BASE_URL.replace(/\/$/, '')}/portal/${token}`;
+  } catch (err) {
+    console.error(`Error generating portal URL for job ${jobId}:`, err);
+    return null;
+  }
+}
+
+// --- Automation: stale funnel lead follow-up ---
+// A lead sitting at status='new' for 36+ hours (splitting the requested 24-48hr
+// window) gets one friendly nudge. Capped at 30 days old so the very first run
+// after this ships doesn't blast a backlog of ancient leads all at once.
+// followup_sent makes it idempotent across hourly sweep runs.
+const STALE_LEAD_MIN_HOURS = 36;
+const STALE_LEAD_MAX_DAYS = 30;
+
+async function sendStaleLeadFollowups() {
+  try {
+    const dueLeads = db.prepare(`
+      SELECT * FROM funnel_leads
+      WHERE status = 'new'
+        AND (followup_sent IS NULL OR followup_sent = 0)
+        AND created_at <= datetime('now', '-${STALE_LEAD_MIN_HOURS} hours')
+        AND created_at >= datetime('now', '-${STALE_LEAD_MAX_DAYS} days')
+    `).all();
+    if (dueLeads.length === 0) return;
+
+    const { sendEmail } = require('./email');
+    const { sendSms } = require('./sms');
+
+    for (const lead of dueLeads) {
+      const shop = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(lead.user_id) || {};
+      const shopName = shop.shop_name || 'Workshop: Ragnarök';
+      const vehicleLine = (lead.vehicle_year || lead.vehicle_make || lead.vehicle_model)
+        ? `${lead.vehicle_year || ''} ${lead.vehicle_make || ''} ${lead.vehicle_model || ''}`.trim() : '';
+
+      if (lead.email && lead.email.trim()) {
+        try {
+          await sendEmail({
+            to: lead.email,
+            subject: `Still need that quote? — ${shopName}`,
+            html: `
+              <p>Hi ${lead.name || 'there'},</p>
+              <p>You reached out to <strong>${shopName}</strong>${vehicleLine ? ` about your ${vehicleLine}` : ''} recently — just checking in to see if you still need a hand.</p>
+              ${lead.message ? `<p style="color:#64748b;">You mentioned: "${lead.message}"</p>` : ''}
+              <p>Reply to this email or give us a call${shop.shop_phone ? ` at ${shop.shop_phone}` : ''} whenever works — no pressure.</p>
+              <p>— ${shopName}</p>
+            `,
+          });
+        } catch (emailErr) {
+          console.error(`[StaleLead] Failed to email lead ${lead.id}:`, emailErr);
+        }
+      }
+
+      if (lead.phone && lead.phone.trim()) {
+        try {
+          await sendSms({
+            to: lead.phone,
+            body: `${shopName}: still need that quote${vehicleLine ? ` for your ${vehicleLine}` : ''}? Just reply or call us${shop.shop_phone ? ` at ${shop.shop_phone}` : ''} — happy to help whenever you're ready.`,
+          }, {
+            userId: lead.user_id,
+            customerId: lead.customer_id,
+            triggerType: 'stale_lead_followup',
+            funnelId: lead.funnel_id,
+          });
+        } catch (smsErr) {
+          console.error(`[StaleLead] Failed to text lead ${lead.id}:`, smsErr);
+        }
+      }
+
+      db.prepare('UPDATE funnel_leads SET followup_sent = 1 WHERE id = ?').run(lead.id);
+    }
+  } catch (err) {
+    console.error('Error running stale lead follow-up sweep:', err);
+  }
+}
+
+// --- Automation: unpaid invoice reminder ---
+// Jobs sitting at payment_status='Unpaid' get a reminder (with a live Stripe
+// customer-portal link) after UNPAID_REMINDER_FIRST_DAYS, then again every
+// UNPAID_REMINDER_REPEAT_DAYS until they're marked paid — tracked via
+// unpaid_reminder_sent_at rather than a one-shot flag, since this one should keep
+// nudging (gently) rather than fire only once.
+const UNPAID_REMINDER_FIRST_DAYS = 7;
+const UNPAID_REMINDER_REPEAT_DAYS = 7;
+
+async function sendUnpaidInvoiceReminders() {
+  try {
+    const dueJobs = db.prepare(`
+      SELECT j.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone,
+             cv.year as vehicle_year, cv.make as vehicle_make, cv.model as vehicle_model
+      FROM jobs j
+      LEFT JOIN customers c ON j.customer_id = c.id
+      LEFT JOIN customer_vehicles cv ON j.vehicle_id = cv.id
+      WHERE j.payment_status = 'Unpaid'
+        AND j.status != 'Cancelled'
+        AND COALESCE(j.actual_completion, j.created_at) <= datetime('now', '-${UNPAID_REMINDER_FIRST_DAYS} days')
+        AND (j.unpaid_reminder_sent_at IS NULL OR j.unpaid_reminder_sent_at <= datetime('now', '-${UNPAID_REMINDER_REPEAT_DAYS} days'))
+    `).all();
+    if (dueJobs.length === 0) return;
+
+    const { sendEmail } = require('./email');
+    const { sendSms } = require('./sms');
+
+    for (const job of dueJobs) {
+      const shop = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(job.user_id) || {};
+      const shopName = shop.shop_name || 'Workshop: Ragnarök';
+      const vehicleLine = (job.vehicle_year || job.vehicle_make || job.vehicle_model)
+        ? `${job.vehicle_year || ''} ${job.vehicle_make || ''} ${job.vehicle_model || ''}`.trim() : '';
+      const portalUrl = getOrCreatePortalUrl(job.id, job.user_id);
+
+      if (job.customer_email && job.customer_email.trim()) {
+        try {
+          await sendEmail({
+            to: job.customer_email,
+            subject: `Payment reminder — ${shopName}`,
+            html: `
+              <p>Hi ${job.customer_name || 'there'},</p>
+              <p>Just a friendly reminder that the invoice for your ${vehicleLine || 'recent service'} at <strong>${shopName}</strong> is still open.</p>
+              ${portalUrl ? `<p><a href="${portalUrl}" style="color:#2563eb;">View and pay your invoice here</a>.</p>` : ''}
+              ${shop.shop_phone ? `<p>Questions? Call us at ${shop.shop_phone}.</p>` : ''}
+              <p>— ${shopName}</p>
+            `,
+          });
+        } catch (emailErr) {
+          console.error(`[UnpaidReminder] Failed to email job ${job.id}:`, emailErr);
+        }
+      }
+
+      if (job.customer_phone && job.customer_phone.trim()) {
+        try {
+          await sendSms({
+            to: job.customer_phone,
+            body: `${shopName}: friendly reminder — your invoice${vehicleLine ? ` for the ${vehicleLine}` : ''} is still open.${portalUrl ? ` Pay here: ${portalUrl}` : ''}`,
+          }, {
+            userId: job.user_id,
+            customerId: job.customer_id,
+            triggerType: 'unpaid_reminder',
+            jobId: job.id,
+          });
+        } catch (smsErr) {
+          console.error(`[UnpaidReminder] Failed to text job ${job.id}:`, smsErr);
+        }
+      }
+
+      db.prepare('UPDATE jobs SET unpaid_reminder_sent_at = CURRENT_TIMESTAMP WHERE id = ?').run(job.id);
+    }
+  } catch (err) {
+    console.error('Error running unpaid invoice reminder sweep:', err);
+  }
+}
+
+// --- Automation: win-back / service-due nudge ---
+// Any customer whose last service_history entry is SERVICE_DUE_MONTHS or older gets
+// a "we haven't seen you in a while" nudge, re-sent at most once every
+// WINBACK_REPEAT_DAYS so it keeps working for customers who still don't come back,
+// without turning into daily spam. Computed in JS after one broad query rather than
+// gnarly cross-engine date math in SQL — this DB is small enough that it's cheap.
+const SERVICE_DUE_MONTHS = 6;
+const WINBACK_REPEAT_DAYS = 90;
+
+async function sendWinBackNudges() {
+  try {
+    const candidates = db.prepare(`
+      SELECT c.*,
+        (SELECT MAX(sh.date) FROM service_history sh JOIN customer_vehicles cv ON sh.vehicle_id = cv.id WHERE cv.customer_id = c.id AND sh.user_id = c.user_id) as last_visit
+      FROM customers c
+      WHERE (c.email IS NOT NULL AND c.email != '') OR (c.phone IS NOT NULL AND c.phone != '')
+    `).all();
+
+    const dueCustomers = candidates.filter(c => {
+      if (!c.last_visit) return false; // never serviced yet — nothing to "win back" from
+      const monthsAgo = (Date.now() - new Date(c.last_visit).getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+      if (monthsAgo < SERVICE_DUE_MONTHS) return false;
+      if (c.last_winback_sent_at) {
+        const daysSinceLastNudge = (Date.now() - new Date(c.last_winback_sent_at).getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSinceLastNudge < WINBACK_REPEAT_DAYS) return false;
+      }
+      return true;
+    });
+    if (dueCustomers.length === 0) return;
+
+    const { sendEmail } = require('./email');
+    const { sendSms } = require('./sms');
+
+    for (const cust of dueCustomers) {
+      const shop = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(cust.user_id) || {};
+      const shopName = shop.shop_name || 'Workshop: Ragnarök';
+
+      if (cust.email && cust.email.trim()) {
+        try {
+          await sendEmail({
+            to: cust.email,
+            subject: `It's been a while — ${shopName}`,
+            html: `
+              <p>Hi ${cust.name || 'there'},</p>
+              <p>It's been a bit since your last visit to <strong>${shopName}</strong> — might be a good time for a checkup (oil, brakes, fluids, the usual suspects).</p>
+              <p>Give us a call${shop.shop_phone ? ` at ${shop.shop_phone}` : ''} or reply here whenever you'd like to grab a spot.</p>
+              <p>— ${shopName}</p>
+            `,
+          });
+        } catch (emailErr) {
+          console.error(`[WinBack] Failed to email customer ${cust.id}:`, emailErr);
+        }
+      }
+
+      if (cust.phone && cust.phone.trim()) {
+        try {
+          await sendSms({
+            to: cust.phone,
+            body: `${shopName}: it's been a while since your last visit — due for a checkup? Call us${shop.shop_phone ? ` at ${shop.shop_phone}` : ''} whenever you'd like to grab a spot.`,
+          }, {
+            userId: cust.user_id,
+            customerId: cust.id,
+            triggerType: 'winback',
+          });
+        } catch (smsErr) {
+          console.error(`[WinBack] Failed to text customer ${cust.id}:`, smsErr);
+        }
+      }
+
+      db.prepare('UPDATE customers SET last_winback_sent_at = CURRENT_TIMESTAMP WHERE id = ?').run(cust.id);
+    }
+  } catch (err) {
+    console.error('Error running win-back nudge sweep:', err);
+  }
+}
+
+// --- Automation: review request after job completion ---
+// Fires REVIEW_REQUEST_DELAY_HOURS after a job's actual_completion (giving the
+// customer a day or two to actually drive the car before being asked "how'd we
+// do?"). Deliberately skipped (not marked sent) while shop_settings.google_review_url
+// is blank, so it starts working automatically the moment that link is added in
+// Settings, with nothing else to configure.
+const REVIEW_REQUEST_DELAY_HOURS = 48;
+
+async function sendReviewRequests() {
+  try {
+    const dueJobs = db.prepare(`
+      SELECT j.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone
+      FROM jobs j
+      LEFT JOIN customers c ON j.customer_id = c.id
+      WHERE j.status = 'Complete'
+        AND (j.review_request_sent IS NULL OR j.review_request_sent = 0)
+        AND j.actual_completion IS NOT NULL
+        AND j.actual_completion <= datetime('now', '-${REVIEW_REQUEST_DELAY_HOURS} hours')
+    `).all();
+    if (dueJobs.length === 0) return;
+
+    const { sendEmail } = require('./email');
+    const { sendSms } = require('./sms');
+
+    for (const job of dueJobs) {
+      const shop = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(job.user_id) || {};
+      const shopName = shop.shop_name || 'Workshop: Ragnarök';
+      const reviewUrl = shop.google_review_url;
+
+      if (!reviewUrl || !reviewUrl.trim()) continue; // nowhere to send them yet — skip, don't mark sent
+
+      if (job.customer_email && job.customer_email.trim()) {
+        try {
+          await sendEmail({
+            to: job.customer_email,
+            subject: `How'd we do? — ${shopName}`,
+            html: `
+              <p>Hi ${job.customer_name || 'there'},</p>
+              <p>Thanks for trusting <strong>${shopName}</strong> with your vehicle! If you have a minute, a quick review really helps us out:</p>
+              <p><a href="${reviewUrl}" style="color:#2563eb;">Leave us a review</a></p>
+              <p>— ${shopName}</p>
+            `,
+          });
+        } catch (emailErr) {
+          console.error(`[ReviewRequest] Failed to email job ${job.id}:`, emailErr);
+        }
+      }
+
+      if (job.customer_phone && job.customer_phone.trim()) {
+        try {
+          await sendSms({
+            to: job.customer_phone,
+            body: `${shopName}: thanks for stopping by! Mind leaving us a quick review? ${reviewUrl}`,
+          }, {
+            userId: job.user_id,
+            customerId: job.customer_id,
+            triggerType: 'review_request',
+            jobId: job.id,
+          });
+        } catch (smsErr) {
+          console.error(`[ReviewRequest] Failed to text job ${job.id}:`, smsErr);
+        }
+      }
+
+      db.prepare('UPDATE jobs SET review_request_sent = 1 WHERE id = ?').run(job.id);
+    }
+  } catch (err) {
+    console.error('Error running review request sweep:', err);
+  }
+}
+
 // Emails the customer the day before their scheduled appointment. Runs on a plain
 // setInterval (no new dependency like node-cron needed) checked hourly; a
 // reminder_sent flag keeps it idempotent so the same appointment is never double-emailed.
@@ -5737,9 +6127,18 @@ async function initServer() {
     console.log(`Lemon server URL: ${LEMON_SERVER_URL}    `);
     console.log(`=========================================`);
 
-    // Day-before appointment reminder sweep: run once at boot, then hourly.
-    sendAppointmentReminders();
-    setInterval(sendAppointmentReminders, 60 * 60 * 1000);
+    // Automation sweeps: run once at boot, then hourly. Every sweep is idempotent
+    // (tracked via its own sent/timestamp column) so hourly is just how often we
+    // check for newly-due items, not a risk of duplicate sends.
+    function runAutomationSweeps() {
+      sendAppointmentReminders();
+      sendStaleLeadFollowups();
+      sendUnpaidInvoiceReminders();
+      sendWinBackNudges();
+      sendReviewRequests();
+    }
+    runAutomationSweeps();
+    setInterval(runAutomationSweeps, 60 * 60 * 1000);
   });
 }
 

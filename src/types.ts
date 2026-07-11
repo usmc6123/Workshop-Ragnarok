@@ -355,6 +355,7 @@ export interface ShopSettings {
   admin_notification_email?: string;
   daily_capacity_hours?: number;
   ical_token?: string;
+  google_review_url?: string;
 }
 
 export interface InventoryItem {
@@ -475,7 +476,7 @@ export interface EmailReceived {
   customer_name?: string | null;
 }
 
-export type SmsTriggerType = 'manual' | 'appointment_reminder' | 'job_complete' | 'funnel_confirmation' | 'funnel_admin_alert';
+export type SmsTriggerType = 'manual' | 'appointment_reminder' | 'job_complete' | 'funnel_confirmation' | 'funnel_admin_alert' | 'stale_lead_followup' | 'unpaid_reminder' | 'winback' | 'review_request';
 export type SmsStatus = 'sent' | 'failed' | 'not_configured';
 
 export interface SmsMessage {
