@@ -14,6 +14,26 @@ function FieldCheck({ filled, colorClass }: { filled: boolean; colorClass?: stri
   return <CheckCircle2 className={`w-3 h-3 animate-fade-in ${colorClass || 'text-emerald-400'}`} />;
 }
 
+// Reads the per-field transparency the shop owner set in the admin Edit Funnel
+// modal (stored as a JSON map on funnel.media_opacity, e.g. '{"image_url":80}') and
+// returns a 0-1 CSS opacity value for a given media field key. Missing key, missing
+// column, or unparseable JSON all fall back to 1 (fully opaque) — the same as every
+// funnel that existed before this feature, so nothing changes for them.
+// defaultPercent matches whatever that field's baked-in look already was before this
+// feature existed (100 for anything that rendered undimmed; 75 for the one spot —
+// the Classic headline background video — that already had a fixed opacity-75 for
+// brightness-matching) so every existing funnel looks pixel-identical until the
+// owner actually touches that field's slider.
+function getMediaOpacity(funnel: PublicFunnel, key: string, defaultPercent: number = 100): number {
+  try {
+    const map = funnel.media_opacity ? JSON.parse(funnel.media_opacity) : {};
+    const val = map?.[key];
+    return (typeof val === 'number' && val >= 0 && val <= 100) ? val / 100 : defaultPercent / 100;
+  } catch {
+    return defaultPercent / 100;
+  }
+}
+
 interface FunnelPageViewProps {
   slug: string;
 }
@@ -206,9 +226,9 @@ function ClassicFunnelLayout({ funnel, form, updateField, handleSubmit, submitti
         {/* Hero */}
         <section className="bg-[#111218] border-2 border-amber-500/20 rounded-lg overflow-hidden shadow-2xl animate-fade-in">
           {funnel.video_url ? (
-            <video src={funnel.video_url} autoPlay muted loop playsInline className="w-full h-72 sm:h-80 object-cover" />
+            <video src={funnel.video_url} autoPlay muted loop playsInline style={{ opacity: getMediaOpacity(funnel, 'video_url') }} className="w-full h-72 sm:h-80 object-cover" />
           ) : funnel.image_url ? (
-            <img src={funnel.image_url} alt={funnel.headline} className="w-full h-72 sm:h-80 object-cover" referrerPolicy="no-referrer" />
+            <img src={funnel.image_url} alt={funnel.headline} style={{ opacity: getMediaOpacity(funnel, 'image_url') }} className="w-full h-72 sm:h-80 object-cover" referrerPolicy="no-referrer" />
           ) : null}
 
           <div className="relative border-t-2 border-amber-500/30 overflow-hidden">
@@ -222,7 +242,8 @@ function ClassicFunnelLayout({ funnel, form, updateField, handleSubmit, submitti
                   playsInline
                   loop={!hasSecondHeadlineVideo}
                   onEnded={handleHeadlineVideoEnded}
-                  className="absolute inset-0 w-full h-full object-cover opacity-75"
+                  style={{ opacity: getMediaOpacity(funnel, 'headline_bg_video_url', 75) }}
+                  className="absolute inset-0 w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-[#0d0d18]/35" />
               </>
@@ -231,6 +252,7 @@ function ClassicFunnelLayout({ funnel, form, updateField, handleSubmit, submitti
                 <img
                   src={funnel.headline_bg_image_url}
                   alt=""
+                  style={{ opacity: getMediaOpacity(funnel, 'headline_bg_image_url') }}
                   className="absolute inset-0 w-full h-full object-cover"
                   referrerPolicy="no-referrer"
                 />
@@ -271,7 +293,8 @@ function ClassicFunnelLayout({ funnel, form, updateField, handleSubmit, submitti
                 playsInline
                 loop={!hasSecondSecondaryVideo}
                 onEnded={handleSecondaryVideoEnded}
-                className="absolute inset-0 w-full h-full object-cover opacity-75"
+                style={{ opacity: getMediaOpacity(funnel, 'secondary_video_url', 75) }}
+                className="absolute inset-0 w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-[#0d0d18]/35" />
             </>
@@ -462,9 +485,9 @@ function ModernFunnelLayout({ funnel, form, updateField, handleSubmit, submittin
         {/* Hero */}
         <section className="relative rounded-3xl overflow-hidden border-2 border-purple-500/40 shadow-[0_0_50px_rgba(168,85,247,0.25)] animate-fade-in">
           {funnel.video_url ? (
-            <video src={funnel.video_url} autoPlay muted loop playsInline className="w-full h-80 sm:h-96 object-cover" />
+            <video src={funnel.video_url} autoPlay muted loop playsInline style={{ opacity: getMediaOpacity(funnel, 'video_url') }} className="w-full h-80 sm:h-96 object-cover" />
           ) : funnel.image_url ? (
-            <img src={funnel.image_url} alt={funnel.headline} className="w-full h-80 sm:h-96 object-cover" referrerPolicy="no-referrer" />
+            <img src={funnel.image_url} alt={funnel.headline} style={{ opacity: getMediaOpacity(funnel, 'image_url') }} className="w-full h-80 sm:h-96 object-cover" referrerPolicy="no-referrer" />
           ) : (
             <div className="w-full h-56 bg-gradient-to-br from-indigo-950 via-purple-950 to-black" />
           )}
@@ -507,7 +530,8 @@ function ModernFunnelLayout({ funnel, form, updateField, handleSubmit, submittin
               muted
               loop
               playsInline
-              className="absolute inset-0 w-full h-full object-cover opacity-75"
+              style={{ opacity: getMediaOpacity(funnel, 'card_video_url', 75) }}
+              className="absolute inset-0 w-full h-full object-cover"
             />
           )}
 
@@ -729,6 +753,7 @@ function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting
               <img
                 src={funnel.image_url}
                 alt=""
+                style={{ opacity: getMediaOpacity(funnel, 'image_url') }}
                 className="absolute inset-0 w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
@@ -769,6 +794,7 @@ function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting
                     playsInline
                     preload="auto"
                     poster={funnel.image_url || undefined}
+                    style={{ opacity: getMediaOpacity(funnel, 'hero_video_url') }}
                     className="w-full aspect-video bg-black"
                   />
                   {heroMuted ? (
@@ -788,9 +814,9 @@ function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting
                   )}
                 </>
               ) : funnel.video_url ? (
-                <video src={funnel.video_url} controls autoPlay muted playsInline preload="auto" className="w-full aspect-video bg-black" />
+                <video src={funnel.video_url} controls autoPlay muted playsInline preload="auto" style={{ opacity: getMediaOpacity(funnel, 'video_url') }} className="w-full aspect-video bg-black" />
               ) : funnel.image_url ? (
-                <img src={funnel.image_url} alt={funnel.headline} className="w-full aspect-video object-cover" referrerPolicy="no-referrer" />
+                <img src={funnel.image_url} alt={funnel.headline} style={{ opacity: getMediaOpacity(funnel, 'image_url') }} className="w-full aspect-video object-cover" referrerPolicy="no-referrer" />
               ) : (
                 <div className="w-full aspect-video flex items-center justify-center text-slate-700">
                   <Clapperboard className="w-12 h-12" />
@@ -819,6 +845,7 @@ function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting
               <img
                 src={funnel.video_form_bg_image_url}
                 alt=""
+                style={{ opacity: getMediaOpacity(funnel, 'video_form_bg_image_url') }}
                 className="absolute inset-0 w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />

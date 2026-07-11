@@ -33,12 +33,63 @@ const EMPTY_FORM = {
   secondary_video_url_2: '',
   hero_video_url: '',
   video_form_bg_image_url: '',
+  media_opacity: {} as Record<string, number>,
   active: true,
   layout: 'classic' as 'classic' | 'modern' | 'video',
 };
 
 function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+// A media URL field paired with its own transparency slider — the slider only shows
+// up once a URL is actually entered, so empty/unused fields don't clutter the form
+// with a control that has nothing to act on yet.
+function MediaField({
+  label, labelColorClass, accentClass, value, onChange, opacityKey, mediaOpacity, onOpacityChange, placeholder, help,
+}: {
+  label: string;
+  labelColorClass: string;
+  accentClass: string;
+  value: string;
+  onChange: (v: string) => void;
+  opacityKey: string;
+  mediaOpacity: Record<string, number>;
+  onOpacityChange: (key: string, value: number) => void;
+  placeholder?: string;
+  help?: string;
+}) {
+  const opacity = mediaOpacity[opacityKey] ?? 100;
+  return (
+    <div className="rounded-lg border border-[#1e2028] bg-[#0c0d12]/60 p-3 space-y-2">
+      <label className={`block text-[10px] font-bold uppercase tracking-wider ${labelColorClass}`}>{label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder || 'https://...'}
+        className="w-full rounded-lg bg-[#08090d] border border-[#1e2028] focus:border-slate-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+      />
+      {help && <p className="text-[9px] text-slate-600 leading-relaxed">{help}</p>}
+      {value.trim() && (
+        <div className="pt-1.5 border-t border-[#1e2028]/80 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Transparency</span>
+            <span className="text-[10px] font-mono text-slate-400">{opacity}% visible</span>
+          </div>
+          <input
+            type="range"
+            min={10}
+            max={100}
+            step={5}
+            value={opacity}
+            onChange={(e) => onOpacityChange(opacityKey, parseInt(e.target.value, 10))}
+            className={`w-full cursor-pointer ${accentClass}`}
+          />
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function FunnelsView() {
@@ -109,6 +160,13 @@ export default function FunnelsView() {
       secondary_video_url_2: funnel.secondary_video_url_2 || '',
       hero_video_url: funnel.hero_video_url || '',
       video_form_bg_image_url: funnel.video_form_bg_image_url || '',
+      media_opacity: (() => {
+        try {
+          return funnel.media_opacity ? JSON.parse(funnel.media_opacity) : {};
+        } catch {
+          return {};
+        }
+      })(),
       active: !!funnel.active,
       layout: funnel.layout || 'classic',
     });
@@ -125,6 +183,10 @@ export default function FunnelsView() {
     }));
   };
 
+  const updateOpacity = (key: string, value: number) => {
+    setForm(prev => ({ ...prev, media_opacity: { ...prev.media_opacity, [key]: value } }));
+  };
+
   const handleSave = async () => {
     if (!form.headline.trim()) return setFormError('Headline is required.');
     const cleanSlug = slugify(form.slug);
@@ -133,7 +195,7 @@ export default function FunnelsView() {
     setSaving(true);
     setFormError(null);
     try {
-      const payload = { ...form, slug: cleanSlug };
+      const payload = { ...form, slug: cleanSlug, media_opacity: JSON.stringify(form.media_opacity || {}) };
       if (editingId) {
         await api.updateFunnel(editingId, payload);
       } else {
@@ -428,7 +490,7 @@ export default function FunnelsView() {
       {showForm && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => !saving && setShowForm(false)}>
           <div
-            className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl border border-border-theme bg-[#111218] shadow-2xl overflow-hidden"
+            className="w-full max-w-5xl max-h-[90vh] flex flex-col rounded-2xl border border-border-theme bg-[#111218] shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-5 border-b border-border-theme shrink-0">
@@ -440,171 +502,91 @@ export default function FunnelsView() {
               </button>
             </div>
 
-            <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
+            <div className="p-6 space-y-7 overflow-y-auto flex-1 min-h-0">
               {formError && (
                 <div className="bg-rose-950/40 border border-rose-500/20 text-rose-300 rounded-lg p-3 text-xs font-mono">
                   {formError}
                 </div>
               )}
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Headline *</label>
-                <input
-                  type="text"
-                  value={form.headline}
-                  onChange={(e) => handleHeadlineChange(e.target.value)}
-                  placeholder="Tell Us What's Wrong — Get a Free Quote"
-                  className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Public Slug *</label>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-slate-500 font-mono">/funnel/</span>
-                  <input
-                    type="text"
-                    value={form.slug}
-                    onChange={(e) => { setSlugTouched(true); setForm(prev => ({ ...prev, slug: e.target.value })); }}
-                    placeholder="get-a-quote"
-                    className="flex-1 rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
-                  />
+              {/* --- Basic Info --- */}
+              <div className="space-y-3">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-border-theme pb-2">Basic Info</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Headline *</label>
+                    <input
+                      type="text"
+                      value={form.headline}
+                      onChange={(e) => handleHeadlineChange(e.target.value)}
+                      placeholder="Tell Us What's Wrong — Get a Free Quote"
+                      className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Public Slug *</label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-500 font-mono shrink-0">/funnel/</span>
+                      <input
+                        type="text"
+                        value={form.slug}
+                        onChange={(e) => { setSlugTouched(true); setForm(prev => ({ ...prev, slug: e.target.value })); }}
+                        placeholder="get-a-quote"
+                        className="flex-1 min-w-0 rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Subheadline</label>
-                <input
-                  type="text"
-                  value={form.subheadline}
-                  onChange={(e) => setForm(prev => ({ ...prev, subheadline: e.target.value }))}
-                  placeholder="Describe the issue or upload a photo — we'll follow up fast."
-                  className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Body Text</label>
-                <textarea
-                  value={form.body}
-                  onChange={(e) => setForm(prev => ({ ...prev, body: e.target.value }))}
-                  rows={3}
-                  placeholder="Longer supporting copy shown on the funnel page..."
-                  className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none resize-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Service Type</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Subheadline</label>
                   <input
                     type="text"
-                    value={form.service_type}
-                    onChange={(e) => setForm(prev => ({ ...prev, service_type: e.target.value }))}
-                    placeholder="General Inquiry"
+                    value={form.subheadline}
+                    onChange={(e) => setForm(prev => ({ ...prev, subheadline: e.target.value }))}
+                    placeholder="Describe the issue or upload a photo — we'll follow up fast."
                     className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Button Text</label>
-                  <input
-                    type="text"
-                    value={form.cta_text}
-                    onChange={(e) => setForm(prev => ({ ...prev, cta_text: e.target.value }))}
-                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Body Text</label>
+                  <textarea
+                    value={form.body}
+                    onChange={(e) => setForm(prev => ({ ...prev, body: e.target.value }))}
+                    rows={3}
+                    placeholder="Longer supporting copy shown on the funnel page..."
+                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none resize-none"
                   />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Service Type</label>
+                    <input
+                      type="text"
+                      value={form.service_type}
+                      onChange={(e) => setForm(prev => ({ ...prev, service_type: e.target.value }))}
+                      placeholder="General Inquiry"
+                      className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Button Text</label>
+                    <input
+                      type="text"
+                      value={form.cta_text}
+                      onChange={(e) => setForm(prev => ({ ...prev, cta_text: e.target.value }))}
+                      className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Hero Image URL</label>
-                <input
-                  type="text"
-                  value={form.image_url}
-                  onChange={(e) => setForm(prev => ({ ...prev, image_url: e.target.value }))}
-                  placeholder="https://..."
-                  className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Hero Video URL (optional)</label>
-                <input
-                  type="text"
-                  value={form.video_url}
-                  onChange={(e) => setForm(prev => ({ ...prev, video_url: e.target.value }))}
-                  placeholder="https://..."
-                  className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
-                />
-              </div>
-
-              {form.layout === 'classic' && (
-                <>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Headline Box Background Image (optional, Classic only)</label>
-                    <input
-                      type="text"
-                      value={form.headline_bg_image_url}
-                      onChange={(e) => setForm(prev => ({ ...prev, headline_bg_image_url: e.target.value }))}
-                      placeholder="https://..."
-                      className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
-                    />
-                    <p className="text-[9px] text-slate-600 mt-1">Sits behind the headline/subheadline/body text, with a dark overlay so text stays readable. Ignored if a background video below is set.</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Headline Box Background Video — Clip 1 (optional, Classic only)</label>
-                    <input
-                      type="text"
-                      value={form.headline_bg_video_url}
-                      onChange={(e) => setForm(prev => ({ ...prev, headline_bg_video_url: e.target.value }))}
-                      placeholder="https://.../fr-1.mp4"
-                      className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
-                    />
-                    <p className="text-[9px] text-slate-600 mt-1">Plays behind the headline text, in place of the background image above. Plays first if a Clip 2 is also set.</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Headline Box Background Video — Clip 2 (optional, Classic only)</label>
-                    <input
-                      type="text"
-                      value={form.headline_bg_video_url_2}
-                      onChange={(e) => setForm(prev => ({ ...prev, headline_bg_video_url_2: e.target.value }))}
-                      placeholder="https://.../fr-2.mp4"
-                      className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
-                    />
-                    <p className="text-[9px] text-slate-600 mt-1">Plays right after Clip 1 finishes, then the pair loops back to Clip 1. Leave blank to just loop Clip 1 alone.</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Quote Form Background Video — Clip 1 (optional, Classic only)</label>
-                    <input
-                      type="text"
-                      value={form.secondary_video_url}
-                      onChange={(e) => setForm(prev => ({ ...prev, secondary_video_url: e.target.value }))}
-                      placeholder="https://..."
-                      className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
-                    />
-                    <p className="text-[9px] text-slate-600 mt-1">Loops behind the name/phone/email/vehicle quote form, with a dark overlay so it stays readable. Plays first if a Clip 2 is also set.</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Quote Form Background Video — Clip 2 (optional, Classic only)</label>
-                    <input
-                      type="text"
-                      value={form.secondary_video_url_2}
-                      onChange={(e) => setForm(prev => ({ ...prev, secondary_video_url_2: e.target.value }))}
-                      placeholder="https://..."
-                      className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
-                    />
-                    <p className="text-[9px] text-slate-600 mt-1">Plays right after Clip 1 finishes, then the pair loops back to Clip 1. Leave blank to just loop Clip 1 alone.</p>
-                  </div>
-                </>
-              )}
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Page Layout</label>
-                <div className="grid grid-cols-3 gap-3">
+              {/* --- Page Layout (moved up so the media section below makes contextual sense) --- */}
+              <div className="space-y-3">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-border-theme pb-2">Page Layout</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <button
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, layout: 'classic' }))}
@@ -650,59 +632,163 @@ export default function FunnelsView() {
                 </div>
               </div>
 
+              {/* --- Hero Media (used across every layout) --- */}
+              <div className="space-y-3">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-border-theme pb-2">Hero Media</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <MediaField
+                    label="Hero Image URL"
+                    labelColorClass="text-slate-400"
+                    accentClass="accent-amber-500"
+                    value={form.image_url}
+                    onChange={(v) => setForm(prev => ({ ...prev, image_url: v }))}
+                    opacityKey="image_url"
+                    mediaOpacity={form.media_opacity}
+                    onOpacityChange={updateOpacity}
+                  />
+                  <MediaField
+                    label="Hero Video URL (optional)"
+                    labelColorClass="text-slate-400"
+                    accentClass="accent-amber-500"
+                    value={form.video_url}
+                    onChange={(v) => setForm(prev => ({ ...prev, video_url: v }))}
+                    opacityKey="video_url"
+                    mediaOpacity={form.media_opacity}
+                    onOpacityChange={updateOpacity}
+                  />
+                </div>
+              </div>
+
+              {/* --- Classic Layout Media --- */}
+              {form.layout === 'classic' && (
+                <div className="space-y-3">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-amber-400 border-b border-amber-500/20 pb-2">Classic Layout Media</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <MediaField
+                      label="Headline Box Background Image"
+                      labelColorClass="text-amber-400"
+                      accentClass="accent-amber-500"
+                      value={form.headline_bg_image_url}
+                      onChange={(v) => setForm(prev => ({ ...prev, headline_bg_image_url: v }))}
+                      opacityKey="headline_bg_image_url"
+                      mediaOpacity={form.media_opacity}
+                      onOpacityChange={updateOpacity}
+                      help="Sits behind the headline/subheadline/body text, with a dark overlay so text stays readable. Ignored if a background video below is set."
+                    />
+                    <MediaField
+                      label="Headline Box Background Video — Clip 1"
+                      labelColorClass="text-amber-400"
+                      accentClass="accent-amber-500"
+                      value={form.headline_bg_video_url}
+                      onChange={(v) => setForm(prev => ({ ...prev, headline_bg_video_url: v }))}
+                      opacityKey="headline_bg_video_url"
+                      mediaOpacity={form.media_opacity}
+                      onOpacityChange={updateOpacity}
+                      placeholder="https://.../fr-1.mp4"
+                      help="Plays behind the headline text, in place of the background image. Plays first if a Clip 2 is also set. This slider also controls Clip 2's brightness, since they share one loop."
+                    />
+                    <MediaField
+                      label="Headline Box Background Video — Clip 2"
+                      labelColorClass="text-amber-400"
+                      accentClass="accent-amber-500"
+                      value={form.headline_bg_video_url_2}
+                      onChange={(v) => setForm(prev => ({ ...prev, headline_bg_video_url_2: v }))}
+                      opacityKey="headline_bg_video_url"
+                      mediaOpacity={form.media_opacity}
+                      onOpacityChange={updateOpacity}
+                      placeholder="https://.../fr-2.mp4"
+                      help="Plays right after Clip 1 finishes, then the pair loops back to Clip 1. Leave blank to just loop Clip 1 alone."
+                    />
+                    <MediaField
+                      label="Quote Form Background Video — Clip 1"
+                      labelColorClass="text-amber-400"
+                      accentClass="accent-amber-500"
+                      value={form.secondary_video_url}
+                      onChange={(v) => setForm(prev => ({ ...prev, secondary_video_url: v }))}
+                      opacityKey="secondary_video_url"
+                      mediaOpacity={form.media_opacity}
+                      onOpacityChange={updateOpacity}
+                      help="Loops behind the name/phone/email/vehicle quote form, with a dark overlay so it stays readable. Plays first if a Clip 2 is also set."
+                    />
+                    <MediaField
+                      label="Quote Form Background Video — Clip 2"
+                      labelColorClass="text-amber-400"
+                      accentClass="accent-amber-500"
+                      value={form.secondary_video_url_2}
+                      onChange={(v) => setForm(prev => ({ ...prev, secondary_video_url_2: v }))}
+                      opacityKey="secondary_video_url"
+                      mediaOpacity={form.media_opacity}
+                      onOpacityChange={updateOpacity}
+                      help="Plays right after Clip 1 finishes, then the pair loops back to Clip 1. Leave blank to just loop Clip 1 alone. Shares its transparency slider with Clip 1 above."
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* --- Modern Layout Media --- */}
               {form.layout === 'modern' && (
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-cyan-400 mb-1">Form Card Background Video URL (optional, Modern only)</label>
-                  <input
-                    type="text"
-                    value={form.card_video_url}
-                    onChange={(e) => setForm(prev => ({ ...prev, card_video_url: e.target.value }))}
-                    placeholder="https://..."
-                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-cyan-400 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
-                  />
-                  <p className="text-[9px] text-slate-600 mt-1">Loops behind the quote form's glass card — use a muted looping clip.</p>
+                <div className="space-y-3">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-cyan-400 border-b border-cyan-500/20 pb-2">Modern Layout Media</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <MediaField
+                      label="Form Card Background Video URL"
+                      labelColorClass="text-cyan-400"
+                      accentClass="accent-cyan-400"
+                      value={form.card_video_url}
+                      onChange={(v) => setForm(prev => ({ ...prev, card_video_url: v }))}
+                      opacityKey="card_video_url"
+                      mediaOpacity={form.media_opacity}
+                      onOpacityChange={updateOpacity}
+                      help="Loops behind the quote form's glass card — use a muted looping clip."
+                    />
+                  </div>
                 </div>
               )}
 
+              {/* --- Video Layout Media --- */}
               {form.layout === 'video' && (
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-rose-400 mb-1">Hero Dialogue Video (Video layout only)</label>
-                  <input
-                    type="text"
-                    value={form.hero_video_url}
-                    onChange={(e) => setForm(prev => ({ ...prev, hero_video_url: e.target.value }))}
-                    placeholder="https://..."
-                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-rose-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
-                  />
-                  <p className="text-[9px] text-slate-600 mt-1">
-                    Shown big, front and center, with real playback controls and full sound — visitors click play, watch/hear the pitch, then the quote form sits right underneath. Browsers won't autoplay audio, so this is click-to-play by design (works better anyway — it's a real watch-then-convert moment instead of background noise).
-                  </p>
+                <div className="space-y-3">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-rose-400 border-b border-rose-500/20 pb-2">Video Layout Media</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <MediaField
+                      label="Hero Dialogue Video"
+                      labelColorClass="text-rose-400"
+                      accentClass="accent-rose-500"
+                      value={form.hero_video_url}
+                      onChange={(v) => setForm(prev => ({ ...prev, hero_video_url: v }))}
+                      opacityKey="hero_video_url"
+                      mediaOpacity={form.media_opacity}
+                      onOpacityChange={updateOpacity}
+                      help="Shown big, front and center, with real playback controls and full sound — visitors click play, watch/hear the pitch, then the quote form sits right underneath. Browsers won't autoplay audio, so this is click-to-play by design."
+                    />
+                    <MediaField
+                      label="Quote Form Background Image"
+                      labelColorClass="text-rose-400"
+                      accentClass="accent-rose-500"
+                      value={form.video_form_bg_image_url}
+                      onChange={(v) => setForm(prev => ({ ...prev, video_form_bg_image_url: v }))}
+                      opacityKey="video_form_bg_image_url"
+                      mediaOpacity={form.media_opacity}
+                      onOpacityChange={updateOpacity}
+                      help="Sits behind the name/phone/email/vehicle quote form, with a dark overlay so it stays readable."
+                    />
+                  </div>
                 </div>
               )}
 
-              {form.layout === 'video' && (
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-rose-400 mb-1">Quote Form Background Image (optional, Video layout only)</label>
+              {/* --- Publish --- */}
+              <div className="space-y-3">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-border-theme pb-2">Publish</h3>
+                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
                   <input
-                    type="text"
-                    value={form.video_form_bg_image_url}
-                    onChange={(e) => setForm(prev => ({ ...prev, video_form_bg_image_url: e.target.value }))}
-                    placeholder="https://..."
-                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-rose-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                    type="checkbox"
+                    checked={form.active}
+                    onChange={(e) => setForm(prev => ({ ...prev, active: e.target.checked }))}
+                    className="w-4 h-4"
                   />
-                  <p className="text-[9px] text-slate-600 mt-1">Sits behind the name/phone/email/vehicle quote form, with a dark overlay so it stays readable.</p>
-                </div>
-              )}
-
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.active}
-                  onChange={(e) => setForm(prev => ({ ...prev, active: e.target.checked }))}
-                  className="w-4 h-4"
-                />
-                <span>Active (visible at the public URL)</span>
-              </label>
+                  <span>Active (visible at the public URL)</span>
+                </label>
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 p-5 border-t border-border-theme shrink-0">

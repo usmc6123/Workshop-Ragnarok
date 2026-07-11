@@ -1041,6 +1041,14 @@ try {
       db.exec(`ALTER TABLE funnels ADD COLUMN video_form_bg_image_url TEXT`);
       console.log('Successfully migrated funnels to include video_form_bg_image_url column.');
     }
+    // JSON map of media field key -> opacity percent (0-100), e.g. {"image_url": 80,
+    // "hero_video_url": 60}. A field missing from the map (or the whole column being
+    // empty) means "100 — fully opaque," so this is fully backward compatible with
+    // every funnel that existed before this feature.
+    if (!funnelsCols.some(c => c.name === 'media_opacity')) {
+      db.exec(`ALTER TABLE funnels ADD COLUMN media_opacity TEXT DEFAULT '{}'`);
+      console.log('Successfully migrated funnels to include media_opacity column.');
+    }
   } catch (err) {
     console.error('Error migrating funnels layout/card_video_url columns:', err);
   }
@@ -4031,7 +4039,7 @@ app.get('/api/funnels', (req, res) => {
 
 app.post('/api/funnels', (req, res) => {
   try {
-    const { slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, hero_video_url, video_form_bg_image_url, service_type, cta_text, active, layout } = req.body;
+    const { slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, hero_video_url, video_form_bg_image_url, media_opacity, service_type, cta_text, active, layout } = req.body;
     if (!slug || !headline) return res.status(400).json({ error: 'slug and headline are required' });
 
     const cleanSlug = String(slug).trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
@@ -4041,14 +4049,17 @@ app.post('/api/funnels', (req, res) => {
     if (existing) return res.status(409).json({ error: `Slug "${cleanSlug}" is already in use` });
 
     const cleanLayout = ['modern', 'video'].includes(layout) ? layout : 'classic';
+    // media_opacity arrives as a JSON string from the admin form already — fall back
+    // to '{}' for older clients/API callers that don't send it at all.
+    const cleanMediaOpacity = typeof media_opacity === 'string' ? media_opacity : JSON.stringify(media_opacity || {});
 
     const stmt = db.prepare(`
-      INSERT INTO funnels (slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, hero_video_url, video_form_bg_image_url, service_type, cta_text, active, layout, user_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO funnels (slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, hero_video_url, video_form_bg_image_url, media_opacity, service_type, cta_text, active, layout, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
       cleanSlug, headline, subheadline || null, body || null, image_url || null, video_url || null, card_video_url || null,
-      headline_bg_image_url || null, headline_bg_video_url || null, headline_bg_video_url_2 || null, secondary_video_url || null, secondary_video_url_2 || null, hero_video_url || null, video_form_bg_image_url || null,
+      headline_bg_image_url || null, headline_bg_video_url || null, headline_bg_video_url_2 || null, secondary_video_url || null, secondary_video_url_2 || null, hero_video_url || null, video_form_bg_image_url || null, cleanMediaOpacity,
       service_type || null, cta_text || 'Get My Free Quote', active === false ? 0 : 1, cleanLayout, req.user.id
     );
     const inserted = db.prepare('SELECT * FROM funnels WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
@@ -4062,7 +4073,7 @@ app.post('/api/funnels', (req, res) => {
 app.put('/api/funnels/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const { slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, hero_video_url, video_form_bg_image_url, service_type, cta_text, active, layout } = req.body;
+    const { slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, hero_video_url, video_form_bg_image_url, media_opacity, service_type, cta_text, active, layout } = req.body;
     if (!slug || !headline) return res.status(400).json({ error: 'slug and headline are required' });
 
     const cleanSlug = String(slug).trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
@@ -4072,17 +4083,18 @@ app.put('/api/funnels/:id', (req, res) => {
     if (conflict) return res.status(409).json({ error: `Slug "${cleanSlug}" is already in use` });
 
     const cleanLayout = ['modern', 'video'].includes(layout) ? layout : 'classic';
+    const cleanMediaOpacity = typeof media_opacity === 'string' ? media_opacity : JSON.stringify(media_opacity || {});
 
     const stmt = db.prepare(`
       UPDATE funnels
       SET slug = ?, headline = ?, subheadline = ?, body = ?, image_url = ?, video_url = ?, card_video_url = ?,
-          headline_bg_image_url = ?, headline_bg_video_url = ?, headline_bg_video_url_2 = ?, secondary_video_url = ?, secondary_video_url_2 = ?, hero_video_url = ?, video_form_bg_image_url = ?,
+          headline_bg_image_url = ?, headline_bg_video_url = ?, headline_bg_video_url_2 = ?, secondary_video_url = ?, secondary_video_url_2 = ?, hero_video_url = ?, video_form_bg_image_url = ?, media_opacity = ?,
           service_type = ?, cta_text = ?, active = ?, layout = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
     `);
     const info = stmt.run(
       cleanSlug, headline, subheadline || null, body || null, image_url || null, video_url || null, card_video_url || null,
-      headline_bg_image_url || null, headline_bg_video_url || null, headline_bg_video_url_2 || null, secondary_video_url || null, secondary_video_url_2 || null, hero_video_url || null, video_form_bg_image_url || null,
+      headline_bg_image_url || null, headline_bg_video_url || null, headline_bg_video_url_2 || null, secondary_video_url || null, secondary_video_url_2 || null, hero_video_url || null, video_form_bg_image_url || null, cleanMediaOpacity,
       service_type || null, cta_text || 'Get My Free Quote', active === false ? 0 : 1, cleanLayout, id, req.user.id
     );
     if (info.changes === 0) return res.status(404).json({ error: 'Funnel not found' });
