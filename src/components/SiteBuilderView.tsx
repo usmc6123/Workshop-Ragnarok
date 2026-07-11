@@ -17,7 +17,7 @@ import {
   ArrowLeft, Plus, Trash2, Loader2,
   Save, X, Mailbox, ExternalLink,
   Palette, AlignLeft, AlignCenter, AlignRight, Paintbrush, Sparkles, LayoutGrid, LayoutTemplate,
-  Undo2, Redo2, Monitor, Tablet, Smartphone, Copy, Settings2, EyeOff,
+  Undo2, Redo2, Monitor, Tablet, Smartphone, Copy, Settings2, EyeOff, Upload, Download, FileJson, RefreshCw,
 } from 'lucide-react';
 
 const DEFAULT_ACCENT = '#f59e0b';
@@ -78,7 +78,7 @@ function IconPickerSelect({ value, onChange, label }: { value: string | undefine
 }
 
 function MediaUrlField({
-  label, value, onChange, opacityKey, mediaOpacity, onOpacityChange, placeholder,
+  label, value, onChange, opacityKey, mediaOpacity, onOpacityChange, placeholder, allowUpload = true, showOpacity = true,
 }: {
   label: string;
   value: string;
@@ -87,19 +87,49 @@ function MediaUrlField({
   mediaOpacity: Record<string, number>;
   onOpacityChange: (key: string, value: number) => void;
   placeholder?: string;
+  allowUpload?: boolean;
+  showOpacity?: boolean;
 }) {
   const opacity = mediaOpacity[opacityKey] ?? 100;
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const MAX_UPLOAD_BYTES = 2 * 1024 * 1024; // 2MB — images are stored inline as base64 in the block's content JSON, so this keeps rows reasonable
+
+  const handleFile = (file: File | undefined) => {
+    if (!file) return;
+    setUploadError(null);
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setUploadError(`Image is too large (${(file.size / 1024 / 1024).toFixed(1)}MB) — please use one under 2MB, or paste a hosted image URL instead.`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => { if (typeof reader.result === 'string') onChange(reader.result); };
+    reader.onerror = () => setUploadError('Failed to read that file.');
+    reader.readAsDataURL(file);
+  };
+
   return (
-    <div className="rounded-lg border border-[#1e2028] bg-[#0c0d12]/60 p-3 space-y-2">
-      <FieldLabel>{label}</FieldLabel>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder || 'https://...'}
-        className="w-full rounded-lg bg-[#08090d] border border-[#1e2028] focus:border-slate-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
-      />
-      {value.trim() && (
+    <div className={label ? 'rounded-lg border border-[#1e2028] bg-[#0c0d12]/60 p-3 space-y-2' : 'space-y-1.5'}>
+      {label && <FieldLabel>{label}</FieldLabel>}
+      <div className="flex gap-1.5">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder || 'https://...'}
+          className="flex-1 min-w-0 rounded-lg bg-[#08090d] border border-[#1e2028] focus:border-slate-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+        />
+        {allowUpload && (
+          <>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
+            <button type="button" onClick={() => fileInputRef.current?.click()} title="Upload an image from your device" className="shrink-0 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider">
+              <Upload className="w-3 h-3" /> Upload
+            </button>
+          </>
+        )}
+      </div>
+      {uploadError && <p className="text-[10px] text-rose-400">{uploadError}</p>}
+      {showOpacity && value.trim() && (
         <div className="pt-1.5 border-t border-[#1e2028]/80 space-y-1">
           <div className="flex items-center justify-between">
             <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Transparency</span>
@@ -375,7 +405,7 @@ function BlockContentEditor({
         <div className="space-y-3">
           <p className="text-[10px] text-slate-500 -mt-1">Headline, subheadline, and button text are edited directly on the canvas — click the text to type.</p>
           <MediaUrlField label="Background Image URL" value={c.image_url || ''} onChange={(v) => set({ image_url: v })} opacityKey="image_url" mediaOpacity={mediaOpacity} onOpacityChange={onOpacityChange} />
-          <MediaUrlField label="Background Video URL" value={c.video_url || ''} onChange={(v) => set({ video_url: v })} opacityKey="video_url" mediaOpacity={mediaOpacity} onOpacityChange={onOpacityChange} />
+          <MediaUrlField label="Background Video URL" value={c.video_url || ''} onChange={(v) => set({ video_url: v })} opacityKey="video_url" mediaOpacity={mediaOpacity} onOpacityChange={onOpacityChange} allowUpload={false} />
           <div><FieldLabel>Button Link</FieldLabel><TextInput value={c.cta_link || ''} onChange={(v) => set({ cta_link: v })} placeholder="https:// or #contact" /></div>
           <div className="grid grid-cols-2 gap-3">
             <IconPickerSelect label="Button Icon" value={c.cta_icon} onChange={(v) => set({ cta_icon: v })} />
@@ -418,7 +448,7 @@ function BlockContentEditor({
                 <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Image {idx + 1}</span>
                 <button onClick={() => removeImage(idx)} className="text-rose-400 hover:text-rose-300 cursor-pointer"><Trash2 className="w-3 h-3" /></button>
               </div>
-              <TextInput value={img.url} onChange={(v) => updateImage(idx, { url: v })} placeholder="https://..." />
+              <MediaUrlField label="" value={img.url} onChange={(v) => updateImage(idx, { url: v })} opacityKey={`__unused_${idx}`} mediaOpacity={{}} onOpacityChange={() => {}} showOpacity={false} placeholder="https://..." />
               <TextInput value={img.caption || ''} onChange={(v) => updateImage(idx, { caption: v })} placeholder="Caption (optional)" />
             </div>
           ))}
@@ -432,7 +462,7 @@ function BlockContentEditor({
       const c: VideoBlockContent = content;
       return (
         <div className="space-y-3">
-          <MediaUrlField label="Video URL (YouTube, Vimeo, or direct file)" value={c.video_url || ''} onChange={(v) => set({ video_url: v })} opacityKey="video_url" mediaOpacity={mediaOpacity} onOpacityChange={onOpacityChange} />
+          <MediaUrlField label="Video URL (YouTube, Vimeo, or direct file)" value={c.video_url || ''} onChange={(v) => set({ video_url: v })} opacityKey="video_url" mediaOpacity={mediaOpacity} onOpacityChange={onOpacityChange} allowUpload={false} />
           <div>
             <FieldLabel>Video Fit</FieldLabel>
             <PresetToggle options={[{ value: 'cover', label: 'Cover' }, { value: 'contain', label: 'Contain' }]} value={c.object_fit || 'cover'} onChange={(v) => set({ object_fit: v })} />
@@ -719,6 +749,17 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     }
   };
 
+  // Manual "Refresh" button — re-pulls the canonical block list from the
+  // server. Useful after edits made elsewhere (another tab, an undo/redo that
+  // didn't fully settle, etc.) since everything else here autosaves silently
+  // with no visible confirmation that the server actually has the latest copy.
+  const handleRefreshBlocks = async () => {
+    setSelectedId(null);
+    setInspectorBlock(null);
+    setContextMenu(null);
+    await loadBlocks();
+  };
+
   const loadMessages = async () => {
     setMessagesLoading(true);
     try {
@@ -916,6 +957,66 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     }
   };
 
+  // Export/import — a plain JSON snapshot of this page's blocks (type, content,
+  // opacity, style/position), portable between sites or usable as a manual
+  // backup. Deliberately not a ZIP: no new dependency is allowed here since
+  // package-lock.json is a protected/mirrored file, and JSON alone covers the
+  // real need (moving a page's layout+content around) without pulling in a
+  // hand-rolled archive format for no added benefit.
+  const importFileRef = useRef<HTMLInputElement>(null);
+
+  const handleExportSite = () => {
+    const payload = {
+      exported_from: 'Workshop Ragnarok Sites',
+      site_name: site.name,
+      exported_at: new Date().toISOString(),
+      blocks: blocks.map(b => ({
+        block_type: b.block_type,
+        content: parseJson(b.content, {}),
+        media_opacity: parseJson(b.media_opacity, {}),
+        style: parseJson(b.style, {}),
+      })),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${site.subdomain}-site-export.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      const importedBlocks: { block_type: SiteBlockType; content: any; media_opacity: any; style: any }[] = payload.blocks || [];
+      if (importedBlocks.length === 0) {
+        alert('That file has no blocks to import.');
+        return;
+      }
+      if (!confirm(`Import ${importedBlocks.length} block(s) from "${payload.site_name || file.name}"? They'll be added after your existing content.`)) return;
+      pushHistory();
+      const rowOffset = nextAvailableRow(currentPositions());
+      for (const b of importedBlocks) {
+        const pos = positionFromStyle(b.style || {}, 0);
+        const created = await api.createSiteBlock(site.id, {
+          block_type: b.block_type,
+          content: b.content || {},
+          media_opacity: b.media_opacity || {},
+          style: { ...(b.style || {}), grid_row: pos.grid_row + rowOffset },
+        });
+        setBlocks(prev => [...prev, created]);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('That file could not be imported — make sure it\'s a JSON export from this Sites builder.');
+    } finally {
+      if (importFileRef.current) importFileRef.current.value = '';
+    }
+  };
+
   const previewUrl = `${window.location.origin}/site/${site.subdomain}`;
 
   const DEVICE_OPTIONS: { value: DeviceBreakpoint; icon: React.ElementType; label: string }[] = [
@@ -968,6 +1069,15 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
               })}
             </div>
             <button
+              onClick={handleRefreshBlocks}
+              disabled={loading}
+              title="Reload this page's blocks from the server — discards any unsaved local edits"
+              className="px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+            <button
               onClick={handleUndo}
               disabled={history.length === 0 || historyBusy}
               title="Undo (Ctrl+Z)"
@@ -984,6 +1094,15 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
             >
               <Redo2 className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Redo</span>
+            </button>
+            <button onClick={handleExportSite} disabled={blocks.length === 0} title="Export this page's blocks as a JSON file" className="px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed">
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Export</span>
+            </button>
+            <input ref={importFileRef} type="file" accept="application/json" className="hidden" onChange={(e) => handleImportFile(e.target.files?.[0])} />
+            <button onClick={() => importFileRef.current?.click()} title="Import blocks from a JSON export" className="px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700">
+              <FileJson className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Import</span>
             </button>
           </div>
         )}

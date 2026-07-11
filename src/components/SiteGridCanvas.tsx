@@ -10,6 +10,12 @@ import { Copy, Trash2, Settings2, Move } from 'lucide-react';
 
 type HandleDir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
+// Tablet still renders the real 12-column grid (only phones collapse to a
+// single stacked column, matching the 640px breakpoint SitePageView uses) —
+// it just previews at a narrower canvas width so multi-column rows can be
+// checked for cramping before they ever hit a real tablet.
+const MAX_WIDTH_PX: Record<DeviceBreakpoint, number> = { desktop: 1152, tablet: 768, mobile: 375 };
+
 const HANDLE_CURSOR: Record<HandleDir, string> = {
   n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize',
   ne: 'nesw-resize', sw: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize',
@@ -149,14 +155,14 @@ export default function SiteGridCanvas({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono px-1">
-        <span>{isMobilePreview ? 'Mobile preview — stacked order, matches the live site' : 'Page width preview — matches the live site\'s max width'}</span>
+        <span>{isMobilePreview ? 'Mobile preview — stacked order, matches the live site' : device === 'tablet' ? 'Tablet-width preview — grid layout still applies' : 'Page width preview — matches the live site\'s max width'}</span>
         <span>{Math.round(canvasWidth)}px</span>
       </div>
       <div
         ref={canvasRef}
         onPointerDown={() => onSelect(null)}
         className="relative mx-auto rounded-2xl border-2 border-dashed border-[#2a2d3a] bg-[#0a0b0f] overflow-hidden transition-all duration-300"
-        style={{ maxWidth: isMobilePreview ? 375 : 1152, minHeight: isMobilePreview ? undefined : totalRows * ROW_UNIT_PX }}
+        style={{ maxWidth: MAX_WIDTH_PX[device], minHeight: isMobilePreview ? undefined : totalRows * ROW_UNIT_PX }}
       >
         {!isMobilePreview && (
           <div className="absolute inset-0 pointer-events-none flex">

@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import { Site, ThemeConfig } from '../types';
 import {
   Globe, Plus, Pencil, Trash2, Copy, ExternalLink, Loader2, X,
-  RefreshCw, Layers, Mail, Moon, Sun, CheckCircle2, Palette, Type
+  RefreshCw, Layers, Mail, Moon, Sun, CheckCircle2, Palette, Type, Search, Image as ImageIcon,
 } from 'lucide-react';
 import SiteBuilderView from './SiteBuilderView';
 import { SITE_FONT_OPTIONS, ensureGoogleFontsLoaded } from '../constants/siteFonts';
@@ -24,7 +24,11 @@ const EMPTY_FORM = {
   theme: 'dark' as 'dark' | 'light',
   active: true,
   accent_color: DEFAULT_ACCENT,
+  secondary_color: '',
   font_family: SITE_FONT_OPTIONS[0].value,
+  heading_font: '',
+  meta_description: '',
+  favicon_url: '',
 };
 
 function parseThemeConfig(raw: string | null | undefined): ThemeConfig {
@@ -88,7 +92,11 @@ export default function SitesView() {
       theme: site.theme || 'dark',
       active: !!site.active,
       accent_color: themeConfig.accent_color || DEFAULT_ACCENT,
+      secondary_color: themeConfig.secondary_color || '',
       font_family: themeConfig.font_family || SITE_FONT_OPTIONS[0].value,
+      heading_font: themeConfig.heading_font || '',
+      meta_description: site.meta_description || '',
+      favicon_url: site.favicon_url || '',
     });
     setSubdomainTouched(true);
     setFormError(null);
@@ -112,11 +120,13 @@ export default function SitesView() {
     setSaving(true);
     setFormError(null);
     try {
-      const { accent_color, font_family, ...rest } = form;
+      const { accent_color, secondary_color, font_family, heading_font, meta_description, favicon_url, ...rest } = form;
       const payload = {
         ...rest,
         subdomain: cleanSub,
-        theme_config: { accent_color, font_family } as ThemeConfig,
+        theme_config: { accent_color, secondary_color: secondary_color || undefined, font_family, heading_font: heading_font || undefined } as ThemeConfig,
+        meta_description: meta_description || null,
+        favicon_url: favicon_url || null,
       };
       if (editingId) {
         await api.updateSite(editingId, payload);
@@ -448,7 +458,74 @@ export default function SitesView() {
               </div>
               <p className="text-[10px] text-slate-500 -mt-2">The accent color drives buttons and highlights across every block; the font applies site-wide and can be overridden per block.</p>
 
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    <Palette className="w-3 h-3" /> Secondary Color
+                  </label>
+                  <div className="flex items-center gap-2 rounded-lg bg-[#0c0d12] border border-[#1e2028] px-2 py-1.5">
+                    <input
+                      type="color"
+                      value={form.secondary_color || '#334155'}
+                      onChange={(e) => setForm(prev => ({ ...prev, secondary_color: e.target.value }))}
+                      className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0 shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={form.secondary_color}
+                      onChange={(e) => setForm(prev => ({ ...prev, secondary_color: e.target.value }))}
+                      placeholder="Optional"
+                      className="flex-1 min-w-0 bg-transparent text-xs text-white font-mono placeholder-slate-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    <Type className="w-3 h-3" /> Heading Font
+                  </label>
+                  <select
+                    value={form.heading_font}
+                    onChange={(e) => setForm(prev => ({ ...prev, heading_font: e.target.value }))}
+                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-2 py-2 text-xs text-white focus:outline-none h-[38px]"
+                    style={{ fontFamily: form.heading_font || undefined }}
+                  >
+                    <option value="">Same as body font</option>
+                    {SITE_FONT_OPTIONS.map(f => (
+                      <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-border-theme space-y-3">
+                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <Search className="w-3 h-3" /> SEO & Browser
+                </span>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Meta Description</label>
+                  <textarea
+                    value={form.meta_description}
+                    onChange={(e) => setForm(prev => ({ ...prev, meta_description: e.target.value }))}
+                    placeholder="A short summary shown in search results and link previews"
+                    rows={2}
+                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none resize-y"
+                  />
+                </div>
+                <div>
+                  <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    <ImageIcon className="w-3 h-3" /> Favicon URL
+                  </label>
+                  <input
+                    type="text"
+                    value={form.favicon_url}
+                    onChange={(e) => setForm(prev => ({ ...prev, favicon_url: e.target.value }))}
+                    placeholder="https://... (.ico, .png, or .svg)"
+                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                  />
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer pt-1">
                 <input
                   type="checkbox"
                   checked={form.active}
