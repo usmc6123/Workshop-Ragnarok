@@ -6,8 +6,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DatabaseStats, ShopSettings } from '../types';
 import { api, getApiBase, setApiBase } from '../lib/api';
-import { 
-  Settings, Server, Sun, Database, RefreshCw, AlertTriangle, Info, ShieldCheck, Cpu, ChevronDown, Store
+import {
+  Settings, Server, Sun, Database, RefreshCw, AlertTriangle, Info, ShieldCheck, Cpu, ChevronDown, Store,
+  Users, Car, ClipboardList, Clock, Timer, Gauge, Package, CheckCircle2
 } from 'lucide-react';
 
 interface SettingsViewProps {
@@ -19,6 +20,9 @@ interface SettingsViewProps {
 export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddress }: SettingsViewProps) {
   const [stats, setStats] = useState<DatabaseStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
+  const [diagnosticsNow, setDiagnosticsNow] = useState(() => Date.now());
+  const diagnosticsMountedAt = useRef(Date.now());
   const [addressInput, setAddressInput] = useState(getApiBase());
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
   const [testErrorMessage, setTestErrorMessage] = useState('');
@@ -68,6 +72,13 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [dropdownRef]);
+
+  // Live tick for the diagnostics panel — drives the "last synced" relative
+  // timestamp and the session uptime clock without needing another server call.
+  useEffect(() => {
+    const interval = setInterval(() => setDiagnosticsNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const loadShopSettings = async () => {
     try {
@@ -136,11 +147,31 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
     try {
       const data = await api.getStats();
       setStats(data);
+      setLastFetchedAt(new Date());
     } catch (err) {
       console.error('Failed to load database stats:', err);
     } finally {
       setStatsLoading(false);
     }
+  };
+
+  const formatRelativeTime = (date: Date | null, nowMs: number): string => {
+    if (!date) return '—';
+    const diffSec = Math.max(0, Math.floor((nowMs - date.getTime()) / 1000));
+    if (diffSec < 2) return 'just now';
+    if (diffSec < 60) return `${diffSec}s ago`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    return `${diffHr}h ago`;
+  };
+
+  const formatUptime = (ms: number): string => {
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600).toString().padStart(2, '0');
+    const m = Math.floor((totalSec % 3600) / 60).toString().padStart(2, '0');
+    const s = (totalSec % 60).toString().padStart(2, '0');
+    return `${h}:${m}:${s}`;
   };
 
   const handleTestAndSaveConnection = async () => {
@@ -570,11 +601,15 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                 <Database className="w-4 h-4 text-primary-theme" />
                 Database Diagnostics
+                <span className="relative flex h-2 w-2 ml-1">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                </span>
               </h3>
               <button
                 onClick={fetchStats}
                 disabled={statsLoading}
-                className="p-1 text-slate-500 hover:text-white rounded transition"
+                className="p-1 text-slate-500 hover:text-white rounded transition cursor-pointer"
                 title="Refresh stats"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${statsLoading ? 'animate-spin text-primary-theme' : ''}`} />
@@ -582,28 +617,52 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
             </div>
 
             {statsLoading && !stats ? (
-              <div className="py-8 text-center text-slate-500 text-xs">Querying database sectors...</div>
+              <div className="py-8 text-center text-slate-500 text-xs font-mono">Querying database sectors...</div>
             ) : stats ? (
-              <div className="space-y-3.5">
-                <div className="bg-bg-theme border border-border-theme p-3 rounded-lg">
-                  <span className="text-[10px] font-mono text-slate-500 uppercase block">Car Service Manuals</span>
-                  <span className="text-base text-slate-200 font-bold block mt-0.5 font-mono">
-                    {stats.totalManuals?.toLocaleString()}
-                  </span>
+              <>
+                {/* System status line */}
+                {(() => {
+                  const hasAlerts = (stats.lowStockCount ?? 0) > 0;
+                  return (
+                    <div className={`flex items-center justify-between rounded-lg px-3 py-2 border ${hasAlerts ? 'bg-amber-950/20 border-amber-600/30' : 'bg-emerald-950/20 border-emerald-600/30'}`}>
+                      <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${hasAlerts ? 'text-amber-400' : 'text-emerald-400'}`}>
+                        {hasAlerts ? <AlertTriangle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                        {hasAlerts ? `${stats.lowStockCount} Inventory Alert${stats.lowStockCount === 1 ? '' : 's'}` : 'All Systems Nominal'}
+                      </span>
+                      <span className="text-[9px] font-mono text-slate-500">
+                        Synced {formatRelativeTime(lastFetchedAt, diagnosticsNow)}
+                      </span>
+                    </div>
+                  );
+                })()}
+
+                {/* Metric grid */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  {[
+                    { label: 'Service Manuals', value: stats.totalManuals?.toLocaleString() ?? '—', icon: Database, warn: false },
+                    { label: 'Customers On File', value: stats.totalCustomers?.toLocaleString() ?? '—', icon: Users, warn: false },
+                    { label: 'Vehicles Tracked', value: stats.totalVehicles?.toLocaleString() ?? '—', icon: Car, warn: false },
+                    { label: 'Active Job Tickets', value: stats.activeJobs?.toLocaleString() ?? '—', icon: ClipboardList, warn: false },
+                    { label: 'Jobs In Queue', value: stats.queueCount?.toLocaleString() ?? '—', icon: Clock, warn: false },
+                    { label: 'Pending Labor Hrs', value: `${(stats.totalPendingHours ?? 0).toFixed(1)}h`, icon: Timer, warn: false },
+                    { label: 'Avg Repair Time', value: `${(stats.avgRepairHours ?? 0).toFixed(1)}h`, icon: Gauge, warn: false },
+                    { label: 'Low Stock Alerts', value: (stats.lowStockCount ?? 0).toLocaleString(), icon: Package, warn: (stats.lowStockCount ?? 0) > 0 },
+                  ].map((tile, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-2.5 rounded-lg border ${tile.warn ? 'bg-amber-950/20 border-amber-600/30' : 'bg-bg-theme border-border-theme'}`}
+                    >
+                      <span className={`flex items-center gap-1 text-[9px] font-mono uppercase tracking-wide ${tile.warn ? 'text-amber-500/80' : 'text-slate-500'}`}>
+                        <tile.icon className={`w-3 h-3 shrink-0 ${tile.warn ? 'text-amber-400' : 'text-primary-theme'}`} />
+                        <span className="truncate">{tile.label}</span>
+                      </span>
+                      <span className={`text-base font-bold block mt-0.5 font-mono ${tile.warn ? 'text-amber-400' : 'text-slate-200'}`}>
+                        {tile.value}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-                <div className="bg-bg-theme border border-border-theme p-3 rounded-lg">
-                  <span className="text-[10px] font-mono text-slate-500 uppercase block">Stable Vehicles</span>
-                  <span className="text-base text-slate-200 font-bold block mt-0.5 font-mono">
-                    {stats.totalGarageVehicles?.toLocaleString()}
-                  </span>
-                </div>
-                <div className="bg-bg-theme border border-border-theme p-3 rounded-lg">
-                  <span className="text-[10px] font-mono text-slate-500 uppercase block">Active Job Tickets</span>
-                  <span className="text-base text-slate-200 font-bold block mt-0.5 font-mono">
-                    {stats.totalJobs?.toLocaleString()}
-                  </span>
-                </div>
-              </div>
+              </>
             ) : (
               <div className="py-6 text-center text-slate-500 text-xs font-sans">
                 Could not read server metrics. Verify LAN Host address.
@@ -612,11 +671,19 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
 
             <div className="text-slate-400 text-xs leading-relaxed bg-bg-theme/50 p-4 border border-border-theme rounded-lg flex items-start gap-2 pt-3">
               <Cpu className="w-4 h-4 text-primary-theme shrink-0 mt-0.5" />
-              <div>
+              <div className="w-full">
                 <span className="text-[9px] font-mono uppercase text-slate-500 block font-black">Homelab Environment</span>
                 <p className="text-[11px] mt-0.5">
                   Workshop operates as a fully local self-hosted instance using an integrated better-sqlite3 engine and static data routing.
                 </p>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2.5 pt-2.5 border-t border-border-theme/60 font-mono text-[10px]">
+                  <span className="text-slate-500">Engine</span>
+                  <span className="text-slate-300 text-right">better-sqlite3</span>
+                  <span className="text-slate-500">Routing</span>
+                  <span className="text-slate-300 text-right">Static / local</span>
+                  <span className="text-slate-500">Session Uptime</span>
+                  <span className="text-primary-theme text-right">{formatUptime(diagnosticsNow - diagnosticsMountedAt.current)}</span>
+                </div>
               </div>
             </div>
           </div>
