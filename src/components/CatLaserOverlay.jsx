@@ -90,18 +90,13 @@ export default function CatLaserOverlay({ heroRef }) {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
 
   // Kill-streak punch effect for the VAPORIZED counter (CoD Zombies style):
-  // the number scale-punches and a "+1" pops up and floats off on every kill.
+  // the number itself scale-punches and flashes color on every kill — no
+  // separate popup, no boxed panel, just the number reacting to a kill.
   const [scorePulse, setScorePulse] = useState(0);
-  const [popups, setPopups] = useState([]);
   const prevScoreRef = useRef(0);
   useEffect(() => {
     if (score > prevScoreRef.current) {
       setScorePulse((p) => p + 1);
-      const id = `${Date.now()}-${Math.random()}`;
-      setPopups((prev) => [...prev, id]);
-      setTimeout(() => {
-        setPopups((prev) => prev.filter((p) => p !== id));
-      }, 750);
     }
     prevScoreRef.current = score;
   }, [score]);
