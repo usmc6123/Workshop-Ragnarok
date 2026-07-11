@@ -5117,6 +5117,57 @@ async function initServer() {
         }
       }
     }));
+    // Serve funnel pages with per-funnel Open Graph / Twitter Card meta tags injected
+    // into the static index.html, so links shared on social media (Facebook, X,
+    // iMessage, Slack, etc.) unfurl with the funnel's own headline/image instead of
+    // the generic site title. Social crawlers don't execute JS, so this has to be
+    // done server-side at request time rather than left to the React app.
+    app.get('/funnel/:slug', (req, res, next) => {
+      try {
+        const { slug } = req.params;
+        const funnel = db.prepare('SELECT * FROM funnels WHERE slug = ? AND active = 1').get(slug);
+        const indexPath = path.join(distPath, 'index.html');
+        let html = fs.readFileSync(indexPath, 'utf-8');
+
+        if (funnel) {
+          const escapeHtml = (str) => String(str || '')
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+          const pageUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+          const title = escapeHtml(funnel.headline);
+          const description = escapeHtml(
+            funnel.subheadline || funnel.body || 'Get a free quote from Workshop: Ragnarök.'
+          );
+
+          let image = funnel.image_url || '';
+          if (image && !/^https?:\/\//i.test(image)) {
+            image = `${req.protocol}://${req.get('host')}${image.startsWith('/') ? '' : '/'}${image}`;
+          }
+          const safeImage = escapeHtml(image);
+          const safeUrl = escapeHtml(pageUrl);
+
+          const ogTags = [
+            '<meta property="og:type" content="website" />',
+            `<meta property="og:title" content="${title}" />`,
+            `<meta property="og:description" content="${description}" />`,
+            `<meta property="og:url" content="${safeUrl}" />`,
+            image ? `<meta property="og:image" content="${safeImage}" />` : '',
+            `<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}" />`,
+            `<meta name="twitter:title" content="${title}" />`,
+            `<meta name="twitter:description" content="${description}" />`,
+            image ? `<meta name="twitter:image" content="${safeImage}" />` : '',
+          ].filter(Boolean).join('\n    ');
+
+          html = html.replace(/<title>.*?<\/title>/i, `<title>${title}</title>\n    ${ogTags}`);
+        }
+
+        res.send(html);
+      } catch (err) {
+        console.error('Error injecting funnel OG tags:', err);
+        next();
+      }
+    });
+
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api/')) {
         return next();
