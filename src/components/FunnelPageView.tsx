@@ -410,11 +410,11 @@ function ModernFunnelLayout({ funnel, form, updateField, handleSubmit, submittin
               muted
               loop
               playsInline
-              className="absolute inset-0 w-full h-full object-cover opacity-25 mix-blend-screen"
+              className="absolute inset-0 w-full h-full object-cover opacity-75"
             />
           )}
 
-          <div className="relative z-10 bg-[#0d0d18]/75 backdrop-blur p-6 sm:p-8">
+          <div className={`relative z-10 p-6 sm:p-8 ${funnel.card_video_url ? 'bg-[#0d0d18]/35' : 'bg-[#0d0d18]/90 backdrop-blur'}`}>
           {submitted ? (
             <div className="flex flex-col items-center text-center gap-3 py-8">
               <div className="p-3.5 bg-gradient-to-br from-cyan-400 to-purple-500 rounded-full shadow-[0_0_20px_rgba(34,211,238,0.5)] text-black">
