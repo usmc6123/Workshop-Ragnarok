@@ -25,6 +25,7 @@ import PaymentsView from './components/PaymentsView';
 import CustomerPortalView from './components/CustomerPortalView';
 import FunnelPageView from './components/FunnelPageView';
 import FunnelsView from './components/FunnelsView';
+import YoutubeTrimmerView from './components/YoutubeTrimmerView';
 import { LOGO_URL, BACKGROUND_URL } from './constants/branding';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminPage from './pages/AdminPage';
@@ -36,7 +37,7 @@ import {
   Wifi, HelpCircle, CheckSquare, Settings, Car, ClipboardList, LayoutDashboard, Menu
 } from 'lucide-react';
 
-type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email' | 'texts' | 'automations' | 'payments' | 'funnels';
+type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email' | 'texts' | 'automations' | 'payments' | 'funnels' | 'youtube-trimmer';
 
 export default function App() {
   console.log('APP RENDERING');
@@ -449,6 +450,10 @@ export default function App() {
 
                 {view === 'funnels' && (
                   <FunnelsView />
+                )}
+
+                {view === 'youtube-trimmer' && (
+                  <YoutubeTrimmerView />
                 )}
 
                 {view === 'admin' && (
