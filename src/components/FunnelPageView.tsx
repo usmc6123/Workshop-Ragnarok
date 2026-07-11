@@ -158,23 +158,53 @@ function ClassicFunnelLayout({ funnel, form, updateField, handleSubmit, submitti
             <img src={funnel.image_url} alt={funnel.headline} className="w-full h-72 sm:h-80 object-cover" referrerPolicy="no-referrer" />
           ) : null}
 
-          <div className="p-6 space-y-3 font-mono border-t-2 border-amber-500/30">
-            {funnel.service_type && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-black uppercase tracking-widest border-2 bg-amber-500 text-black border-amber-400">
-                {funnel.service_type}
-              </span>
+          <div className="relative border-t-2 border-amber-500/30 overflow-hidden">
+            {funnel.headline_bg_image_url && (
+              <>
+                <img
+                  src={funnel.headline_bg_image_url}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 bg-black/70" />
+              </>
             )}
-            <h2 className="text-3xl sm:text-4xl font-black text-white leading-none uppercase tracking-tight">{funnel.headline}</h2>
-            {funnel.subheadline && (
-              <p className="text-base text-amber-200/80 font-bold">{funnel.subheadline}</p>
-            )}
-            {funnel.body && (
-              <p className="text-xs text-slate-400 leading-relaxed whitespace-pre-line pt-3 border-t border-white/10">
-                {funnel.body}
-              </p>
-            )}
+            <div className="relative z-10 p-6 space-y-3 font-mono">
+              {funnel.service_type && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-black uppercase tracking-widest border-2 bg-amber-500 text-black border-amber-400">
+                  {funnel.service_type}
+                </span>
+              )}
+              <h2 className="text-3xl sm:text-4xl font-black text-white leading-none uppercase tracking-tight">{funnel.headline}</h2>
+              {funnel.subheadline && (
+                <p className="text-base text-amber-200/80 font-bold">{funnel.subheadline}</p>
+              )}
+              {funnel.body && (
+                <p className="text-xs text-slate-400 leading-relaxed whitespace-pre-line pt-3 border-t border-white/10">
+                  {funnel.body}
+                </p>
+              )}
+            </div>
           </div>
         </section>
+
+        {/* Optional standalone video, underneath the headline box */}
+        {funnel.secondary_video_url && (
+          <section
+            className="rounded-lg overflow-hidden border-2 border-amber-500/20 shadow-2xl animate-fade-in"
+            style={{ animationDelay: '0.05s', animationFillMode: 'backwards' }}
+          >
+            <video
+              src={funnel.secondary_video_url}
+              autoPlay
+              muted
+              loop
+              playsInline
+              className="w-full h-56 sm:h-72 object-cover"
+            />
+          </section>
+        )}
 
         {/* Lead capture form / thank-you state */}
         <section

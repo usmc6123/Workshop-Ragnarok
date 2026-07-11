@@ -17,6 +17,8 @@ const EMPTY_FORM = {
   image_url: '',
   video_url: '',
   card_video_url: '',
+  headline_bg_image_url: '',
+  secondary_video_url: '',
   active: true,
   layout: 'classic' as 'classic' | 'modern',
 };
@@ -81,6 +83,8 @@ export default function FunnelsView() {
       image_url: funnel.image_url || '',
       video_url: funnel.video_url || '',
       card_video_url: funnel.card_video_url || '',
+      headline_bg_image_url: funnel.headline_bg_image_url || '',
+      secondary_video_url: funnel.secondary_video_url || '',
       active: !!funnel.active,
       layout: funnel.layout || 'classic',
     });
@@ -462,6 +466,34 @@ export default function FunnelsView() {
                   className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
                 />
               </div>
+
+              {form.layout === 'classic' && (
+                <>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Headline Box Background Image (optional, Classic only)</label>
+                    <input
+                      type="text"
+                      value={form.headline_bg_image_url}
+                      onChange={(e) => setForm(prev => ({ ...prev, headline_bg_image_url: e.target.value }))}
+                      placeholder="https://..."
+                      className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                    />
+                    <p className="text-[9px] text-slate-600 mt-1">Sits behind the headline/subheadline/body text, with a dark overlay so text stays readable.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Video Underneath Headline (optional, Classic only)</label>
+                    <input
+                      type="text"
+                      value={form.secondary_video_url}
+                      onChange={(e) => setForm(prev => ({ ...prev, secondary_video_url: e.target.value }))}
+                      placeholder="https://..."
+                      className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                    />
+                    <p className="text-[9px] text-slate-600 mt-1">Adds a looping video section between the headline box and the quote form.</p>
+                  </div>
+                </>
+              )}
 
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Page Layout</label>

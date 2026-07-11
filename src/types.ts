@@ -239,6 +239,8 @@ export interface Funnel {
   image_url: string | null;
   video_url: string | null;
   card_video_url: string | null;
+  headline_bg_image_url: string | null;
+  secondary_video_url: string | null;
   service_type: string | null;
   cta_text: string;
   active: number; // 0 or 1
@@ -260,6 +262,8 @@ export interface PublicFunnel {
   image_url: string | null;
   video_url: string | null;
   card_video_url: string | null;
+  headline_bg_image_url: string | null;
+  secondary_video_url: string | null;
   service_type: string | null;
   cta_text: string;
   layout: 'classic' | 'modern';
