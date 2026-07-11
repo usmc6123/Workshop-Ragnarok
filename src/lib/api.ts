@@ -7,7 +7,8 @@ import {
   Vehicle, GarageItem, PageResponse, Customer, CustomerVehicle,
   ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual, ShopSettings, JobPhoto,
   InventoryItem, WorkOrderPart, Service, JobService, Receipt, EmailTemplate, EmailSent, EmailReceived,
-  JobNote, JobNoteAttachment, Funnel, PublicFunnel, FunnelLead, SmsMessage
+  JobNote, JobNoteAttachment, Funnel, PublicFunnel, FunnelLead, SmsMessage,
+  Site, PublicSite, SiteBlock, SiteMessage
 } from '../types';
 
 import { 
@@ -1566,6 +1567,80 @@ export const api = {
   // --- FUNNELS (public, unauthenticated - used by FunnelPageView) ---
   async getPublicFunnel(slug: string): Promise<PublicFunnel> {
     return await request<PublicFunnel>(`/api/funnels/${slug}`);
+  },
+
+  // --- SITES (authenticated management of the block-based website builder) ---
+  async getSites(): Promise<Site[]> {
+    return await request<Site[]>('/api/sites');
+  },
+
+  async createSite(data: Partial<Site>): Promise<Site> {
+    return await request<Site>('/api/sites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async updateSite(id: number, data: Partial<Site>): Promise<Site> {
+    return await request<Site>(`/api/sites/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async deleteSite(id: number): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/sites/${id}`, { method: 'DELETE' });
+  },
+
+  async getSiteBlocks(siteId: number): Promise<SiteBlock[]> {
+    return await request<SiteBlock[]>(`/api/sites/${siteId}/blocks`);
+  },
+
+  async createSiteBlock(siteId: number, data: { block_type: string; content?: object; media_opacity?: object }): Promise<SiteBlock> {
+    return await request<SiteBlock>(`/api/sites/${siteId}/blocks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async updateSiteBlock(siteId: number, blockId: number, data: { content?: object; media_opacity?: object }): Promise<SiteBlock> {
+    return await request<SiteBlock>(`/api/sites/${siteId}/blocks/${blockId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async deleteSiteBlock(siteId: number, blockId: number): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/sites/${siteId}/blocks/${blockId}`, { method: 'DELETE' });
+  },
+
+  async reorderSiteBlocks(siteId: number, blockIds: number[]): Promise<SiteBlock[]> {
+    return await request<SiteBlock[]>(`/api/sites/${siteId}/blocks/reorder`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blockIds })
+    });
+  },
+
+  async getSiteMessages(siteId: number): Promise<SiteMessage[]> {
+    return await request<SiteMessage[]>(`/api/sites/${siteId}/messages`);
+  },
+
+  // --- SITES (public, unauthenticated - used by SitePageView) ---
+  async getPublicSite(subdomain: string): Promise<{ site: PublicSite; blocks: SiteBlock[] }> {
+    return await request<{ site: PublicSite; blocks: SiteBlock[] }>(`/api/public-sites/by-subdomain/${subdomain}`);
+  },
+
+  async submitSiteMessage(subdomain: string, data: { name: string; email: string; message: string; company_website?: string }): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/public-sites/${subdomain}/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
   },
 
   async submitFunnelLead(slug: string, data: {

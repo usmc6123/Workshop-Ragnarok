@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   LayoutDashboard, Users, Car, ClipboardList, Calendar, BookOpen, Settings,
-  ChevronLeft, ChevronRight, Menu, ShieldCheck, LogOut, Package, Mail, MessageSquare, Zap, DollarSign, Megaphone, Scissors
+  ChevronLeft, ChevronRight, Menu, ShieldCheck, LogOut, Package, Mail, MessageSquare, Zap, DollarSign, Megaphone, Scissors, Globe
 } from 'lucide-react';
 import { LOGO_URL } from '../constants/branding';
 import { useAuth } from '../contexts/AuthContext';
@@ -38,6 +38,7 @@ export default function Sidebar({
     { id: 'automations', label: 'Automations', icon: Zap },
     { id: 'payments', label: 'Payments', icon: DollarSign },
     { id: 'funnels', label: 'Funnels', icon: Megaphone },
+    { id: 'sites', label: 'Sites', icon: Globe },
     { id: 'youtube-trimmer', label: 'Youtube Trimmer', icon: Scissors },
   ];
 

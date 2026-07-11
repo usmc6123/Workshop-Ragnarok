@@ -291,6 +291,14 @@ app.use('/api/portal', portalRouter);
 const funnelRouter = require('./funnel-routes');
 app.use('/api/funnels', funnelRouter);
 
+// Public Sites routes (unauthenticated) — resolve-by-subdomain + contact form
+// submit for the general-purpose block-based website builder. Mounted at a
+// completely separate base path (/api/public-sites) than the authenticated
+// /api/sites CRUD routes below, so there's no shared-path collision risk to
+// reason about at all.
+const siteRouter = require('./site-routes');
+app.use('/api/public-sites', siteRouter);
+
 // Public iCal subscribe feed (unauthenticated) - token-gated, same spirit as the
 // customer portal's per-job token. Lets a phone/desktop calendar app "subscribe"
 // to the shop's appointments as a live-refreshing feed instead of a one-time export.
@@ -1140,6 +1148,65 @@ try {
     }
   } catch (err) {
     console.error('Error migrating sms_messages trigger_type CHECK constraint:', err);
+  }
+
+  // --- SITES: a general-purpose, block-based website builder ---
+  // Distinct from `funnels` (which is purpose-built for lead-capture landing
+  // pages) — a `site` is an arbitrary multi-block webpage the shop owner builds
+  // for anything else they want to put on their own domain, reachable at its own
+  // subdomain via a wildcard Cloudflare Tunnel route (see docs/comments near the
+  // public resolve route below). Blocks store their type-specific fields as a JSON
+  // blob in `content` rather than one column per possible field, since the set of
+  // fields varies wildly by block_type (hero vs. pricing vs. FAQ, etc.) — same
+  // flexible-schema approach used by every real block-based site builder.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      subdomain TEXT UNIQUE NOT NULL,
+      title TEXT,
+      theme TEXT DEFAULT 'dark',
+      active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS site_blocks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      site_id INTEGER REFERENCES sites(id) ON DELETE CASCADE,
+      block_type TEXT NOT NULL,
+      position INTEGER DEFAULT 0,
+      content TEXT DEFAULT '{}',
+      media_opacity TEXT DEFAULT '{}',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Contact-form submissions from a site's public page — deliberately its own
+  // simple table rather than reusing funnel_leads, since a general website
+  // contact message has no vehicle/status/conversion concept to track.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS site_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      site_id INTEGER REFERENCES sites(id) ON DELETE CASCADE,
+      name TEXT,
+      email TEXT,
+      message TEXT,
+      ip_address TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  try {
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_sites_subdomain ON sites(subdomain)`);
+  } catch (err) {
+    console.error('Error creating sites subdomain unique index:', err);
   }
 
   // Seed the admin user if not exists
@@ -4140,6 +4207,206 @@ app.get('/api/funnels/:id/leads', (req, res) => {
   } catch (error) {
     console.error('Error fetching funnel leads:', error);
     res.status(500).json({ error: 'Database error fetching funnel leads' });
+  }
+});
+
+// --- SITES: authenticated management of the block-based website builder ---
+
+function cleanSubdomain(value) {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+app.get('/api/sites', (req, res) => {
+  try {
+    const sites = db.prepare(`
+      SELECT s.*, (SELECT COUNT(*) FROM site_blocks WHERE site_id = s.id) as block_count,
+             (SELECT COUNT(*) FROM site_messages WHERE site_id = s.id) as message_count
+      FROM sites s
+      WHERE s.user_id = ?
+      ORDER BY s.created_at DESC
+    `).all(req.user.id);
+    res.json(sites);
+  } catch (error) {
+    console.error('Error fetching sites:', error);
+    res.status(500).json({ error: 'Database error fetching sites' });
+  }
+});
+
+app.post('/api/sites', (req, res) => {
+  try {
+    const { name, subdomain, title, theme, active } = req.body;
+    if (!name || !subdomain) return res.status(400).json({ error: 'name and subdomain are required' });
+
+    const cleanSub = cleanSubdomain(subdomain);
+    if (!cleanSub) return res.status(400).json({ error: 'subdomain must contain at least one letter or number' });
+
+    const existing = db.prepare('SELECT id FROM sites WHERE subdomain = ?').get(cleanSub);
+    if (existing) return res.status(409).json({ error: `Subdomain "${cleanSub}" is already in use` });
+
+    const info = db.prepare(`
+      INSERT INTO sites (name, subdomain, title, theme, active, user_id)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, req.user.id);
+
+    const inserted = db.prepare('SELECT * FROM sites WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
+    res.json(inserted);
+  } catch (error) {
+    console.error('Error creating site:', error);
+    res.status(500).json({ error: 'Database error creating site' });
+  }
+});
+
+app.put('/api/sites/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, subdomain, title, theme, active } = req.body;
+    if (!name || !subdomain) return res.status(400).json({ error: 'name and subdomain are required' });
+
+    const cleanSub = cleanSubdomain(subdomain);
+    if (!cleanSub) return res.status(400).json({ error: 'subdomain must contain at least one letter or number' });
+
+    const conflict = db.prepare('SELECT id FROM sites WHERE subdomain = ? AND id != ?').get(cleanSub, id);
+    if (conflict) return res.status(409).json({ error: `Subdomain "${cleanSub}" is already in use` });
+
+    const info = db.prepare(`
+      UPDATE sites SET name = ?, subdomain = ?, title = ?, theme = ?, active = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, id, req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Site not found' });
+
+    const updated = db.prepare('SELECT * FROM sites WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating site:', error);
+    res.status(500).json({ error: 'Database error updating site' });
+  }
+});
+
+app.delete('/api/sites/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const site = db.prepare('SELECT id FROM sites WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!site) return res.status(404).json({ error: 'Site not found' });
+    db.prepare('DELETE FROM site_blocks WHERE site_id = ? AND user_id = ?').run(id, req.user.id);
+    db.prepare('DELETE FROM site_messages WHERE site_id = ? AND user_id = ?').run(id, req.user.id);
+    db.prepare('DELETE FROM sites WHERE id = ? AND user_id = ?').run(id, req.user.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting site:', error);
+    res.status(500).json({ error: 'Database error deleting site' });
+  }
+});
+
+// --- Site Blocks ---
+
+app.get('/api/sites/:id/blocks', (req, res) => {
+  try {
+    const { id } = req.params;
+    const site = db.prepare('SELECT id FROM sites WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!site) return res.status(404).json({ error: 'Site not found' });
+
+    const blocks = db.prepare('SELECT * FROM site_blocks WHERE site_id = ? AND user_id = ? ORDER BY position ASC, id ASC').all(id, req.user.id);
+    res.json(blocks);
+  } catch (error) {
+    console.error('Error fetching site blocks:', error);
+    res.status(500).json({ error: 'Database error fetching site blocks' });
+  }
+});
+
+app.post('/api/sites/:id/blocks', (req, res) => {
+  try {
+    const { id } = req.params;
+    const site = db.prepare('SELECT id FROM sites WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!site) return res.status(404).json({ error: 'Site not found' });
+
+    const { block_type, content, media_opacity } = req.body;
+    if (!block_type) return res.status(400).json({ error: 'block_type is required' });
+
+    const maxPos = db.prepare('SELECT MAX(position) as maxPos FROM site_blocks WHERE site_id = ?').get(id);
+    const nextPosition = (maxPos.maxPos === null ? -1 : maxPos.maxPos) + 1;
+
+    const info = db.prepare(`
+      INSERT INTO site_blocks (site_id, block_type, position, content, media_opacity, user_id)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, block_type, nextPosition, JSON.stringify(content || {}), JSON.stringify(media_opacity || {}), req.user.id);
+
+    const inserted = db.prepare('SELECT * FROM site_blocks WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
+    res.json(inserted);
+  } catch (error) {
+    console.error('Error creating site block:', error);
+    res.status(500).json({ error: 'Database error creating site block' });
+  }
+});
+
+app.put('/api/sites/:id/blocks/reorder', (req, res) => {
+  try {
+    const { id } = req.params;
+    const site = db.prepare('SELECT id FROM sites WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!site) return res.status(404).json({ error: 'Site not found' });
+
+    const { blockIds } = req.body; // ordered array of block ids
+    if (!Array.isArray(blockIds)) return res.status(400).json({ error: 'blockIds must be an array' });
+
+    const updateStmt = db.prepare('UPDATE site_blocks SET position = ? WHERE id = ? AND site_id = ? AND user_id = ?');
+    blockIds.forEach((blockId, index) => {
+      updateStmt.run(index, blockId, id, req.user.id);
+    });
+
+    const blocks = db.prepare('SELECT * FROM site_blocks WHERE site_id = ? AND user_id = ? ORDER BY position ASC, id ASC').all(id, req.user.id);
+    res.json(blocks);
+  } catch (error) {
+    console.error('Error reordering site blocks:', error);
+    res.status(500).json({ error: 'Database error reordering site blocks' });
+  }
+});
+
+app.put('/api/sites/:id/blocks/:blockId', (req, res) => {
+  try {
+    const { id, blockId } = req.params;
+    const site = db.prepare('SELECT id FROM sites WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!site) return res.status(404).json({ error: 'Site not found' });
+
+    const { content, media_opacity } = req.body;
+    const info = db.prepare(`
+      UPDATE site_blocks SET content = ?, media_opacity = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND site_id = ? AND user_id = ?
+    `).run(JSON.stringify(content || {}), JSON.stringify(media_opacity || {}), blockId, id, req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Block not found' });
+
+    const updated = db.prepare('SELECT * FROM site_blocks WHERE id = ? AND user_id = ?').get(blockId, req.user.id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating site block:', error);
+    res.status(500).json({ error: 'Database error updating site block' });
+  }
+});
+
+app.delete('/api/sites/:id/blocks/:blockId', (req, res) => {
+  try {
+    const { id, blockId } = req.params;
+    const site = db.prepare('SELECT id FROM sites WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!site) return res.status(404).json({ error: 'Site not found' });
+
+    const info = db.prepare('DELETE FROM site_blocks WHERE id = ? AND site_id = ? AND user_id = ?').run(blockId, id, req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Block not found' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting site block:', error);
+    res.status(500).json({ error: 'Database error deleting site block' });
+  }
+});
+
+app.get('/api/sites/:id/messages', (req, res) => {
+  try {
+    const { id } = req.params;
+    const site = db.prepare('SELECT id FROM sites WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!site) return res.status(404).json({ error: 'Site not found' });
+
+    const messages = db.prepare('SELECT * FROM site_messages WHERE site_id = ? AND user_id = ? ORDER BY created_at DESC').all(id, req.user.id);
+    res.json(messages);
+  } catch (error) {
+    console.error('Error fetching site messages:', error);
+    res.status(500).json({ error: 'Database error fetching site messages' });
   }
 });
 

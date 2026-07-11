@@ -281,6 +281,119 @@ export interface PublicFunnel {
   layout: 'classic' | 'modern' | 'video';
 }
 
+// --- SITES: general-purpose block-based website builder ---
+
+export type SiteBlockType =
+  | 'hero' | 'text' | 'image' | 'video' | 'cta'
+  | 'contact_form' | 'testimonial' | 'pricing' | 'faq' | 'spacer';
+
+export interface Site {
+  id: number;
+  name: string;
+  subdomain: string;
+  title: string | null;
+  theme: 'dark' | 'light';
+  active: number; // 0 or 1
+  created_at?: string;
+  updated_at?: string;
+  user_id?: number;
+  block_count?: number;
+  message_count?: number;
+}
+
+// Shape returned by the public by-subdomain resolve endpoint (no internal fields)
+export interface PublicSite {
+  name: string;
+  subdomain: string;
+  title: string | null;
+  theme: 'dark' | 'light';
+}
+
+export interface SiteBlock {
+  id: number;
+  site_id: number;
+  block_type: SiteBlockType;
+  position: number;
+  content: string; // JSON string, shape depends on block_type (see BlockContent below)
+  media_opacity: string; // JSON map of media field key -> 0-100 opacity
+  created_at?: string;
+  updated_at?: string;
+  user_id?: number;
+}
+
+// The parsed shape of SiteBlock.content, per block_type. Every field is optional
+// since a freshly-added block starts as `{}` before the owner fills anything in.
+export interface HeroBlockContent {
+  headline?: string;
+  subheadline?: string;
+  image_url?: string;
+  video_url?: string;
+  cta_text?: string;
+  cta_link?: string;
+}
+export interface TextBlockContent {
+  headline?: string;
+  body?: string;
+  align?: 'left' | 'center';
+}
+export interface ImageBlockContent {
+  images?: { url: string; caption?: string }[];
+}
+export interface VideoBlockContent {
+  video_url?: string;
+  autoplay?: boolean;
+  controls?: boolean;
+}
+export interface CtaBlockContent {
+  headline?: string;
+  subheadline?: string;
+  button_text?: string;
+  button_link?: string;
+}
+export interface ContactFormBlockContent {
+  headline?: string;
+  subheadline?: string;
+  button_text?: string;
+}
+export interface TestimonialBlockContent {
+  quote?: string;
+  author?: string;
+  role?: string;
+  photo_url?: string;
+}
+export interface PricingTier {
+  name?: string;
+  price?: string;
+  features?: string[];
+  highlighted?: boolean;
+}
+export interface PricingBlockContent {
+  headline?: string;
+  tiers?: PricingTier[];
+}
+export interface FaqItem {
+  question?: string;
+  answer?: string;
+}
+export interface FaqBlockContent {
+  headline?: string;
+  items?: FaqItem[];
+}
+export interface SpacerBlockContent {
+  size?: 'sm' | 'md' | 'lg';
+}
+
+export interface SiteMessage {
+  id: number;
+  site_id: number;
+  name: string | null;
+  email: string | null;
+  message: string;
+  ip_address: string | null;
+  created_at: string;
+  user_id?: number;
+}
+
 export interface FunnelLead {
   id: number;
   funnel_id: number;

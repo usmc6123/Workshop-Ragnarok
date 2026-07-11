@@ -21,6 +21,12 @@ export default function ProtectedRoute({ children, requireAdmin = false }: Prote
     return <>{children}</>;
   }
 
+  const isSiteRoute = window.location.pathname.startsWith('/site/');
+  const isSiteSubdomain = /^[a-z0-9-]+\.sites\./i.test(window.location.hostname);
+  if (isSiteRoute || isSiteSubdomain) {
+    return <>{children}</>;
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center font-mono text-slate-400">

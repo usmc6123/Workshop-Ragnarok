@@ -25,6 +25,8 @@ import PaymentsView from './components/PaymentsView';
 import CustomerPortalView from './components/CustomerPortalView';
 import FunnelPageView from './components/FunnelPageView';
 import FunnelsView from './components/FunnelsView';
+import SitePageView from './components/SitePageView';
+import SitesView from './components/SitesView';
 import YoutubeTrimmerView from './components/YoutubeTrimmerView';
 import { LOGO_URL, BACKGROUND_URL } from './constants/branding';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -37,7 +39,7 @@ import {
   Wifi, HelpCircle, CheckSquare, Settings, Car, ClipboardList, LayoutDashboard, Menu
 } from 'lucide-react';
 
-type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email' | 'texts' | 'automations' | 'payments' | 'funnels' | 'youtube-trimmer';
+type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email' | 'texts' | 'automations' | 'payments' | 'funnels' | 'sites' | 'youtube-trimmer';
 
 export default function App() {
   console.log('APP RENDERING');
@@ -232,6 +234,15 @@ export default function App() {
   const pathParts = window.location.pathname.split('/');
   const isPortal = pathParts[1] === 'portal' && pathParts[2];
   const isFunnel = pathParts[1] === 'funnel' && pathParts[2];
+  const isSitePreviewPath = pathParts[1] === 'site' && pathParts[2];
+
+  // Once the one-time wildcard Cloudflare Tunnel route for *.sites.<domain> is
+  // added, a visitor's browser hits this app with a hostname like
+  // "my-portfolio.sites.homeslab.uk" instead of the usual shop hostname — pull
+  // the subdomain straight out of window.location.hostname, same idea as the
+  // existing path-based detection above but for real subdomain traffic.
+  const siteHostnameMatch = window.location.hostname.match(/^([a-z0-9-]+)\.sites\./i);
+  const siteSubdomain = isSitePreviewPath ? pathParts[2] : (siteHostnameMatch ? siteHostnameMatch[1] : null);
 
   if (isPortal) {
     const portalToken = pathParts[2];
@@ -247,6 +258,14 @@ export default function App() {
     return (
       <ProtectedRoute>
         <FunnelPageView slug={funnelSlug} />
+      </ProtectedRoute>
+    );
+  }
+
+  if (siteSubdomain) {
+    return (
+      <ProtectedRoute>
+        <SitePageView subdomain={siteSubdomain} />
       </ProtectedRoute>
     );
   }
@@ -450,6 +469,10 @@ export default function App() {
 
                 {view === 'funnels' && (
                   <FunnelsView />
+                )}
+
+                {view === 'sites' && (
+                  <SitesView />
                 )}
 
                 {view === 'youtube-trimmer' && (
