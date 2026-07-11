@@ -1185,36 +1185,13 @@ export default function CatLaserOverlay({ heroRef }) {
             Click a target within laser range.
           </div>
 
-          {/* LED display box */}
-          <div
-            key={`box-${scorePulse}`}
-            style={{
-              background: '#0d0d0d',
-              border: '1px solid #222',
-              borderRadius: '8px',
-              padding: '8px 12px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              position: 'relative',
-              overflow: 'visible',
-              animation: scorePulse > 0 ? 'vaporizedFlash 0.4s ease-out' : 'none'
-            }}
-          >
+          {/* Bare kill counter — no box, no border, just the label + number reacting to a kill */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <style>{`
               @keyframes vaporizedPunch {
-                0% { transform: scale(1); }
-                35% { transform: scale(1.45); }
-                100% { transform: scale(1); }
-              }
-              @keyframes vaporizedFlash {
-                0% { border-color: #FF7A1A; box-shadow: 0 0 18px rgba(255, 122, 26, 0.8); }
-                100% { border-color: #222; box-shadow: none; }
-              }
-              @keyframes vaporizedPopup {
-                0% { opacity: 1; transform: translateY(0) scale(1); }
-                100% { opacity: 0; transform: translateY(-26px) scale(1.2); }
+                0% { transform: scale(1); color: #FF8C1A; text-shadow: 0 0 6px rgba(255, 140, 26, 0.8), 0 0 12px rgba(255, 140, 26, 0.4); }
+                30% { transform: scale(1.5); color: #fff6e0; text-shadow: 0 0 16px rgba(255, 255, 255, 0.95), 0 0 30px rgba(255, 122, 26, 1); }
+                100% { transform: scale(1); color: #FF8C1A; text-shadow: 0 0 6px rgba(255, 140, 26, 0.8), 0 0 12px rgba(255, 140, 26, 0.4); }
               }
             `}</style>
             <span style={{
@@ -1230,56 +1207,21 @@ export default function CatLaserOverlay({ heroRef }) {
               VAPORIZED
             </span>
 
-            {/* Live digital odometer/readout */}
+            {/* Live readout — punches scale + flashes white-hot on every kill */}
             <div
               key={`digits-${scorePulse}`}
               style={{
-                position: 'relative',
                 fontSize: '28px',
                 fontWeight: 'bold',
                 fontFamily: "'Courier New', monospace",
-                height: '32px',
-                lineHeight: '32px',
                 letterSpacing: '2px',
-                animation: scorePulse > 0 ? 'vaporizedPunch 0.4s ease-out' : 'none'
+                color: '#FF8C1A',
+                textShadow: '0 0 6px rgba(255, 140, 26, 0.8), 0 0 12px rgba(255, 140, 26, 0.4)',
+                animation: scorePulse > 0 ? 'vaporizedPunch 0.5s ease-out' : 'none'
               }}
             >
-              {/* Ghosted segment background */}
-              <span style={{
-                color: 'rgba(255, 100, 0, 0.08)',
-                userSelect: 'none'
-              }}>
-                {'8'.repeat(Math.max(3, score.toString().length))}
-              </span>
-              {/* Actual glowing foreground */}
-              <span style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                color: '#FF8C1A',
-                textShadow: '0 0 6px rgba(255, 140, 26, 0.8), 0 0 12px rgba(255, 140, 26, 0.4)'
-              }}>
-                {score.toString().padStart(Math.max(3, score.toString().length), '0')}
-              </span>
+              {score}
             </div>
-
-            {/* Kill-streak "+1" pop-ups, CoD Zombies style */}
-            {popups.map((id) => (
-              <span key={id} style={{
-                position: 'absolute',
-                top: '-2px',
-                right: '4px',
-                color: '#ff3b1a',
-                fontWeight: 900,
-                fontSize: '15px',
-                fontFamily: "'Courier New', monospace",
-                textShadow: '0 0 8px rgba(255, 59, 26, 0.9)',
-                animation: 'vaporizedPopup 0.75s ease-out forwards',
-                pointerEvents: 'none'
-              }}>
-                +1
-              </span>
-            ))}
           </div>
         </div>
       )}
