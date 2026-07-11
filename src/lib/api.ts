@@ -1598,7 +1598,7 @@ export const api = {
     return await request<SiteBlock[]>(`/api/sites/${siteId}/blocks`);
   },
 
-  async createSiteBlock(siteId: number, data: { block_type: string; content?: object; media_opacity?: object }): Promise<SiteBlock> {
+  async createSiteBlock(siteId: number, data: { block_type: string; content?: object; media_opacity?: object; style?: object }): Promise<SiteBlock> {
     return await request<SiteBlock>(`/api/sites/${siteId}/blocks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1606,7 +1606,7 @@ export const api = {
     });
   },
 
-  async updateSiteBlock(siteId: number, blockId: number, data: { content?: object; media_opacity?: object }): Promise<SiteBlock> {
+  async updateSiteBlock(siteId: number, blockId: number, data: { content?: object; media_opacity?: object; style?: object }): Promise<SiteBlock> {
     return await request<SiteBlock>(`/api/sites/${siteId}/blocks/${blockId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -1616,6 +1616,12 @@ export const api = {
 
   async deleteSiteBlock(siteId: number, blockId: number): Promise<{ success: boolean }> {
     return await request<{ success: boolean }>(`/api/sites/${siteId}/blocks/${blockId}`, { method: 'DELETE' });
+  },
+
+  async duplicateSiteBlock(siteId: number, blockId: number): Promise<{ blocks: SiteBlock[]; newBlockId: number }> {
+    return await request<{ blocks: SiteBlock[]; newBlockId: number }>(`/api/sites/${siteId}/blocks/${blockId}/duplicate`, {
+      method: 'POST'
+    });
   },
 
   async reorderSiteBlocks(siteId: number, blockIds: number[]): Promise<SiteBlock[]> {

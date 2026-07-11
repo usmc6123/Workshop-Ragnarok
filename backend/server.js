@@ -1209,6 +1209,31 @@ try {
     console.error('Error creating sites subdomain unique index:', err);
   }
 
+  // Sites v2: site-wide theme (accent color, font family, background/text colors)
+  // and per-block style overrides (width, alignment, colors, font, padding) —
+  // both stored as flexible JSON blobs for the same reason block `content` is:
+  // the set of customizable properties will keep growing and a JSON column
+  // avoids a schema migration every time a new style knob gets added.
+  try {
+    const sitesCols = db.prepare('PRAGMA table_info(sites)').all();
+    if (!sitesCols.some(c => c.name === 'theme_config')) {
+      db.exec(`ALTER TABLE sites ADD COLUMN theme_config TEXT DEFAULT '{}'`);
+      console.log('Successfully migrated sites to include theme_config column.');
+    }
+  } catch (err) {
+    console.error('Error migrating sites theme_config column:', err);
+  }
+
+  try {
+    const blockCols = db.prepare('PRAGMA table_info(site_blocks)').all();
+    if (!blockCols.some(c => c.name === 'style')) {
+      db.exec(`ALTER TABLE site_blocks ADD COLUMN style TEXT DEFAULT '{}'`);
+      console.log('Successfully migrated site_blocks to include style column.');
+    }
+  } catch (err) {
+    console.error('Error migrating site_blocks style column:', err);
+  }
+
   // Seed the admin user if not exists
   const bcrypt = require('bcryptjs');
   const existingAdmin = db.prepare('SELECT * FROM users WHERE username = ?').get('usmc6123');
@@ -4234,7 +4259,7 @@ app.get('/api/sites', (req, res) => {
 
 app.post('/api/sites', (req, res) => {
   try {
-    const { name, subdomain, title, theme, active } = req.body;
+    const { name, subdomain, title, theme, active, theme_config } = req.body;
     if (!name || !subdomain) return res.status(400).json({ error: 'name and subdomain are required' });
 
     const cleanSub = cleanSubdomain(subdomain);
@@ -4244,9 +4269,9 @@ app.post('/api/sites', (req, res) => {
     if (existing) return res.status(409).json({ error: `Subdomain "${cleanSub}" is already in use` });
 
     const info = db.prepare(`
-      INSERT INTO sites (name, subdomain, title, theme, active, user_id)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, req.user.id);
+      INSERT INTO sites (name, subdomain, title, theme, active, theme_config, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, JSON.stringify(theme_config || {}), req.user.id);
 
     const inserted = db.prepare('SELECT * FROM sites WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
     res.json(inserted);
@@ -4259,7 +4284,7 @@ app.post('/api/sites', (req, res) => {
 app.put('/api/sites/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const { name, subdomain, title, theme, active } = req.body;
+    const { name, subdomain, title, theme, active, theme_config } = req.body;
     if (!name || !subdomain) return res.status(400).json({ error: 'name and subdomain are required' });
 
     const cleanSub = cleanSubdomain(subdomain);
@@ -4269,9 +4294,9 @@ app.put('/api/sites/:id', (req, res) => {
     if (conflict) return res.status(409).json({ error: `Subdomain "${cleanSub}" is already in use` });
 
     const info = db.prepare(`
-      UPDATE sites SET name = ?, subdomain = ?, title = ?, theme = ?, active = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE sites SET name = ?, subdomain = ?, title = ?, theme = ?, active = ?, theme_config = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
-    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, id, req.user.id);
+    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, JSON.stringify(theme_config || {}), id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Site not found' });
 
     const updated = db.prepare('SELECT * FROM sites WHERE id = ? AND user_id = ?').get(id, req.user.id);
@@ -4319,22 +4344,52 @@ app.post('/api/sites/:id/blocks', (req, res) => {
     const site = db.prepare('SELECT id FROM sites WHERE id = ? AND user_id = ?').get(id, req.user.id);
     if (!site) return res.status(404).json({ error: 'Site not found' });
 
-    const { block_type, content, media_opacity } = req.body;
+    const { block_type, content, media_opacity, style } = req.body;
     if (!block_type) return res.status(400).json({ error: 'block_type is required' });
 
     const maxPos = db.prepare('SELECT MAX(position) as maxPos FROM site_blocks WHERE site_id = ?').get(id);
     const nextPosition = (maxPos.maxPos === null ? -1 : maxPos.maxPos) + 1;
 
     const info = db.prepare(`
-      INSERT INTO site_blocks (site_id, block_type, position, content, media_opacity, user_id)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(id, block_type, nextPosition, JSON.stringify(content || {}), JSON.stringify(media_opacity || {}), req.user.id);
+      INSERT INTO site_blocks (site_id, block_type, position, content, media_opacity, style, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, block_type, nextPosition, JSON.stringify(content || {}), JSON.stringify(media_opacity || {}), JSON.stringify(style || {}), req.user.id);
 
     const inserted = db.prepare('SELECT * FROM site_blocks WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
     res.json(inserted);
   } catch (error) {
     console.error('Error creating site block:', error);
     res.status(500).json({ error: 'Database error creating site block' });
+  }
+});
+
+// Duplicates a block in place, inserted immediately after the original —
+// handy for pricing tiers, testimonials, FAQ sections, etc. where the owner
+// wants a near-identical block to tweak rather than rebuilding from scratch.
+app.post('/api/sites/:id/blocks/:blockId/duplicate', (req, res) => {
+  try {
+    const { id, blockId } = req.params;
+    const site = db.prepare('SELECT id FROM sites WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!site) return res.status(404).json({ error: 'Site not found' });
+
+    const original = db.prepare('SELECT * FROM site_blocks WHERE id = ? AND site_id = ? AND user_id = ?').get(blockId, id, req.user.id);
+    if (!original) return res.status(404).json({ error: 'Block not found' });
+
+    // Shift every block after the original down one position to make room,
+    // then insert the copy directly into the gap.
+    db.prepare('UPDATE site_blocks SET position = position + 1 WHERE site_id = ? AND position > ? AND user_id = ?')
+      .run(id, original.position, req.user.id);
+
+    const info = db.prepare(`
+      INSERT INTO site_blocks (site_id, block_type, position, content, media_opacity, style, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, original.block_type, original.position + 1, original.content, original.media_opacity, original.style, req.user.id);
+
+    const blocks = db.prepare('SELECT * FROM site_blocks WHERE site_id = ? AND user_id = ? ORDER BY position ASC, id ASC').all(id, req.user.id);
+    res.json({ blocks, newBlockId: info.lastInsertRowid });
+  } catch (error) {
+    console.error('Error duplicating site block:', error);
+    res.status(500).json({ error: 'Database error duplicating site block' });
   }
 });
 
@@ -4366,11 +4421,11 @@ app.put('/api/sites/:id/blocks/:blockId', (req, res) => {
     const site = db.prepare('SELECT id FROM sites WHERE id = ? AND user_id = ?').get(id, req.user.id);
     if (!site) return res.status(404).json({ error: 'Site not found' });
 
-    const { content, media_opacity } = req.body;
+    const { content, media_opacity, style } = req.body;
     const info = db.prepare(`
-      UPDATE site_blocks SET content = ?, media_opacity = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE site_blocks SET content = ?, media_opacity = ?, style = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND site_id = ? AND user_id = ?
-    `).run(JSON.stringify(content || {}), JSON.stringify(media_opacity || {}), blockId, id, req.user.id);
+    `).run(JSON.stringify(content || {}), JSON.stringify(media_opacity || {}), JSON.stringify(style || {}), blockId, id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Block not found' });
 
     const updated = db.prepare('SELECT * FROM site_blocks WHERE id = ? AND user_id = ?').get(blockId, req.user.id);

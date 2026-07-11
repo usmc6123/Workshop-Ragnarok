@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../lib/api';
-import { Site } from '../types';
+import { Site, ThemeConfig } from '../types';
 import {
   Globe, Plus, Pencil, Trash2, Copy, ExternalLink, Loader2, X,
-  RefreshCw, Layers, Mail, Moon, Sun, CheckCircle2
+  RefreshCw, Layers, Mail, Moon, Sun, CheckCircle2, Palette, Type
 } from 'lucide-react';
 import SiteBuilderView from './SiteBuilderView';
+import { SITE_FONT_OPTIONS, ensureGoogleFontsLoaded } from '../constants/siteFonts';
+
+const DEFAULT_ACCENT = '#f59e0b';
 
 // The base domain for wildcard subdomain sites — a site named "portfolio" is
 // reachable at portfolio.sites.<this domain>, once the one-time wildcard
@@ -20,7 +23,14 @@ const EMPTY_FORM = {
   title: '',
   theme: 'dark' as 'dark' | 'light',
   active: true,
+  accent_color: DEFAULT_ACCENT,
+  font_family: SITE_FONT_OPTIONS[0].value,
 };
+
+function parseThemeConfig(raw: string | null | undefined): ThemeConfig {
+  if (!raw) return {};
+  try { return JSON.parse(raw); } catch { return {}; }
+}
 
 function slugifySubdomain(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
@@ -65,9 +75,11 @@ export default function SitesView() {
     setSubdomainTouched(false);
     setFormError(null);
     setShowForm(true);
+    ensureGoogleFontsLoaded(SITE_FONT_OPTIONS.map(f => f.value));
   };
 
   const openEditForm = (site: Site) => {
+    const themeConfig = parseThemeConfig(site.theme_config);
     setEditingId(site.id);
     setForm({
       name: site.name,
@@ -75,10 +87,13 @@ export default function SitesView() {
       title: site.title || '',
       theme: site.theme || 'dark',
       active: !!site.active,
+      accent_color: themeConfig.accent_color || DEFAULT_ACCENT,
+      font_family: themeConfig.font_family || SITE_FONT_OPTIONS[0].value,
     });
     setSubdomainTouched(true);
     setFormError(null);
     setShowForm(true);
+    ensureGoogleFontsLoaded(SITE_FONT_OPTIONS.map(f => f.value));
   };
 
   const handleNameChange = (value: string) => {
@@ -97,7 +112,12 @@ export default function SitesView() {
     setSaving(true);
     setFormError(null);
     try {
-      const payload = { ...form, subdomain: cleanSub };
+      const { accent_color, font_family, ...rest } = form;
+      const payload = {
+        ...rest,
+        subdomain: cleanSub,
+        theme_config: { accent_color, font_family } as ThemeConfig,
+      };
       if (editingId) {
         await api.updateSite(editingId, payload);
       } else {
@@ -210,6 +230,11 @@ export default function SitesView() {
                       {site.theme === 'light' ? <Sun className="w-2.5 h-2.5" /> : <Moon className="w-2.5 h-2.5" />}
                       {site.theme === 'light' ? 'Light' : 'Dark'}
                     </span>
+                    <span
+                      className="w-3.5 h-3.5 rounded-full border border-white/20 shrink-0"
+                      style={{ backgroundColor: parseThemeConfig(site.theme_config).accent_color || DEFAULT_ACCENT }}
+                      title="Accent color"
+                    />
                   </div>
                   {site.title && <p className="text-xs text-slate-400 mt-1 truncate">{site.title}</p>}
                 </div>
@@ -384,6 +409,44 @@ export default function SitesView() {
                   </button>
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    <Palette className="w-3 h-3" /> Accent Color
+                  </label>
+                  <div className="flex items-center gap-2 rounded-lg bg-[#0c0d12] border border-[#1e2028] px-2 py-1.5">
+                    <input
+                      type="color"
+                      value={form.accent_color}
+                      onChange={(e) => setForm(prev => ({ ...prev, accent_color: e.target.value }))}
+                      className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0 shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={form.accent_color}
+                      onChange={(e) => setForm(prev => ({ ...prev, accent_color: e.target.value }))}
+                      className="flex-1 min-w-0 bg-transparent text-xs text-white font-mono focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    <Type className="w-3 h-3" /> Font
+                  </label>
+                  <select
+                    value={form.font_family}
+                    onChange={(e) => setForm(prev => ({ ...prev, font_family: e.target.value }))}
+                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-2 py-2 text-xs text-white focus:outline-none h-[38px]"
+                    style={{ fontFamily: form.font_family }}
+                  >
+                    {SITE_FONT_OPTIONS.map(f => (
+                      <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-500 -mt-2">The accent color drives buttons and highlights across every block; the font applies site-wide and can be overridden per block.</p>
 
               <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
                 <input

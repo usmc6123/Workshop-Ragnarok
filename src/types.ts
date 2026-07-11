@@ -287,6 +287,15 @@ export type SiteBlockType =
   | 'hero' | 'text' | 'image' | 'video' | 'cta'
   | 'contact_form' | 'testimonial' | 'pricing' | 'faq' | 'spacer';
 
+// Site-wide look-and-feel — a flexible JSON blob (like block content/style)
+// rather than fixed columns, since the set of themeable properties keeps
+// growing. accent_color drives every button/highlight/active-state color on
+// the public page; font_family is the site-wide default, overridable per block.
+export interface ThemeConfig {
+  accent_color?: string; // hex, e.g. "#f59e0b"
+  font_family?: string; // e.g. "Inter", "Playfair Display"
+}
+
 export interface Site {
   id: number;
   name: string;
@@ -294,6 +303,7 @@ export interface Site {
   title: string | null;
   theme: 'dark' | 'light';
   active: number; // 0 or 1
+  theme_config: string | null; // JSON string of ThemeConfig
   created_at?: string;
   updated_at?: string;
   user_id?: number;
@@ -307,6 +317,19 @@ export interface PublicSite {
   subdomain: string;
   title: string | null;
   theme: 'dark' | 'light';
+  theme_config: string | null;
+}
+
+// Per-block style override — anything left unset falls back to the site's
+// ThemeConfig (font_family, accent_color) or a sensible built-in default.
+export interface BlockStyle {
+  width?: 'full' | 'wide' | 'narrow'; // container width preset
+  align?: 'left' | 'center' | 'right';
+  bg_color?: string; // hex, overrides the block's default/transparent background
+  text_color?: string; // hex, overrides body text color
+  font_family?: string; // overrides the site default for this block only
+  font_size?: 'sm' | 'md' | 'lg' | 'xl'; // scales headline/body text together
+  padding?: 'sm' | 'md' | 'lg'; // vertical breathing room
 }
 
 export interface SiteBlock {
@@ -316,6 +339,7 @@ export interface SiteBlock {
   position: number;
   content: string; // JSON string, shape depends on block_type (see BlockContent below)
   media_opacity: string; // JSON map of media field key -> 0-100 opacity
+  style: string; // JSON string of BlockStyle
   created_at?: string;
   updated_at?: string;
   user_id?: number;

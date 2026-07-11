@@ -48,6 +48,7 @@ function publicSiteFields(site) {
     subdomain: site.subdomain,
     title: site.title,
     theme: site.theme || 'dark',
+    theme_config: site.theme_config || '{}',
   };
 }
 
@@ -58,6 +59,7 @@ function publicBlockFields(block) {
     position: block.position,
     content: block.content,
     media_opacity: block.media_opacity,
+    style: block.style || '{}',
   };
 }
 
