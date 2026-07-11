@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../lib/api';
 import { Funnel, FunnelLead } from '../types';
 import {
@@ -327,7 +328,7 @@ export default function FunnelsView() {
       )}
 
       {/* Create/Edit Modal */}
-      {showForm && (
+      {showForm && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => !saving && setShowForm(false)}>
           <div
             className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl border border-border-theme bg-[#111218] shadow-2xl overflow-hidden"
@@ -469,11 +470,12 @@ export default function FunnelsView() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Leads Modal */}
-      {leadsFunnel && (
+      {leadsFunnel && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setLeadsFunnel(null)}>
           <div
             className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl border border-border-theme bg-[#111218] shadow-2xl overflow-hidden"
@@ -542,7 +544,8 @@ export default function FunnelsView() {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
