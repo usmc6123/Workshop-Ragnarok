@@ -104,13 +104,13 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
     <div className="min-h-screen bg-[#07070a] text-slate-200 selection:bg-amber-500/30 selection:text-white pb-16">
 
       {/* Header / Shop Branding */}
-      <header className="sticky top-0 z-40 bg-[#0e0f14]/95 backdrop-blur border-b border-white/5 shadow-md px-6 py-4">
+      <header className="sticky top-0 z-40 bg-black/95 backdrop-blur border-b-2 border-amber-500/40 shadow-lg px-6 py-4">
         <div className="max-w-3xl mx-auto flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
-            <Wrench className="w-5 h-5" />
+          <div className="w-12 h-12 rounded-md bg-amber-500/10 border-2 border-amber-500/40 flex items-center justify-center text-amber-500 shrink-0">
+            <Wrench className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-sm font-black tracking-wider uppercase font-mono text-white leading-none">
+            <h1 className="text-base font-black tracking-widest uppercase font-mono text-white leading-none">
               WORKSHOP: RAGNARÖK
             </h1>
           </div>
@@ -120,25 +120,25 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
       <main className="max-w-3xl mx-auto px-4 mt-8 space-y-6">
 
         {/* Hero */}
-        <section className="bg-[#111218] border border-white/5 rounded-2xl overflow-hidden shadow-xl">
+        <section className="bg-[#111218] border-2 border-amber-500/20 rounded-lg overflow-hidden shadow-2xl">
           {funnel.video_url ? (
-            <video src={funnel.video_url} autoPlay muted loop playsInline className="w-full h-56 object-cover" />
+            <video src={funnel.video_url} autoPlay muted loop playsInline className="w-full h-72 sm:h-80 object-cover" />
           ) : funnel.image_url ? (
-            <img src={funnel.image_url} alt={funnel.headline} className="w-full h-56 object-cover" referrerPolicy="no-referrer" />
+            <img src={funnel.image_url} alt={funnel.headline} className="w-full h-72 sm:h-80 object-cover" referrerPolicy="no-referrer" />
           ) : null}
 
-          <div className="p-6 space-y-3 font-mono">
+          <div className="p-6 space-y-3 font-mono border-t-2 border-amber-500/30">
             {funnel.service_type && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-amber-500/10 text-amber-500 border-amber-500/20">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-black uppercase tracking-widest border-2 bg-amber-500 text-black border-amber-400">
                 {funnel.service_type}
               </span>
             )}
-            <h2 className="text-2xl font-black text-white leading-tight">{funnel.headline}</h2>
+            <h2 className="text-3xl sm:text-4xl font-black text-white leading-none uppercase tracking-tight">{funnel.headline}</h2>
             {funnel.subheadline && (
-              <p className="text-sm text-slate-400">{funnel.subheadline}</p>
+              <p className="text-base text-amber-200/80 font-bold">{funnel.subheadline}</p>
             )}
             {funnel.body && (
-              <p className="text-xs text-slate-400 leading-relaxed whitespace-pre-line pt-1 border-t border-white/5">
+              <p className="text-xs text-slate-400 leading-relaxed whitespace-pre-line pt-3 border-t border-white/10">
                 {funnel.body}
               </p>
             )}
@@ -146,7 +146,7 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
         </section>
 
         {/* Lead capture form / thank-you state */}
-        <section className="bg-[#111218] border border-white/5 rounded-2xl p-6 shadow-xl font-mono">
+        <section className="bg-[#111218] border-2 border-amber-500/20 rounded-lg p-6 shadow-2xl font-mono">
           {submitted ? (
             <div className="flex flex-col items-center text-center gap-3 py-6">
               <div className="p-3 bg-emerald-500/10 rounded-full border border-emerald-500/20 text-emerald-400">
@@ -159,7 +159,7 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-              <h3 className="text-slate-500 text-[10px] uppercase tracking-widest font-bold">
+              <h3 className="text-amber-500 text-xl sm:text-2xl uppercase tracking-tight font-black border-b-2 border-amber-500/30 pb-3">
                 {funnel.cta_text || 'Get My Free Quote'}
               </h3>
 
@@ -277,17 +277,18 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-4 px-6 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 disabled:from-zinc-800 disabled:to-zinc-800 text-black disabled:text-zinc-500 font-black rounded-xl text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_4px_20px_rgba(245,158,11,0.15)] cursor-pointer"
+                className="w-full py-5 px-6 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 disabled:from-zinc-800 disabled:to-zinc-800 text-black disabled:text-zinc-500 font-black rounded-md text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] border-2 border-amber-400/60 shadow-[0_6px_24px_rgba(245,158,11,0.35)] cursor-pointer"
               >
                 {submitting ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin" />
                     <span>Submitting...</span>
                   </>
                 ) : (
                   <>
+                    <Wrench className="w-4 h-4" />
                     <span>{funnel.cta_text || 'Get My Free Quote'}</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <ArrowRight className="w-5 h-5" />
                   </>
                 )}
               </button>
