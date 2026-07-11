@@ -399,9 +399,22 @@ function ModernFunnelLayout({ funnel, form, updateField, handleSubmit, submittin
 
         {/* Lead capture form / thank-you state */}
         <section
-          className="relative rounded-3xl bg-[#0d0d18]/90 backdrop-blur border-2 border-cyan-400/40 p-6 sm:p-8 shadow-[0_0_40px_rgba(34,211,238,0.15)] animate-fade-in"
+          className="relative overflow-hidden rounded-3xl border-2 border-cyan-400/40 shadow-[0_0_40px_rgba(34,211,238,0.15)] animate-fade-in"
           style={{ animationDelay: '0.1s', animationFillMode: 'backwards' }}
         >
+          {/* Optional looping background video, peeking through behind the glass card */}
+          {funnel.card_video_url && (
+            <video
+              src={funnel.card_video_url}
+              autoPlay
+              muted
+              loop
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover opacity-25 mix-blend-screen"
+            />
+          )}
+
+          <div className="relative z-10 bg-[#0d0d18]/75 backdrop-blur p-6 sm:p-8">
           {submitted ? (
             <div className="flex flex-col items-center text-center gap-3 py-8">
               <div className="p-3.5 bg-gradient-to-br from-cyan-400 to-purple-500 rounded-full shadow-[0_0_20px_rgba(34,211,238,0.5)] text-black">
@@ -551,6 +564,7 @@ function ModernFunnelLayout({ funnel, form, updateField, handleSubmit, submittin
               </button>
             </form>
           )}
+          </div>
         </section>
       </main>
     </div>

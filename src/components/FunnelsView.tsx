@@ -16,6 +16,7 @@ const EMPTY_FORM = {
   cta_text: 'Get My Free Quote',
   image_url: '',
   video_url: '',
+  card_video_url: '',
   active: true,
   layout: 'classic' as 'classic' | 'modern',
 };
@@ -79,6 +80,7 @@ export default function FunnelsView() {
       cta_text: funnel.cta_text || 'Get My Free Quote',
       image_url: funnel.image_url || '',
       video_url: funnel.video_url || '',
+      card_video_url: funnel.card_video_url || '',
       active: !!funnel.active,
       layout: funnel.layout || 'classic',
     });
@@ -480,6 +482,20 @@ export default function FunnelsView() {
                   </button>
                 </div>
               </div>
+
+              {form.layout === 'modern' && (
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-cyan-400 mb-1">Form Card Background Video URL (optional, Modern only)</label>
+                  <input
+                    type="text"
+                    value={form.card_video_url}
+                    onChange={(e) => setForm(prev => ({ ...prev, card_video_url: e.target.value }))}
+                    placeholder="https://..."
+                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-cyan-400 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                  />
+                  <p className="text-[9px] text-slate-600 mt-1">Loops behind the quote form's glass card — use a muted looping clip.</p>
+                </div>
+              )}
 
               <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
                 <input

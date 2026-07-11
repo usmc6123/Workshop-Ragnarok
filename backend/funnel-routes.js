@@ -42,6 +42,7 @@ function publicFunnelFields(funnel) {
     body: funnel.body,
     image_url: funnel.image_url,
     video_url: funnel.video_url,
+    card_video_url: funnel.card_video_url,
     service_type: funnel.service_type,
     cta_text: funnel.cta_text,
     layout: funnel.layout || 'classic',
