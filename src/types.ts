@@ -245,6 +245,7 @@ export interface Funnel {
   secondary_video_url: string | null;
   secondary_video_url_2: string | null;
   hero_video_url: string | null;
+  video_form_bg_image_url: string | null;
   service_type: string | null;
   cta_text: string;
   active: number; // 0 or 1
@@ -272,6 +273,7 @@ export interface PublicFunnel {
   secondary_video_url: string | null;
   secondary_video_url_2: string | null;
   hero_video_url: string | null;
+  video_form_bg_image_url: string | null;
   service_type: string | null;
   cta_text: string;
   layout: 'classic' | 'modern' | 'video';

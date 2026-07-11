@@ -75,6 +75,7 @@ function publicFunnelFields(funnel) {
     secondary_video_url: funnel.secondary_video_url,
     secondary_video_url_2: funnel.secondary_video_url_2,
     hero_video_url: funnel.hero_video_url,
+    video_form_bg_image_url: funnel.video_form_bg_image_url,
     service_type: funnel.service_type,
     cta_text: funnel.cta_text,
     layout: funnel.layout || 'classic',

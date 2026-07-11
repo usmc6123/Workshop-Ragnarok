@@ -23,6 +23,7 @@ const EMPTY_FORM = {
   secondary_video_url: '',
   secondary_video_url_2: '',
   hero_video_url: '',
+  video_form_bg_image_url: '',
   active: true,
   layout: 'classic' as 'classic' | 'modern' | 'video',
 };
@@ -93,6 +94,7 @@ export default function FunnelsView() {
       secondary_video_url: funnel.secondary_video_url || '',
       secondary_video_url_2: funnel.secondary_video_url_2 || '',
       hero_video_url: funnel.hero_video_url || '',
+      video_form_bg_image_url: funnel.video_form_bg_image_url || '',
       active: !!funnel.active,
       layout: funnel.layout || 'classic',
     });
@@ -630,6 +632,20 @@ export default function FunnelsView() {
                   <p className="text-[9px] text-slate-600 mt-1">
                     Shown big, front and center, with real playback controls and full sound — visitors click play, watch/hear the pitch, then the quote form sits right underneath. Browsers won't autoplay audio, so this is click-to-play by design (works better anyway — it's a real watch-then-convert moment instead of background noise).
                   </p>
+                </div>
+              )}
+
+              {form.layout === 'video' && (
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-rose-400 mb-1">Quote Form Background Image (optional, Video layout only)</label>
+                  <input
+                    type="text"
+                    value={form.video_form_bg_image_url}
+                    onChange={(e) => setForm(prev => ({ ...prev, video_form_bg_image_url: e.target.value }))}
+                    placeholder="https://..."
+                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-rose-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                  />
+                  <p className="text-[9px] text-slate-600 mt-1">Sits behind the name/phone/email/vehicle quote form, with a dark overlay so it stays readable.</p>
                 </div>
               )}
 

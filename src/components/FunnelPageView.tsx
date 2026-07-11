@@ -678,93 +678,118 @@ function ModernFunnelLayout({ funnel, form, updateField, handleSubmit, submittin
 // ============================================================================
 function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting, submitError, submitted }: LayoutProps) {
   return (
-    <div className="min-h-screen bg-black text-slate-200 selection:bg-rose-500/30 selection:text-white pb-16">
+    <div className="relative min-h-screen bg-[#0d0612] text-white selection:bg-pink-400/30 selection:text-white pb-20 overflow-hidden">
 
-      {/* Header / Shop Branding */}
-      <header className="sticky top-0 z-40 bg-black/95 backdrop-blur border-b-2 border-rose-500/30 shadow-lg px-6 py-4">
-        <div className="max-w-3xl mx-auto flex items-center gap-3">
-          <div className="w-12 h-12 rounded-md bg-rose-500/10 border-2 border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
-            <Clapperboard className="w-6 h-6" />
+      {/* Ambient vibrant glows — warm sunset palette, distinct from Modern's cool cyan/purple */}
+      <div className="pointer-events-none absolute -top-32 -left-24 w-96 h-96 bg-pink-500/25 rounded-full blur-[110px]" />
+      <div className="pointer-events-none absolute top-1/4 -right-32 w-96 h-96 bg-orange-500/20 rounded-full blur-[110px]" />
+      <div className="pointer-events-none absolute bottom-10 left-1/3 w-96 h-96 bg-amber-400/15 rounded-full blur-[120px]" />
+
+      {/* Header — floating glowing pill, matching Modern's polish */}
+      <header className="relative z-40 sticky top-4 px-4">
+        <div className="max-w-md mx-auto flex items-center gap-3 rounded-full bg-black/70 backdrop-blur-xl border-2 border-pink-400/50 px-5 py-3 shadow-[0_0_20px_rgba(236,72,153,0.35)]">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pink-400 via-orange-400 to-amber-300 flex items-center justify-center text-black shrink-0 shadow-[0_0_12px_rgba(251,191,36,0.6)]">
+            <Clapperboard className="w-5 h-5" />
           </div>
-          <div>
-            <h1 className="text-base font-black tracking-widest uppercase font-mono text-white leading-none">
-              WORKSHOP: RAGNARÖK
-            </h1>
-          </div>
+          <h1 className="text-sm font-black tracking-wide uppercase bg-gradient-to-r from-pink-300 via-orange-200 to-amber-200 bg-clip-text text-transparent leading-none">
+            Workshop: Ragnarök
+          </h1>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 mt-8 space-y-5">
+      <main className="relative z-10 max-w-3xl mx-auto px-4 mt-8 space-y-6">
 
-        {/* Compact context above the video — kept short on purpose so the video is the focus */}
-        <section className="text-center space-y-2 animate-fade-in px-2">
-          {funnel.service_type && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-widest border-2 bg-rose-500 text-black border-rose-400">
-              {funnel.service_type}
-            </span>
-          )}
-          <h2 className="text-3xl sm:text-4xl font-black text-white leading-tight uppercase tracking-tight">{funnel.headline}</h2>
-          {funnel.subheadline && (
-            <p className="text-base text-rose-200/80 font-bold">{funnel.subheadline}</p>
-          )}
-        </section>
-
-        {/* Hero video — real controls, real sound, no autoplay */}
+        {/* Unified hero: badge + headline + subheadline + video + body, all one flowing card
+            so nothing feels like disconnected boxes stacked on top of each other. */}
         <section
-          className="relative rounded-2xl overflow-hidden border-2 border-rose-500/40 shadow-[0_0_40px_rgba(244,63,94,0.2)] animate-fade-in bg-[#0a0a0a]"
-          style={{ animationDelay: '0.05s', animationFillMode: 'backwards' }}
+          className="relative rounded-3xl overflow-hidden border-2 border-pink-400/40 shadow-[0_0_50px_rgba(236,72,153,0.25)] bg-gradient-to-b from-[#1c0f27] to-[#0d0612] animate-fade-in"
         >
-          {funnel.hero_video_url ? (
-            <>
-              <video
-                src={funnel.hero_video_url}
-                controls
-                playsInline
-                preload="metadata"
-                poster={funnel.image_url || undefined}
-                className="w-full aspect-video bg-black"
-              />
-              <div className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/70 border border-rose-500/40 text-rose-300 text-[9px] font-bold uppercase tracking-wider pointer-events-none">
-                <Volume2 className="w-3 h-3" />
-                Sound On
-              </div>
-            </>
-          ) : funnel.video_url ? (
-            <video src={funnel.video_url} controls playsInline preload="metadata" className="w-full aspect-video bg-black" />
-          ) : funnel.image_url ? (
-            <img src={funnel.image_url} alt={funnel.headline} className="w-full aspect-video object-cover" referrerPolicy="no-referrer" />
-          ) : (
-            <div className="w-full aspect-video flex items-center justify-center text-slate-700">
-              <Clapperboard className="w-12 h-12" />
+          <div className="p-6 sm:p-8 pb-5 space-y-3 text-center">
+            {funnel.service_type && (
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-black uppercase tracking-widest bg-gradient-to-r from-pink-400 via-orange-400 to-amber-300 text-black shadow-[0_0_15px_rgba(251,146,60,0.5)]">
+                {funnel.service_type}
+              </span>
+            )}
+            <h2 className="text-3xl sm:text-4xl font-black leading-tight tracking-tight bg-gradient-to-r from-pink-300 via-orange-200 to-amber-200 bg-clip-text text-transparent drop-shadow-[0_2px_10px_rgba(0,0,0,0.4)]">
+              {funnel.headline}
+            </h2>
+            {funnel.subheadline && (
+              <p className="text-base sm:text-lg font-bold text-orange-100/90">
+                {funnel.subheadline}
+              </p>
+            )}
+          </div>
+
+          {/* Video — edge to edge within the same card, real controls + sound, no autoplay */}
+          <div className="relative px-3 sm:px-4">
+            <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-black shadow-[0_0_30px_rgba(0,0,0,0.5)]">
+              {funnel.hero_video_url ? (
+                <>
+                  <video
+                    src={funnel.hero_video_url}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    poster={funnel.image_url || undefined}
+                    className="w-full aspect-video bg-black"
+                  />
+                  <div className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/70 border border-amber-400/50 text-amber-200 text-[9px] font-bold uppercase tracking-wider pointer-events-none">
+                    <Volume2 className="w-3 h-3" />
+                    Sound On
+                  </div>
+                </>
+              ) : funnel.video_url ? (
+                <video src={funnel.video_url} controls playsInline preload="metadata" className="w-full aspect-video bg-black" />
+              ) : funnel.image_url ? (
+                <img src={funnel.image_url} alt={funnel.headline} className="w-full aspect-video object-cover" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="w-full aspect-video flex items-center justify-center text-slate-700">
+                  <Clapperboard className="w-12 h-12" />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Body copy — inside the same card, high-contrast and easy to read */}
+          {funnel.body && (
+            <div className="px-6 sm:px-8 pt-5 pb-7">
+              <p className="text-sm sm:text-[15px] text-white/85 leading-relaxed whitespace-pre-line text-center max-w-xl mx-auto">
+                {funnel.body}
+              </p>
             </div>
           )}
         </section>
 
-        {funnel.body && (
-          <p className="text-xs text-slate-400 leading-relaxed whitespace-pre-line px-2 text-center animate-fade-in" style={{ animationDelay: '0.1s', animationFillMode: 'backwards' }}>
-            {funnel.body}
-          </p>
-        )}
-
         {/* Lead capture form / thank-you state — sits right under the video on purpose */}
         <section
-          className="relative overflow-hidden border-2 border-rose-500/20 rounded-lg shadow-2xl bg-[#111218] animate-fade-in"
-          style={{ animationDelay: '0.15s', animationFillMode: 'backwards' }}
+          className="relative overflow-hidden rounded-3xl border-2 border-amber-400/40 shadow-[0_0_40px_rgba(251,191,36,0.18)] animate-fade-in bg-[#150a1d]"
+          style={{ animationDelay: '0.1s', animationFillMode: 'backwards' }}
         >
-          <div className="p-6 font-mono">
+          {funnel.video_form_bg_image_url && (
+            <>
+              <img
+                src={funnel.video_form_bg_image_url}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-[#1c0f27]/90 via-[#150a1d]/85 to-[#0d0612]/95" />
+            </>
+          )}
+          <div className="relative z-10 p-6 sm:p-8 font-mono">
           {submitted ? (
-            <div className="flex flex-col items-center text-center gap-3 py-6">
-              <div className="p-3 bg-emerald-500/10 rounded-full border border-emerald-500/20 text-emerald-400">
+            <div className="flex flex-col items-center text-center gap-3 py-8">
+              <div className="p-3.5 bg-gradient-to-br from-pink-400 to-amber-300 rounded-full shadow-[0_0_20px_rgba(251,191,36,0.5)] text-black">
                 <CheckCircle className="w-8 h-8" />
               </div>
-              <h3 className="text-md font-bold text-emerald-400 uppercase tracking-wider">Request Received</h3>
-              <p className="text-xs text-slate-400 max-w-sm">
+              <h3 className="text-md font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-300 via-orange-200 to-amber-200 uppercase tracking-wider">Request Received</h3>
+              <p className="text-xs text-white/70 max-w-sm">
                 Thanks, {form.name.split(' ')[0] || 'friend'}! We've got your details and a confirmation is on its way to {form.email}. Our team will follow up shortly.
               </p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-              <h3 className="text-rose-400 text-xl sm:text-2xl uppercase tracking-tight font-black border-b-2 border-rose-500/30 pb-3">
+              <h3 className="text-transparent bg-clip-text bg-gradient-to-r from-pink-300 via-orange-200 to-amber-200 text-xl sm:text-2xl uppercase tracking-tight font-black border-b-2 border-amber-400/30 pb-3">
                 {funnel.cta_text || 'Get My Free Quote'}
               </h3>
 
@@ -776,51 +801,51 @@ function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-wider mb-1">
-                    <User className="w-3 h-3" /> Name * <FieldCheck filled={form.name.trim().length > 0} colorClass="text-rose-400" />
+                  <label className="flex items-center gap-1.5 text-[10px] text-white/60 uppercase tracking-wider mb-1">
+                    <User className="w-3 h-3" /> Name * <FieldCheck filled={form.name.trim().length > 0} colorClass="text-amber-300" />
                   </label>
                   <input
                     type="text"
                     required
                     value={form.name}
                     onChange={(e) => updateField('name', e.target.value)}
-                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-rose-500 focus:ring-2 focus:ring-rose-500/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all duration-150"
+                    className="w-full rounded-xl bg-black/40 border border-white/15 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none transition-all duration-150"
                     placeholder="Jane Smith"
                   />
                 </div>
                 <div>
-                  <label className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-wider mb-1">
-                    <Phone className="w-3 h-3" /> Phone * <FieldCheck filled={form.phone.trim().length > 0} colorClass="text-rose-400" />
+                  <label className="flex items-center gap-1.5 text-[10px] text-white/60 uppercase tracking-wider mb-1">
+                    <Phone className="w-3 h-3" /> Phone * <FieldCheck filled={form.phone.trim().length > 0} colorClass="text-amber-300" />
                   </label>
                   <input
                     type="tel"
                     required
                     value={form.phone}
                     onChange={(e) => updateField('phone', e.target.value)}
-                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-rose-500 focus:ring-2 focus:ring-rose-500/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all duration-150"
+                    className="w-full rounded-xl bg-black/40 border border-white/15 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none transition-all duration-150"
                     placeholder="(555) 123-4567"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-wider mb-1">
-                  <Mail className="w-3 h-3" /> Email * <FieldCheck filled={form.email.trim().length > 0} colorClass="text-rose-400" />
+                <label className="flex items-center gap-1.5 text-[10px] text-white/60 uppercase tracking-wider mb-1">
+                  <Mail className="w-3 h-3" /> Email * <FieldCheck filled={form.email.trim().length > 0} colorClass="text-amber-300" />
                 </label>
                 <input
                   type="email"
                   required
                   value={form.email}
                   onChange={(e) => updateField('email', e.target.value)}
-                  className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-rose-500 focus:ring-2 focus:ring-rose-500/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all duration-150"
+                  className="w-full rounded-xl bg-black/40 border border-white/15 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none transition-all duration-150"
                   placeholder="jane@example.com"
                 />
-                <p className="text-[9px] text-slate-600 mt-1">We'll send your confirmation here.</p>
+                <p className="text-[9px] text-white/40 mt-1">We'll send your confirmation here.</p>
               </div>
 
               <div>
-                <label className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-wider mb-1">
-                  <Car className="w-3 h-3" /> Vehicle * <FieldCheck filled={form.vehicle_year.trim().length > 0 && form.vehicle_make.trim().length > 0 && form.vehicle_model.trim().length > 0} colorClass="text-rose-400" />
+                <label className="flex items-center gap-1.5 text-[10px] text-white/60 uppercase tracking-wider mb-1">
+                  <Car className="w-3 h-3" /> Vehicle * <FieldCheck filled={form.vehicle_year.trim().length > 0 && form.vehicle_make.trim().length > 0 && form.vehicle_model.trim().length > 0} colorClass="text-amber-300" />
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   <input
@@ -828,7 +853,7 @@ function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting
                     required
                     value={form.vehicle_year}
                     onChange={(e) => updateField('vehicle_year', e.target.value)}
-                    className="rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-rose-500 focus:ring-2 focus:ring-rose-500/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all duration-150"
+                    className="rounded-xl bg-black/40 border border-white/15 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none transition-all duration-150"
                     placeholder="Year"
                   />
                   <input
@@ -836,7 +861,7 @@ function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting
                     required
                     value={form.vehicle_make}
                     onChange={(e) => updateField('vehicle_make', e.target.value)}
-                    className="rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-rose-500 focus:ring-2 focus:ring-rose-500/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all duration-150"
+                    className="rounded-xl bg-black/40 border border-white/15 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none transition-all duration-150"
                     placeholder="Make"
                   />
                   <input
@@ -844,22 +869,22 @@ function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting
                     required
                     value={form.vehicle_model}
                     onChange={(e) => updateField('vehicle_model', e.target.value)}
-                    className="rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-rose-500 focus:ring-2 focus:ring-rose-500/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all duration-150"
+                    className="rounded-xl bg-black/40 border border-white/15 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30 focus:scale-[1.01] px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none transition-all duration-150"
                     placeholder="Model"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-wider mb-1">
-                  <MessageSquare className="w-3 h-3" /> What's going on? * <FieldCheck filled={form.message.trim().length > 0} colorClass="text-rose-400" />
+                <label className="flex items-center gap-1.5 text-[10px] text-white/60 uppercase tracking-wider mb-1">
+                  <MessageSquare className="w-3 h-3" /> What's going on? * <FieldCheck filled={form.message.trim().length > 0} colorClass="text-amber-300" />
                 </label>
                 <textarea
                   required
                   rows={4}
                   value={form.message}
                   onChange={(e) => updateField('message', e.target.value)}
-                  className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-rose-500 focus:ring-2 focus:ring-rose-500/30 px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none resize-none transition-all duration-150"
+                  className="w-full rounded-xl bg-black/40 border border-white/15 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30 px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none resize-none transition-all duration-150"
                   placeholder="Tell us what you need — a repair, a strange noise, routine service, anything."
                 />
               </div>
@@ -882,7 +907,7 @@ function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting
               <button
                 type="submit"
                 disabled={submitting}
-                className={`w-full py-5 px-6 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 hover:scale-[1.015] disabled:from-zinc-800 disabled:to-zinc-800 text-white disabled:text-zinc-500 font-black rounded-md text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.97] border-2 border-rose-400/60 cursor-pointer ${submitting ? '' : 'animate-pulse-glow'}`}
+                className={`w-full py-5 px-6 bg-gradient-to-r from-pink-500 via-orange-500 to-amber-400 hover:from-pink-400 hover:via-orange-400 hover:to-amber-300 hover:scale-[1.015] disabled:from-zinc-800 disabled:to-zinc-800 text-black disabled:text-zinc-500 font-black rounded-full text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.97] border-2 border-amber-300/60 cursor-pointer ${submitting ? '' : 'animate-pulse-glow-pink'}`}
               >
                 {submitting ? (
                   <>
