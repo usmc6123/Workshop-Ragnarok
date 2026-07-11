@@ -264,6 +264,12 @@ export default function FunnelsView() {
                   <img src={funnel.image_url} alt={funnel.headline} className="w-full h-full object-cover" />
                 ) : funnel.video_url ? (
                   <video src={funnel.video_url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                ) : funnel.hero_video_url ? (
+                  // Video-layout funnels usually have no image_url/video_url set — fall back to the
+                  // hero dialogue video itself. No poster/currentTime needed: browsers render the
+                  // first frame by default once metadata loads, which is exactly the "thumbnail"
+                  // effect we want without asking for a separate image upload.
+                  <video src={funnel.hero_video_url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
                 ) : (
                   <div className="flex flex-col items-center gap-1.5 text-slate-600">
                     <ImageOff className="w-6 h-6" />

@@ -677,6 +677,22 @@ function ModernFunnelLayout({ funnel, form, updateField, handleSubmit, submittin
 // actual intended flow rather than fighting the platform.
 // ============================================================================
 function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting, submitError, submitted }: LayoutProps) {
+  // Browsers block autoplay-with-sound outright, so the only way to actually start
+  // playback the instant the page loads is muted autoplay, with a one-tap "unmute"
+  // control layered on top (tapping counts as user interaction, so sound then plays
+  // uninterrupted from wherever the video already is — no restart).
+  const heroVideoRef = useRef<HTMLVideoElement>(null);
+  const [heroMuted, setHeroMuted] = useState(true);
+
+  const handleUnmute = () => {
+    const v = heroVideoRef.current;
+    if (v) {
+      v.muted = false;
+      v.play().catch(() => {});
+    }
+    setHeroMuted(false);
+  };
+
   return (
     <div className="relative min-h-screen bg-[#0d0612] text-white selection:bg-pink-400/30 selection:text-white pb-20 overflow-hidden">
 
@@ -720,26 +736,42 @@ function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting
             )}
           </div>
 
-          {/* Video — edge to edge within the same card, real controls + sound, no autoplay */}
+          {/* Video — edge to edge within the same card. Starts playing automatically
+              (muted, since that's the only autoplay browsers allow) with a one-tap
+              button to turn sound on. */}
           <div className="relative px-3 sm:px-4">
             <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-black shadow-[0_0_30px_rgba(0,0,0,0.5)]">
               {funnel.hero_video_url ? (
                 <>
                   <video
+                    ref={heroVideoRef}
                     src={funnel.hero_video_url}
                     controls
+                    autoPlay
+                    muted={heroMuted}
                     playsInline
-                    preload="metadata"
+                    preload="auto"
                     poster={funnel.image_url || undefined}
                     className="w-full aspect-video bg-black"
                   />
-                  <div className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/70 border border-amber-400/50 text-amber-200 text-[9px] font-bold uppercase tracking-wider pointer-events-none">
-                    <Volume2 className="w-3 h-3" />
-                    Sound On
-                  </div>
+                  {heroMuted ? (
+                    <button
+                      type="button"
+                      onClick={handleUnmute}
+                      className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/80 border border-amber-400/60 text-amber-200 text-[10px] font-bold uppercase tracking-wider hover:bg-black/90 hover:border-amber-300 transition-colors cursor-pointer animate-pulse-glow"
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                      Tap for Sound
+                    </button>
+                  ) : (
+                    <div className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/70 border border-amber-400/50 text-amber-200 text-[9px] font-bold uppercase tracking-wider pointer-events-none">
+                      <Volume2 className="w-3 h-3" />
+                      Sound On
+                    </div>
+                  )}
                 </>
               ) : funnel.video_url ? (
-                <video src={funnel.video_url} controls playsInline preload="metadata" className="w-full aspect-video bg-black" />
+                <video src={funnel.video_url} controls autoPlay muted playsInline preload="auto" className="w-full aspect-video bg-black" />
               ) : funnel.image_url ? (
                 <img src={funnel.image_url} alt={funnel.headline} className="w-full aspect-video object-cover" referrerPolicy="no-referrer" />
               ) : (
