@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
 import { PublicFunnel } from '../types';
 import {
@@ -131,6 +131,33 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
 // CLASSIC LAYOUT — the original bold/amber auto-shop design
 // ============================================================================
 function ClassicFunnelLayout({ funnel, form, updateField, handleSubmit, submitting, submitError, submitted }: LayoutProps) {
+  // Headline box background video: if two clips are configured, play clip 1,
+  // then clip 2 on 'ended', then loop back to clip 1 — otherwise just loop clip 1.
+  const headlineVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [headlineVideoTurn, setHeadlineVideoTurn] = useState<1 | 2>(1);
+  const hasSecondHeadlineVideo = !!funnel.headline_bg_video_url_2;
+  const currentHeadlineVideoSrc = headlineVideoTurn === 2 && hasSecondHeadlineVideo
+    ? funnel.headline_bg_video_url_2
+    : funnel.headline_bg_video_url;
+
+  useEffect(() => {
+    setHeadlineVideoTurn(1);
+  }, [funnel.headline_bg_video_url, funnel.headline_bg_video_url_2]);
+
+  useEffect(() => {
+    const vid = headlineVideoRef.current;
+    if (vid) {
+      vid.load();
+      vid.play().catch(() => {});
+    }
+  }, [headlineVideoTurn]);
+
+  const handleHeadlineVideoEnded = () => {
+    if (hasSecondHeadlineVideo) {
+      setHeadlineVideoTurn(prev => (prev === 1 ? 2 : 1));
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#07070a] text-slate-200 selection:bg-amber-500/30 selection:text-white pb-16">
 
@@ -159,7 +186,21 @@ function ClassicFunnelLayout({ funnel, form, updateField, handleSubmit, submitti
           ) : null}
 
           <div className="relative border-t-2 border-amber-500/30 overflow-hidden">
-            {funnel.headline_bg_image_url && (
+            {funnel.headline_bg_video_url ? (
+              <>
+                <video
+                  ref={headlineVideoRef}
+                  src={currentHeadlineVideoSrc || undefined}
+                  autoPlay
+                  muted
+                  playsInline
+                  loop={!hasSecondHeadlineVideo}
+                  onEnded={handleHeadlineVideoEnded}
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-black/70" />
+              </>
+            ) : funnel.headline_bg_image_url ? (
               <>
                 <img
                   src={funnel.headline_bg_image_url}
@@ -169,7 +210,7 @@ function ClassicFunnelLayout({ funnel, form, updateField, handleSubmit, submitti
                 />
                 <div className="absolute inset-0 bg-black/70" />
               </>
-            )}
+            ) : null}
             <div className="relative z-10 p-6 space-y-3 font-mono">
               {funnel.service_type && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-black uppercase tracking-widest border-2 bg-amber-500 text-black border-amber-400">

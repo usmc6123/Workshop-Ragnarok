@@ -18,6 +18,8 @@ const EMPTY_FORM = {
   video_url: '',
   card_video_url: '',
   headline_bg_image_url: '',
+  headline_bg_video_url: '',
+  headline_bg_video_url_2: '',
   secondary_video_url: '',
   active: true,
   layout: 'classic' as 'classic' | 'modern',
@@ -84,6 +86,8 @@ export default function FunnelsView() {
       video_url: funnel.video_url || '',
       card_video_url: funnel.card_video_url || '',
       headline_bg_image_url: funnel.headline_bg_image_url || '',
+      headline_bg_video_url: funnel.headline_bg_video_url || '',
+      headline_bg_video_url_2: funnel.headline_bg_video_url_2 || '',
       secondary_video_url: funnel.secondary_video_url || '',
       active: !!funnel.active,
       layout: funnel.layout || 'classic',
@@ -478,7 +482,31 @@ export default function FunnelsView() {
                       placeholder="https://..."
                       className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
                     />
-                    <p className="text-[9px] text-slate-600 mt-1">Sits behind the headline/subheadline/body text, with a dark overlay so text stays readable.</p>
+                    <p className="text-[9px] text-slate-600 mt-1">Sits behind the headline/subheadline/body text, with a dark overlay so text stays readable. Ignored if a background video below is set.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Headline Box Background Video — Clip 1 (optional, Classic only)</label>
+                    <input
+                      type="text"
+                      value={form.headline_bg_video_url}
+                      onChange={(e) => setForm(prev => ({ ...prev, headline_bg_video_url: e.target.value }))}
+                      placeholder="https://.../fr-1.mp4"
+                      className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                    />
+                    <p className="text-[9px] text-slate-600 mt-1">Plays behind the headline text, in place of the background image above. Plays first if a Clip 2 is also set.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Headline Box Background Video — Clip 2 (optional, Classic only)</label>
+                    <input
+                      type="text"
+                      value={form.headline_bg_video_url_2}
+                      onChange={(e) => setForm(prev => ({ ...prev, headline_bg_video_url_2: e.target.value }))}
+                      placeholder="https://.../fr-2.mp4"
+                      className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                    />
+                    <p className="text-[9px] text-slate-600 mt-1">Plays right after Clip 1 finishes, then the pair loops back to Clip 1. Leave blank to just loop Clip 1 alone.</p>
                   </div>
 
                   <div>

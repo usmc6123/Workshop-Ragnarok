@@ -70,6 +70,8 @@ function publicFunnelFields(funnel) {
     video_url: funnel.video_url,
     card_video_url: funnel.card_video_url,
     headline_bg_image_url: funnel.headline_bg_image_url,
+    headline_bg_video_url: funnel.headline_bg_video_url,
+    headline_bg_video_url_2: funnel.headline_bg_video_url_2,
     secondary_video_url: funnel.secondary_video_url,
     service_type: funnel.service_type,
     cta_text: funnel.cta_text,
