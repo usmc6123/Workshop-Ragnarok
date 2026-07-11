@@ -757,8 +757,11 @@ function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting
                 className="absolute inset-0 w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute inset-0 bg-[#150a1d]/95" />
-              <div className="absolute inset-0 bg-gradient-to-b from-[#1c0f27]/97 via-[#1c0f27]/96 to-[#0d0612]/98" />
+              {/* One moderate readability overlay, not stacked near-opaque layers — the
+                  Transparency slider above is now the shop owner's actual control over
+                  how much of this image shows through, so the overlay needs real room
+                  to move instead of quietly overpowering every slider setting. */}
+              <div className="absolute inset-0 bg-gradient-to-b from-[#1c0f27]/75 via-[#1c0f27]/65 to-[#0d0612]/80" />
             </>
           )}
 
@@ -849,8 +852,7 @@ function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting
                 className="absolute inset-0 w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute inset-0 bg-[#150a1d]/95" />
-              <div className="absolute inset-0 bg-gradient-to-b from-[#1c0f27]/97 via-[#150a1d]/96 to-[#0d0612]/98" />
+              <div className="absolute inset-0 bg-gradient-to-b from-[#1c0f27]/75 via-[#150a1d]/65 to-[#0d0612]/80" />
             </>
           )}
           <div className="relative z-10 p-6 sm:p-8 font-mono">
