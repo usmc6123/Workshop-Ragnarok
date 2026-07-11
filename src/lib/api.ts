@@ -1641,7 +1641,7 @@ export const api = {
     return await request<{ site: PublicSite; blocks: SiteBlock[] }>(`/api/public-sites/by-subdomain/${subdomain}`);
   },
 
-  async submitSiteMessage(subdomain: string, data: { name: string; email: string; message: string; company_website?: string }): Promise<{ success: boolean }> {
+  async submitSiteMessage(subdomain: string, data: { name: string; email: string; message: string; company_website?: string; extra_fields?: Record<string, any> }): Promise<{ success: boolean }> {
     return await request<{ success: boolean }>(`/api/public-sites/${subdomain}/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

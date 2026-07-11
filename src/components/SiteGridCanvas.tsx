@@ -1,11 +1,12 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { SiteBlock, BlockStyle } from '../types';
+import { SiteBlock, BlockStyle, ThemeConfig, DeviceBreakpoint } from '../types';
 import {
   GRID_COLUMNS, ROW_UNIT_PX, GridPosition,
   clampCol, clampColSpan, clampRow, clampRowSpan, positionFromStyle,
 } from '../constants/siteGrid';
-import { blockMeta, blockSummary } from '../constants/siteBlockTypes';
-import { Copy, Trash2, Pencil } from 'lucide-react';
+import { blockMeta } from '../constants/siteBlockTypes';
+import SiteBlockView, { parseJson } from './SiteBlockRenderers';
+import { Copy, Trash2, Settings2, Move } from 'lucide-react';
 
 type HandleDir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
@@ -13,16 +14,6 @@ const HANDLE_CURSOR: Record<HandleDir, string> = {
   n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize',
   ne: 'nesw-resize', sw: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize',
 };
-
-function parseJson<T>(raw: string | null | undefined, fallback: T): T {
-  if (!raw) return fallback;
-  try { return JSON.parse(raw); } catch { return fallback; }
-}
-
-function getPosition(block: SiteBlock, fallbackRow: number): GridPosition {
-  const style = parseJson<BlockStyle>(block.style, {});
-  return positionFromStyle(style, fallbackRow);
-}
 
 interface DragState {
   blockId: number;
@@ -35,33 +26,39 @@ interface DragState {
 }
 
 export default function SiteGridCanvas({
-  blocks, selectedId, onSelect, onEdit, onDuplicate, onDelete, onPositionChange,
+  blocks, selectedId, device, theme, dark, accent,
+  onSelect, onContentChange, onDuplicate, onDelete, onPositionChange, onContextMenu, onOpenInspector,
 }: {
   blocks: SiteBlock[];
   selectedId: number | null;
+  device: DeviceBreakpoint;
+  theme: ThemeConfig;
+  dark: boolean;
+  accent: string;
   onSelect: (id: number | null) => void;
-  onEdit: (block: SiteBlock) => void;
+  onContentChange: (blockId: number, content: any) => void;
   onDuplicate: (block: SiteBlock) => void;
   onDelete: (block: SiteBlock) => void;
   onPositionChange: (blockId: number, position: GridPosition) => void;
+  onContextMenu: (block: SiteBlock, x: number, y: number) => void;
+  onOpenInspector: (block: SiteBlock) => void;
 }) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [canvasWidth, setCanvasWidth] = useState(1152);
   const [liveOverrides, setLiveOverrides] = useState<Record<number, GridPosition>>({});
   const dragState = useRef<DragState | null>(null);
+  const isMobilePreview = device === 'mobile';
 
   useEffect(() => {
-    const measure = () => {
-      if (canvasRef.current) setCanvasWidth(canvasRef.current.clientWidth);
-    };
+    const measure = () => { if (canvasRef.current) setCanvasWidth(canvasRef.current.clientWidth); };
     measure();
     const observer = new ResizeObserver(measure);
     if (canvasRef.current) observer.observe(canvasRef.current);
     return () => observer.disconnect();
-  }, []);
+  }, [device]);
 
   const positions = blocks.reduce<Record<number, GridPosition>>((acc, b, idx) => {
-    acc[b.id] = liveOverrides[b.id] || getPosition(b, idx * 12);
+    acc[b.id] = liveOverrides[b.id] || positionFromStyle(parseJson<BlockStyle>(b.style, {}), idx * 12);
     return acc;
   }, {});
 
@@ -75,7 +72,6 @@ export default function SiteGridCanvas({
     const dy = e.clientY - drag.startPointerY;
     const dCol = dx / drag.colWidthPx;
     const dRow = dy / ROW_UNIT_PX;
-
     let next: GridPosition = { ...drag.startPos };
 
     if (drag.mode === 'move') {
@@ -84,18 +80,14 @@ export default function SiteGridCanvas({
       next.grid_row = clampRow(drag.startPos.grid_row + dRow);
     } else {
       const h = drag.handle!;
-      if (h.includes('e')) {
-        next.grid_col_span = clampColSpan(drag.startPos.grid_col, drag.startPos.grid_col_span + dCol);
-      }
+      if (h.includes('e')) next.grid_col_span = clampColSpan(drag.startPos.grid_col, drag.startPos.grid_col_span + dCol);
       if (h.includes('w')) {
         const newCol = clampCol(drag.startPos.grid_col + dCol);
         const delta = drag.startPos.grid_col - newCol;
         next.grid_col = newCol;
         next.grid_col_span = clampColSpan(newCol, drag.startPos.grid_col_span + delta);
       }
-      if (h.includes('s')) {
-        next.grid_row_span = clampRowSpan(drag.startPos.grid_row_span + dRow);
-      }
+      if (h.includes('s')) next.grid_row_span = clampRowSpan(drag.startPos.grid_row_span + dRow);
       if (h.includes('n')) {
         const newRow = clampRow(drag.startPos.grid_row + dRow);
         const delta = drag.startPos.grid_row - newRow;
@@ -103,7 +95,6 @@ export default function SiteGridCanvas({
         next.grid_row_span = clampRowSpan(drag.startPos.grid_row_span + delta);
       }
     }
-
     setLiveOverrides(prev => ({ ...prev, [drag.blockId]: next }));
   }, []);
 
@@ -118,6 +109,7 @@ export default function SiteGridCanvas({
   }, [handlePointerMove, liveOverrides, onPositionChange]);
 
   const startDrag = (e: React.PointerEvent, block: SiteBlock, mode: 'move' | 'resize', handle?: HandleDir) => {
+    if (isMobilePreview) return; // mobile preview is read-only — it shows the real collapsed stacking order, not an editable layout
     e.preventDefault();
     e.stopPropagation();
     onSelect(block.id);
@@ -146,30 +138,44 @@ export default function SiteGridCanvas({
     sw: { bottom: -5, left: -5 },
   };
 
+  // In mobile preview, blocks render stacked full-width in (row, col) order —
+  // exactly what SitePageView's own mobile collapse produces — so what's
+  // shown here is a true preview, not a guess.
+  const orderedForMobile = [...blocks].sort((a, b) => {
+    const pa = positions[a.id], pb = positions[b.id];
+    return (pa.grid_row - pb.grid_row) || (pa.grid_col - pb.grid_col);
+  });
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono px-1">
-        <span>Page width preview — this frame matches the live site's max width</span>
+        <span>{isMobilePreview ? 'Mobile preview — stacked order, matches the live site' : 'Page width preview — matches the live site\'s max width'}</span>
         <span>{Math.round(canvasWidth)}px</span>
       </div>
       <div
         ref={canvasRef}
         onPointerDown={() => onSelect(null)}
-        className="relative w-full mx-auto rounded-2xl border-2 border-dashed border-[#2a2d3a] bg-[#0a0b0f] overflow-hidden"
-        style={{ maxWidth: 1152, height: totalRows * ROW_UNIT_PX }}
+        className="relative mx-auto rounded-2xl border-2 border-dashed border-[#2a2d3a] bg-[#0a0b0f] overflow-hidden transition-all duration-300"
+        style={{ maxWidth: isMobilePreview ? 375 : 1152, minHeight: isMobilePreview ? undefined : totalRows * ROW_UNIT_PX }}
       >
-        {/* Subtle column guides — purely visual, helps line up multi-column rows */}
-        <div className="absolute inset-0 pointer-events-none flex">
-          {Array.from({ length: GRID_COLUMNS }).map((_, i) => (
-            <div key={i} className="flex-1 border-r border-white/[0.03] last:border-r-0" />
-          ))}
-        </div>
+        {!isMobilePreview && (
+          <div className="absolute inset-0 pointer-events-none flex">
+            {Array.from({ length: GRID_COLUMNS }).map((_, i) => (
+              <div key={i} className="flex-1 border-r border-white/[0.03] last:border-r-0" />
+            ))}
+          </div>
+        )}
 
-        {blocks.map(block => {
+        {isMobilePreview ? (
+          <div className="flex flex-col gap-4 p-4">
+            {orderedForMobile.map(block => (
+              <div key={block.id} className="rounded-xl overflow-hidden" style={{ minHeight: positions[block.id].grid_row_span * ROW_UNIT_PX * 0.6 }}>
+                <SiteBlockView block={block} dark={dark} accent={accent} headingFont={theme.heading_font} bodyFont={theme.body_font} subdomain="" editable={false} device="mobile" />
+              </div>
+            ))}
+          </div>
+        ) : blocks.map(block => {
           const pos = positions[block.id];
-          const meta = blockMeta(block.block_type);
-          const Icon = meta.icon;
-          const content = parseJson<any>(block.content, {});
           const isSelected = selectedId === block.id;
           const isDragging = dragState.current?.blockId === block.id;
 
@@ -177,10 +183,11 @@ export default function SiteGridCanvas({
             <div
               key={block.id}
               onPointerDown={(e) => { e.stopPropagation(); onSelect(block.id); }}
-              className={`absolute rounded-xl border backdrop-blur-md shadow-lg transition-shadow group ${
+              onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onSelect(block.id); onContextMenu(block, e.clientX, e.clientY); }}
+              className={`absolute rounded-xl border shadow-lg transition-shadow group ${
                 isSelected
-                  ? 'border-amber-400 shadow-[0_0_0_2px_rgba(245,158,11,0.35),0_8px_24px_rgba(0,0,0,0.4)] bg-[#181a22]/95 z-20'
-                  : 'border-white/10 bg-[#14151c]/90 hover:border-white/20 z-10'
+                  ? 'border-amber-400 shadow-[0_0_0_2px_rgba(245,158,11,0.35),0_8px_24px_rgba(0,0,0,0.4)] z-20'
+                  : 'border-transparent hover:border-white/20 z-10'
               } ${isDragging ? 'cursor-grabbing' : ''}`}
               style={{
                 left: `${(pos.grid_col / GRID_COLUMNS) * 100}%`,
@@ -189,15 +196,30 @@ export default function SiteGridCanvas({
                 height: pos.grid_row_span * ROW_UNIT_PX,
               }}
             >
-              {/* Windows-11-style title bar: drag handle + quick actions */}
+              {/* Real, live-styled block content — click text to edit it directly */}
+              <div className="w-full h-full overflow-hidden rounded-xl">
+                <SiteBlockView
+                  block={block}
+                  dark={dark}
+                  accent={accent}
+                  headingFont={theme.heading_font}
+                  bodyFont={theme.body_font}
+                  subdomain=""
+                  editable
+                  device="desktop"
+                  onContentChange={(content) => onContentChange(block.id, content)}
+                />
+              </div>
+
+              {/* Slim floating toolbar — appears on hover/select, drag anywhere on it to move the block */}
               <div
                 onPointerDown={(e) => startDrag(e, block, 'move')}
-                className="flex items-center gap-2 px-2.5 h-8 border-b border-white/10 cursor-grab active:cursor-grabbing rounded-t-xl bg-white/[0.03]"
+                className={`absolute -top-8 left-0 flex items-center gap-1 px-1.5 h-7 rounded-lg bg-[#1a1c24] border border-white/10 shadow-lg cursor-grab active:cursor-grabbing transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
               >
-                <Icon className="w-3.5 h-3.5 text-primary-theme shrink-0" />
-                <span className="text-[10px] font-bold text-slate-200 uppercase tracking-wide truncate flex-1">{meta.label}</span>
-                <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onEdit(block)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer" title="Edit content & style">
-                  <Pencil className="w-3 h-3" />
+                <Move className="w-3 h-3 text-slate-500 shrink-0 ml-0.5" />
+                <span className="text-[9px] font-bold text-slate-300 uppercase tracking-wide truncate max-w-[90px]">{blockMeta(block.block_type).label}</span>
+                <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onOpenInspector(block)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer" title="Style & settings">
+                  <Settings2 className="w-3 h-3" />
                 </button>
                 <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDuplicate(block)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer" title="Duplicate">
                   <Copy className="w-3 h-3" />
@@ -207,12 +229,6 @@ export default function SiteGridCanvas({
                 </button>
               </div>
 
-              {/* Body — compact preview, not the live render (see Preview Site for that) */}
-              <div className="px-2.5 py-1.5 overflow-hidden text-[10px] text-slate-500 leading-snug" style={{ height: `calc(100% - 32px)` }}>
-                {blockSummary(block.block_type, content)}
-              </div>
-
-              {/* Resize handles — only interactive once selected, Windows-11-style small squares */}
               {isSelected && HANDLES.map(h => (
                 <div
                   key={h}

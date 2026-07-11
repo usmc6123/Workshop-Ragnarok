@@ -1234,6 +1234,32 @@ try {
     console.error('Error migrating site_blocks style column:', err);
   }
 
+  // Sites builder Batch E: basic SEO fields (meta description + favicon) and
+  // a JSON column for dynamic contact-form custom-field submissions.
+  try {
+    const sitesCols2 = db.prepare('PRAGMA table_info(sites)').all();
+    if (!sitesCols2.some(c => c.name === 'meta_description')) {
+      db.exec(`ALTER TABLE sites ADD COLUMN meta_description TEXT`);
+      console.log('Successfully migrated sites to include meta_description column.');
+    }
+    if (!sitesCols2.some(c => c.name === 'favicon_url')) {
+      db.exec(`ALTER TABLE sites ADD COLUMN favicon_url TEXT`);
+      console.log('Successfully migrated sites to include favicon_url column.');
+    }
+  } catch (err) {
+    console.error('Error migrating sites SEO columns:', err);
+  }
+
+  try {
+    const siteMsgCols = db.prepare('PRAGMA table_info(site_messages)').all();
+    if (!siteMsgCols.some(c => c.name === 'extra_fields')) {
+      db.exec(`ALTER TABLE site_messages ADD COLUMN extra_fields TEXT`);
+      console.log('Successfully migrated site_messages to include extra_fields column.');
+    }
+  } catch (err) {
+    console.error('Error migrating site_messages extra_fields column:', err);
+  }
+
   // Seed the admin user if not exists
   const bcrypt = require('bcryptjs');
   const existingAdmin = db.prepare('SELECT * FROM users WHERE username = ?').get('usmc6123');
@@ -4259,7 +4285,7 @@ app.get('/api/sites', (req, res) => {
 
 app.post('/api/sites', (req, res) => {
   try {
-    const { name, subdomain, title, theme, active, theme_config } = req.body;
+    const { name, subdomain, title, theme, active, theme_config, meta_description, favicon_url } = req.body;
     if (!name || !subdomain) return res.status(400).json({ error: 'name and subdomain are required' });
 
     const cleanSub = cleanSubdomain(subdomain);
@@ -4269,9 +4295,9 @@ app.post('/api/sites', (req, res) => {
     if (existing) return res.status(409).json({ error: `Subdomain "${cleanSub}" is already in use` });
 
     const info = db.prepare(`
-      INSERT INTO sites (name, subdomain, title, theme, active, theme_config, user_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, JSON.stringify(theme_config || {}), req.user.id);
+      INSERT INTO sites (name, subdomain, title, theme, active, theme_config, meta_description, favicon_url, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, JSON.stringify(theme_config || {}), meta_description || null, favicon_url || null, req.user.id);
 
     const inserted = db.prepare('SELECT * FROM sites WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
     res.json(inserted);
@@ -4284,7 +4310,7 @@ app.post('/api/sites', (req, res) => {
 app.put('/api/sites/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const { name, subdomain, title, theme, active, theme_config } = req.body;
+    const { name, subdomain, title, theme, active, theme_config, meta_description, favicon_url } = req.body;
     if (!name || !subdomain) return res.status(400).json({ error: 'name and subdomain are required' });
 
     const cleanSub = cleanSubdomain(subdomain);
@@ -4294,9 +4320,9 @@ app.put('/api/sites/:id', (req, res) => {
     if (conflict) return res.status(409).json({ error: `Subdomain "${cleanSub}" is already in use` });
 
     const info = db.prepare(`
-      UPDATE sites SET name = ?, subdomain = ?, title = ?, theme = ?, active = ?, theme_config = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE sites SET name = ?, subdomain = ?, title = ?, theme = ?, active = ?, theme_config = ?, meta_description = ?, favicon_url = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
-    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, JSON.stringify(theme_config || {}), id, req.user.id);
+    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, JSON.stringify(theme_config || {}), meta_description || null, favicon_url || null, id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Site not found' });
 
     const updated = db.prepare('SELECT * FROM sites WHERE id = ? AND user_id = ?').get(id, req.user.id);

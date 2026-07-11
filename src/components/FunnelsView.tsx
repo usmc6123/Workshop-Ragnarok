@@ -4,7 +4,8 @@ import { api } from '../lib/api';
 import { Funnel, FunnelLead } from '../types';
 import {
   Megaphone, Plus, Pencil, Trash2, Copy, ExternalLink, Loader2, X,
-  Users, CheckCircle2, Clock, Ban, RefreshCw, LayoutTemplate, Sparkles, ImageOff, Clapperboard, Code2, Check
+  Users, CheckCircle2, Clock, Ban, RefreshCw, LayoutTemplate, Sparkles, ImageOff, Clapperboard, Code2, Check,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 // Sensible starting height for the embed iframe, per layout — these are just defaults
@@ -303,6 +304,16 @@ export default function FunnelsView() {
           </p>
         </div>
         <div className="flex items-center gap-2 self-start md:self-center">
+          <a
+            href="https://gemini.google.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs uppercase tracking-wider font-bold transition flex items-center gap-1.5 cursor-pointer"
+            title="Opens Gemini in a new tab for image generation"
+          >
+            <ImageIcon className="w-3.5 h-3.5 text-primary-theme" />
+            <span>Generate Image</span>
+          </a>
           <a
             href="https://labs.google/fx/tools/flow"
             target="_blank"

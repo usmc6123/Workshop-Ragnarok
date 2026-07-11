@@ -49,6 +49,8 @@ function publicSiteFields(site) {
     title: site.title,
     theme: site.theme || 'dark',
     theme_config: site.theme_config || '{}',
+    meta_description: site.meta_description || null,
+    favicon_url: site.favicon_url || null,
   };
 }
 
@@ -96,21 +98,22 @@ router.post('/:subdomain/message', (req, res) => {
     const site = db.prepare('SELECT * FROM sites WHERE subdomain = ? AND active = 1').get(subdomain);
     if (!site) return res.status(404).json({ error: 'Site not found' });
 
-    const { name, email, message, company_website } = req.body || {};
+    const { name, email, message, company_website, extra_fields } = req.body || {};
     // Honeypot: a real visitor never sees/fills this field. A bot filling every
     // input trips it and gets silently dropped — same pattern as the funnels form.
     if (company_website) {
       return res.json({ success: true });
     }
 
-    if (!message || !String(message).trim()) {
+    const hasExtraFields = extra_fields && typeof extra_fields === 'object' && Object.keys(extra_fields).length > 0;
+    if (!hasExtraFields && (!message || !String(message).trim())) {
       return res.status(400).json({ error: 'A message is required.' });
     }
 
     db.prepare(`
-      INSERT INTO site_messages (site_id, name, email, message, ip_address, user_id)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(site.id, name || null, email || null, String(message).trim(), ip, site.user_id);
+      INSERT INTO site_messages (site_id, name, email, message, extra_fields, ip_address, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(site.id, name || null, email || null, message ? String(message).trim() : null, hasExtraFields ? JSON.stringify(extra_fields) : null, ip, site.user_id);
 
     res.json({ success: true });
   } catch (error) {

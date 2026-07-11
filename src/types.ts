@@ -290,10 +290,15 @@ export type SiteBlockType =
 // Site-wide look-and-feel — a flexible JSON blob (like block content/style)
 // rather than fixed columns, since the set of themeable properties keeps
 // growing. accent_color drives every button/highlight/active-state color on
-// the public page; font_family is the site-wide default, overridable per block.
+// the public page. heading_font/body_font are a real font *pairing* (heading
+// tags use one, everything else uses the other) — font_family is kept as a
+// legacy fallback for sites created before pairing existed.
 export interface ThemeConfig {
   accent_color?: string; // hex, e.g. "#f59e0b"
-  font_family?: string; // e.g. "Inter", "Playfair Display"
+  secondary_color?: string; // hex — a second accent for variety (badges, secondary buttons)
+  font_family?: string; // legacy single-font field, still read as a fallback
+  heading_font?: string; // font used for all heading tags (h1-h6)
+  body_font?: string; // font used for body/paragraph text
 }
 
 export interface Site {
@@ -304,6 +309,8 @@ export interface Site {
   theme: 'dark' | 'light';
   active: number; // 0 or 1
   theme_config: string | null; // JSON string of ThemeConfig
+  meta_description: string | null; // SEO <meta name="description">
+  favicon_url: string | null;
   created_at?: string;
   updated_at?: string;
   user_id?: number;
@@ -318,6 +325,19 @@ export interface PublicSite {
   title: string | null;
   theme: 'dark' | 'light';
   theme_config: string | null;
+  meta_description: string | null;
+  favicon_url: string | null;
+}
+
+export type DeviceBreakpoint = 'desktop' | 'tablet' | 'mobile';
+
+// A narrow slice of BlockStyle that can be overridden specifically for phones —
+// e.g. a Hero that's text-xl on desktop can drop to text-md on mobile without
+// touching the desktop look at all.
+export interface MobileStyleOverride {
+  font_size?: 'sm' | 'md' | 'lg' | 'xl';
+  padding?: 'sm' | 'md' | 'lg';
+  align?: 'left' | 'center' | 'right';
 }
 
 // Per-block style override — anything left unset falls back to the site's
@@ -329,6 +349,34 @@ export interface BlockStyle {
   font_family?: string; // overrides the site default for this block only
   font_size?: 'sm' | 'md' | 'lg' | 'xl'; // scales headline/body text together
   padding?: 'sm' | 'md' | 'lg'; // internal breathing room
+
+  // Typography fine-tuning
+  line_height?: 'tight' | 'normal' | 'relaxed';
+  letter_spacing?: 'tight' | 'normal' | 'wide';
+  text_transform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
+
+  // Background: solid color (bg_color above) or a gradient between two colors
+  bg_type?: 'solid' | 'gradient';
+  bg_gradient_from?: string;
+  bg_gradient_to?: string;
+  bg_gradient_direction?: 'to-r' | 'to-l' | 'to-b' | 'to-t' | 'to-br' | 'to-bl';
+
+  // Border
+  border_width?: 0 | 1 | 2 | 4;
+  border_style?: 'solid' | 'dashed' | 'dotted';
+  border_color?: string;
+  border_radius?: 'none' | 'sm' | 'md' | 'lg' | 'full';
+
+  // Shadow
+  shadow?: 'none' | 'sm' | 'md' | 'lg' | 'xl';
+
+  // Hover state — applies to this block's primary button, if it has one
+  hover_bg_color?: string;
+  hover_text_color?: string;
+
+  // Responsiveness
+  mobile?: MobileStyleOverride;
+  hide_on?: 'mobile' | 'desktop';
 
   // Position/size on the page's 12-column grid — set by dragging/resizing the
   // block on the builder canvas. grid_col/grid_col_span are 0-11 / 1-12
@@ -353,42 +401,75 @@ export interface SiteBlock {
   user_id?: number;
 }
 
+export type HeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'p';
+
+// A named, curated icon reference (Lucide icon name, e.g. "ArrowRight",
+// "Phone", "Star") rather than free text — keeps the picker's choices and the
+// rendered result guaranteed to match.
+export type IconName = string;
+
 // The parsed shape of SiteBlock.content, per block_type. Every field is optional
 // since a freshly-added block starts as `{}` before the owner fills anything in.
+// Body-like fields (body, quote, answer) hold HTML from the rich text editor
+// (bold/italic/underline/strikethrough/links) rather than plain text.
 export interface HeroBlockContent {
   headline?: string;
-  subheadline?: string;
+  headline_tag?: HeadingTag;
+  subheadline?: string; // rich HTML
   image_url?: string;
-  video_url?: string;
+  video_url?: string; // supports YouTube/Vimeo URLs (auto-embedded) or direct MP4
+  object_fit?: 'cover' | 'contain';
   cta_text?: string;
   cta_link?: string;
+  cta_icon?: IconName;
+  cta_icon_position?: 'left' | 'right';
 }
 export interface TextBlockContent {
   headline?: string;
-  body?: string;
+  headline_tag?: HeadingTag;
+  body?: string; // rich HTML
   align?: 'left' | 'center';
 }
 export interface ImageBlockContent {
   images?: { url: string; caption?: string }[];
+  layout?: 'grid' | 'carousel';
+  object_fit?: 'cover' | 'contain';
+  carousel_autoplay?: boolean;
 }
 export interface VideoBlockContent {
-  video_url?: string;
+  video_url?: string; // supports YouTube/Vimeo URLs (auto-embedded) or direct MP4
   autoplay?: boolean;
   controls?: boolean;
+  object_fit?: 'cover' | 'contain';
 }
 export interface CtaBlockContent {
   headline?: string;
-  subheadline?: string;
+  headline_tag?: HeadingTag;
+  subheadline?: string; // rich HTML
   button_text?: string;
   button_link?: string;
+  button_icon?: IconName;
+  button_icon_position?: 'left' | 'right';
+}
+export interface ContactFormField {
+  id: string;
+  type: 'text' | 'email' | 'textarea' | 'dropdown' | 'checkbox';
+  label: string;
+  options?: string[]; // for 'dropdown'
+  required?: boolean;
 }
 export interface ContactFormBlockContent {
   headline?: string;
+  headline_tag?: HeadingTag;
   subheadline?: string;
   button_text?: string;
+  // Custom field builder — when present/non-empty, these render instead of the
+  // fixed name/email/message trio. Submissions are stored as a JSON map keyed
+  // by field id in site_messages.extra_fields.
+  fields?: ContactFormField[];
 }
 export interface TestimonialBlockContent {
-  quote?: string;
+  quote?: string; // rich HTML
   author?: string;
   role?: string;
   photo_url?: string;
@@ -401,14 +482,16 @@ export interface PricingTier {
 }
 export interface PricingBlockContent {
   headline?: string;
+  headline_tag?: HeadingTag;
   tiers?: PricingTier[];
 }
 export interface FaqItem {
   question?: string;
-  answer?: string;
+  answer?: string; // rich HTML
 }
 export interface FaqBlockContent {
   headline?: string;
+  headline_tag?: HeadingTag;
   items?: FaqItem[];
 }
 export interface SpacerBlockContent {
@@ -421,6 +504,7 @@ export interface SiteMessage {
   name: string | null;
   email: string | null;
   message: string;
+  extra_fields: string | null; // JSON map of custom-field-id -> submitted value
   ip_address: string | null;
   created_at: string;
   user_id?: number;
