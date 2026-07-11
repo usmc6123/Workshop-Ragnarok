@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import { Funnel, FunnelLead } from '../types';
 import {
   Megaphone, Plus, Pencil, Trash2, Copy, ExternalLink, Loader2, X,
-  Users, CheckCircle2, Clock, Ban, RefreshCw, LayoutTemplate, Sparkles, ImageOff
+  Users, CheckCircle2, Clock, Ban, RefreshCw, LayoutTemplate, Sparkles, ImageOff, Clapperboard
 } from 'lucide-react';
 
 const EMPTY_FORM = {
@@ -22,8 +22,9 @@ const EMPTY_FORM = {
   headline_bg_video_url_2: '',
   secondary_video_url: '',
   secondary_video_url_2: '',
+  hero_video_url: '',
   active: true,
-  layout: 'classic' as 'classic' | 'modern',
+  layout: 'classic' as 'classic' | 'modern' | 'video',
 };
 
 function slugify(value: string): string {
@@ -91,6 +92,7 @@ export default function FunnelsView() {
       headline_bg_video_url_2: funnel.headline_bg_video_url_2 || '',
       secondary_video_url: funnel.secondary_video_url || '',
       secondary_video_url_2: funnel.secondary_video_url_2 || '',
+      hero_video_url: funnel.hero_video_url || '',
       active: !!funnel.active,
       layout: funnel.layout || 'classic',
     });
@@ -275,9 +277,15 @@ export default function FunnelsView() {
                     <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${funnel.active ? 'bg-emerald-950/50 text-emerald-400 border-emerald-500/20' : 'bg-slate-800/60 text-slate-500 border-slate-600/20'}`}>
                       {funnel.active ? 'Active' : 'Paused'}
                     </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border flex items-center gap-1 ${funnel.layout === 'modern' ? 'bg-cyan-950/50 text-cyan-400 border-cyan-500/20' : 'bg-amber-950/50 text-amber-400 border-amber-500/20'}`}>
-                      {funnel.layout === 'modern' ? <Sparkles className="w-2.5 h-2.5" /> : <LayoutTemplate className="w-2.5 h-2.5" />}
-                      {funnel.layout === 'modern' ? 'Modern' : 'Classic'}
+                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border flex items-center gap-1 ${
+                      funnel.layout === 'modern' ? 'bg-cyan-950/50 text-cyan-400 border-cyan-500/20'
+                      : funnel.layout === 'video' ? 'bg-rose-950/50 text-rose-400 border-rose-500/20'
+                      : 'bg-amber-950/50 text-amber-400 border-amber-500/20'
+                    }`}>
+                      {funnel.layout === 'modern' ? <Sparkles className="w-2.5 h-2.5" />
+                        : funnel.layout === 'video' ? <Clapperboard className="w-2.5 h-2.5" />
+                        : <LayoutTemplate className="w-2.5 h-2.5" />}
+                      {funnel.layout === 'modern' ? 'Modern' : funnel.layout === 'video' ? 'Video' : 'Classic'}
                     </span>
                   </div>
                   {funnel.subheadline && (
@@ -549,7 +557,7 @@ export default function FunnelsView() {
 
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Page Layout</label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <button
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, layout: 'classic' }))}
@@ -578,6 +586,20 @@ export default function FunnelsView() {
                     </div>
                     <p className="text-[10px] text-slate-500 mt-0.5">Vibrant, glowing, 3D showcase style.</p>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, layout: 'video' }))}
+                    className={`text-left rounded-xl p-3 border-2 transition cursor-pointer ${form.layout === 'video' ? 'border-rose-500 bg-rose-950/20' : 'border-[#1e2028] bg-[#0c0d12] hover:border-slate-600'}`}
+                  >
+                    <div className="w-full h-14 rounded-lg bg-gradient-to-br from-black via-rose-950/40 to-black border border-rose-500/40 flex items-center justify-center mb-2 shadow-[0_0_12px_rgba(244,63,94,0.25)]">
+                      <Clapperboard className="w-5 h-5 text-rose-400" />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-white">Video</span>
+                      {form.layout === 'video' && <CheckCircle2 className="w-3.5 h-3.5 text-rose-400" />}
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Cinematic — a big click-to-play video with sound leads the page.</p>
+                  </button>
                 </div>
               </div>
 
@@ -592,6 +614,22 @@ export default function FunnelsView() {
                     className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-cyan-400 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
                   />
                   <p className="text-[9px] text-slate-600 mt-1">Loops behind the quote form's glass card — use a muted looping clip.</p>
+                </div>
+              )}
+
+              {form.layout === 'video' && (
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-rose-400 mb-1">Hero Dialogue Video (Video layout only)</label>
+                  <input
+                    type="text"
+                    value={form.hero_video_url}
+                    onChange={(e) => setForm(prev => ({ ...prev, hero_video_url: e.target.value }))}
+                    placeholder="https://..."
+                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-rose-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                  />
+                  <p className="text-[9px] text-slate-600 mt-1">
+                    Shown big, front and center, with real playback controls and full sound — visitors click play, watch/hear the pitch, then the quote form sits right underneath. Browsers won't autoplay audio, so this is click-to-play by design (works better anyway — it's a real watch-then-convert moment instead of background noise).
+                  </p>
                 </div>
               )}
 

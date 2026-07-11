@@ -244,10 +244,11 @@ export interface Funnel {
   headline_bg_video_url_2: string | null;
   secondary_video_url: string | null;
   secondary_video_url_2: string | null;
+  hero_video_url: string | null;
   service_type: string | null;
   cta_text: string;
   active: number; // 0 or 1
-  layout: 'classic' | 'modern';
+  layout: 'classic' | 'modern' | 'video';
   created_at?: string;
   updated_at?: string;
   user_id?: number;
@@ -270,9 +271,10 @@ export interface PublicFunnel {
   headline_bg_video_url_2: string | null;
   secondary_video_url: string | null;
   secondary_video_url_2: string | null;
+  hero_video_url: string | null;
   service_type: string | null;
   cta_text: string;
-  layout: 'classic' | 'modern';
+  layout: 'classic' | 'modern' | 'video';
 }
 
 export interface FunnelLead {

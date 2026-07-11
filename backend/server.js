@@ -960,6 +960,7 @@ try {
       headline_bg_video_url_2 TEXT,
       secondary_video_url TEXT,
       secondary_video_url_2 TEXT,
+      hero_video_url TEXT,
       service_type TEXT,
       cta_text TEXT DEFAULT 'Get My Free Quote',
       active INTEGER DEFAULT 1,
@@ -1001,6 +1002,10 @@ try {
     if (!funnelsCols.some(c => c.name === 'secondary_video_url_2')) {
       db.exec(`ALTER TABLE funnels ADD COLUMN secondary_video_url_2 TEXT`);
       console.log('Successfully migrated funnels to include secondary_video_url_2 column.');
+    }
+    if (!funnelsCols.some(c => c.name === 'hero_video_url')) {
+      db.exec(`ALTER TABLE funnels ADD COLUMN hero_video_url TEXT`);
+      console.log('Successfully migrated funnels to include hero_video_url column.');
     }
   } catch (err) {
     console.error('Error migrating funnels layout/card_video_url columns:', err);
@@ -3946,7 +3951,7 @@ app.get('/api/funnels', (req, res) => {
 
 app.post('/api/funnels', (req, res) => {
   try {
-    const { slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, service_type, cta_text, active, layout } = req.body;
+    const { slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, hero_video_url, service_type, cta_text, active, layout } = req.body;
     if (!slug || !headline) return res.status(400).json({ error: 'slug and headline are required' });
 
     const cleanSlug = String(slug).trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
@@ -3955,15 +3960,15 @@ app.post('/api/funnels', (req, res) => {
     const existing = db.prepare('SELECT id FROM funnels WHERE slug = ?').get(cleanSlug);
     if (existing) return res.status(409).json({ error: `Slug "${cleanSlug}" is already in use` });
 
-    const cleanLayout = layout === 'modern' ? 'modern' : 'classic';
+    const cleanLayout = ['modern', 'video'].includes(layout) ? layout : 'classic';
 
     const stmt = db.prepare(`
-      INSERT INTO funnels (slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, service_type, cta_text, active, layout, user_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO funnels (slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, hero_video_url, service_type, cta_text, active, layout, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
       cleanSlug, headline, subheadline || null, body || null, image_url || null, video_url || null, card_video_url || null,
-      headline_bg_image_url || null, headline_bg_video_url || null, headline_bg_video_url_2 || null, secondary_video_url || null, secondary_video_url_2 || null,
+      headline_bg_image_url || null, headline_bg_video_url || null, headline_bg_video_url_2 || null, secondary_video_url || null, secondary_video_url_2 || null, hero_video_url || null,
       service_type || null, cta_text || 'Get My Free Quote', active === false ? 0 : 1, cleanLayout, req.user.id
     );
     const inserted = db.prepare('SELECT * FROM funnels WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
@@ -3977,7 +3982,7 @@ app.post('/api/funnels', (req, res) => {
 app.put('/api/funnels/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const { slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, service_type, cta_text, active, layout } = req.body;
+    const { slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, hero_video_url, service_type, cta_text, active, layout } = req.body;
     if (!slug || !headline) return res.status(400).json({ error: 'slug and headline are required' });
 
     const cleanSlug = String(slug).trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
@@ -3986,18 +3991,18 @@ app.put('/api/funnels/:id', (req, res) => {
     const conflict = db.prepare('SELECT id FROM funnels WHERE slug = ? AND id != ?').get(cleanSlug, id);
     if (conflict) return res.status(409).json({ error: `Slug "${cleanSlug}" is already in use` });
 
-    const cleanLayout = layout === 'modern' ? 'modern' : 'classic';
+    const cleanLayout = ['modern', 'video'].includes(layout) ? layout : 'classic';
 
     const stmt = db.prepare(`
       UPDATE funnels
       SET slug = ?, headline = ?, subheadline = ?, body = ?, image_url = ?, video_url = ?, card_video_url = ?,
-          headline_bg_image_url = ?, headline_bg_video_url = ?, headline_bg_video_url_2 = ?, secondary_video_url = ?, secondary_video_url_2 = ?,
+          headline_bg_image_url = ?, headline_bg_video_url = ?, headline_bg_video_url_2 = ?, secondary_video_url = ?, secondary_video_url_2 = ?, hero_video_url = ?,
           service_type = ?, cta_text = ?, active = ?, layout = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
     `);
     const info = stmt.run(
       cleanSlug, headline, subheadline || null, body || null, image_url || null, video_url || null, card_video_url || null,
-      headline_bg_image_url || null, headline_bg_video_url || null, headline_bg_video_url_2 || null, secondary_video_url || null, secondary_video_url_2 || null,
+      headline_bg_image_url || null, headline_bg_video_url || null, headline_bg_video_url_2 || null, secondary_video_url || null, secondary_video_url_2 || null, hero_video_url || null,
       service_type || null, cta_text || 'Get My Free Quote', active === false ? 0 : 1, cleanLayout, id, req.user.id
     );
     if (info.changes === 0) return res.status(404).json({ error: 'Funnel not found' });
