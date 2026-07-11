@@ -32,6 +32,31 @@ function getClientIp(req) {
   return req.socket?.remoteAddress || 'unknown';
 }
 
+function normalizePhone(phone) {
+  return String(phone || '').replace(/\D/g, '');
+}
+
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+// Look up an existing customer for this shop by email or phone (normalized), so
+// repeat funnel submissions from the same person attach to their existing CRM
+// record instead of spawning duplicate customers. A new vehicle/job is still
+// created every time — only the customer record itself is deduplicated.
+function findExistingCustomer(userId, email, phone) {
+  const targetEmail = normalizeEmail(email);
+  const targetPhone = normalizePhone(phone);
+  if (!targetEmail && !targetPhone) return null;
+
+  const candidates = db.prepare('SELECT id, phone, email FROM customers WHERE user_id = ?').all(userId);
+  return candidates.find(c => {
+    const cEmail = normalizeEmail(c.email);
+    const cPhone = normalizePhone(c.phone);
+    return (targetEmail && cEmail === targetEmail) || (targetPhone && cPhone === targetPhone);
+  }) || null;
+}
+
 // Fields a funnel page is allowed to expose publicly. Deliberately excludes
 // internal bookkeeping columns like user_id.
 function publicFunnelFields(funnel) {
@@ -110,21 +135,48 @@ router.post('/:slug/submit', async (req, res) => {
     );
     const leadId = leadInfo.lastInsertRowid;
 
-    // --- Auto-create Customer ---
-    const customerInfo = db.prepare(`
-      INSERT INTO customers (name, phone, email, address, notes, user_id)
-      VALUES (?, ?, ?, NULL, ?, ?)
-    `).run(name, phone, email, `Auto-created from "${funnel.headline}" funnel (slug: ${funnel.slug})`, funnel.user_id);
-    const customerId = customerInfo.lastInsertRowid;
+    // --- Find existing customer by email/phone, or create a new one ---
+    // Prevents duplicate customer records when the same person submits a funnel
+    // more than once; a fresh vehicle + job is still created every submission.
+    const existingCustomer = findExistingCustomer(funnel.user_id, email, phone);
+    let customerId;
+    let isNewCustomer;
+    if (existingCustomer) {
+      customerId = existingCustomer.id;
+      isNewCustomer = false;
+    } else {
+      const customerInfo = db.prepare(`
+        INSERT INTO customers (name, phone, email, address, notes, user_id)
+        VALUES (?, ?, ?, NULL, ?, ?)
+      `).run(name, phone, email, `Auto-created from "${funnel.headline}" funnel (slug: ${funnel.slug})`, funnel.user_id);
+      customerId = customerInfo.lastInsertRowid;
+      isNewCustomer = true;
+    }
 
-    // --- Auto-create Vehicle, if any vehicle info was submitted ---
+    // --- Find existing vehicle for this customer (same year/make/model), or create one ---
+    // Duplicate work orders for the same vehicle are expected (every submission gets
+    // its own fresh job) — but the vehicle record itself shouldn't be duplicated if
+    // this customer already has that exact vehicle on file.
     let vehicleId = null;
     if (vehicle_year || vehicle_make || vehicle_model) {
-      const vehicleInfo = db.prepare(`
-        INSERT INTO customer_vehicles (customer_id, year, make, model, notes, user_id)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(customerId, vehicle_year || null, vehicle_make || null, vehicle_model || null, 'Auto-created from funnel lead', funnel.user_id);
-      vehicleId = vehicleInfo.lastInsertRowid;
+      const normalize = (v) => String(v || '').trim().toLowerCase();
+      const existingVehicle = db.prepare('SELECT id, year, make, model FROM customer_vehicles WHERE customer_id = ?')
+        .all(customerId)
+        .find(v =>
+          normalize(v.year) === normalize(vehicle_year) &&
+          normalize(v.make) === normalize(vehicle_make) &&
+          normalize(v.model) === normalize(vehicle_model)
+        );
+
+      if (existingVehicle) {
+        vehicleId = existingVehicle.id;
+      } else {
+        const vehicleInfo = db.prepare(`
+          INSERT INTO customer_vehicles (customer_id, year, make, model, notes, user_id)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(customerId, vehicle_year || null, vehicle_make || null, vehicle_model || null, 'Auto-created from funnel lead', funnel.user_id);
+        vehicleId = vehicleInfo.lastInsertRowid;
+      }
     }
 
     // --- Auto-create pending Job ---
@@ -145,9 +197,10 @@ router.post('/:slug/submit', async (req, res) => {
     `).run(customerId, jobId, leadId);
 
     // --- Confirmation email (best-effort; a Resend failure shouldn't fail the submission) ---
+    const shopSettings = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(funnel.user_id) || {};
+    const shopName = shopSettings.shop_name || 'Workshop: Ragnarök';
+
     try {
-      const shopSettings = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(funnel.user_id) || {};
-      const shopName = shopSettings.shop_name || 'Workshop: Ragnarök';
       const shopPhone = shopSettings.shop_phone ? `<p>You can also reach us at ${shopSettings.shop_phone}.</p>` : '';
       await sendEmail({
         to: email,
@@ -162,6 +215,30 @@ router.post('/:slug/submit', async (req, res) => {
       });
     } catch (emailErr) {
       console.error('[Funnel] Confirmation email failed to send (lead was still captured):', emailErr);
+    }
+
+    // --- Internal admin notification (best-effort; separate try/catch so a failure
+    // here never blocks the customer's own confirmation email or the response) ---
+    if (shopSettings.admin_notification_email) {
+      try {
+        const vehicleLine = (vehicle_year || vehicle_make || vehicle_model)
+          ? `${vehicle_year || ''} ${vehicle_make || ''} ${vehicle_model || ''}`.trim()
+          : 'Not provided';
+        await sendEmail({
+          to: shopSettings.admin_notification_email,
+          subject: `New lead: ${name} — ${funnel.headline}`,
+          html: `
+            <p>New lead came in from your <strong>${funnel.headline}</strong> funnel (${funnel.slug}).</p>
+            <p><strong>${isNewCustomer ? 'New customer' : 'Existing customer'}:</strong> ${name}</p>
+            <p><strong>Phone:</strong> ${phone}<br/><strong>Email:</strong> ${email}</p>
+            <p><strong>Vehicle:</strong> ${vehicleLine}</p>
+            <p><strong>What they said:</strong><br/>${message}</p>
+            <p>A pending job has already been created for this lead — check the Jobs page.</p>
+          `,
+        });
+      } catch (adminEmailErr) {
+        console.error('[Funnel] Admin notification email failed to send (lead was still captured):', adminEmailErr);
+      }
     }
 
     res.json({ success: true });
