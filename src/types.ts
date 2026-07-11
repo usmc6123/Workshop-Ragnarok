@@ -200,15 +200,23 @@ export interface JobNote {
   attachments: JobNoteAttachment[];
 }
 
+export type AppointmentType = 'general' | 'diagnostic' | 'repair' | 'pickup' | 'consultation';
+export type AppointmentRecurrence = 'none' | 'weekly' | 'monthly';
+
 export interface Appointment {
   id: number;
   title: string;
   customer_id: number;
   vehicle_id: number;
+  job_id?: number | null;
+  appointment_type?: AppointmentType;
   date: string;
   time: string;
   duration_minutes: number;
   notes: string;
+  reminder_sent?: number;
+  recurrence?: AppointmentRecurrence;
+  recurrence_group_id?: string | null;
   created_at?: string;
   // Joined Fields
   customer_name?: string;
@@ -218,6 +226,8 @@ export interface Appointment {
   vehicle_make?: string;
   vehicle_model?: string;
   vehicle_engine?: string;
+  job_status?: Job['status'];
+  job_description?: string;
 }
 
 export interface Funnel {
@@ -312,6 +322,8 @@ export interface ShopSettings {
   zip_code: string;
   default_parts_markup?: number;
   admin_notification_email?: string;
+  daily_capacity_hours?: number;
+  ical_token?: string;
 }
 
 export interface InventoryItem {

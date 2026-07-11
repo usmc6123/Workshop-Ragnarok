@@ -291,6 +291,79 @@ app.use('/api/portal', portalRouter);
 const funnelRouter = require('./funnel-routes');
 app.use('/api/funnels', funnelRouter);
 
+// Public iCal subscribe feed (unauthenticated) - token-gated, same spirit as the
+// customer portal's per-job token. Lets a phone/desktop calendar app "subscribe"
+// to the shop's appointments as a live-refreshing feed instead of a one-time export.
+app.get('/api/calendar-feed/:token', (req, res) => {
+  try {
+    const token = req.params.token.replace(/\.ics$/i, '');
+    const settings = db.prepare('SELECT user_id FROM shop_settings WHERE ical_token = ?').get(token);
+    if (!settings) return res.status(404).send('Calendar feed not found.');
+
+    const appts = db.prepare(`
+      SELECT a.*, c.name as customer_name, cv.year as vehicle_year, cv.make as vehicle_make, cv.model as vehicle_model
+      FROM appointments a
+      LEFT JOIN customers c ON a.customer_id = c.id
+      LEFT JOIN customer_vehicles cv ON a.vehicle_id = cv.id
+      WHERE a.user_id = ?
+      ORDER BY a.date ASC, a.time ASC
+    `).all(settings.user_id);
+
+    const shop = db.prepare('SELECT shop_name FROM shop_settings WHERE user_id = ?').get(settings.user_id) || {};
+    const shopName = shop.shop_name || 'Workshop: Ragnarök';
+
+    const foldIcsText = (str) => String(str || '')
+      .replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
+
+    const toIcsDateTime = (dateStr, timeStr) => {
+      const [hh, mm] = (timeStr || '09:00').split(':');
+      const d = new Date(`${dateStr}T${(hh || '09').padStart(2, '0')}:${(mm || '00').padStart(2, '0')}:00`);
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+    };
+
+    const lines = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Workshop Ragnarok//Calendar Feed//EN',
+      'CALSCALE:GREGORIAN',
+      `X-WR-CALNAME:${foldIcsText(shopName)} Schedule`,
+    ];
+
+    for (const a of appts) {
+      if (!a.date) continue;
+      const start = toIcsDateTime(a.date, a.time);
+      const durationMin = a.duration_minutes || 60;
+      const endDate = new Date(`${a.date}T${(a.time || '09:00')}:00`);
+      endDate.setMinutes(endDate.getMinutes() + durationMin);
+      const pad = (n) => String(n).padStart(2, '0');
+      const end = `${endDate.getFullYear()}${pad(endDate.getMonth() + 1)}${pad(endDate.getDate())}T${pad(endDate.getHours())}${pad(endDate.getMinutes())}00`;
+      const vehicleLine = (a.vehicle_year || a.vehicle_make || a.vehicle_model)
+        ? `${a.vehicle_year || ''} ${a.vehicle_make || ''} ${a.vehicle_model || ''}`.trim() : '';
+
+      lines.push(
+        'BEGIN:VEVENT',
+        `UID:appointment-${a.id}@workshop-ragnarok`,
+        `DTSTAMP:${toIcsDateTime(new Date().toISOString().split('T')[0], '00:00')}`,
+        `DTSTART:${start}`,
+        `DTEND:${end}`,
+        `SUMMARY:${foldIcsText(a.title)}`,
+        `DESCRIPTION:${foldIcsText([a.customer_name, vehicleLine, a.notes].filter(Boolean).join(' — '))}`,
+        'END:VEVENT'
+      );
+    }
+
+    lines.push('END:VCALENDAR');
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', 'inline; filename="schedule.ics"');
+    res.send(lines.join('\r\n'));
+  } catch (error) {
+    console.error('Error generating calendar feed:', error);
+    res.status(500).send('Error generating calendar feed.');
+  }
+});
+
 // Apply auth middleware to all API routes
 const { authMiddleware, adminOnly } = require('./middleware/authMiddleware');
 app.use('/api', authMiddleware);
@@ -455,14 +528,39 @@ try {
       title TEXT NOT NULL,
       customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
       vehicle_id INTEGER REFERENCES customer_vehicles(id) ON DELETE CASCADE,
+      job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+      appointment_type TEXT DEFAULT 'general',
       date TEXT,
       time TEXT,
       duration_minutes INTEGER DEFAULT 60,
       notes TEXT,
+      reminder_sent INTEGER DEFAULT 0,
+      recurrence TEXT DEFAULT 'none',
+      recurrence_group_id TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  // Migrate appointments table for installs that predate job-linking / calendar upgrades
+  const appointmentsCols = [
+    { name: 'job_id', type: 'INTEGER REFERENCES jobs(id) ON DELETE SET NULL' },
+    { name: 'appointment_type', type: "TEXT DEFAULT 'general'" },
+    { name: 'reminder_sent', type: 'INTEGER DEFAULT 0' },
+    { name: 'recurrence', type: "TEXT DEFAULT 'none'" },
+    { name: 'recurrence_group_id', type: 'TEXT' },
+  ];
+  try {
+    const columns = db.prepare('PRAGMA table_info(appointments)').all();
+    for (const col of appointmentsCols) {
+      if (!columns.some(c => c.name === col.name)) {
+        db.exec(`ALTER TABLE appointments ADD COLUMN ${col.name} ${col.type}`);
+        console.log(`Successfully migrated appointments to include ${col.name} column.`);
+      }
+    }
+  } catch (err) {
+    console.error('Error migrating appointments columns:', err);
+  }
 
   // 7. Create Vehicle Manuals Table
   db.exec(`
@@ -742,7 +840,9 @@ try {
     { name: 'default_labor_rate', type: 'REAL DEFAULT 0' },
     { name: 'zip_code', type: 'TEXT' },
     { name: 'default_parts_markup', type: 'REAL DEFAULT 0' },
-    { name: 'admin_notification_email', type: 'TEXT' }
+    { name: 'admin_notification_email', type: 'TEXT' },
+    { name: 'daily_capacity_hours', type: 'REAL DEFAULT 8' },
+    { name: 'ical_token', type: 'TEXT' }
   ];
   try {
     const columns = db.prepare('PRAGMA table_info(shop_settings)').all();
@@ -2635,6 +2735,13 @@ app.get('/api/shop-settings', (req, res) => {
       stmt.run(req.user.id, '', '', '', '', '', '', 0, 0, '', 0, '');
       settings = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(req.user.id);
     }
+    // Lazily generate the iCal subscribe token the first time it's needed, rather
+    // than at row-creation time, so installs upgrading from an older schema still get one.
+    if (!settings.ical_token) {
+      const token = require('crypto').randomUUID();
+      db.prepare('UPDATE shop_settings SET ical_token = ? WHERE user_id = ?').run(token, req.user.id);
+      settings = { ...settings, ical_token: token };
+    }
     res.json(settings);
   } catch (error) {
     console.error('Error fetching shop settings:', error);
@@ -2644,24 +2751,24 @@ app.get('/api/shop-settings', (req, res) => {
 
 app.put('/api/shop-settings', (req, res) => {
   try {
-    const { shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup, admin_notification_email } = req.body;
-    
+    const { shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup, admin_notification_email, daily_capacity_hours } = req.body;
+
     const settings = db.prepare('SELECT id FROM shop_settings WHERE user_id = ?').get(req.user.id);
     if (!settings) {
       const stmt = db.prepare(`
-        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup, admin_notification_email)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup, admin_notification_email, daily_capacity_hours)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(req.user.id, shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, admin_notification_email || '');
+      stmt.run(req.user.id, shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, admin_notification_email || '', daily_capacity_hours || 8);
     } else {
       const stmt = db.prepare(`
         UPDATE shop_settings
-        SET shop_name = ?, shop_address = ?, shop_city = ?, shop_state = ?, shop_phone = ?, shop_logo_url = ?, tax_rate = ?, default_labor_rate = ?, zip_code = ?, default_parts_markup = ?, admin_notification_email = ?
+        SET shop_name = ?, shop_address = ?, shop_city = ?, shop_state = ?, shop_phone = ?, shop_logo_url = ?, tax_rate = ?, default_labor_rate = ?, zip_code = ?, default_parts_markup = ?, admin_notification_email = ?, daily_capacity_hours = ?
         WHERE user_id = ?
       `);
-      stmt.run(shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, admin_notification_email || '', req.user.id);
+      stmt.run(shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, admin_notification_email || '', daily_capacity_hours || 8, req.user.id);
     }
-    
+
     const updated = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(req.user.id);
     res.json(updated);
   } catch (error) {
@@ -3045,6 +3152,30 @@ app.get('/api/jobs', (req, res) => {
   } catch (error) {
     console.error('Error fetching jobs:', error);
     res.status(500).json({ error: 'Database error fetching jobs' });
+  }
+});
+
+// GET /api/jobs/unscheduled - Pending/In Progress jobs with no calendar appointment yet.
+// Registered BEFORE /api/jobs/:id so "unscheduled" is never swallowed as an :id param.
+app.get('/api/jobs/unscheduled', (req, res) => {
+  try {
+    const stmt = db.prepare(`
+      SELECT j.*,
+        c.name as customer_name, c.phone as customer_phone, c.email as customer_email,
+        cv.year as vehicle_year, cv.make as vehicle_make, cv.model as vehicle_model
+      FROM jobs j
+      LEFT JOIN customers c ON j.customer_id = c.id
+      LEFT JOIN customer_vehicles cv ON j.vehicle_id = cv.id
+      WHERE j.user_id = ?
+        AND j.status IN ('Pending', 'In Progress')
+        AND NOT EXISTS (SELECT 1 FROM appointments a WHERE a.job_id = j.id)
+      ORDER BY j.created_at DESC
+    `);
+    const rows = stmt.all(req.user.id);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching unscheduled jobs:', error);
+    res.status(500).json({ error: 'Database error fetching unscheduled jobs' });
   }
 });
 
@@ -3510,12 +3641,14 @@ app.get('/api/appointments', (req, res) => {
   try {
     const { month } = req.query; // e.g. 2026-06
     let queryStr = `
-      SELECT a.*, 
+      SELECT a.*,
         c.name as customer_name, c.phone as customer_phone, c.email as customer_email,
-        cv.year as vehicle_year, cv.make as vehicle_make, cv.model as vehicle_model, cv.engine as vehicle_engine
+        cv.year as vehicle_year, cv.make as vehicle_make, cv.model as vehicle_model, cv.engine as vehicle_engine,
+        j.status as job_status, j.description as job_description
       FROM appointments a
       LEFT JOIN customers c ON a.customer_id = c.id
       LEFT JOIN customer_vehicles cv ON a.vehicle_id = cv.id
+      LEFT JOIN jobs j ON a.job_id = j.id
       WHERE a.user_id = ?
     `;
     const params = [req.user.id];
@@ -3533,9 +3666,29 @@ app.get('/api/appointments', (req, res) => {
   }
 });
 
+// How many future occurrences to materialize when a recurring appointment is created.
+// Kept modest on purpose so recurring series don't quietly fill years of calendar data.
+const RECURRENCE_OCCURRENCES = { weekly: 8, monthly: 12 };
+
+function addRecurrenceInterval(dateStr, recurrence, index) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (recurrence === 'weekly') {
+    d.setDate(d.getDate() + 7 * index);
+  } else if (recurrence === 'monthly') {
+    d.setMonth(d.getMonth() + index);
+  }
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 app.post('/api/appointments', (req, res) => {
   try {
-    const { title, customer_id, vehicle_id, date, time, duration_minutes, notes } = req.body;
+    const {
+      title, customer_id, vehicle_id, job_id, appointment_type,
+      date, time, duration_minutes, notes, recurrence
+    } = req.body;
     if (!title || !customer_id || !vehicle_id || !date || !time) {
       return res.status(400).json({ error: 'Required fields missing: title, customer_id, vehicle_id, date, time' });
     }
@@ -3547,12 +3700,34 @@ app.post('/api/appointments', (req, res) => {
     const vehicle = db.prepare('SELECT id FROM customer_vehicles WHERE id = ? AND user_id = ?').get(vehicle_id, req.user.id);
     if (!vehicle) return res.status(400).json({ error: 'Invalid or unauthorized vehicle_id' });
 
+    let cleanJobId = null;
+    if (job_id) {
+      const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(job_id, req.user.id);
+      if (!job) return res.status(400).json({ error: 'Invalid or unauthorized job_id' });
+      cleanJobId = job_id;
+    }
+
+    const cleanRecurrence = ['weekly', 'monthly'].includes(recurrence) ? recurrence : 'none';
+    const occurrenceCount = cleanRecurrence === 'none' ? 1 : RECURRENCE_OCCURRENCES[cleanRecurrence];
+    const recurrenceGroupId = cleanRecurrence === 'none' ? null : require('crypto').randomUUID();
+
     const stmt = db.prepare(`
-      INSERT INTO appointments (title, customer_id, vehicle_id, date, time, duration_minutes, notes, user_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO appointments (title, customer_id, vehicle_id, job_id, appointment_type, date, time, duration_minutes, notes, recurrence, recurrence_group_id, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const info = stmt.run(title, customer_id, vehicle_id, date, time, duration_minutes || 60, notes, req.user.id);
-    const inserted = db.prepare('SELECT * FROM appointments WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
+
+    let firstInsertedId = null;
+    for (let i = 0; i < occurrenceCount; i++) {
+      const occurrenceDate = i === 0 ? date : addRecurrenceInterval(date, cleanRecurrence, i);
+      const info = stmt.run(
+        title, customer_id, vehicle_id, cleanJobId, appointment_type || 'general',
+        occurrenceDate, time, duration_minutes || 60, notes || null,
+        cleanRecurrence, recurrenceGroupId, req.user.id
+      );
+      if (i === 0) firstInsertedId = info.lastInsertRowid;
+    }
+
+    const inserted = db.prepare('SELECT * FROM appointments WHERE id = ? AND user_id = ?').get(firstInsertedId, req.user.id);
     if (inserted) {
       triggerNewAppointmentNotification(inserted.id, req.user.id);
     }
@@ -3566,7 +3741,7 @@ app.post('/api/appointments', (req, res) => {
 app.put('/api/appointments/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const { title, customer_id, vehicle_id, date, time, duration_minutes, notes } = req.body;
+    const { title, customer_id, vehicle_id, job_id, appointment_type, date, time, duration_minutes, notes } = req.body;
 
     // Verify appointment ownership
     const appt = db.prepare('SELECT id FROM appointments WHERE id = ? AND user_id = ?').get(id, req.user.id);
@@ -3582,12 +3757,19 @@ app.put('/api/appointments/:id', (req, res) => {
       if (!vehicle) return res.status(400).json({ error: 'Invalid or unauthorized vehicle_id' });
     }
 
+    let cleanJobId = null;
+    if (job_id) {
+      const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(job_id, req.user.id);
+      if (!job) return res.status(400).json({ error: 'Invalid or unauthorized job_id' });
+      cleanJobId = job_id;
+    }
+
     const stmt = db.prepare(`
       UPDATE appointments
-      SET title = ?, customer_id = ?, vehicle_id = ?, date = ?, time = ?, duration_minutes = ?, notes = ?
+      SET title = ?, customer_id = ?, vehicle_id = ?, job_id = ?, appointment_type = ?, date = ?, time = ?, duration_minutes = ?, notes = ?, reminder_sent = 0
       WHERE id = ? AND user_id = ?
     `);
-    const info = stmt.run(title, customer_id, vehicle_id, date, time, duration_minutes || 60, notes, id, req.user.id);
+    const info = stmt.run(title, customer_id, vehicle_id, cleanJobId, appointment_type || 'general', date, time, duration_minutes || 60, notes, id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Appointment not found' });
     const updated = db.prepare('SELECT * FROM appointments WHERE id = ? AND user_id = ?').get(id, req.user.id);
     res.json(updated);
@@ -3600,6 +3782,17 @@ app.put('/api/appointments/:id', (req, res) => {
 app.delete('/api/appointments/:id', (req, res) => {
   try {
     const { id } = req.params;
+    const { series } = req.query;
+
+    if (series === 'true') {
+      const appt = db.prepare('SELECT recurrence_group_id FROM appointments WHERE id = ? AND user_id = ?').get(id, req.user.id);
+      if (!appt) return res.status(404).json({ error: 'Appointment not found' });
+      if (appt.recurrence_group_id) {
+        const info = db.prepare('DELETE FROM appointments WHERE recurrence_group_id = ? AND user_id = ?').run(appt.recurrence_group_id, req.user.id);
+        return res.json({ success: true, deletedCount: info.changes });
+      }
+    }
+
     const stmt = db.prepare('DELETE FROM appointments WHERE id = ? AND user_id = ?');
     const info = stmt.run(id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Appointment not found' });
@@ -4451,6 +4644,60 @@ app.delete('/api/receipts/:id', (req, res) => {
 
 // --- EMAIL CENTER ---
 
+// Emails the customer the day before their scheduled appointment. Runs on a plain
+// setInterval (no new dependency like node-cron needed) checked hourly; a
+// reminder_sent flag keeps it idempotent so the same appointment is never double-emailed.
+async function sendAppointmentReminders() {
+  try {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+
+    const dueAppointments = db.prepare(`
+      SELECT a.*, c.name as customer_name, c.email as customer_email,
+             cv.year as vehicle_year, cv.make as vehicle_make, cv.model as vehicle_model
+      FROM appointments a
+      LEFT JOIN customers c ON a.customer_id = c.id
+      LEFT JOIN customer_vehicles cv ON a.vehicle_id = cv.id
+      WHERE a.date = ? AND (a.reminder_sent IS NULL OR a.reminder_sent = 0)
+    `).all(tomorrowStr);
+
+    if (dueAppointments.length === 0) return;
+
+    const { sendEmail } = require('./email');
+
+    for (const appt of dueAppointments) {
+      if (appt.customer_email && appt.customer_email.trim()) {
+        try {
+          const shop = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(appt.user_id) || {};
+          const shopName = shop.shop_name || 'Workshop: Ragnarök';
+          const vehicleLine = (appt.vehicle_year || appt.vehicle_make || appt.vehicle_model)
+            ? `${appt.vehicle_year || ''} ${appt.vehicle_make || ''} ${appt.vehicle_model || ''}`.trim() : '';
+          await sendEmail({
+            to: appt.customer_email,
+            subject: `Reminder: your appointment tomorrow at ${shopName}`,
+            html: `
+              <p>Hi ${appt.customer_name || 'there'},</p>
+              <p>Just a reminder you're scheduled with <strong>${shopName}</strong> tomorrow (${appt.date}) at <strong>${appt.time}</strong>${vehicleLine ? ` for your ${vehicleLine}` : ''}.</p>
+              <p><strong>${appt.title}</strong></p>
+              ${appt.notes ? `<p>${appt.notes}</p>` : ''}
+              ${shop.shop_phone ? `<p>Questions? Call us at ${shop.shop_phone}.</p>` : ''}
+              <p>— ${shopName}</p>
+            `,
+          });
+        } catch (emailErr) {
+          console.error(`[Reminders] Failed to email appointment ${appt.id}:`, emailErr);
+        }
+      }
+      // Mark sent either way (best-effort, matches the rest of the app's email
+      // pattern) so a bad address or transient failure doesn't retry-loop hourly.
+      db.prepare('UPDATE appointments SET reminder_sent = 1 WHERE id = ?').run(appt.id);
+    }
+  } catch (err) {
+    console.error('Error running appointment reminder sweep:', err);
+  }
+}
+
 function sendAdminNotification(userId, subject, bodyHtml) {
   try {
     const shop = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(userId);
@@ -5189,6 +5436,10 @@ async function initServer() {
     console.log(`Database source: ${DB_PATH}              `);
     console.log(`Lemon server URL: ${LEMON_SERVER_URL}    `);
     console.log(`=========================================`);
+
+    // Day-before appointment reminder sweep: run once at boot, then hourly.
+    sendAppointmentReminders();
+    setInterval(sendAppointmentReminders, 60 * 60 * 1000);
   });
 }
 

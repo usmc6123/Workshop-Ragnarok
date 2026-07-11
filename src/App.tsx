@@ -389,7 +389,12 @@ export default function App() {
                 )}
 
                 {view === 'calendar' && (
-                  <CalendarView />
+                  <CalendarView
+                    onNavigateToJob={(jobId) => {
+                      setInitialSelectedJobId(jobId);
+                      setView('jobs');
+                    }}
+                  />
                 )}
 
                 {view === 'email' && (

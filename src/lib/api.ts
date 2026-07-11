@@ -775,6 +775,20 @@ export const api = {
     }
   },
 
+  async getUnscheduledJobs(): Promise<Job[]> {
+    try {
+      return await request<Job[]>('/api/jobs/unscheduled');
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        // Offline mode has no calendar/appointment linkage concept; just surface
+        // Pending/In Progress jobs as a reasonable approximation.
+        const jobs = getSimulatedJobs();
+        return jobs.filter(j => j.status === 'Pending' || j.status === 'In Progress');
+      }
+      throw err;
+    }
+  },
+
   async getJobDetail(id: number): Promise<Job> {
     try {
       return await request<Job>(`/api/jobs/${id}`);
@@ -1082,6 +1096,24 @@ export const api = {
       if (err instanceof ApiError && err.isOffline) {
         const list = getSimulatedAppointments();
         saveSimulatedAppointments(list.filter(a => a.id !== id));
+        return { success: true };
+      }
+      throw err;
+    }
+  },
+
+  async deleteAppointmentSeries(id: number): Promise<{ success: boolean; deletedCount?: number }> {
+    try {
+      return await request<{ success: boolean; deletedCount?: number }>(`/api/appointments/${id}?series=true`, {
+        method: 'DELETE'
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        const list = getSimulatedAppointments();
+        const target = list.find(a => a.id === id);
+        const groupId = target?.recurrence_group_id;
+        const remaining = groupId ? list.filter(a => a.recurrence_group_id !== groupId) : list.filter(a => a.id !== id);
+        saveSimulatedAppointments(remaining);
         return { success: true };
       }
       throw err;
