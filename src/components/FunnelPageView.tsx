@@ -222,9 +222,9 @@ function ClassicFunnelLayout({ funnel, form, updateField, handleSubmit, submitti
                   playsInline
                   loop={!hasSecondHeadlineVideo}
                   onEnded={handleHeadlineVideoEnded}
-                  className="absolute inset-0 w-full h-full object-cover"
+                  className="absolute inset-0 w-full h-full object-cover opacity-75"
                 />
-                <div className="absolute inset-0 bg-black/70" />
+                <div className="absolute inset-0 bg-[#0d0d18]/35" />
               </>
             ) : funnel.headline_bg_image_url ? (
               <>
@@ -271,9 +271,9 @@ function ClassicFunnelLayout({ funnel, form, updateField, handleSubmit, submitti
                 playsInline
                 loop={!hasSecondSecondaryVideo}
                 onEnded={handleSecondaryVideoEnded}
-                className="absolute inset-0 w-full h-full object-cover"
+                className="absolute inset-0 w-full h-full object-cover opacity-75"
               />
-              <div className="absolute inset-0 bg-black/70" />
+              <div className="absolute inset-0 bg-[#0d0d18]/35" />
             </>
           )}
           <div className={`relative z-10 p-6 font-mono ${funnel.secondary_video_url ? '' : 'bg-[#111218]'}`}>
