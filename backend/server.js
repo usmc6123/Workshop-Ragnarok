@@ -2753,6 +2753,52 @@ app.get('/api/stats', (req, res) => {
     `).get(req.user.id);
     const totalPendingHours = pendingHoursRow ? (pendingHoursRow.total_hours || 0) : 0;
 
+    // --- Financials (from realized Stripe payments) ---
+    const revenueRow = db.prepare(`
+      SELECT COALESCE(SUM(amount_cents), 0) as total, COUNT(*) as count
+      FROM payments WHERE user_id = ? AND status = 'succeeded'
+    `).get(req.user.id);
+    const revenueTotalCents = revenueRow ? revenueRow.total : 0;
+    const succeededPaymentsCount = revenueRow ? revenueRow.count : 0;
+    const avgPaymentValueCents = succeededPaymentsCount > 0 ? Math.round(revenueTotalCents / succeededPaymentsCount) : 0;
+
+    const revenueMonthRow = db.prepare(`
+      SELECT COALESCE(SUM(amount_cents), 0) as total FROM payments
+      WHERE user_id = ? AND status = 'succeeded' AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')
+    `).get(req.user.id);
+    const revenueThisMonthCents = revenueMonthRow ? revenueMonthRow.total : 0;
+
+    const refundedRow = db.prepare(`
+      SELECT COALESCE(SUM(amount_cents), 0) as total FROM payments WHERE user_id = ? AND status = 'refunded'
+    `).get(req.user.id);
+    const refundedTotalCents = refundedRow ? refundedRow.total : 0;
+
+    const unpaidRow = db.prepare(`
+      SELECT COUNT(*) as count, COALESCE(SUM(labor_cost), 0) as value FROM jobs
+      WHERE user_id = ? AND payment_status = 'Unpaid' AND status != 'Cancelled'
+    `).get(req.user.id);
+    const unpaidJobsCount = unpaidRow ? unpaidRow.count : 0;
+    const unpaidJobsValue = unpaidRow ? unpaidRow.value : 0;
+
+    // --- Job pipeline breakdown ---
+    const totalJobsAllTime = db.prepare('SELECT COUNT(*) as count FROM jobs WHERE user_id = ?').get(req.user.id).count || 0;
+    const completedJobsCount = db.prepare("SELECT COUNT(*) as count FROM jobs WHERE user_id = ? AND status = 'Complete'").get(req.user.id).count || 0;
+    const rushJobsCount = db.prepare("SELECT COUNT(*) as count FROM jobs WHERE user_id = ? AND priority = 'Rush' AND status NOT IN ('Complete', 'Cancelled')").get(req.user.id).count || 0;
+
+    // --- Funnels & leads ---
+    const funnelsRow = db.prepare('SELECT COUNT(*) as count, COALESCE(SUM(active), 0) as active_count FROM funnels WHERE user_id = ?').get(req.user.id);
+    const totalFunnels = funnelsRow ? funnelsRow.count : 0;
+    const activeFunnels = funnelsRow ? funnelsRow.active_count : 0;
+
+    const leadsRow = db.prepare(`
+      SELECT COUNT(*) as total,
+        SUM(CASE WHEN fl.status = 'converted' THEN 1 ELSE 0 END) as converted
+      FROM funnel_leads fl JOIN funnels f ON fl.funnel_id = f.id
+      WHERE f.user_id = ? AND fl.status != 'spam'
+    `).get(req.user.id);
+    const totalLeads = leadsRow ? (leadsRow.total || 0) : 0;
+    const convertedLeads = leadsRow ? (leadsRow.converted || 0) : 0;
+
     res.json({
       totalManuals,
       totalCustomers: customersCount,
@@ -2761,7 +2807,21 @@ app.get('/api/stats', (req, res) => {
       avgRepairHours,
       totalPendingHours,
       lowStockCount,
-      queueCount
+      queueCount,
+      revenueTotalCents,
+      revenueThisMonthCents,
+      refundedTotalCents,
+      succeededPaymentsCount,
+      avgPaymentValueCents,
+      unpaidJobsCount,
+      unpaidJobsValue,
+      totalJobsAllTime,
+      completedJobsCount,
+      rushJobsCount,
+      totalFunnels,
+      activeFunnels,
+      totalLeads,
+      convertedLeads
     });
   } catch (error) {
     console.error('Error fetching database stats:', error);

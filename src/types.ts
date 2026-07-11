@@ -304,6 +304,23 @@ export interface DatabaseStats {
   totalPendingHours?: number;
   lowStockCount?: number;
   queueCount?: number;
+  // Financials (from realized Stripe payments)
+  revenueTotalCents?: number;
+  revenueThisMonthCents?: number;
+  refundedTotalCents?: number;
+  succeededPaymentsCount?: number;
+  avgPaymentValueCents?: number;
+  unpaidJobsCount?: number;
+  unpaidJobsValue?: number;
+  // Job pipeline breakdown
+  totalJobsAllTime?: number;
+  completedJobsCount?: number;
+  rushJobsCount?: number;
+  // Funnels & leads
+  totalFunnels?: number;
+  activeFunnels?: number;
+  totalLeads?: number;
+  convertedLeads?: number;
 }
 
 export interface VehicleManual {

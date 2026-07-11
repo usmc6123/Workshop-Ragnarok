@@ -8,7 +8,7 @@ import { DatabaseStats, ShopSettings } from '../types';
 import { api, getApiBase, setApiBase } from '../lib/api';
 import {
   Settings, Server, Sun, Database, RefreshCw, AlertTriangle, Info, ShieldCheck, Cpu, ChevronDown, Store,
-  Users, Car, ClipboardList, Clock, Timer, Gauge, Package, CheckCircle2
+  Users, Car, ClipboardList, Clock, Timer, Gauge, Package, CheckCircle2, DollarSign, TrendingUp, Megaphone
 } from 'lucide-react';
 
 interface SettingsViewProps {
@@ -198,9 +198,15 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
 
   const currentTheme = availableThemes.find(t => t.id === activeTheme) || availableThemes[0];
 
+  const hasAlerts = !!stats && (stats.lowStockCount ?? 0) > 0;
+  const conversionRate = stats && (stats.totalLeads ?? 0) > 0
+    ? ((stats.convertedLeads ?? 0) / (stats.totalLeads ?? 1)) * 100
+    : 0;
+  const formatMoney = (cents?: number) => `$${((cents ?? 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   return (
-    <div className="space-y-6 max-w-4xl mx-auto px-4 py-6" id="settings-view-root">
-      
+    <div className="space-y-8 max-w-7xl mx-auto px-4 py-6" id="settings-view-root">
+
       {/* 1. Header Row */}
       <div className="border-b border-border-theme pb-4">
         <h1 className="text-xl md:text-2xl font-black text-slate-100 uppercase tracking-wider flex items-center gap-2">
@@ -212,10 +218,186 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-        {/* Left Side: General and connection settings */}
-        <div className="md:col-span-8 space-y-6">
-          
+      {/* 2. Business Diagnostics — wide dashboard */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h2 className="text-sm font-black uppercase tracking-wider text-slate-200 flex items-center gap-2">
+            <Database className="w-4 h-4 text-primary-theme" />
+            Business Diagnostics
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+            </span>
+          </h2>
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-mono text-slate-500">Synced {formatRelativeTime(lastFetchedAt, diagnosticsNow)}</span>
+            <button
+              onClick={fetchStats}
+              disabled={statsLoading}
+              className="p-1.5 text-slate-500 hover:text-white bg-bg-theme border border-border-theme rounded-lg transition cursor-pointer"
+              title="Refresh stats"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${statsLoading ? 'animate-spin text-primary-theme' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        {statsLoading && !stats ? (
+          <div className="py-14 text-center text-slate-500 text-xs font-mono bg-[#13141a]/80 border border-[#1e2028] rounded-xl">
+            Querying database sectors...
+          </div>
+        ) : stats ? (
+          <>
+            {/* System status banner */}
+            <div className={`flex items-center justify-between flex-wrap gap-2 rounded-xl px-4 py-3 border ${hasAlerts ? 'bg-amber-950/20 border-amber-600/30' : 'bg-emerald-950/20 border-emerald-600/30'}`}>
+              <span className={`flex items-center gap-2 text-xs font-black uppercase tracking-wider ${hasAlerts ? 'text-amber-400' : 'text-emerald-400'}`}>
+                {hasAlerts ? <AlertTriangle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                {hasAlerts ? `${stats.lowStockCount} Inventory Alert${stats.lowStockCount === 1 ? '' : 's'} — Reorder Needed` : 'All Systems Nominal'}
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">
+                {stats.totalJobsAllTime ?? 0} jobs all-time · {stats.completedJobsCount ?? 0} completed · {stats.rushJobsCount ?? 0} rush in progress
+              </span>
+            </div>
+
+            {/* Category cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              {/* Database & Content */}
+              <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-4 space-y-3 shadow-xl">
+                <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5 border-b border-border-theme pb-2.5">
+                  <Database className="w-3.5 h-3.5 text-primary-theme" />
+                  Database & Content
+                </h3>
+                <div className="space-y-2.5">
+                  {[
+                    { label: 'Service Manuals', value: stats.totalManuals?.toLocaleString() ?? '—', icon: Database },
+                    { label: 'Customers On File', value: stats.totalCustomers?.toLocaleString() ?? '—', icon: Users },
+                    { label: 'Vehicles Tracked', value: stats.totalVehicles?.toLocaleString() ?? '—', icon: Car },
+                  ].map((row, idx) => (
+                    <div key={idx} className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                        <row.icon className="w-3.5 h-3.5 text-primary-theme shrink-0" />
+                        {row.label}
+                      </span>
+                      <span className="text-sm font-bold text-slate-100 font-mono">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Job Pipeline */}
+              <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-4 space-y-3 shadow-xl">
+                <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5 border-b border-border-theme pb-2.5">
+                  <ClipboardList className="w-3.5 h-3.5 text-primary-theme" />
+                  Job Pipeline
+                </h3>
+                <div className="space-y-2.5">
+                  {[
+                    { label: 'Active Job Tickets', value: stats.activeJobs?.toLocaleString() ?? '—', icon: ClipboardList },
+                    { label: 'Jobs In Queue', value: stats.queueCount?.toLocaleString() ?? '—', icon: Clock },
+                    { label: 'Rush Jobs In Progress', value: (stats.rushJobsCount ?? 0).toLocaleString(), icon: AlertTriangle, warn: (stats.rushJobsCount ?? 0) > 0 },
+                    { label: 'Pending Labor Hrs', value: `${(stats.totalPendingHours ?? 0).toFixed(1)}h`, icon: Timer },
+                    { label: 'Avg Repair Time', value: `${(stats.avgRepairHours ?? 0).toFixed(1)}h`, icon: Gauge },
+                  ].map((row, idx) => (
+                    <div key={idx} className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                        <row.icon className={`w-3.5 h-3.5 shrink-0 ${row.warn ? 'text-amber-400' : 'text-primary-theme'}`} />
+                        {row.label}
+                      </span>
+                      <span className={`text-sm font-bold font-mono ${row.warn ? 'text-amber-400' : 'text-slate-100'}`}>{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Financials */}
+              <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-4 space-y-3 shadow-xl">
+                <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5 border-b border-border-theme pb-2.5">
+                  <DollarSign className="w-3.5 h-3.5 text-primary-theme" />
+                  Financials
+                </h3>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                      <TrendingUp className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      Revenue This Month
+                    </span>
+                    <span className="text-sm font-bold text-emerald-400 font-mono">{formatMoney(stats.revenueThisMonthCents)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                      <DollarSign className="w-3.5 h-3.5 text-primary-theme shrink-0" />
+                      Revenue All-Time
+                    </span>
+                    <span className="text-sm font-bold text-slate-100 font-mono">{formatMoney(stats.revenueTotalCents)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                      <Package className="w-3.5 h-3.5 text-primary-theme shrink-0" />
+                      Avg Payment Value
+                    </span>
+                    <span className="text-sm font-bold text-slate-100 font-mono">{formatMoney(stats.avgPaymentValueCents)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                      <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${(stats.unpaidJobsCount ?? 0) > 0 ? 'text-amber-400' : 'text-primary-theme'}`} />
+                      Unpaid Jobs
+                    </span>
+                    <span className={`text-sm font-bold font-mono ${(stats.unpaidJobsCount ?? 0) > 0 ? 'text-amber-400' : 'text-slate-100'}`}>
+                      {(stats.unpaidJobsCount ?? 0).toLocaleString()} · {formatMoney((stats.unpaidJobsValue ?? 0) * 100)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Funnels & Leads */}
+              <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-4 space-y-3 shadow-xl">
+                <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5 border-b border-border-theme pb-2.5">
+                  <Megaphone className="w-3.5 h-3.5 text-primary-theme" />
+                  Funnels & Leads
+                </h3>
+                <div className="space-y-2.5">
+                  {[
+                    { label: 'Active Funnels', value: `${stats.activeFunnels ?? 0} / ${stats.totalFunnels ?? 0}`, icon: Megaphone },
+                    { label: 'Total Leads Captured', value: (stats.totalLeads ?? 0).toLocaleString(), icon: Users },
+                    { label: 'Converted To Jobs', value: (stats.convertedLeads ?? 0).toLocaleString(), icon: CheckCircle2 },
+                    { label: 'Conversion Rate', value: `${conversionRate.toFixed(0)}%`, icon: Gauge },
+                  ].map((row, idx) => (
+                    <div key={idx} className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                        <row.icon className="w-3.5 h-3.5 text-primary-theme shrink-0" />
+                        {row.label}
+                      </span>
+                      <span className="text-sm font-bold text-slate-100 font-mono">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Homelab environment footer strip */}
+            <div className="flex items-center flex-wrap gap-x-6 gap-y-1.5 text-slate-400 text-[11px] bg-bg-theme/50 px-4 py-3 border border-border-theme rounded-xl">
+              <span className="flex items-center gap-1.5 font-black uppercase tracking-wider text-slate-500">
+                <Cpu className="w-3.5 h-3.5 text-primary-theme" />
+                Homelab Environment
+              </span>
+              <span>Fully local self-hosted instance</span>
+              <span className="text-slate-600">·</span>
+              <span>Engine: <span className="text-slate-300 font-mono">better-sqlite3</span></span>
+              <span className="text-slate-600">·</span>
+              <span>Routing: <span className="text-slate-300 font-mono">Static / local</span></span>
+              <span className="text-slate-600">·</span>
+              <span>Session Uptime: <span className="text-primary-theme font-mono">{formatUptime(diagnosticsNow - diagnosticsMountedAt.current)}</span></span>
+            </div>
+          </>
+        ) : (
+          <div className="py-6 text-center text-slate-500 text-xs font-sans bg-[#13141a]/80 border border-[#1e2028] rounded-xl">
+            Could not read server metrics. Verify LAN Host address.
+          </div>
+        )}
+      </div>
+
+      <div className="max-w-3xl space-y-6">
+
           {/* Server Connection Form Card */}
           <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl">
             <h2 className="text-sm font-bold text-slate-200 uppercase flex items-center gap-2">
@@ -592,102 +774,6 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
             </div>
           </div>
 
-        </div>
-
-        {/* Right Side: Database Stats Sidebar */}
-        <div className="md:col-span-4 space-y-6">
-          <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl text-left">
-            <div className="flex items-center justify-between border-b border-border-theme pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                <Database className="w-4 h-4 text-primary-theme" />
-                Database Diagnostics
-                <span className="relative flex h-2 w-2 ml-1">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
-                </span>
-              </h3>
-              <button
-                onClick={fetchStats}
-                disabled={statsLoading}
-                className="p-1 text-slate-500 hover:text-white rounded transition cursor-pointer"
-                title="Refresh stats"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${statsLoading ? 'animate-spin text-primary-theme' : ''}`} />
-              </button>
-            </div>
-
-            {statsLoading && !stats ? (
-              <div className="py-8 text-center text-slate-500 text-xs font-mono">Querying database sectors...</div>
-            ) : stats ? (
-              <>
-                {/* System status line */}
-                {(() => {
-                  const hasAlerts = (stats.lowStockCount ?? 0) > 0;
-                  return (
-                    <div className={`flex items-center justify-between rounded-lg px-3 py-2 border ${hasAlerts ? 'bg-amber-950/20 border-amber-600/30' : 'bg-emerald-950/20 border-emerald-600/30'}`}>
-                      <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${hasAlerts ? 'text-amber-400' : 'text-emerald-400'}`}>
-                        {hasAlerts ? <AlertTriangle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                        {hasAlerts ? `${stats.lowStockCount} Inventory Alert${stats.lowStockCount === 1 ? '' : 's'}` : 'All Systems Nominal'}
-                      </span>
-                      <span className="text-[9px] font-mono text-slate-500">
-                        Synced {formatRelativeTime(lastFetchedAt, diagnosticsNow)}
-                      </span>
-                    </div>
-                  );
-                })()}
-
-                {/* Metric grid */}
-                <div className="grid grid-cols-2 gap-2.5">
-                  {[
-                    { label: 'Service Manuals', value: stats.totalManuals?.toLocaleString() ?? '—', icon: Database, warn: false },
-                    { label: 'Customers On File', value: stats.totalCustomers?.toLocaleString() ?? '—', icon: Users, warn: false },
-                    { label: 'Vehicles Tracked', value: stats.totalVehicles?.toLocaleString() ?? '—', icon: Car, warn: false },
-                    { label: 'Active Job Tickets', value: stats.activeJobs?.toLocaleString() ?? '—', icon: ClipboardList, warn: false },
-                    { label: 'Jobs In Queue', value: stats.queueCount?.toLocaleString() ?? '—', icon: Clock, warn: false },
-                    { label: 'Pending Labor Hrs', value: `${(stats.totalPendingHours ?? 0).toFixed(1)}h`, icon: Timer, warn: false },
-                    { label: 'Avg Repair Time', value: `${(stats.avgRepairHours ?? 0).toFixed(1)}h`, icon: Gauge, warn: false },
-                    { label: 'Low Stock Alerts', value: (stats.lowStockCount ?? 0).toLocaleString(), icon: Package, warn: (stats.lowStockCount ?? 0) > 0 },
-                  ].map((tile, idx) => (
-                    <div
-                      key={idx}
-                      className={`p-2.5 rounded-lg border ${tile.warn ? 'bg-amber-950/20 border-amber-600/30' : 'bg-bg-theme border-border-theme'}`}
-                    >
-                      <span className={`flex items-center gap-1 text-[9px] font-mono uppercase tracking-wide ${tile.warn ? 'text-amber-500/80' : 'text-slate-500'}`}>
-                        <tile.icon className={`w-3 h-3 shrink-0 ${tile.warn ? 'text-amber-400' : 'text-primary-theme'}`} />
-                        <span className="truncate">{tile.label}</span>
-                      </span>
-                      <span className={`text-base font-bold block mt-0.5 font-mono ${tile.warn ? 'text-amber-400' : 'text-slate-200'}`}>
-                        {tile.value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="py-6 text-center text-slate-500 text-xs font-sans">
-                Could not read server metrics. Verify LAN Host address.
-              </div>
-            )}
-
-            <div className="text-slate-400 text-xs leading-relaxed bg-bg-theme/50 p-4 border border-border-theme rounded-lg flex items-start gap-2 pt-3">
-              <Cpu className="w-4 h-4 text-primary-theme shrink-0 mt-0.5" />
-              <div className="w-full">
-                <span className="text-[9px] font-mono uppercase text-slate-500 block font-black">Homelab Environment</span>
-                <p className="text-[11px] mt-0.5">
-                  Workshop operates as a fully local self-hosted instance using an integrated better-sqlite3 engine and static data routing.
-                </p>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2.5 pt-2.5 border-t border-border-theme/60 font-mono text-[10px]">
-                  <span className="text-slate-500">Engine</span>
-                  <span className="text-slate-300 text-right">better-sqlite3</span>
-                  <span className="text-slate-500">Routing</span>
-                  <span className="text-slate-300 text-right">Static / local</span>
-                  <span className="text-slate-500">Session Uptime</span>
-                  <span className="text-primary-theme text-right">{formatUptime(diagnosticsNow - diagnosticsMountedAt.current)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
     </div>
