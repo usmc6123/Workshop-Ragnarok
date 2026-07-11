@@ -512,7 +512,7 @@ export default function FunnelsView() {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Video Underneath Headline — Clip 1 (optional, Classic only)</label>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Quote Form Background Video — Clip 1 (optional, Classic only)</label>
                     <input
                       type="text"
                       value={form.secondary_video_url}
@@ -520,11 +520,11 @@ export default function FunnelsView() {
                       placeholder="https://..."
                       className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
                     />
-                    <p className="text-[9px] text-slate-600 mt-1">Adds a video section between the headline box and the quote form. Plays first if a Clip 2 is also set.</p>
+                    <p className="text-[9px] text-slate-600 mt-1">Loops behind the name/phone/email/vehicle quote form, with a dark overlay so it stays readable. Plays first if a Clip 2 is also set.</p>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Video Underneath Headline — Clip 2 (optional, Classic only)</label>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Quote Form Background Video — Clip 2 (optional, Classic only)</label>
                     <input
                       type="text"
                       value={form.secondary_video_url_2}

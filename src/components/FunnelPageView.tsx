@@ -256,30 +256,27 @@ function ClassicFunnelLayout({ funnel, form, updateField, handleSubmit, submitti
           </div>
         </section>
 
-        {/* Optional standalone video, underneath the headline box (clip 1 then clip 2, looping) */}
-        {funnel.secondary_video_url && (
-          <section
-            className="rounded-lg overflow-hidden border-2 border-amber-500/20 shadow-2xl animate-fade-in"
-            style={{ animationDelay: '0.05s', animationFillMode: 'backwards' }}
-          >
-            <video
-              ref={secondaryVideoRef}
-              src={currentSecondaryVideoSrc || undefined}
-              autoPlay
-              muted
-              playsInline
-              loop={!hasSecondSecondaryVideo}
-              onEnded={handleSecondaryVideoEnded}
-              className="w-full h-56 sm:h-72 object-cover"
-            />
-          </section>
-        )}
-
         {/* Lead capture form / thank-you state */}
         <section
-          className="bg-[#111218] border-2 border-amber-500/20 rounded-lg p-6 shadow-2xl font-mono animate-fade-in"
+          className="relative overflow-hidden border-2 border-amber-500/20 rounded-lg shadow-2xl animate-fade-in"
           style={{ animationDelay: '0.1s', animationFillMode: 'backwards' }}
         >
+          {funnel.secondary_video_url && (
+            <>
+              <video
+                ref={secondaryVideoRef}
+                src={currentSecondaryVideoSrc || undefined}
+                autoPlay
+                muted
+                playsInline
+                loop={!hasSecondSecondaryVideo}
+                onEnded={handleSecondaryVideoEnded}
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-black/70" />
+            </>
+          )}
+          <div className={`relative z-10 p-6 font-mono ${funnel.secondary_video_url ? '' : 'bg-[#111218]'}`}>
           {submitted ? (
             <div className="flex flex-col items-center text-center gap-3 py-6">
               <div className="p-3 bg-emerald-500/10 rounded-full border border-emerald-500/20 text-emerald-400">
@@ -427,6 +424,7 @@ function ClassicFunnelLayout({ funnel, form, updateField, handleSubmit, submitti
               </button>
             </form>
           )}
+          </div>
         </section>
       </main>
     </div>
