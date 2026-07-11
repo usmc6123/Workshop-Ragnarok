@@ -23,15 +23,13 @@ export default function YoutubeTrimmerView() {
   const trimmerUrl = TRIMMER_URL;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6" id="youtube-trimmer-view">
-      <div className="rounded-xl border border-border-theme overflow-hidden shadow-lg" style={{ height: 'calc(100vh - 140px)' }}>
-        <iframe
-          src={trimmerUrl}
-          title="Youtube Trimmer"
-          className="w-full h-full border-0"
-          allow="fullscreen"
-        />
-      </div>
+    <div id="youtube-trimmer-view" style={{ height: 'calc(100vh - 64px)' }}>
+      <iframe
+        src={trimmerUrl}
+        title="Youtube Trimmer"
+        className="w-full h-full border-0 block"
+        allow="fullscreen"
+      />
     </div>
   );
 }
