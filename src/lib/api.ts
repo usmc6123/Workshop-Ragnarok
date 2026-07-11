@@ -7,7 +7,7 @@ import {
   Vehicle, GarageItem, PageResponse, Customer, CustomerVehicle,
   ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual, ShopSettings, JobPhoto,
   InventoryItem, WorkOrderPart, Service, JobService, Receipt, EmailTemplate, EmailSent, EmailReceived,
-  JobNote, JobNoteAttachment, Funnel, PublicFunnel, FunnelLead
+  JobNote, JobNoteAttachment, Funnel, PublicFunnel, FunnelLead, SmsMessage
 } from '../types';
 
 import { 
@@ -1366,6 +1366,48 @@ export const api = {
   async deleteReceipt(id: number): Promise<{ success: boolean }> {
     return await request<{ success: boolean }>(`/api/receipts/${id}`, {
       method: 'DELETE'
+    });
+  },
+
+  // --- SMS / TEXTS CENTER ---
+  async getSmsStatus(): Promise<{ configured: boolean }> {
+    try {
+      return await request<{ configured: boolean }>('/api/sms/status');
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return { configured: false };
+      }
+      throw err;
+    }
+  },
+
+  async getSmsMessages(): Promise<SmsMessage[]> {
+    try {
+      return await request<SmsMessage[]>('/api/sms-messages');
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return [];
+      }
+      throw err;
+    }
+  },
+
+  async getSmsThread(customerId: number): Promise<SmsMessage[]> {
+    try {
+      return await request<SmsMessage[]>(`/api/sms-messages/customer/${customerId}`);
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return [];
+      }
+      throw err;
+    }
+  },
+
+  async sendSmsMessage(data: { customer_id?: number; phone?: string; body: string }): Promise<SmsMessage> {
+    return await request<SmsMessage>('/api/sms-messages/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
     });
   },
 

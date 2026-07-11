@@ -19,6 +19,7 @@ import SettingsView from './components/SettingsView';
 import NetworkSettingsModal from './components/NetworkSettingsModal';
 import BootSplashScreen from './components/BootSplashScreen';
 import EmailView from './components/EmailView';
+import TextsView from './components/TextsView';
 import AutomationsView from './components/AutomationsView';
 import PaymentsView from './components/PaymentsView';
 import CustomerPortalView from './components/CustomerPortalView';
@@ -35,7 +36,7 @@ import {
   Wifi, HelpCircle, CheckSquare, Settings, Car, ClipboardList, LayoutDashboard, Menu
 } from 'lucide-react';
 
-type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email' | 'automations' | 'payments' | 'funnels';
+type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email' | 'texts' | 'automations' | 'payments' | 'funnels';
 
 export default function App() {
   console.log('APP RENDERING');
@@ -405,6 +406,10 @@ export default function App() {
                       setView('customers');
                     }}
                   />
+                )}
+
+                {view === 'texts' && (
+                  <TextsView />
                 )}
 
                 {view === 'payments' && (

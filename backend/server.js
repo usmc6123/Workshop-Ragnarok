@@ -1002,6 +1002,28 @@ try {
     )
   `);
 
+  // Create SMS Messages table — logs every send attempt (manual + automated),
+  // regardless of whether Twilio is actually configured yet, so the Texts page has
+  // something to show from day one. direction is 'outbound' now; 'inbound' is
+  // reserved for when two-way texting/webhooks are built later.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sms_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+      phone TEXT NOT NULL,
+      body TEXT NOT NULL,
+      direction TEXT CHECK (direction IN ('outbound', 'inbound')) DEFAULT 'outbound',
+      status TEXT CHECK (status IN ('sent', 'failed', 'not_configured')) DEFAULT 'not_configured',
+      error_message TEXT,
+      trigger_type TEXT CHECK (trigger_type IN ('manual', 'appointment_reminder', 'job_complete', 'funnel_confirmation', 'funnel_admin_alert')) DEFAULT 'manual',
+      related_job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+      related_appointment_id INTEGER REFERENCES appointments(id) ON DELETE SET NULL,
+      related_funnel_id INTEGER REFERENCES funnels(id) ON DELETE SET NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
   // Seed the admin user if not exists
   const bcrypt = require('bcryptjs');
   const existingAdmin = db.prepare('SELECT * FROM users WHERE username = ?').get('usmc6123');
@@ -4650,6 +4672,104 @@ app.delete('/api/receipts/:id', (req, res) => {
   }
 });
 
+// --- SMS / TEXTS CENTER ---
+// Powers the Texts page. Logging happens inside backend/sms.js's sendSms() itself
+// (every attempt is written to sms_messages regardless of success/failure/not-
+// configured), so these routes are just reading that log back out, plus one route
+// for firing a manual send.
+
+// GET /api/sms/status - whether Twilio is actually configured yet on this server
+app.get('/api/sms/status', (req, res) => {
+  const { isSmsConfigured } = require('./sms');
+  res.json({ configured: isSmsConfigured() });
+});
+
+// GET /api/sms-messages - full message log, newest first, joined with customer name.
+// The Texts page groups these client-side into per-customer conversation threads.
+app.get('/api/sms-messages', (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT m.*, c.name as customer_name
+      FROM sms_messages m
+      LEFT JOIN customers c ON m.customer_id = c.id
+      WHERE m.user_id = ?
+      ORDER BY m.created_at DESC
+      LIMIT 1000
+    `).all(req.user.id);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching sms messages:', error);
+    res.status(500).json({ error: 'Database error fetching sms messages' });
+  }
+});
+
+// GET /api/sms-messages/customer/:customerId - one customer's full thread, oldest first (chat order)
+app.get('/api/sms-messages/customer/:customerId', (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const rows = db.prepare(`
+      SELECT m.*, c.name as customer_name
+      FROM sms_messages m
+      LEFT JOIN customers c ON m.customer_id = c.id
+      WHERE m.user_id = ? AND m.customer_id = ?
+      ORDER BY m.created_at ASC
+    `).all(req.user.id, customerId);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching sms thread:', error);
+    res.status(500).json({ error: 'Database error fetching sms thread' });
+  }
+});
+
+// POST /api/sms-messages/send - manual one-off text from the Texts page.
+// Body: { customer_id, phone, body } - phone is looked up from the customer record
+// if not passed explicitly.
+app.post('/api/sms-messages/send', async (req, res) => {
+  try {
+    const { customer_id, phone, body } = req.body;
+    if (!body || !body.trim()) return res.status(400).json({ error: 'Message body is required' });
+
+    let toPhone = phone;
+    if (!toPhone && customer_id) {
+      const customer = db.prepare('SELECT phone FROM customers WHERE id = ? AND user_id = ?').get(customer_id, req.user.id);
+      toPhone = customer ? customer.phone : null;
+    }
+    if (!toPhone) return res.status(400).json({ error: 'No destination phone number — provide phone or a customer_id with a phone on file' });
+
+    if (customer_id) {
+      const ownedCustomer = db.prepare('SELECT id FROM customers WHERE id = ? AND user_id = ?').get(customer_id, req.user.id);
+      if (!ownedCustomer) return res.status(400).json({ error: 'Invalid or unauthorized customer_id' });
+    }
+
+    const { sendSms } = require('./sms');
+    try {
+      await sendSms({ to: toPhone, body }, {
+        userId: req.user.id,
+        customerId: customer_id || null,
+        triggerType: 'manual',
+      });
+    } catch (smsErr) {
+      // sendSms already logged the failure to sms_messages — surface it to the UI
+      // as a normal response rather than a 500, since "Twilio not configured" or a
+      // bad number is an expected, recoverable state here, not a server bug.
+      console.error('[Texts] Manual send failed:', smsErr);
+    }
+
+    const logged = db.prepare(`
+      SELECT m.*, c.name as customer_name
+      FROM sms_messages m
+      LEFT JOIN customers c ON m.customer_id = c.id
+      WHERE m.user_id = ? AND m.phone = ?
+      ORDER BY m.id DESC LIMIT 1
+    `).get(req.user.id, toPhone);
+
+    res.json(logged || { success: true });
+  } catch (error) {
+    console.error('Error sending manual sms:', error);
+    res.status(500).json({ error: 'Database error sending sms' });
+  }
+});
+
 // --- EMAIL CENTER ---
 
 // Emails the customer the day before their scheduled appointment. Runs on a plain
@@ -4707,6 +4827,11 @@ async function sendAppointmentReminders() {
           await sendSms({
             to: appt.customer_phone,
             body: `${shopName}: reminder — you're scheduled tomorrow (${appt.date}) at ${appt.time}${vehicleLine ? ` for your ${vehicleLine}` : ''}. ${appt.title}${shop.shop_phone ? ` Questions? Call ${shop.shop_phone}.` : ''}`,
+          }, {
+            userId: appt.user_id,
+            customerId: appt.customer_id,
+            triggerType: 'appointment_reminder',
+            appointmentId: appt.id,
           });
         } catch (smsErr) {
           console.error(`[Reminders] Failed to text appointment ${appt.id}:`, smsErr);
@@ -4990,6 +5115,11 @@ function triggerJobCompleteNotification(jobId, userId) {
       sendSms({
         to: job.customer_phone,
         body: `${shopName}: great news — your ${vehicleLine || 'vehicle'} is ready for pickup!${shop.shop_phone ? ` Questions? Call ${shop.shop_phone}.` : ''}`,
+      }, {
+        userId,
+        customerId: job.customer_id,
+        triggerType: 'job_complete',
+        jobId,
       }).catch(err => console.error(`[JobComplete] Failed to text job ${jobId}:`, err));
     }
   } catch (error) {

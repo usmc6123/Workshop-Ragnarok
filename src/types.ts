@@ -439,7 +439,28 @@ export interface EmailReceived {
   subject: string;
   body: string;
   received_at: string;
-  
+
+  // Joined from customers
+  customer_name?: string | null;
+}
+
+export type SmsTriggerType = 'manual' | 'appointment_reminder' | 'job_complete' | 'funnel_confirmation' | 'funnel_admin_alert';
+export type SmsStatus = 'sent' | 'failed' | 'not_configured';
+
+export interface SmsMessage {
+  id: number;
+  customer_id: number | null;
+  phone: string;
+  body: string;
+  direction: 'outbound' | 'inbound';
+  status: SmsStatus;
+  error_message: string | null;
+  trigger_type: SmsTriggerType;
+  related_job_id: number | null;
+  related_appointment_id: number | null;
+  related_funnel_id: number | null;
+  created_at: string;
+  user_id?: number;
   // Joined from customers
   customer_name?: string | null;
 }

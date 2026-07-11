@@ -223,6 +223,12 @@ router.post('/:slug/submit', async (req, res) => {
       await sendSms({
         to: phone,
         body: `${shopName}: thanks, ${name.split(' ')[0]}! We got your request${funnel.service_type ? ` for ${funnel.service_type}` : ''} and will follow up shortly.${shopSettings.shop_phone ? ` Questions? Call ${shopSettings.shop_phone}.` : ''}`,
+      }, {
+        userId: funnel.user_id,
+        customerId,
+        triggerType: 'funnel_confirmation',
+        jobId,
+        funnelId: funnel.id,
       });
     } catch (smsErr) {
       console.error('[Funnel] Confirmation SMS failed to send (lead was still captured):', smsErr);
@@ -262,6 +268,12 @@ router.post('/:slug/submit', async (req, res) => {
         await sendSms({
           to: shopSettings.shop_phone,
           body: `New lead from your "${funnel.headline}" funnel: ${name} (${phone}) — ${vehicleLine}. "${message}"`,
+        }, {
+          userId: funnel.user_id,
+          customerId,
+          triggerType: 'funnel_admin_alert',
+          jobId,
+          funnelId: funnel.id,
         });
       } catch (adminSmsErr) {
         console.error('[Funnel] Admin notification SMS failed to send (lead was still captured):', adminSmsErr);
