@@ -77,8 +77,8 @@ const BIRD_CLIPS = {
 const FEATHER_ATLAS_COLS = 4;
 const FEATHER_ATLAS_ROWS = 2;
 const FIRE_RANGE = 6.5;
-// Toggle the "VAPORIZED" score HUD panel on/off.
-const SHOW_HUD = true;
+// Toggle the "VAPORIZED" score HUD panel on/off — flip back to true to bring it back.
+const SHOW_HUD = false;
 
 export default function CatLaserOverlay({ heroRef }) {
   const hostRef = useRef(null);
