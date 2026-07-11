@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../lib/api';
 import {
   Site, SiteBlock, SiteBlockType, SiteMessage, ThemeConfig, BlockStyle,
@@ -8,42 +9,26 @@ import {
 } from '../types';
 import { SITE_FONT_OPTIONS, ensureGoogleFontsLoaded } from '../constants/siteFonts';
 import { SITE_TEMPLATES, SiteTemplate } from '../constants/siteTemplates';
+import { BLOCK_TYPES, blockMeta } from '../constants/siteBlockTypes';
+import { GridPosition, defaultGridPosition, nextAvailableRow, positionFromStyle } from '../constants/siteGrid';
+import SiteGridCanvas from './SiteGridCanvas';
+import TemplateThumbnail from './TemplateThumbnail';
 import {
-  ArrowLeft, Plus, Trash2, Loader2, GripVertical,
-  LayoutTemplate, Type, Image as ImageIcon, Film, MousePointerClick, Mail,
-  Quote, Tag, HelpCircle, MoveVertical, Save, X, Mailbox, ExternalLink, Copy,
-  Palette, AlignLeft, AlignCenter, AlignRight, Paintbrush, Sparkles, LayoutGrid,
+  ArrowLeft, Plus, Trash2, Loader2,
+  Type, Mail, Save, X, Mailbox, ExternalLink,
+  Palette, AlignLeft, AlignCenter, AlignRight, Paintbrush, Sparkles, LayoutGrid, LayoutTemplate,
 } from 'lucide-react';
 
 const DEFAULT_ACCENT = '#f59e0b';
-
-// --- Block type registry: icon, label, and a fresh default content payload for
-// each of the 10 block types. Adding an 11th block type later only means adding
-// one entry here plus one render branch in BlockContentEditor/BlockPreview below.
-const BLOCK_TYPES: { type: SiteBlockType; label: string; icon: React.ElementType; defaultContent: () => object }[] = [
-  { type: 'hero', label: 'Hero', icon: LayoutTemplate, defaultContent: () => ({ headline: 'Your Big Headline', subheadline: 'A short supporting line goes here.', cta_text: 'Get Started', cta_link: '' } as HeroBlockContent) },
-  { type: 'text', label: 'Text', icon: Type, defaultContent: () => ({ headline: '', body: 'Write something here...', align: 'left' } as TextBlockContent) },
-  { type: 'image', label: 'Image Gallery', icon: ImageIcon, defaultContent: () => ({ images: [] } as ImageBlockContent) },
-  { type: 'video', label: 'Video', icon: Film, defaultContent: () => ({ video_url: '', autoplay: false, controls: true } as VideoBlockContent) },
-  { type: 'cta', label: 'Call To Action', icon: MousePointerClick, defaultContent: () => ({ headline: 'Ready to get started?', subheadline: '', button_text: 'Contact Us', button_link: '' } as CtaBlockContent) },
-  { type: 'contact_form', label: 'Contact Form', icon: Mail, defaultContent: () => ({ headline: 'Get In Touch', subheadline: '', button_text: 'Send Message' } as ContactFormBlockContent) },
-  { type: 'testimonial', label: 'Testimonial', icon: Quote, defaultContent: () => ({ quote: '', author: '', role: '' } as TestimonialBlockContent) },
-  { type: 'pricing', label: 'Pricing', icon: Tag, defaultContent: () => ({ headline: 'Plans & Pricing', tiers: [{ name: 'Basic', price: '$0', features: [] }] } as PricingBlockContent) },
-  { type: 'faq', label: 'FAQ', icon: HelpCircle, defaultContent: () => ({ headline: 'Frequently Asked Questions', items: [] } as FaqBlockContent) },
-  { type: 'spacer', label: 'Spacer', icon: MoveVertical, defaultContent: () => ({ size: 'md' } as SpacerBlockContent) },
-];
-
-function blockMeta(type: SiteBlockType) {
-  return BLOCK_TYPES.find(b => b.type === type) || BLOCK_TYPES[0];
-}
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;
   try { return JSON.parse(raw); } catch { return fallback; }
 }
 
-// Blocks where left/center/right alignment actually means something visually.
-const ALIGNABLE_TYPES: SiteBlockType[] = ['hero', 'text', 'cta', 'testimonial'];
+function parseThemeConfig(raw: string | null | undefined): ThemeConfig {
+  return parseJson<ThemeConfig>(raw, {});
+}
 
 // --- Reused input styling helper components ------------------------------------
 
@@ -75,8 +60,6 @@ function TextArea({ value, onChange, placeholder, rows = 3 }: { value: string; o
   );
 }
 
-// A media URL field with its own transparency slider (once a URL is present) —
-// same convention already established in FunnelsView's MediaField.
 function MediaUrlField({
   label, value, onChange, opacityKey, mediaOpacity, onOpacityChange, placeholder,
 }: {
@@ -120,7 +103,6 @@ function MediaUrlField({
   );
 }
 
-// A small pill-button toggle group — used for width/align/font-size/padding presets.
 function PresetToggle<T extends string>({
   options, value, onChange,
 }: {
@@ -149,9 +131,7 @@ function PresetToggle<T extends string>({
   );
 }
 
-// A color field with a swatch + hex input + a "clear" button to fall back to
-// the site default / built-in look, rather than forcing every block to override.
-function ColorField({ label, value, onChange, allowClear = true }: { label: string; value: string | undefined; onChange: (v: string | undefined) => void; allowClear?: boolean }) {
+function ColorField({ label, value, onChange }: { label: string; value: string | undefined; onChange: (v: string | undefined) => void }) {
   return (
     <div>
       <FieldLabel>{label}</FieldLabel>
@@ -169,7 +149,7 @@ function ColorField({ label, value, onChange, allowClear = true }: { label: stri
           placeholder="Site default"
           className="flex-1 min-w-0 bg-transparent text-xs text-white font-mono placeholder-slate-600 focus:outline-none"
         />
-        {allowClear && value && (
+        {value && (
           <button onClick={() => onChange(undefined)} className="text-slate-500 hover:text-white cursor-pointer shrink-0" title="Reset to site default">
             <X className="w-3.5 h-3.5" />
           </button>
@@ -179,31 +159,19 @@ function ColorField({ label, value, onChange, allowClear = true }: { label: stri
   );
 }
 
-const WIDTH_OPTIONS: { value: NonNullable<BlockStyle['width']>; label: string }[] = [
-  { value: 'narrow', label: 'Narrow' },
-  { value: 'wide', label: 'Wide' },
-  { value: 'full', label: 'Full' },
-];
+const ALIGNABLE_TYPES: SiteBlockType[] = ['hero', 'text', 'cta', 'testimonial'];
 const ALIGN_OPTIONS: { value: NonNullable<BlockStyle['align']>; label: string; icon: React.ElementType }[] = [
   { value: 'left', label: 'Left', icon: AlignLeft },
   { value: 'center', label: 'Center', icon: AlignCenter },
   { value: 'right', label: 'Right', icon: AlignRight },
 ];
 const FONT_SIZE_OPTIONS: { value: NonNullable<BlockStyle['font_size']>; label: string }[] = [
-  { value: 'sm', label: 'S' },
-  { value: 'md', label: 'M' },
-  { value: 'lg', label: 'L' },
-  { value: 'xl', label: 'XL' },
+  { value: 'sm', label: 'S' }, { value: 'md', label: 'M' }, { value: 'lg', label: 'L' }, { value: 'xl', label: 'XL' },
 ];
 const PADDING_OPTIONS: { value: NonNullable<BlockStyle['padding']>; label: string }[] = [
-  { value: 'sm', label: 'Compact' },
-  { value: 'md', label: 'Comfortable' },
-  { value: 'lg', label: 'Spacious' },
+  { value: 'sm', label: 'Compact' }, { value: 'md', label: 'Comfortable' }, { value: 'lg', label: 'Spacious' },
 ];
 
-// The per-block "Style" panel — layout/color/typography controls that apply on
-// top of whatever the block's content editor already handles. Every value here
-// is optional; leaving it unset means "inherit the site default."
 function BlockStyleEditor({ blockType, style, onChange }: { blockType: SiteBlockType; style: BlockStyle; onChange: (next: BlockStyle) => void }) {
   const set = (patch: Partial<BlockStyle>) => onChange({ ...style, ...patch });
   return (
@@ -211,13 +179,7 @@ function BlockStyleEditor({ blockType, style, onChange }: { blockType: SiteBlock
       <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-amber-300">
         <Paintbrush className="w-3 h-3" /> Style
       </div>
-
-      {blockType !== 'spacer' && (
-        <div>
-          <FieldLabel>Container Width</FieldLabel>
-          <PresetToggle options={WIDTH_OPTIONS} value={style.width || 'wide'} onChange={(v) => set({ width: v })} />
-        </div>
-      )}
+      <p className="text-[9px] text-slate-600 -mt-1.5">Position and size are set by dragging the block on the canvas — this panel is for color, font, and text.</p>
 
       {ALIGNABLE_TYPES.includes(blockType) && (
         <div>
@@ -308,10 +270,7 @@ function BlockContentEditor({
     case 'image': {
       const c: ImageBlockContent = content;
       const images = c.images || [];
-      const updateImage = (idx: number, patch: object) => {
-        const next = images.map((img, i) => i === idx ? { ...img, ...patch } : img);
-        set({ images: next });
-      };
+      const updateImage = (idx: number, patch: object) => set({ images: images.map((img, i) => i === idx ? { ...img, ...patch } : img) });
       const removeImage = (idx: number) => set({ images: images.filter((_, i) => i !== idx) });
       const addImage = () => set({ images: [...images, { url: '', caption: '' }] });
       return (
@@ -370,7 +329,7 @@ function BlockContentEditor({
           <div><FieldLabel>Headline</FieldLabel><TextInput value={c.headline || ''} onChange={(v) => set({ headline: v })} /></div>
           <div><FieldLabel>Subheadline</FieldLabel><TextInput value={c.subheadline || ''} onChange={(v) => set({ subheadline: v })} /></div>
           <div><FieldLabel>Submit Button Text</FieldLabel><TextInput value={c.button_text || ''} onChange={(v) => set({ button_text: v })} /></div>
-          <p className="text-[10px] text-slate-500 leading-relaxed">Messages submitted here land in this site's Messages tab — nothing else to configure.</p>
+          <p className="text-[10px] text-slate-500 leading-relaxed">Messages submitted here land in this site's Messages tab.</p>
         </div>
       );
     }
@@ -390,10 +349,7 @@ function BlockContentEditor({
     case 'pricing': {
       const c: PricingBlockContent = content;
       const tiers = c.tiers || [];
-      const updateTier = (idx: number, patch: Partial<PricingTier>) => {
-        const next = tiers.map((t, i) => i === idx ? { ...t, ...patch } : t);
-        set({ tiers: next });
-      };
+      const updateTier = (idx: number, patch: Partial<PricingTier>) => set({ tiers: tiers.map((t, i) => i === idx ? { ...t, ...patch } : t) });
       const removeTier = (idx: number) => set({ tiers: tiers.filter((_, i) => i !== idx) });
       const addTier = () => set({ tiers: [...tiers, { name: 'New Plan', price: '$0', features: [] }] });
       const updateFeatures = (idx: number, raw: string) => updateTier(idx, { features: raw.split('\n').map(s => s.trim()).filter(Boolean) });
@@ -426,10 +382,7 @@ function BlockContentEditor({
     case 'faq': {
       const c: FaqBlockContent = content;
       const items = c.items || [];
-      const updateItem = (idx: number, patch: Partial<FaqItem>) => {
-        const next = items.map((it, i) => i === idx ? { ...it, ...patch } : it);
-        set({ items: next });
-      };
+      const updateItem = (idx: number, patch: Partial<FaqItem>) => set({ items: items.map((it, i) => i === idx ? { ...it, ...patch } : it) });
       const removeItem = (idx: number) => set({ items: items.filter((_, i) => i !== idx) });
       const addItem = () => set({ items: [...items, { question: '', answer: '' }] });
       return (
@@ -472,29 +425,6 @@ function BlockContentEditor({
   }
 }
 
-// One-line preview summary shown on the collapsed block card, so the owner can
-// tell blocks apart at a glance without expanding each one.
-function blockSummary(blockType: SiteBlockType, content: any): string {
-  switch (blockType) {
-    case 'hero': return content.headline || 'Untitled hero';
-    case 'text': return content.headline || (content.body ? content.body.slice(0, 60) : 'Empty text block');
-    case 'image': return `${(content.images || []).length} image(s)`;
-    case 'video': return content.video_url ? content.video_url : 'No video set';
-    case 'cta': return content.headline || 'Untitled CTA';
-    case 'contact_form': return content.headline || 'Contact form';
-    case 'testimonial': return content.author ? `Quote from ${content.author}` : 'Untitled testimonial';
-    case 'pricing': return `${(content.tiers || []).length} plan(s)`;
-    case 'faq': return `${(content.items || []).length} question(s)`;
-    case 'spacer': return `Size: ${content.size || 'md'}`;
-    default: return '';
-  }
-}
-
-function parseThemeConfig(raw: string | null | undefined): ThemeConfig {
-  if (!raw) return {};
-  try { return JSON.parse(raw); } catch { return {}; }
-}
-
 // --- Main builder view --------------------------------------------------------
 
 export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: () => void }) {
@@ -504,10 +434,10 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
   const [showPicker, setShowPicker] = useState(false);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [applyingTemplateId, setApplyingTemplateId] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [savingId, setSavingId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [editingBlock, setEditingBlock] = useState<SiteBlock | null>(null);
+  const [savingBlock, setSavingBlock] = useState(false);
 
-  // Local draft state for whichever block is currently expanded for editing.
   const [draftContent, setDraftContent] = useState<any>(null);
   const [draftOpacity, setDraftOpacity] = useState<Record<string, number>>({});
   const [draftStyle, setDraftStyle] = useState<BlockStyle>({});
@@ -516,18 +446,13 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
   const [messages, setMessages] = useState<SiteMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
 
-  // Site-wide theme, editable right here so switching to Settings isn't needed
-  // mid-build.
   const [themeForm, setThemeForm] = useState<ThemeConfig>(() => parseThemeConfig(site.theme_config));
   const [themeSaving, setThemeSaving] = useState(false);
   const [themeSaved, setThemeSaved] = useState(false);
 
-  const dragIndex = useRef<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-
   useEffect(() => {
     loadBlocks();
-    ensureGoogleFontsLoaded([site.theme_config ? parseThemeConfig(site.theme_config).font_family : undefined, ...SITE_FONT_OPTIONS.map(f => f.value)]);
+    ensureGoogleFontsLoaded([parseThemeConfig(site.theme_config).font_family, ...SITE_FONT_OPTIONS.map(f => f.value)]);
   }, [site.id]);
 
   const loadBlocks = async () => {
@@ -547,8 +472,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
   const loadMessages = async () => {
     setMessagesLoading(true);
     try {
-      const data = await api.getSiteMessages(site.id);
-      setMessages(data);
+      setMessages(await api.getSiteMessages(site.id));
     } catch (err) {
       console.error(err);
     } finally {
@@ -556,37 +480,47 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     }
   };
 
-  useEffect(() => {
-    if (tab === 'messages') loadMessages();
-  }, [tab]);
+  useEffect(() => { if (tab === 'messages') loadMessages(); }, [tab]);
+
+  const currentPositions = (): GridPosition[] =>
+    blocks.map((b, idx) => positionFromStyle(parseJson<BlockStyle>(b.style, {}), idx * 12));
 
   const handleAddBlock = async (blockType: SiteBlockType) => {
     setShowPicker(false);
     try {
-      const created = await api.createSiteBlock(site.id, { block_type: blockType, content: blockMeta(blockType).defaultContent(), media_opacity: {}, style: {} });
+      const row = nextAvailableRow(currentPositions());
+      const gridPos = defaultGridPosition(blockType, row);
+      const created = await api.createSiteBlock(site.id, {
+        block_type: blockType,
+        content: blockMeta(blockType).defaultContent(),
+        media_opacity: {},
+        style: { ...gridPos },
+      });
       setBlocks(prev => [...prev, created]);
-      openEditor(created);
+      setSelectedId(created.id);
     } catch (err) {
       console.error(err);
       alert('Failed to add block.');
     }
   };
 
-  // Applies a template by creating each of its blocks in order. Positions are
-  // assigned server-side (max + 1 each time), so awaiting sequentially — rather
-  // than firing them all in parallel — is what keeps the template's intended
-  // top-to-bottom order intact. Templates only ever ADD blocks; they never
-  // touch or remove whatever's already on the page.
   const handleApplyTemplate = async (template: SiteTemplate) => {
-    if (blocks.length > 0 && !confirm(`Add the "${template.name}" template's ${template.blocks.length} blocks to the end of this page?`)) return;
+    if (blocks.length > 0 && !confirm(`Add the "${template.name}" template's ${template.blocks.length} blocks to this page?`)) return;
     setApplyingTemplateId(template.id);
     try {
+      const rowOffset = nextAvailableRow(currentPositions());
       for (const tplBlock of template.blocks) {
         const created = await api.createSiteBlock(site.id, {
           block_type: tplBlock.block_type,
           content: tplBlock.content,
           media_opacity: {},
-          style: tplBlock.style || {},
+          style: {
+            ...(tplBlock.style || {}),
+            grid_col: tplBlock.grid_col,
+            grid_col_span: tplBlock.grid_col_span,
+            grid_row: tplBlock.grid_row + rowOffset,
+            grid_row_span: tplBlock.grid_row_span,
+          },
         });
         setBlocks(prev => [...prev, created]);
       }
@@ -610,77 +544,53 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     }
   };
 
-  const openEditor = (block: SiteBlock) => {
-    setExpandedId(block.id);
-    setDraftContent(parseJson(block.content, blockMeta(block.block_type).defaultContent()));
-    setDraftOpacity(parseJson(block.media_opacity, {}));
-    setDraftStyle(parseJson(block.style, {}));
-  };
-
-  const closeEditor = () => {
-    setExpandedId(null);
-    setDraftContent(null);
-    setDraftOpacity({});
-    setDraftStyle({});
-  };
-
-  const handleSaveBlock = async (block: SiteBlock) => {
-    setSavingId(block.id);
-    try {
-      const updated = await api.updateSiteBlock(site.id, block.id, { content: draftContent, media_opacity: draftOpacity, style: draftStyle });
-      setBlocks(prev => prev.map(b => b.id === block.id ? updated : b));
-      closeEditor();
-    } catch (err) {
-      console.error(err);
-      alert('Failed to save block.');
-    } finally {
-      setSavingId(null);
-    }
-  };
-
   const handleDeleteBlock = async (block: SiteBlock) => {
     if (!confirm('Delete this block?')) return;
     try {
       await api.deleteSiteBlock(site.id, block.id);
       setBlocks(prev => prev.filter(b => b.id !== block.id));
-      if (expandedId === block.id) closeEditor();
+      if (editingBlock?.id === block.id) setEditingBlock(null);
+      if (selectedId === block.id) setSelectedId(null);
     } catch (err) {
       console.error(err);
       alert('Failed to delete block.');
     }
   };
 
-  // --- Real drag-and-drop reordering ---
-  // The whole collapsed block row is draggable (grip icon is just the visual
-  // affordance). Dropping onto another row's position swaps it into that slot
-  // and persists the new order via reorderSiteBlocks.
-  const handleDragStart = (index: number) => {
-    dragIndex.current = index;
-  };
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (dragOverIndex !== index) setDragOverIndex(index);
-  };
-  const handleDragEnd = () => {
-    dragIndex.current = null;
-    setDragOverIndex(null);
-  };
-  const handleDrop = async (index: number) => {
-    const from = dragIndex.current;
-    dragIndex.current = null;
-    setDragOverIndex(null);
-    if (from === null || from === index) return;
-
-    const reordered = [...blocks];
-    const [moved] = reordered.splice(from, 1);
-    reordered.splice(index, 0, moved);
-    setBlocks(reordered);
+  // Called by the canvas the instant a drag or resize gesture ends — persists
+  // immediately so there's no separate "save layout" step.
+  const handlePositionChange = async (blockId: number, position: GridPosition) => {
+    const block = blocks.find(b => b.id === blockId);
+    if (!block) return;
+    const nextStyle: BlockStyle = { ...parseJson<BlockStyle>(block.style, {}), ...position };
+    setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, style: JSON.stringify(nextStyle) } : b));
     try {
-      const updated = await api.reorderSiteBlocks(site.id, reordered.map(b => b.id));
-      setBlocks(updated.sort((a, b) => a.position - b.position));
+      await api.updateSiteBlock(site.id, blockId, { style: nextStyle });
     } catch (err) {
       console.error(err);
-      loadBlocks(); // resync on failure
+      loadBlocks();
+    }
+  };
+
+  const openEditor = (block: SiteBlock) => {
+    setEditingBlock(block);
+    setDraftContent(parseJson(block.content, blockMeta(block.block_type).defaultContent()));
+    setDraftOpacity(parseJson(block.media_opacity, {}));
+    setDraftStyle(parseJson(block.style, {}));
+  };
+
+  const handleSaveBlock = async () => {
+    if (!editingBlock) return;
+    setSavingBlock(true);
+    try {
+      const updated = await api.updateSiteBlock(site.id, editingBlock.id, { content: draftContent, media_opacity: draftOpacity, style: draftStyle });
+      setBlocks(prev => prev.map(b => b.id === editingBlock.id ? updated : b));
+      setEditingBlock(null);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save block.');
+    } finally {
+      setSavingBlock(false);
     }
   };
 
@@ -689,11 +599,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     setThemeSaved(false);
     try {
       await api.updateSite(site.id, {
-        name: site.name,
-        subdomain: site.subdomain,
-        title: site.title,
-        theme: site.theme,
-        active: site.active,
+        name: site.name, subdomain: site.subdomain, title: site.title, theme: site.theme, active: site.active,
         theme_config: themeForm,
       } as any);
       ensureGoogleFontsLoaded([themeForm.font_family]);
@@ -710,8 +616,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
   const previewUrl = `${window.location.origin}/site/${site.subdomain}`;
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto px-4 py-6">
-      {/* Header */}
+    <div className="space-y-6 max-w-6xl mx-auto px-4 py-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border-theme pb-4">
         <div className="flex items-center gap-3 min-w-0">
           <button onClick={onBack} className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition cursor-pointer shrink-0">
@@ -728,7 +633,6 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
         </a>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-2">
         <button onClick={() => setTab('blocks')} className={`px-4 py-2 rounded-lg text-xs uppercase tracking-wider font-bold transition cursor-pointer flex items-center gap-1.5 ${tab === 'blocks' ? 'bg-primary-theme text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
           <LayoutTemplate className="w-3.5 h-3.5" /> Blocks
@@ -751,7 +655,11 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
               <span>Loading blocks...</span>
             </div>
           ) : (
-            <div className="space-y-3">
+            <>
+              <p className="text-[11px] text-slate-500 font-mono">
+                Drag a block's title bar to move it anywhere on the page. Select it, then drag an edge or corner handle to resize — put several blocks side by side to build multi-column rows.
+              </p>
+
               {blocks.length === 0 && !showTemplatePicker && (
                 <div className="py-10 text-center border border-dashed border-[#1e2028] rounded-xl bg-[#13141a]/10 space-y-3">
                   <p className="font-mono text-xs text-slate-500">No blocks yet. Start from a template, or build from scratch below.</p>
@@ -760,73 +668,21 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
                   </button>
                 </div>
               )}
-              {blocks.map((block, idx) => {
-                const meta = blockMeta(block.block_type);
-                const Icon = meta.icon;
-                const isExpanded = expandedId === block.id;
-                const content = parseJson(block.content, {});
-                const isDragTarget = dragOverIndex === idx;
-                return (
-                  <div
-                    key={block.id}
-                    draggable
-                    onDragStart={() => handleDragStart(idx)}
-                    onDragOver={(e) => handleDragOver(e, idx)}
-                    onDrop={() => handleDrop(idx)}
-                    onDragEnd={handleDragEnd}
-                    className={`bg-[#13141a]/80 backdrop-blur-sm border rounded-xl overflow-hidden shadow-xl transition ${isDragTarget ? 'border-amber-400' : 'border-border-theme'}`}
-                  >
-                    <div className="flex items-center gap-3 p-4">
-                      <div className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-300 shrink-0" title="Drag to reorder">
-                        <GripVertical className="w-4 h-4" />
-                      </div>
-                      <div className="p-2 bg-[#0c0d12] rounded-lg text-primary-theme shrink-0">
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0 flex-1 cursor-pointer" onClick={() => isExpanded ? closeEditor() : openEditor(block)}>
-                        <span className="block text-xs font-black text-white uppercase tracking-wide">{meta.label}</span>
-                        <span className="block text-[11px] text-slate-500 truncate">{blockSummary(block.block_type, content)}</span>
-                      </div>
-                      <button onClick={() => handleDuplicateBlock(block)} className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition cursor-pointer shrink-0" title="Duplicate block">
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => isExpanded ? closeEditor() : openEditor(block)} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] uppercase tracking-wider font-bold transition cursor-pointer shrink-0">
-                        {isExpanded ? 'Close' : 'Edit'}
-                      </button>
-                      <button onClick={() => handleDeleteBlock(block)} className="p-2 bg-rose-950/40 hover:bg-rose-950/70 text-rose-300 rounded-lg transition cursor-pointer shrink-0">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
 
-                    {isExpanded && draftContent && (
-                      <div className="border-t border-border-theme p-4 space-y-4 bg-bg-theme/40">
-                        <BlockContentEditor
-                          blockType={block.block_type}
-                          content={draftContent}
-                          mediaOpacity={draftOpacity}
-                          onContentChange={setDraftContent}
-                          onOpacityChange={(key, value) => setDraftOpacity(prev => ({ ...prev, [key]: value }))}
-                        />
-                        <BlockStyleEditor blockType={block.block_type} style={draftStyle} onChange={setDraftStyle} />
-                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-border-theme">
-                          <button onClick={closeEditor} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs uppercase tracking-wider font-bold transition cursor-pointer flex items-center gap-1.5">
-                            <X className="w-3.5 h-3.5" /> Cancel
-                          </button>
-                          <button onClick={() => handleSaveBlock(block)} disabled={savingId === block.id} className="px-4 py-2 bg-primary-theme hover:opacity-90 text-slate-950 rounded-lg text-xs uppercase tracking-wider font-black transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50">
-                            {savingId === block.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                            Save Block
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+              {blocks.length > 0 && (
+                <SiteGridCanvas
+                  blocks={blocks}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  onEdit={openEditor}
+                  onDuplicate={handleDuplicateBlock}
+                  onDelete={handleDeleteBlock}
+                  onPositionChange={handlePositionChange}
+                />
+              )}
+            </>
           )}
 
-          {/* Template picker — always available, not just on an empty page, so a
-              template's blocks can be appended to flesh out an existing page. */}
           {showTemplatePicker && (
             <div className="bg-[#13141a]/80 border border-border-theme rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -835,26 +691,24 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
                 </span>
                 <button onClick={() => setShowTemplatePicker(false)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
               </div>
-              <p className="text-[10px] text-slate-500 -mt-2">Adds a ready-made set of blocks with placeholder copy to the end of this page — nothing existing gets touched.</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <p className="text-[10px] text-slate-500 -mt-2">Adds a ready-made, multi-column layout with placeholder copy — nothing existing gets touched.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {SITE_TEMPLATES.map(tpl => {
-                  const Icon = tpl.icon;
                   const isApplying = applyingTemplateId === tpl.id;
                   return (
                     <button
                       key={tpl.id}
                       onClick={() => handleApplyTemplate(tpl)}
                       disabled={!!applyingTemplateId}
-                      className="flex items-start gap-3 p-3 rounded-lg border border-[#1e2028] hover:border-amber-500/40 bg-[#0c0d12]/60 hover:bg-amber-950/10 transition cursor-pointer text-left disabled:opacity-50"
+                      className="flex flex-col gap-2 p-3 rounded-xl border border-[#1e2028] hover:border-amber-500/40 bg-[#0c0d12]/60 hover:bg-amber-950/10 transition cursor-pointer text-left disabled:opacity-50"
                     >
-                      <div className="p-2 bg-[#111218] rounded-lg text-primary-theme shrink-0">
-                        {isApplying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Icon className="w-4 h-4" />}
+                      <TemplateThumbnail template={tpl} />
+                      <div className="flex items-center gap-2">
+                        <tpl.icon className="w-3.5 h-3.5 text-primary-theme shrink-0" />
+                        <span className="text-xs font-black text-white">{tpl.name}</span>
+                        {isApplying && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-300 ml-auto" />}
                       </div>
-                      <div className="min-w-0">
-                        <span className="block text-xs font-black text-white">{tpl.name}</span>
-                        <span className="block text-[10px] text-slate-500 leading-snug mt-0.5">{tpl.description}</span>
-                        <span className="block text-[9px] text-slate-600 mt-1 font-mono">{tpl.blocks.length} blocks</span>
-                      </div>
+                      <span className="block text-[10px] text-slate-500 leading-snug">{tpl.description}</span>
                     </button>
                   );
                 })}
@@ -862,37 +716,36 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
             </div>
           )}
 
-          {/* Add block */}
-          {!showPicker ? (
-            <div className="flex gap-2.5">
+          <div className="flex gap-2.5">
+            {!showPicker ? (
               <button onClick={() => setShowPicker(true)} className="flex-1 px-4 py-4 border-2 border-dashed border-[#1e2028] hover:border-amber-500/40 rounded-xl text-xs uppercase tracking-wider font-black text-slate-400 hover:text-amber-300 transition cursor-pointer flex items-center justify-center gap-2">
                 <Plus className="w-4 h-4" /> Add Block
               </button>
-              {!showTemplatePicker && blocks.length > 0 && (
-                <button onClick={() => setShowTemplatePicker(true)} className="px-4 py-4 border-2 border-dashed border-[#1e2028] hover:border-amber-500/40 rounded-xl text-xs uppercase tracking-wider font-black text-slate-400 hover:text-amber-300 transition cursor-pointer flex items-center justify-center gap-2 shrink-0">
-                  <LayoutGrid className="w-4 h-4" /> Use a Template
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="bg-[#13141a]/80 border border-border-theme rounded-xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-white uppercase tracking-wider">Choose a Block Type</span>
-                <button onClick={() => setShowPicker(false)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+            ) : (
+              <div className="flex-1 bg-[#13141a]/80 border border-border-theme rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-white uppercase tracking-wider">Choose a Block Type</span>
+                  <button onClick={() => setShowPicker(false)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {BLOCK_TYPES.map(bt => {
+                    const Icon = bt.icon;
+                    return (
+                      <button key={bt.type} onClick={() => handleAddBlock(bt.type)} className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-[#1e2028] hover:border-amber-500/40 bg-[#0c0d12]/60 hover:bg-amber-950/10 transition cursor-pointer">
+                        <Icon className="w-4 h-4 text-primary-theme" />
+                        <span className="text-[10px] font-bold text-slate-200">{bt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {BLOCK_TYPES.map(bt => {
-                  const Icon = bt.icon;
-                  return (
-                    <button key={bt.type} onClick={() => handleAddBlock(bt.type)} className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-[#1e2028] hover:border-amber-500/40 bg-[#0c0d12]/60 hover:bg-amber-950/10 transition cursor-pointer">
-                      <Icon className="w-4 h-4 text-primary-theme" />
-                      <span className="text-[10px] font-bold text-slate-200">{bt.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+            )}
+            {!showTemplatePicker && blocks.length > 0 && (
+              <button onClick={() => setShowTemplatePicker(true)} className="px-4 py-4 border-2 border-dashed border-[#1e2028] hover:border-amber-500/40 rounded-xl text-xs uppercase tracking-wider font-black text-slate-400 hover:text-amber-300 transition cursor-pointer flex items-center justify-center gap-2 shrink-0">
+                <LayoutGrid className="w-4 h-4" /> Use a Template
+              </button>
+            )}
+          </div>
         </>
       ) : tab === 'theme' ? (
         <div className="bg-[#13141a]/80 border border-border-theme rounded-xl p-5 space-y-5 max-w-lg">
@@ -902,39 +755,19 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
           <p className="text-[11px] text-slate-500 leading-relaxed -mt-3">
             Sets the default look for every block on this site. Any block can still override the font in its own Style panel.
           </p>
-
           <div>
             <FieldLabel>Accent Color</FieldLabel>
             <div className="flex items-center gap-2 rounded-lg bg-[#0c0d12] border border-[#1e2028] px-2 py-1.5">
-              <input
-                type="color"
-                value={themeForm.accent_color || DEFAULT_ACCENT}
-                onChange={(e) => setThemeForm(prev => ({ ...prev, accent_color: e.target.value }))}
-                className="w-8 h-8 rounded cursor-pointer bg-transparent border-0 p-0 shrink-0"
-              />
-              <input
-                type="text"
-                value={themeForm.accent_color || DEFAULT_ACCENT}
-                onChange={(e) => setThemeForm(prev => ({ ...prev, accent_color: e.target.value }))}
-                className="flex-1 min-w-0 bg-transparent text-xs text-white font-mono focus:outline-none"
-              />
+              <input type="color" value={themeForm.accent_color || DEFAULT_ACCENT} onChange={(e) => setThemeForm(prev => ({ ...prev, accent_color: e.target.value }))} className="w-8 h-8 rounded cursor-pointer bg-transparent border-0 p-0 shrink-0" />
+              <input type="text" value={themeForm.accent_color || DEFAULT_ACCENT} onChange={(e) => setThemeForm(prev => ({ ...prev, accent_color: e.target.value }))} className="flex-1 min-w-0 bg-transparent text-xs text-white font-mono focus:outline-none" />
             </div>
           </div>
-
           <div>
             <FieldLabel>Default Font</FieldLabel>
-            <select
-              value={themeForm.font_family || SITE_FONT_OPTIONS[0].value}
-              onChange={(e) => setThemeForm(prev => ({ ...prev, font_family: e.target.value }))}
-              className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-sm text-white focus:outline-none"
-              style={{ fontFamily: themeForm.font_family }}
-            >
-              {SITE_FONT_OPTIONS.map(f => (
-                <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>
-              ))}
+            <select value={themeForm.font_family || SITE_FONT_OPTIONS[0].value} onChange={(e) => setThemeForm(prev => ({ ...prev, font_family: e.target.value }))} className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-sm text-white focus:outline-none" style={{ fontFamily: themeForm.font_family }}>
+              {SITE_FONT_OPTIONS.map(f => <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>)}
             </select>
           </div>
-
           <div className="flex items-center gap-3 pt-2 border-t border-border-theme">
             <button onClick={handleSaveTheme} disabled={themeSaving} className="px-4 py-2 bg-primary-theme hover:opacity-90 text-slate-950 rounded-lg text-xs uppercase tracking-wider font-black transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50">
               {themeSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
@@ -967,6 +800,39 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
             ))
           )}
         </div>
+      )}
+
+      {/* Block edit modal — Windows-11-style rounded acrylic card, opened from the canvas's pencil button */}
+      {editingBlock && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => !savingBlock && setEditingBlock(null)}>
+          <div className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl border border-white/10 bg-[#111218]/95 backdrop-blur-xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-border-theme shrink-0">
+              <h2 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                {React.createElement(blockMeta(editingBlock.block_type).icon, { className: 'w-4 h-4 text-primary-theme' })}
+                Edit {blockMeta(editingBlock.block_type).label}
+              </h2>
+              <button onClick={() => setEditingBlock(null)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
+              <BlockContentEditor
+                blockType={editingBlock.block_type}
+                content={draftContent}
+                mediaOpacity={draftOpacity}
+                onContentChange={setDraftContent}
+                onOpacityChange={(key, value) => setDraftOpacity(prev => ({ ...prev, [key]: value }))}
+              />
+              <BlockStyleEditor blockType={editingBlock.block_type} style={draftStyle} onChange={setDraftStyle} />
+            </div>
+            <div className="flex items-center justify-end gap-2 p-5 border-t border-border-theme shrink-0">
+              <button onClick={() => setEditingBlock(null)} disabled={savingBlock} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs uppercase tracking-wider font-bold transition cursor-pointer disabled:opacity-50">Cancel</button>
+              <button onClick={handleSaveBlock} disabled={savingBlock} className="px-4 py-2 bg-primary-theme hover:opacity-90 text-slate-950 rounded-lg text-xs uppercase tracking-wider font-black transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50">
+                {savingBlock ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                Save
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

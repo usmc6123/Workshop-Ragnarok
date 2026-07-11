@@ -323,13 +323,21 @@ export interface PublicSite {
 // Per-block style override — anything left unset falls back to the site's
 // ThemeConfig (font_family, accent_color) or a sensible built-in default.
 export interface BlockStyle {
-  width?: 'full' | 'wide' | 'narrow'; // container width preset
   align?: 'left' | 'center' | 'right';
   bg_color?: string; // hex, overrides the block's default/transparent background
   text_color?: string; // hex, overrides body text color
   font_family?: string; // overrides the site default for this block only
   font_size?: 'sm' | 'md' | 'lg' | 'xl'; // scales headline/body text together
-  padding?: 'sm' | 'md' | 'lg'; // vertical breathing room
+  padding?: 'sm' | 'md' | 'lg'; // internal breathing room
+
+  // Position/size on the page's 12-column grid — set by dragging/resizing the
+  // block on the builder canvas. grid_col/grid_col_span are 0-11 / 1-12
+  // (columns); grid_row/grid_row_span are in fixed row-height units. Missing
+  // values default to "full width, stacked below the last block."
+  grid_col?: number;
+  grid_col_span?: number;
+  grid_row?: number;
+  grid_row_span?: number;
 }
 
 export interface SiteBlock {
