@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import { Funnel, FunnelLead } from '../types';
 import {
   Megaphone, Plus, Pencil, Trash2, Copy, ExternalLink, Loader2, X,
-  Users, CheckCircle2, Clock, Ban, RefreshCw
+  Users, CheckCircle2, Clock, Ban, RefreshCw, LayoutTemplate, Sparkles
 } from 'lucide-react';
 
 const EMPTY_FORM = {
@@ -17,6 +17,7 @@ const EMPTY_FORM = {
   image_url: '',
   video_url: '',
   active: true,
+  layout: 'classic' as 'classic' | 'modern',
 };
 
 function slugify(value: string): string {
@@ -79,6 +80,7 @@ export default function FunnelsView() {
       image_url: funnel.image_url || '',
       video_url: funnel.video_url || '',
       active: !!funnel.active,
+      layout: funnel.layout || 'classic',
     });
     setSlugTouched(true);
     setFormError(null);
@@ -236,6 +238,10 @@ export default function FunnelsView() {
                     <h3 className="text-sm font-black text-white uppercase tracking-wide truncate">{funnel.headline}</h3>
                     <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${funnel.active ? 'bg-emerald-950/50 text-emerald-400 border-emerald-500/20' : 'bg-slate-800/60 text-slate-500 border-slate-600/20'}`}>
                       {funnel.active ? 'Active' : 'Paused'}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border flex items-center gap-1 ${funnel.layout === 'modern' ? 'bg-cyan-950/50 text-cyan-400 border-cyan-500/20' : 'bg-amber-950/50 text-amber-400 border-amber-500/20'}`}>
+                      {funnel.layout === 'modern' ? <Sparkles className="w-2.5 h-2.5" /> : <LayoutTemplate className="w-2.5 h-2.5" />}
+                      {funnel.layout === 'modern' ? 'Modern' : 'Classic'}
                     </span>
                   </div>
                   {funnel.subheadline && (
@@ -439,6 +445,40 @@ export default function FunnelsView() {
                   placeholder="https://..."
                   className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
                 />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Page Layout</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, layout: 'classic' }))}
+                    className={`text-left rounded-xl p-3 border-2 transition cursor-pointer ${form.layout === 'classic' ? 'border-amber-500 bg-amber-950/20' : 'border-[#1e2028] bg-[#0c0d12] hover:border-slate-600'}`}
+                  >
+                    <div className="w-full h-14 rounded-lg bg-gradient-to-br from-slate-800 to-black border border-amber-500/30 flex items-center justify-center mb-2">
+                      <LayoutTemplate className="w-5 h-5 text-amber-500" />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-white">Classic</span>
+                      {form.layout === 'classic' && <CheckCircle2 className="w-3.5 h-3.5 text-amber-500" />}
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Bold, straightforward auto-shop style.</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, layout: 'modern' }))}
+                    className={`text-left rounded-xl p-3 border-2 transition cursor-pointer ${form.layout === 'modern' ? 'border-cyan-400 bg-cyan-950/20' : 'border-[#1e2028] bg-[#0c0d12] hover:border-slate-600'}`}
+                  >
+                    <div className="w-full h-14 rounded-lg bg-gradient-to-br from-indigo-950 via-slate-900 to-black border border-cyan-400/40 flex items-center justify-center mb-2 shadow-[0_0_12px_rgba(34,211,238,0.25)]">
+                      <Sparkles className="w-5 h-5 text-cyan-400" />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-white">Modern</span>
+                      {form.layout === 'modern' && <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />}
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Vibrant, glowing, 3D showcase style.</p>
+                  </button>
+                </div>
               </div>
 
               <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">

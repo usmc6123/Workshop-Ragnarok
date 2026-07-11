@@ -231,6 +231,7 @@ export interface Funnel {
   service_type: string | null;
   cta_text: string;
   active: number; // 0 or 1
+  layout: 'classic' | 'modern';
   created_at?: string;
   updated_at?: string;
   user_id?: number;
@@ -249,6 +250,7 @@ export interface PublicFunnel {
   video_url: string | null;
   service_type: string | null;
   cta_text: string;
+  layout: 'classic' | 'modern';
 }
 
 export interface FunnelLead {

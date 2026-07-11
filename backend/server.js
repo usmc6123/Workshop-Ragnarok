@@ -857,11 +857,24 @@ try {
       service_type TEXT,
       cta_text TEXT DEFAULT 'Get My Free Quote',
       active INTEGER DEFAULT 1,
+      layout TEXT DEFAULT 'classic',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  // Migrate funnels table to include layout, for installs that already had the table
+  // before the "Modern" layout option was added.
+  try {
+    const funnelsCols = db.prepare("PRAGMA table_info(funnels)").all();
+    if (!funnelsCols.some(c => c.name === 'layout')) {
+      db.exec(`ALTER TABLE funnels ADD COLUMN layout TEXT DEFAULT 'classic'`);
+      console.log('Successfully migrated funnels to include layout column.');
+    }
+  } catch (err) {
+    console.error('Error migrating funnels layout column:', err);
+  }
 
   // Create Funnel Leads table (raw submissions from public funnel pages)
   db.exec(`
@@ -3620,7 +3633,7 @@ app.get('/api/funnels', (req, res) => {
 
 app.post('/api/funnels', (req, res) => {
   try {
-    const { slug, headline, subheadline, body, image_url, video_url, service_type, cta_text, active } = req.body;
+    const { slug, headline, subheadline, body, image_url, video_url, service_type, cta_text, active, layout } = req.body;
     if (!slug || !headline) return res.status(400).json({ error: 'slug and headline are required' });
 
     const cleanSlug = String(slug).trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
@@ -3629,13 +3642,15 @@ app.post('/api/funnels', (req, res) => {
     const existing = db.prepare('SELECT id FROM funnels WHERE slug = ?').get(cleanSlug);
     if (existing) return res.status(409).json({ error: `Slug "${cleanSlug}" is already in use` });
 
+    const cleanLayout = layout === 'modern' ? 'modern' : 'classic';
+
     const stmt = db.prepare(`
-      INSERT INTO funnels (slug, headline, subheadline, body, image_url, video_url, service_type, cta_text, active, user_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO funnels (slug, headline, subheadline, body, image_url, video_url, service_type, cta_text, active, layout, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
       cleanSlug, headline, subheadline || null, body || null, image_url || null, video_url || null,
-      service_type || null, cta_text || 'Get My Free Quote', active === false ? 0 : 1, req.user.id
+      service_type || null, cta_text || 'Get My Free Quote', active === false ? 0 : 1, cleanLayout, req.user.id
     );
     const inserted = db.prepare('SELECT * FROM funnels WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
     res.json(inserted);
@@ -3648,7 +3663,7 @@ app.post('/api/funnels', (req, res) => {
 app.put('/api/funnels/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const { slug, headline, subheadline, body, image_url, video_url, service_type, cta_text, active } = req.body;
+    const { slug, headline, subheadline, body, image_url, video_url, service_type, cta_text, active, layout } = req.body;
     if (!slug || !headline) return res.status(400).json({ error: 'slug and headline are required' });
 
     const cleanSlug = String(slug).trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
@@ -3657,15 +3672,17 @@ app.put('/api/funnels/:id', (req, res) => {
     const conflict = db.prepare('SELECT id FROM funnels WHERE slug = ? AND id != ?').get(cleanSlug, id);
     if (conflict) return res.status(409).json({ error: `Slug "${cleanSlug}" is already in use` });
 
+    const cleanLayout = layout === 'modern' ? 'modern' : 'classic';
+
     const stmt = db.prepare(`
       UPDATE funnels
       SET slug = ?, headline = ?, subheadline = ?, body = ?, image_url = ?, video_url = ?,
-          service_type = ?, cta_text = ?, active = ?, updated_at = CURRENT_TIMESTAMP
+          service_type = ?, cta_text = ?, active = ?, layout = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
     `);
     const info = stmt.run(
       cleanSlug, headline, subheadline || null, body || null, image_url || null, video_url || null,
-      service_type || null, cta_text || 'Get My Free Quote', active === false ? 0 : 1, id, req.user.id
+      service_type || null, cta_text || 'Get My Free Quote', active === false ? 0 : 1, cleanLayout, id, req.user.id
     );
     if (info.changes === 0) return res.status(404).json({ error: 'Funnel not found' });
     const updated = db.prepare('SELECT * FROM funnels WHERE id = ? AND user_id = ?').get(id, req.user.id);

@@ -44,6 +44,7 @@ function publicFunnelFields(funnel) {
     video_url: funnel.video_url,
     service_type: funnel.service_type,
     cta_text: funnel.cta_text,
+    layout: funnel.layout || 'classic',
   };
 }
 

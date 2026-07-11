@@ -149,6 +149,40 @@ body {
   animation: pulseGlow 2.5s infinite ease-in-out;
 }
 
+/* Pulsing pink/orange glow ring for the "Modern" funnel layout's CTA button */
+@keyframes pulseGlowPink {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(236, 72, 153, 0.5), inset 0 0 10px rgba(249, 115, 22, 0.25);
+    border-color: rgba(236, 72, 153, 0.5);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 35px rgba(236, 72, 153, 0.9), inset 0 0 20px rgba(249, 115, 22, 0.5);
+    border-color: rgba(236, 72, 153, 0.9);
+    transform: scale(1.02);
+  }
+}
+
+.animate-pulse-glow-pink {
+  animation: pulseGlowPink 2.5s infinite ease-in-out;
+}
+
+/* Slow cyan glow breathing for the "Modern" funnel layout's header pill + form card border */
+@keyframes pulseGlowCyan {
+  0%, 100% {
+    box-shadow: 0 0 14px rgba(34, 211, 238, 0.35);
+    border-color: rgba(34, 211, 238, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 26px rgba(34, 211, 238, 0.75);
+    border-color: rgba(34, 211, 238, 0.85);
+  }
+}
+
+.animate-pulse-glow-cyan {
+  animation: pulseGlowCyan 3s infinite ease-in-out;
+}
+
 /* Monospace alignment helper */
 .spec-number {
   font-family: var(--font-mono);
