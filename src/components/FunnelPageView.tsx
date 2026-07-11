@@ -720,7 +720,23 @@ function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting
         <section
           className="relative rounded-3xl overflow-hidden border-2 border-pink-400/40 shadow-[0_0_50px_rgba(236,72,153,0.25)] bg-gradient-to-b from-[#1c0f27] to-[#0d0612] animate-fade-in"
         >
-          <div className="p-6 sm:p-8 pb-5 space-y-3 text-center">
+          {/* Hero Image URL now actually does something: it's the backdrop behind the
+              whole card (badge/headline/video/body), not just a video poster frame that
+              gets covered up the instant autoplay kicks in. Dark gradient on top keeps
+              text and the video's edges readable regardless of what the image looks like. */}
+          {funnel.image_url && (
+            <>
+              <img
+                src={funnel.image_url}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-[#1c0f27]/93 via-[#1c0f27]/88 to-[#0d0612]/95" />
+            </>
+          )}
+
+          <div className="relative z-10 p-6 sm:p-8 pb-5 space-y-3 text-center">
             {funnel.service_type && (
               <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-black uppercase tracking-widest bg-gradient-to-r from-pink-400 via-orange-400 to-amber-300 text-black shadow-[0_0_15px_rgba(251,146,60,0.5)]">
                 {funnel.service_type}
@@ -739,7 +755,7 @@ function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting
           {/* Video — edge to edge within the same card. Starts playing automatically
               (muted, since that's the only autoplay browsers allow) with a one-tap
               button to turn sound on. */}
-          <div className="relative px-3 sm:px-4">
+          <div className="relative z-10 px-3 sm:px-4">
             <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-black shadow-[0_0_30px_rgba(0,0,0,0.5)]">
               {funnel.hero_video_url ? (
                 <>
@@ -784,7 +800,7 @@ function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting
 
           {/* Body copy — inside the same card, high-contrast and easy to read */}
           {funnel.body && (
-            <div className="px-6 sm:px-8 pt-5 pb-7">
+            <div className="relative z-10 px-6 sm:px-8 pt-5 pb-7">
               <p className="text-sm sm:text-[15px] text-white/85 leading-relaxed whitespace-pre-line text-center max-w-xl mx-auto">
                 {funnel.body}
               </p>
