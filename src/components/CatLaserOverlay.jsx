@@ -77,6 +77,8 @@ const BIRD_CLIPS = {
 const FEATHER_ATLAS_COLS = 4;
 const FEATHER_ATLAS_ROWS = 2;
 const FIRE_RANGE = 6.5;
+// Toggle the "VAPORIZED" score HUD panel on/off.
+const SHOW_HUD = true;
 
 export default function CatLaserOverlay({ heroRef }) {
   const hostRef = useRef(null);
@@ -86,6 +88,23 @@ export default function CatLaserOverlay({ heroRef }) {
   const [loadProgress, setLoadProgress] = useState(0);
   const [showFinaleBanner, setShowFinaleBanner] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
+
+  // Kill-streak punch effect for the VAPORIZED counter (CoD Zombies style):
+  // the number scale-punches and a "+1" pops up and floats off on every kill.
+  const [scorePulse, setScorePulse] = useState(0);
+  const [popups, setPopups] = useState([]);
+  const prevScoreRef = useRef(0);
+  useEffect(() => {
+    if (score > prevScoreRef.current) {
+      setScorePulse((p) => p + 1);
+      const id = `${Date.now()}-${Math.random()}`;
+      setPopups((prev) => [...prev, id]);
+      setTimeout(() => {
+        setPopups((prev) => prev.filter((p) => p !== id));
+      }, 750);
+    }
+    prevScoreRef.current = score;
+  }, [score]);
 
   const [hudStyle, setHudStyle] = useState({
     position: 'fixed',
@@ -1118,7 +1137,7 @@ export default function CatLaserOverlay({ heroRef }) {
         </div>
       )}
 
-      {!loading && !isMobile && (
+      {SHOW_HUD && !loading && !isMobile && (
         <div style={{
           ...hudStyle,
           zIndex: 10000,
@@ -1172,18 +1191,37 @@ export default function CatLaserOverlay({ heroRef }) {
           </div>
 
           {/* LED display box */}
-          <div style={{
-            background: '#0d0d0d',
-            border: '1px solid #222',
-            borderRadius: '8px',
-            padding: '8px 12px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
+          <div
+            key={`box-${scorePulse}`}
+            style={{
+              background: '#0d0d0d',
+              border: '1px solid #222',
+              borderRadius: '8px',
+              padding: '8px 12px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+              overflow: 'visible',
+              animation: scorePulse > 0 ? 'vaporizedFlash 0.4s ease-out' : 'none'
+            }}
+          >
+            <style>{`
+              @keyframes vaporizedPunch {
+                0% { transform: scale(1); }
+                35% { transform: scale(1.45); }
+                100% { transform: scale(1); }
+              }
+              @keyframes vaporizedFlash {
+                0% { border-color: #FF7A1A; box-shadow: 0 0 18px rgba(255, 122, 26, 0.8); }
+                100% { border-color: #222; box-shadow: none; }
+              }
+              @keyframes vaporizedPopup {
+                0% { opacity: 1; transform: translateY(0) scale(1); }
+                100% { opacity: 0; transform: translateY(-26px) scale(1.2); }
+              }
+            `}</style>
             <span style={{
               fontFamily: 'system-ui, -apple-system, sans-serif',
               fontVariant: 'small-caps',
@@ -1196,17 +1234,21 @@ export default function CatLaserOverlay({ heroRef }) {
             }}>
               VAPORIZED
             </span>
-            
+
             {/* Live digital odometer/readout */}
-            <div style={{
-              position: 'relative',
-              fontSize: '28px',
-              fontWeight: 'bold',
-              fontFamily: "'Courier New', monospace",
-              height: '32px',
-              lineHeight: '32px',
-              letterSpacing: '2px'
-            }}>
+            <div
+              key={`digits-${scorePulse}`}
+              style={{
+                position: 'relative',
+                fontSize: '28px',
+                fontWeight: 'bold',
+                fontFamily: "'Courier New', monospace",
+                height: '32px',
+                lineHeight: '32px',
+                letterSpacing: '2px',
+                animation: scorePulse > 0 ? 'vaporizedPunch 0.4s ease-out' : 'none'
+              }}
+            >
               {/* Ghosted segment background */}
               <span style={{
                 color: 'rgba(255, 100, 0, 0.08)',
@@ -1225,6 +1267,24 @@ export default function CatLaserOverlay({ heroRef }) {
                 {score.toString().padStart(Math.max(3, score.toString().length), '0')}
               </span>
             </div>
+
+            {/* Kill-streak "+1" pop-ups, CoD Zombies style */}
+            {popups.map((id) => (
+              <span key={id} style={{
+                position: 'absolute',
+                top: '-2px',
+                right: '4px',
+                color: '#ff3b1a',
+                fontWeight: 900,
+                fontSize: '15px',
+                fontFamily: "'Courier New', monospace",
+                textShadow: '0 0 8px rgba(255, 59, 26, 0.9)',
+                animation: 'vaporizedPopup 0.75s ease-out forwards',
+                pointerEvents: 'none'
+              }}>
+                +1
+              </span>
+            ))}
           </div>
         </div>
       )}
