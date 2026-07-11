@@ -23,6 +23,9 @@ services:
       - DB_PATH=/data/db/workshop.db
       - NODE_ENV=production
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
     volumes:
       - /mnt/d/HomeServer/workshop-ragnarok/data:/data
     depends_on:

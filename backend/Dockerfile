@@ -30,6 +30,7 @@ COPY backend/ingestion.js ./
 COPY backend/chat-route.js ./
 COPY backend/db.js ./
 COPY backend/email.js ./
+COPY backend/sms.js ./
 COPY backend/stripe.js ./
 COPY backend/portal-routes.js ./
 COPY backend/funnel-routes.js ./

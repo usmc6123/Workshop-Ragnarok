@@ -3280,7 +3280,7 @@ app.put('/api/jobs/:id', (req, res) => {
     } = req.body;
 
     // Verify ownership of the job
-    const job = db.prepare('SELECT id FROM jobs WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    const job = db.prepare('SELECT id, status FROM jobs WHERE id = ? AND user_id = ?').get(id, req.user.id);
     if (!job) return res.status(404).json({ error: 'Job not found' });
 
     if (customer_id) {
@@ -3297,6 +3297,7 @@ app.put('/api/jobs/:id', (req, res) => {
     const mileageVal = (mileage_at_intake !== undefined && mileage_at_intake !== null && mileage_at_intake !== '') ? parseInt(mileage_at_intake) : null;
     const priorityVal = priority || 'Standard';
     const approvedVal = customer_approved ? 1 : 0;
+    const wasComplete = job.status === 'Complete';
 
     const stmt = db.prepare(`
       UPDATE jobs
@@ -3309,6 +3310,13 @@ app.put('/api/jobs/:id', (req, res) => {
     );
     if (info.changes === 0) return res.status(404).json({ error: 'Job not found' });
     const updated = db.prepare('SELECT * FROM jobs WHERE id = ? AND user_id = ?').get(id, req.user.id);
+
+    // Fire the "vehicle's ready" notification exactly once, on the transition INTO
+    // Complete — not on every save while a job already sits at Complete.
+    if (!wasComplete && status === 'Complete') {
+      triggerJobCompleteNotification(id, req.user.id);
+    }
+
     res.json(updated);
   } catch (error) {
     console.error('Error updating job:', error);
@@ -4654,7 +4662,7 @@ async function sendAppointmentReminders() {
     const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
 
     const dueAppointments = db.prepare(`
-      SELECT a.*, c.name as customer_name, c.email as customer_email,
+      SELECT a.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone,
              cv.year as vehicle_year, cv.make as vehicle_make, cv.model as vehicle_model
       FROM appointments a
       LEFT JOIN customers c ON a.customer_id = c.id
@@ -4665,14 +4673,16 @@ async function sendAppointmentReminders() {
     if (dueAppointments.length === 0) return;
 
     const { sendEmail } = require('./email');
+    const { sendSms } = require('./sms');
 
     for (const appt of dueAppointments) {
+      const shop = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(appt.user_id) || {};
+      const shopName = shop.shop_name || 'Workshop: Ragnarök';
+      const vehicleLine = (appt.vehicle_year || appt.vehicle_make || appt.vehicle_model)
+        ? `${appt.vehicle_year || ''} ${appt.vehicle_make || ''} ${appt.vehicle_model || ''}`.trim() : '';
+
       if (appt.customer_email && appt.customer_email.trim()) {
         try {
-          const shop = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(appt.user_id) || {};
-          const shopName = shop.shop_name || 'Workshop: Ragnarök';
-          const vehicleLine = (appt.vehicle_year || appt.vehicle_make || appt.vehicle_model)
-            ? `${appt.vehicle_year || ''} ${appt.vehicle_make || ''} ${appt.vehicle_model || ''}`.trim() : '';
           await sendEmail({
             to: appt.customer_email,
             subject: `Reminder: your appointment tomorrow at ${shopName}`,
@@ -4689,6 +4699,20 @@ async function sendAppointmentReminders() {
           console.error(`[Reminders] Failed to email appointment ${appt.id}:`, emailErr);
         }
       }
+
+      // No-ops quietly until TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_PHONE_NUMBER
+      // are set (see backend/sms.js) — safe to always call.
+      if (appt.customer_phone && appt.customer_phone.trim()) {
+        try {
+          await sendSms({
+            to: appt.customer_phone,
+            body: `${shopName}: reminder — you're scheduled tomorrow (${appt.date}) at ${appt.time}${vehicleLine ? ` for your ${vehicleLine}` : ''}. ${appt.title}${shop.shop_phone ? ` Questions? Call ${shop.shop_phone}.` : ''}`,
+          });
+        } catch (smsErr) {
+          console.error(`[Reminders] Failed to text appointment ${appt.id}:`, smsErr);
+        }
+      }
+
       // Mark sent either way (best-effort, matches the rest of the app's email
       // pattern) so a bad address or transient failure doesn't retry-loop hourly.
       db.prepare('UPDATE appointments SET reminder_sent = 1 WHERE id = ?').run(appt.id);
@@ -4922,6 +4946,54 @@ function triggerNewAppointmentNotification(apptId, userId) {
     sendAdminNotification(userId, subject, bodyHtml);
   } catch (error) {
     console.error('Error in triggerNewAppointmentNotification:', error);
+  }
+}
+
+// Fires exactly once when a job transitions INTO 'Complete' status — texts/emails
+// the customer that their vehicle is ready for pickup. Fire-and-forget (not
+// awaited by the route handler) so the status-update response isn't held up by
+// an email/SMS provider; failures are caught internally and just logged.
+function triggerJobCompleteNotification(jobId, userId) {
+  try {
+    const job = db.prepare(`
+      SELECT j.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone,
+             cv.year as vehicle_year, cv.make as vehicle_make, cv.model as vehicle_model
+      FROM jobs j
+      LEFT JOIN customers c ON j.customer_id = c.id
+      LEFT JOIN customer_vehicles cv ON j.vehicle_id = cv.id
+      WHERE j.id = ? AND j.user_id = ?
+    `).get(jobId, userId);
+    if (!job) return;
+
+    const shop = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(userId) || {};
+    const shopName = shop.shop_name || 'Workshop: Ragnarök';
+    const vehicleLine = (job.vehicle_year || job.vehicle_make || job.vehicle_model)
+      ? `${job.vehicle_year || ''} ${job.vehicle_make || ''} ${job.vehicle_model || ''}`.trim() : '';
+
+    if (job.customer_email && job.customer_email.trim()) {
+      const { sendEmail } = require('./email');
+      sendEmail({
+        to: job.customer_email,
+        subject: `Your vehicle is ready — ${shopName}`,
+        html: `
+          <p>Hi ${job.customer_name || 'there'},</p>
+          <p>Good news — your ${vehicleLine || 'vehicle'} is all done and ready for pickup at <strong>${shopName}</strong>!</p>
+          ${shop.shop_phone ? `<p>Questions? Call us at ${shop.shop_phone}.</p>` : ''}
+          <p>— ${shopName}</p>
+        `,
+      }).catch(err => console.error(`[JobComplete] Failed to email job ${jobId}:`, err));
+    }
+
+    // No-ops quietly until Twilio env vars are set (see backend/sms.js) — safe to always call.
+    if (job.customer_phone && job.customer_phone.trim()) {
+      const { sendSms } = require('./sms');
+      sendSms({
+        to: job.customer_phone,
+        body: `${shopName}: great news — your ${vehicleLine || 'vehicle'} is ready for pickup!${shop.shop_phone ? ` Questions? Call ${shop.shop_phone}.` : ''}`,
+      }).catch(err => console.error(`[JobComplete] Failed to text job ${jobId}:`, err));
+    }
+  } catch (error) {
+    console.error('Error in triggerJobCompleteNotification:', error);
   }
 }
 

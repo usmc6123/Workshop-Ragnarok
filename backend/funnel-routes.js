@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('./db');
 const { sendEmail } = require('./email');
+const { sendSms } = require('./sms');
 
 // --- Very small in-memory rate limiter for the public lead-capture endpoint ---
 // Home-server scale, single process: no need for a Redis-backed limiter or an
@@ -216,6 +217,17 @@ router.post('/:slug/submit', async (req, res) => {
       console.error('[Funnel] Confirmation email failed to send (lead was still captured):', emailErr);
     }
 
+    // --- Confirmation text (best-effort; no-ops quietly until Twilio env vars are
+    // set on the server — see backend/sms.js) ---
+    try {
+      await sendSms({
+        to: phone,
+        body: `${shopName}: thanks, ${name.split(' ')[0]}! We got your request${funnel.service_type ? ` for ${funnel.service_type}` : ''} and will follow up shortly.${shopSettings.shop_phone ? ` Questions? Call ${shopSettings.shop_phone}.` : ''}`,
+      });
+    } catch (smsErr) {
+      console.error('[Funnel] Confirmation SMS failed to send (lead was still captured):', smsErr);
+    }
+
     // --- Internal admin notification (best-effort; separate try/catch so a failure
     // here never blocks the customer's own confirmation email or the response) ---
     if (shopSettings.admin_notification_email) {
@@ -237,6 +249,22 @@ router.post('/:slug/submit', async (req, res) => {
         });
       } catch (adminEmailErr) {
         console.error('[Funnel] Admin notification email failed to send (lead was still captured):', adminEmailErr);
+      }
+    }
+
+    // --- Admin notification text, sent to the shop's own phone number (best-effort;
+    // no-ops quietly until Twilio env vars are set — see backend/sms.js) ---
+    if (shopSettings.shop_phone) {
+      try {
+        const vehicleLine = (vehicle_year || vehicle_make || vehicle_model)
+          ? `${vehicle_year || ''} ${vehicle_make || ''} ${vehicle_model || ''}`.trim()
+          : 'no vehicle info';
+        await sendSms({
+          to: shopSettings.shop_phone,
+          body: `New lead from your "${funnel.headline}" funnel: ${name} (${phone}) — ${vehicleLine}. "${message}"`,
+        });
+      } catch (adminSmsErr) {
+        console.error('[Funnel] Admin notification SMS failed to send (lead was still captured):', adminSmsErr);
       }
     }
 
