@@ -426,7 +426,7 @@ export default function CalendarView({ onNavigateToJob }: CalendarViewProps) {
         <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <Rss className="w-4 h-4 text-primary-theme shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Live calendar feed — subscribe from your phone/desktop calendar app</p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Sync to your calendar app</p>
             <input
               readOnly
               value={feedUrl || 'Loading feed URL...'}
