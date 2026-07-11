@@ -328,12 +328,12 @@ export default function FunnelsView() {
 
       {/* Create/Edit Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 p-4 overflow-y-auto" onClick={() => !saving && setShowForm(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => !saving && setShowForm(false)}>
           <div
-            className="bg-[#111218] border border-border-theme rounded-2xl shadow-2xl w-full max-w-lg my-8 max-h-[85vh] overflow-y-auto"
+            className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl border border-border-theme bg-[#111218] shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-5 border-b border-border-theme">
+            <div className="flex items-center justify-between p-5 border-b border-border-theme shrink-0">
               <h2 className="text-sm font-black text-white uppercase tracking-wider">
                 {editingId ? 'Edit Funnel' : 'New Funnel'}
               </h2>
@@ -342,7 +342,7 @@ export default function FunnelsView() {
               </button>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
               {formError && (
                 <div className="bg-rose-950/40 border border-rose-500/20 text-rose-300 rounded-lg p-3 text-xs font-mono">
                   {formError}
@@ -451,7 +451,7 @@ export default function FunnelsView() {
               </label>
             </div>
 
-            <div className="flex items-center justify-end gap-2 p-5 border-t border-border-theme">
+            <div className="flex items-center justify-end gap-2 p-5 border-t border-border-theme shrink-0">
               <button
                 onClick={() => setShowForm(false)}
                 disabled={saving}
@@ -474,12 +474,12 @@ export default function FunnelsView() {
 
       {/* Leads Modal */}
       {leadsFunnel && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 p-4 overflow-y-auto" onClick={() => setLeadsFunnel(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setLeadsFunnel(null)}>
           <div
-            className="bg-[#111218] border border-border-theme rounded-2xl shadow-2xl w-full max-w-3xl my-8 max-h-[85vh] overflow-y-auto"
+            className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl border border-border-theme bg-[#111218] shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-5 border-b border-border-theme">
+            <div className="flex items-center justify-between p-5 border-b border-border-theme shrink-0">
               <div>
                 <h2 className="text-sm font-black text-white uppercase tracking-wider">Leads — {leadsFunnel.headline}</h2>
                 <p className="text-[10px] text-slate-500 font-mono mt-0.5">{publicUrlFor(leadsFunnel.slug)}</p>
@@ -489,7 +489,7 @@ export default function FunnelsView() {
               </button>
             </div>
 
-            <div className="p-5">
+            <div className="p-5 overflow-y-auto flex-1 min-h-0">
               {leadsLoading ? (
                 <div className="py-16 text-center text-slate-400 font-mono text-xs flex flex-col items-center justify-center gap-3">
                   <Loader2 className="w-8 h-8 text-primary-theme animate-spin" />
