@@ -206,6 +206,16 @@ export default function FunnelsView() {
           </p>
         </div>
         <div className="flex items-center gap-2 self-start md:self-center">
+          <a
+            href="https://labs.google/fx/tools/flow"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs uppercase tracking-wider font-bold transition flex items-center gap-1.5 cursor-pointer"
+            title="Opens Google Flow (Veo video generation) in a new tab — uses your Google AI Pro Flow credits"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-primary-theme" />
+            <span>Generate Video</span>
+          </a>
           <button
             onClick={loadFunnels}
             disabled={loading}
