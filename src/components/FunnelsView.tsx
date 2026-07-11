@@ -4,8 +4,17 @@ import { api } from '../lib/api';
 import { Funnel, FunnelLead } from '../types';
 import {
   Megaphone, Plus, Pencil, Trash2, Copy, ExternalLink, Loader2, X,
-  Users, CheckCircle2, Clock, Ban, RefreshCw, LayoutTemplate, Sparkles, ImageOff, Clapperboard
+  Users, CheckCircle2, Clock, Ban, RefreshCw, LayoutTemplate, Sparkles, ImageOff, Clapperboard, Code2, Check
 } from 'lucide-react';
+
+// Sensible starting height for the embed iframe, per layout — these are just defaults
+// the shop owner can override in the Embed modal, since actual content height varies
+// with how much body text / how many fields are shown.
+const DEFAULT_EMBED_HEIGHT: Record<string, number> = {
+  classic: 1500,
+  modern: 1550,
+  video: 1750,
+};
 
 const EMPTY_FORM = {
   slug: '',
@@ -49,6 +58,11 @@ export default function FunnelsView() {
   const [leadsLoading, setLeadsLoading] = useState(false);
 
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+
+  const [embedFunnel, setEmbedFunnel] = useState<Funnel | null>(null);
+  const [embedWidth, setEmbedWidth] = useState('100%');
+  const [embedHeight, setEmbedHeight] = useState(1500);
+  const [embedCopied, setEmbedCopied] = useState(false);
 
   useEffect(() => {
     loadFunnels();
@@ -162,6 +176,23 @@ export default function FunnelsView() {
     navigator.clipboard.writeText(publicUrlFor(slug));
     setCopiedSlug(slug);
     setTimeout(() => setCopiedSlug(null), 2000);
+  };
+
+  const openEmbed = (funnel: Funnel) => {
+    setEmbedFunnel(funnel);
+    setEmbedWidth('100%');
+    setEmbedHeight(DEFAULT_EMBED_HEIGHT[funnel.layout] || 1500);
+    setEmbedCopied(false);
+  };
+
+  const embedCodeFor = (funnel: Funnel, width: string, height: number) =>
+    `<iframe src="${publicUrlFor(funnel.slug)}" style="width:${width}; height:${height}px; border:0;" loading="lazy" title="${funnel.headline.replace(/"/g, '&quot;')}"></iframe>`;
+
+  const handleCopyEmbed = () => {
+    if (!embedFunnel) return;
+    navigator.clipboard.writeText(embedCodeFor(embedFunnel, embedWidth, embedHeight));
+    setEmbedCopied(true);
+    setTimeout(() => setEmbedCopied(false), 2000);
   };
 
   const openLeads = async (funnel: Funnel) => {
@@ -365,6 +396,14 @@ export default function FunnelsView() {
                   className="flex-1 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] uppercase tracking-wider font-bold transition cursor-pointer"
                 >
                   View Leads
+                </button>
+                <button
+                  onClick={() => openEmbed(funnel)}
+                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] uppercase tracking-wider font-bold transition flex items-center gap-1 cursor-pointer"
+                  title="Get an embed code to drop this funnel into Squarespace or any website"
+                >
+                  <Code2 className="w-3 h-3" />
+                  <span>Embed</span>
                 </button>
                 <button
                   onClick={() => openEditForm(funnel)}
@@ -762,6 +801,106 @@ export default function FunnelsView() {
                   })}
                 </div>
               )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Embed Code Modal */}
+      {embedFunnel && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setEmbedFunnel(null)}>
+          <div
+            className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-border-theme bg-[#111218] shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-5 border-b border-border-theme shrink-0">
+              <div>
+                <h2 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                  <Code2 className="w-4 h-4 text-primary-theme" />
+                  Embed — {embedFunnel.headline}
+                </h2>
+                <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                  Drop this into a Squarespace Embed Block (or any site's HTML/embed block) to show the funnel inline, right where you want it.
+                </p>
+              </div>
+              <button onClick={() => setEmbedFunnel(null)} className="text-slate-400 hover:text-white cursor-pointer shrink-0">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto flex-1 min-h-0 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Width</label>
+                  <input
+                    type="text"
+                    value={embedWidth}
+                    onChange={(e) => setEmbedWidth(e.target.value)}
+                    placeholder="100%"
+                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-primary-theme px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                  />
+                  <p className="text-[9px] text-slate-600 mt-1">Usually just "100%" so it fills whatever column/section you drop it in.</p>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Height (px)</label>
+                  <input
+                    type="number"
+                    value={embedHeight}
+                    onChange={(e) => setEmbedHeight(Math.max(300, parseInt(e.target.value, 10) || 0))}
+                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-primary-theme px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                  />
+                  <p className="text-[9px] text-slate-600 mt-1">
+                    Defaulted for a {embedFunnel.layout} layout — bump it up or down after checking the preview below so nothing gets cut off or leaves dead space.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Live Preview</label>
+                <div className="rounded-lg border border-[#1e2028] overflow-y-auto bg-black" style={{ height: 420 }}>
+                  <iframe
+                    src={publicUrlFor(embedFunnel.slug)}
+                    style={{ width: '100%', height: embedHeight, border: 0, display: 'block' }}
+                    title="Embed preview"
+                  />
+                </div>
+                <p className="text-[9px] text-slate-600 mt-1">Scroll inside the box above — it's showing the real page at the height you've set, just capped in a smaller window here for preview.</p>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Embed Code</label>
+                <textarea
+                  readOnly
+                  value={embedCodeFor(embedFunnel, embedWidth, embedHeight)}
+                  rows={3}
+                  onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                  className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] px-3 py-2 text-[11px] text-slate-300 font-mono resize-none focus:outline-none focus:border-primary-theme"
+                />
+              </div>
+
+              <div className="bg-bg-theme/40 border border-border-theme rounded-lg p-3 text-[10px] text-slate-500 leading-relaxed">
+                On Squarespace: edit the page, add a block, choose <span className="text-slate-300 font-bold">Embed</span> (sometimes called "Code"),
+                paste the code above, then adjust the Height field here and re-copy if it looks cut off or has extra dead space once it's live.
+                Note the Embed/Code block that accepts raw HTML like this is a Business-plan-or-higher Squarespace feature — on a Personal plan, use a
+                button linking to the public URL instead.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 p-5 border-t border-border-theme shrink-0">
+              <button
+                onClick={() => setEmbedFunnel(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs uppercase tracking-wider font-bold transition cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                onClick={handleCopyEmbed}
+                className="px-4 py-2 bg-primary-theme hover:opacity-90 text-slate-950 rounded-lg text-xs uppercase tracking-wider font-black transition flex items-center gap-1.5 cursor-pointer"
+              >
+                {embedCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{embedCopied ? 'Copied!' : 'Copy Embed Code'}</span>
+              </button>
             </div>
           </div>
         </div>,

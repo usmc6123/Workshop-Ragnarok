@@ -732,7 +732,8 @@ function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting
                 className="absolute inset-0 w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute inset-0 bg-gradient-to-b from-[#1c0f27]/93 via-[#1c0f27]/88 to-[#0d0612]/95" />
+              <div className="absolute inset-0 bg-[#150a1d]/95" />
+              <div className="absolute inset-0 bg-gradient-to-b from-[#1c0f27]/97 via-[#1c0f27]/96 to-[#0d0612]/98" />
             </>
           )}
 
@@ -821,7 +822,8 @@ function VideoFunnelLayout({ funnel, form, updateField, handleSubmit, submitting
                 className="absolute inset-0 w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute inset-0 bg-gradient-to-b from-[#1c0f27]/90 via-[#150a1d]/85 to-[#0d0612]/95" />
+              <div className="absolute inset-0 bg-[#150a1d]/95" />
+              <div className="absolute inset-0 bg-gradient-to-b from-[#1c0f27]/97 via-[#150a1d]/96 to-[#0d0612]/98" />
             </>
           )}
           <div className="relative z-10 p-6 sm:p-8 font-mono">
