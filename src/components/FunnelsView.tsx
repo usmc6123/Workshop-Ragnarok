@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import { Funnel, FunnelLead } from '../types';
 import {
   Megaphone, Plus, Pencil, Trash2, Copy, ExternalLink, Loader2, X,
-  Users, CheckCircle2, Clock, Ban, RefreshCw, LayoutTemplate, Sparkles
+  Users, CheckCircle2, Clock, Ban, RefreshCw, LayoutTemplate, Sparkles, ImageOff
 } from 'lucide-react';
 
 const EMPTY_FORM = {
@@ -234,6 +234,20 @@ export default function FunnelsView() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {funnels.map(funnel => (
             <div key={funnel.id} className="bg-[#13141a]/80 backdrop-blur-sm border border-border-theme rounded-xl p-5 shadow-xl flex flex-col gap-4">
+              {/* Thumbnail preview */}
+              <div className="w-full aspect-video rounded-lg overflow-hidden border border-border-theme bg-[#0c0d12] flex items-center justify-center">
+                {funnel.image_url ? (
+                  <img src={funnel.image_url} alt={funnel.headline} className="w-full h-full object-cover" />
+                ) : funnel.video_url ? (
+                  <video src={funnel.video_url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="flex flex-col items-center gap-1.5 text-slate-600">
+                    <ImageOff className="w-6 h-6" />
+                    <span className="text-[9px] uppercase tracking-wider font-bold">No preview media</span>
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
