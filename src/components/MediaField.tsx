@@ -1,9 +1,16 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Loader2, X } from 'lucide-react';
+import { Upload, Loader2, X, Shrink, ChevronDown } from 'lucide-react';
 import { api } from '../lib/api';
 
 const MAX_IMAGE_UPLOAD_BYTES = 20 * 1024 * 1024;  // 20MB — matches backend/server.js POST /api/uploads
 const MAX_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB — matches backend/server.js POST /api/uploads
+const REFORMAT_MAX_RAW_INPUT_BYTES = 300 * 1024 * 1024; // 300MB — raw file being shrunk, before compression
+
+const VIDEO_RESOLUTIONS = [
+  { value: '480' as const, label: '480p (smallest)' },
+  { value: '720' as const, label: '720p (recommended)' },
+  { value: '1080' as const, label: '1080p (largest)' },
+];
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -45,10 +52,12 @@ function compressImage(dataUrl: string, maxDimension: number): Promise<string> {
 
 /**
  * Shared image/video field used everywhere the app lets you set a media URL:
- * Sites block editor, Funnels editor, Settings shop logo. Always offers both a
- * URL text input AND an "Upload from device" button — upload goes to the server
- * (POST /api/uploads) and stores the returned URL, so it works the same for
- * images and video and never bloats the database with inline base64.
+ * Sites block editor, Funnels editor, Settings shop logo. Always offers a URL
+ * text input, an "Upload from device" button, and a "Reformat" tool that
+ * shrinks an oversized file (image downscale client-side, video re-encode
+ * server-side via ffmpeg) down to something that fits the upload limits, then
+ * uploads the result automatically. Upload always goes to the server
+ * (POST /api/uploads) and stores the returned URL — never inline base64.
  */
 export default function MediaField({
   label, value, onChange, accept = 'both', placeholder, help,
@@ -71,9 +80,19 @@ export default function MediaField({
   accentClass?: string;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const reformatFileInputRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const opacity = opacityKey && mediaOpacity ? (mediaOpacity[opacityKey] ?? 100) : 100;
+
+  const [showReformat, setShowReformat] = useState(false);
+  const [reformatFile, setReformatFile] = useState<File | null>(null);
+  const [reformatKind, setReformatKind] = useState<'image' | 'video' | null>(null);
+  const [reformatMaxDim, setReformatMaxDim] = useState(1600);
+  const [reformatResolution, setReformatResolution] = useState<'480' | '720' | '1080'>('720');
+  const [reformatProcessing, setReformatProcessing] = useState(false);
+  const [reformatError, setReformatError] = useState<string | null>(null);
+  const [reformatDoneNote, setReformatDoneNote] = useState<string | null>(null);
 
   const acceptAttr = accept === 'image' ? 'image/*' : accept === 'video' ? 'video/*' : 'image/*,video/*';
 
@@ -89,7 +108,7 @@ export default function MediaField({
     }
     const maxBytes = isImage ? MAX_IMAGE_UPLOAD_BYTES : MAX_VIDEO_UPLOAD_BYTES;
     if (file.size > maxBytes) {
-      setUploadError(`File is too large (${(file.size / 1024 / 1024).toFixed(1)}MB) — max is ${(maxBytes / 1024 / 1024).toFixed(0)}MB for ${isImage ? 'images' : 'video'}. Try a hosted URL instead.`);
+      setUploadError(`File is too large (${(file.size / 1024 / 1024).toFixed(1)}MB) — max is ${(maxBytes / 1024 / 1024).toFixed(0)}MB for ${isImage ? 'images' : 'video'}. Use "Reformat" below to shrink it, or paste a hosted URL instead.`);
       return;
     }
 
@@ -107,6 +126,50 @@ export default function MediaField({
       setUploadError(err?.message || 'Upload failed — please try again, or paste a hosted URL instead.');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handlePickReformatFile = (file: File | undefined) => {
+    if (!file) return;
+    setReformatError(null);
+    setReformatDoneNote(null);
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/');
+    if (!isImage && !isVideo) {
+      setReformatError('Unsupported file type — please choose an image or video.');
+      return;
+    }
+    if (file.size > REFORMAT_MAX_RAW_INPUT_BYTES) {
+      setReformatError(`That file is too large to reformat here (${(file.size / 1024 / 1024).toFixed(0)}MB) — max is ${(REFORMAT_MAX_RAW_INPUT_BYTES / 1024 / 1024).toFixed(0)}MB going in.`);
+      return;
+    }
+    setReformatFile(file);
+    setReformatKind(isImage ? 'image' : 'video');
+  };
+
+  const runReformat = async () => {
+    if (!reformatFile || !reformatKind) return;
+    setReformatProcessing(true);
+    setReformatError(null);
+    setReformatDoneNote(null);
+    try {
+      const dataUrl = await readFileAsDataUrl(reformatFile);
+      if (reformatKind === 'image') {
+        const compressed = await compressImage(dataUrl, reformatMaxDim);
+        const result = await api.uploadMedia(compressed, 'image/jpeg', reformatFile.name);
+        onChange(result.url);
+        setReformatDoneNote(`Done — new size: ${(result.size_bytes / 1024 / 1024).toFixed(2)}MB.`);
+      } else {
+        const result = await api.compressVideo(dataUrl, reformatFile.type, reformatFile.name, reformatResolution);
+        onChange(result.url);
+        setReformatDoneNote(`Done — shrunk from ${(reformatFile.size / 1024 / 1024).toFixed(0)}MB to ${(result.size_bytes / 1024 / 1024).toFixed(1)}MB.`);
+      }
+      setReformatFile(null);
+      setReformatKind(null);
+    } catch (err: any) {
+      setReformatError(err?.message || 'Reformat failed — please try again.');
+    } finally {
+      setReformatProcessing(false);
     }
   };
 
@@ -144,9 +207,88 @@ export default function MediaField({
           {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
           {uploading ? 'Uploading…' : 'Upload'}
         </button>
+        <button
+          type="button"
+          onClick={() => setShowReformat(v => !v)}
+          title="Shrink an oversized file to fit the upload limit"
+          className={`shrink-0 px-2.5 py-2 rounded-lg border transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${showReformat ? 'border-amber-400 bg-amber-950/20 text-amber-300' : 'border-transparent bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white'}`}
+        >
+          <Shrink className="w-3 h-3" />
+          Reformat
+          <ChevronDown className={`w-3 h-3 transition-transform ${showReformat ? 'rotate-180' : ''}`} />
+        </button>
       </div>
       {help && <p className="text-[9px] text-slate-600 leading-relaxed">{help}</p>}
       {uploadError && <p className="text-[10px] text-rose-400">{uploadError}</p>}
+
+      {showReformat && (
+        <div className="rounded-lg border border-[#1e2028] bg-[#08090d] p-2.5 space-y-2">
+          <p className="text-[9px] text-slate-500 leading-relaxed">
+            Have a file that's too big to upload directly? Pick it here — this shrinks it (images downscale instantly; video is re-encoded on the server, which takes longer) and uploads the result automatically.
+          </p>
+          <input ref={reformatFileInputRef} type="file" accept={acceptAttr} className="hidden" onChange={(e) => handlePickReformatFile(e.target.files?.[0])} />
+          <button
+            type="button"
+            onClick={() => reformatFileInputRef.current?.click()}
+            className="w-full px-2.5 py-1.5 rounded-lg border border-dashed border-[#1e2028] hover:border-slate-500 text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-white transition cursor-pointer truncate"
+          >
+            {reformatFile ? `Selected: ${reformatFile.name} (${(reformatFile.size / 1024 / 1024).toFixed(1)}MB)` : 'Choose a file to shrink'}
+          </button>
+
+          {reformatFile && reformatKind === 'image' && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Max dimension</span>
+                <span className="text-[10px] font-mono text-slate-400">{reformatMaxDim}px</span>
+              </div>
+              <input
+                type="range"
+                min={400}
+                max={3000}
+                step={100}
+                value={reformatMaxDim}
+                onChange={(e) => setReformatMaxDim(parseInt(e.target.value, 10))}
+                className="w-full cursor-pointer accent-amber-500"
+              />
+            </div>
+          )}
+
+          {reformatFile && reformatKind === 'video' && (
+            <div className="space-y-1">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block">Target resolution</span>
+              <div className="flex gap-1.5 flex-wrap">
+                {VIDEO_RESOLUTIONS.map(r => (
+                  <button
+                    key={r.value}
+                    type="button"
+                    onClick={() => setReformatResolution(r.value)}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border cursor-pointer transition ${reformatResolution === r.value ? 'border-amber-400 bg-amber-950/20 text-amber-300' : 'border-[#1e2028] text-slate-400 hover:border-slate-600'}`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[9px] text-slate-600">Re-encoding takes real time — anywhere from ~30 seconds to a few minutes, depending on the video's length.</p>
+            </div>
+          )}
+
+          {reformatFile && (
+            <button
+              type="button"
+              disabled={reformatProcessing}
+              onClick={runReformat}
+              className="w-full px-2.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-60 disabled:cursor-wait text-slate-950 font-bold text-[10px] uppercase tracking-wider cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              {reformatProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Shrink className="w-3 h-3" />}
+              {reformatProcessing ? 'Processing…' : 'Shrink & Use'}
+            </button>
+          )}
+
+          {reformatError && <p className="text-[10px] text-rose-400">{reformatError}</p>}
+          {reformatDoneNote && <p className="text-[10px] text-emerald-400">{reformatDoneNote}</p>}
+        </div>
+      )}
+
       {showOpacity && opacityKey && mediaOpacity && onOpacityChange && value.trim() && (
         <div className="pt-1.5 border-t border-[#1e2028]/80 space-y-1">
           <div className="flex items-center justify-between">

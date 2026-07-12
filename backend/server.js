@@ -10,6 +10,8 @@ const cheerio = require('cheerio');
 const fetch = require('node-fetch');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+const { execFile } = require('child_process');
 const jwt = require('jsonwebtoken');
 
 // Load environment variables
@@ -29,9 +31,11 @@ if (!fs.existsSync(dbDir)) {
 // Enable CORS and JSON parsing with rawBody capture
 app.use(cors());
 app.use(express.json({
-  // Raised from 10mb to comfortably fit base64-encoded video uploads (a 100MB
-  // video inflates to ~133MB as base64) — see POST /api/uploads.
-  limit: '150mb',
+  // Raised from 10mb to fit base64-encoded video. Normal uploads cap at 100MB
+  // (~133MB as base64) — see POST /api/uploads. The "Reformat" tool accepts raw
+  // input up to 300MB to shrink (~400MB as base64) — see POST
+  // /api/uploads/compress-video. 450mb gives headroom above that.
+  limit: '450mb',
   verify: (req, res, buf) => {
     req.rawBody = buf;
   }
@@ -1444,6 +1448,88 @@ app.post('/api/uploads', (req, res) => {
   } catch (error) {
     console.error('Error handling media upload:', error);
     res.status(500).json({ error: 'Server error handling upload' });
+  }
+});
+
+// Backs the "Reformat" tool's video path — re-encodes an oversized video down to
+// a target resolution via ffmpeg (installed in backend/Dockerfile), then stores
+// the result exactly like a normal upload. Uses execFile (async, not execSync) so
+// a multi-minute transcode doesn't block the rest of the API while it runs.
+const REFORMAT_MAX_RAW_INPUT_BYTES = 300 * 1024 * 1024; // 300MB — matches src/components/MediaField.tsx
+const VIDEO_RESOLUTION_HEIGHTS = { '480': 480, '720': 720, '1080': 1080 };
+
+app.post('/api/uploads/compress-video', async (req, res) => {
+  let tempInputPath = null;
+  let tempOutputPath = null;
+  try {
+    const { file_data, file_type, file_name, target_resolution } = req.body;
+    if (!file_data || !file_type) {
+      return res.status(400).json({ error: 'file_data and file_type are required' });
+    }
+    if (!ALLOWED_UPLOAD_MIME.video.includes(file_type)) {
+      return res.status(400).json({ error: `Unsupported video type: ${file_type}` });
+    }
+    const targetHeight = VIDEO_RESOLUTION_HEIGHTS[target_resolution];
+    if (!targetHeight) {
+      return res.status(400).json({ error: `Unsupported target_resolution: ${target_resolution}` });
+    }
+
+    let rawBase64 = file_data;
+    if (file_data.includes(';base64,')) {
+      rawBase64 = file_data.split(';base64,')[1];
+    }
+    const sizeBytes = Buffer.byteLength(rawBase64, 'base64');
+    if (sizeBytes > REFORMAT_MAX_RAW_INPUT_BYTES) {
+      return res.status(413).json({
+        error: `File is too large to reformat (${(sizeBytes / 1024 / 1024).toFixed(0)}MB) — max is ${(REFORMAT_MAX_RAW_INPUT_BYTES / 1024 / 1024).toFixed(0)}MB going in.`,
+      });
+    }
+
+    const ext = (file_type.split('/')[1] || 'mp4').replace('quicktime', 'mov');
+    const tmpId = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+    tempInputPath = path.join(os.tmpdir(), `reformat_in_${tmpId}.${ext}`);
+    tempOutputPath = path.join(os.tmpdir(), `reformat_out_${tmpId}.mp4`);
+    fs.writeFileSync(tempInputPath, Buffer.from(rawBase64, 'base64'));
+
+    await new Promise((resolve, reject) => {
+      execFile('ffmpeg', [
+        '-y',
+        '-i', tempInputPath,
+        '-vf', `scale=-2:${targetHeight}`,
+        '-c:v', 'libx264',
+        '-crf', '28',
+        '-preset', 'veryfast',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-movflags', '+faststart',
+        tempOutputPath,
+      ], { timeout: 15 * 60 * 1000 }, (error, stdout, stderr) => {
+        if (error) {
+          console.error('ffmpeg compression failed:', stderr || error.message);
+          return reject(new Error('Video compression failed — the file may be corrupted or in an unsupported format.'));
+        }
+        resolve();
+      });
+    });
+
+    const mediaDir = path.join(UPLOADS_ROOT, 'media');
+    if (!fs.existsSync(mediaDir)) {
+      fs.mkdirSync(mediaDir, { recursive: true });
+    }
+    const safeBase = (file_name || 'video').replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40) || 'video';
+    const filename = `${safeBase}_${tmpId}.mp4`;
+    const fullPath = path.join(mediaDir, filename);
+    fs.copyFileSync(tempOutputPath, fullPath);
+    const outSizeBytes = fs.statSync(fullPath).size;
+
+    res.json({ url: `/uploads/media/${filename}`, size_bytes: outSizeBytes, file_type: 'video/mp4' });
+  } catch (error) {
+    console.error('Error handling video compression:', error);
+    res.status(500).json({ error: error.message || 'Server error compressing video' });
+  } finally {
+    // Always clean up temp files, success or failure
+    try { if (tempInputPath && fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath); } catch (e) {}
+    try { if (tempOutputPath && fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath); } catch (e) {}
   }
 });
 

@@ -1259,6 +1259,18 @@ export const api = {
     }, 180000);
   },
 
+  // Backs the "Reformat" tool's video path — re-encodes an oversized video down
+  // to the given target resolution via server-side ffmpeg and returns the result
+  // as a normal uploaded URL. 10-minute timeout since transcoding a large video
+  // on a home server can genuinely take a few minutes.
+  async compressVideo(fileData: string, fileType: string, fileName: string, targetResolution: '480' | '720' | '1080'): Promise<{ url: string; size_bytes: number; file_type: string }> {
+    return await request<any>('/api/uploads/compress-video', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_data: fileData, file_type: fileType, file_name: fileName, target_resolution: targetResolution })
+    }, 600000);
+  },
+
   // --- WORK ORDER INTEGRATION ---
   async getJobParts(jobId: number): Promise<any[]> {
     const raw = await request<any[]>(`/api/jobs/${jobId}/parts`);

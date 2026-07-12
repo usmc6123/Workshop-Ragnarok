@@ -84,7 +84,22 @@ pre-existing bug that the self-heal fix made trigger far more often. `POST
 logo) — shared frontend component is `src/components/MediaField.tsx`, shared
 backend logic lives right after the DB-init block in `backend/server.js`. Image
 uploads cap at 20MB, video at 100MB; the global `express.json()` body limit is
-150mb to accommodate base64-encoded video.
+450mb to accommodate base64-encoded video (both the normal upload cap and the
+larger "Reformat" input cap below).
+
+**Reformat tool (added 2026-07-12):** every `MediaField` also has a "Reformat"
+button for shrinking an oversized file (up to 300MB raw) down to something that
+fits the upload caps, then it uploads the result automatically. Images downscale
+client-side via canvas (pick a max dimension, 400-3000px) — no server involved.
+Video is re-encoded server-side via **ffmpeg**, which is now installed in
+`backend/Dockerfile`'s runtime stage (`apt-get install ffmpeg` — this file is on
+the protected list, so this was a mirror-first change). Backend route is `POST
+/api/uploads/compress-video` (right after `POST /api/uploads` in
+`backend/server.js`), targets 480p/720p/1080p via `-vf scale=-2:<height>` +
+libx264 `-crf 28 -preset veryfast`, runs through `child_process.execFile`
+(async, not `execSync` — a multi-minute transcode must not block the rest of the
+API). Frontend timeout for this call is 10 minutes (`api.compressVideo` in
+`src/lib/api.ts`).
 
 ## The two repos
 

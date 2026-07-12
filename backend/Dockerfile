@@ -11,11 +11,13 @@ RUN npm run build
 # Stage 2: Build the Node.js/Express backend
 FROM node:22-slim
 
-# Install system dependencies needed for compiling sqlite3 if prebuild is unavailable
+# Install system dependencies needed for compiling sqlite3 if prebuild is unavailable,
+# plus ffmpeg for server-side video compression (POST /api/uploads/compress-video)
 RUN apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
