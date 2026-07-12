@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Layers, ArrowUpToLine, ArrowDownToLine, Pencil, Check, X, GripVertical, Lock, Trash2 } from 'lucide-react';
 import { SiteBlock, BlockStyle } from '../types';
 import { blockMeta, blockSummary } from '../constants/siteBlockTypes';
 
 type LockGroup = 'front' | 'normal' | 'back';
+type WithStyle = { block: SiteBlock; style: BlockStyle };
 
 /**
  * Left-side "layers" list for the Sites block editor.
@@ -35,6 +36,19 @@ type LockGroup = 'front' | 'normal' | 'back';
  * put it. Each row also has a delete button — deletion always confirms
  * first via the same confirm() dialog used everywhere else blocks are
  * deleted (canvas context menu, keyboard delete).
+ *
+ * Dragging uses pointer events (setPointerCapture), not the native HTML5
+ * Drag and Drop API — the earlier version used real `draggable`/`onDragOver`/
+ * `onDrop`, which was unreliable in practice: HTML5 DnD requires
+ * preventDefault() on every single dragover tick to keep accepting a drop,
+ * gives no useful continuous feedback, and — the main precision problem —
+ * dropping ON a row could only ever insert BEFORE it, so there was no way to
+ * drop something after the last row in a group. Pointer events give full
+ * control: the drop position is computed continuously from the dragged
+ * block's Y position against every other row's midpoint in the same group,
+ * so it can land above OR below any row (including becoming the new last
+ * item), and a live insertion-line indicator shows exactly where it'll land
+ * before you let go.
  */
 export default function SiteLayersPanel({
   blocks, selectedId, onSelect, onToggleLock, onRename, onReorder, onDelete,
@@ -50,19 +64,21 @@ export default function SiteLayersPanel({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [draftName, setDraftName] = useState('');
   const [dragId, setDragId] = useState<number | null>(null);
-  const [dropTargetId, setDropTargetId] = useState<number | null>(null);
+  const [dragGroup, setDragGroup] = useState<LockGroup | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const rowRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   const withStyle = blocks.map(b => ({ block: b, style: safeParse(b.style) as BlockStyle }));
   const front = withStyle.filter(x => x.style.z_lock === 'front').reverse();
   const normal = withStyle.filter(x => !x.style.z_lock).reverse();
   const back = withStyle.filter(x => x.style.z_lock === 'back').reverse();
-  const ordered = [...front, ...normal, ...back];
 
   const groupOf = (id: number): LockGroup => {
     if (front.some(x => x.block.id === id)) return 'front';
     if (back.some(x => x.block.id === id)) return 'back';
     return 'normal';
   };
+  const groupArray = (group: LockGroup): WithStyle[] => group === 'front' ? front : group === 'back' ? back : normal;
 
   const startEditing = (block: SiteBlock, style: BlockStyle) => {
     setEditingId(block.id);
@@ -73,37 +89,69 @@ export default function SiteLayersPanel({
     setEditingId(null);
   };
 
-  const handleDrop = (targetId: number) => {
-    const draggedId = dragId;
-    setDragId(null);
-    setDropTargetId(null);
-    if (draggedId === null || draggedId === targetId) return;
-    if (groupOf(draggedId) !== groupOf(targetId)) return; // reordering only makes sense within the same lock group
-
-    const displayIds = ordered.map(x => x.block.id);
-    const fromIdx = displayIds.indexOf(draggedId);
-    if (fromIdx === -1) return;
-    const next = [...displayIds];
-    next.splice(fromIdx, 1);
-    const insertAt = next.indexOf(targetId);
-    next.splice(insertAt, 0, draggedId);
-
-    // Convert back to storage order (index0 = furthest back, index(last) =
-    // furthest front — see handleToggleLock in SiteBuilderView, which builds
-    // that same invariant via push/unshift). Each group was individually
-    // reversed to build display order above, so un-reverse each segment.
-    const frontSeg = next.slice(0, front.length);
-    const normalSeg = next.slice(front.length, front.length + normal.length);
-    const backSeg = next.slice(front.length + normal.length);
-    const storageOrder = [...backSeg.slice().reverse(), ...normalSeg.slice().reverse(), ...frontSeg.slice().reverse()];
-    onReorder(storageOrder);
+  const startDrag = (e: React.PointerEvent, block: SiteBlock) => {
+    if (editingId !== null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const group = groupOf(block.id);
+    setDragId(block.id);
+    setDragGroup(group);
+    setDropIndex(groupArray(group).findIndex(x => x.block.id === block.id));
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
-  const renderRow = ({ block, style }: { block: SiteBlock; style: BlockStyle }) => {
+  const handleDragMove = (e: React.PointerEvent) => {
+    if (dragId === null || dragGroup === null) return;
+    const groupBlocks = groupArray(dragGroup);
+    let idx = groupBlocks.length; // default: pointer is below every row in the group — becomes the new last item
+    for (let i = 0; i < groupBlocks.length; i++) {
+      const el = rowRefs.current[groupBlocks[i].block.id];
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      if (e.clientY < rect.top + rect.height / 2) { idx = i; break; }
+    }
+    setDropIndex(idx);
+  };
+
+  const endDrag = () => {
+    if (dragId !== null && dragGroup !== null && dropIndex !== null) {
+      const groupBlocks = groupArray(dragGroup);
+      const ids = groupBlocks.map(x => x.block.id);
+      const fromIdx = ids.indexOf(dragId);
+      if (fromIdx !== -1) {
+        const next = [...ids];
+        next.splice(fromIdx, 1);
+        // dropIndex was computed against the PRE-removal array — once the
+        // dragged item is spliced out, every index after it shifts down by
+        // one, so the insertion point needs the same correction.
+        const insertAt = Math.max(0, Math.min(next.length, fromIdx < dropIndex ? dropIndex - 1 : dropIndex));
+        next.splice(insertAt, 0, dragId);
+
+        const newFrontIds = dragGroup === 'front' ? next : front.map(x => x.block.id);
+        const newNormalIds = dragGroup === 'normal' ? next : normal.map(x => x.block.id);
+        const newBackIds = dragGroup === 'back' ? next : back.map(x => x.block.id);
+
+        // Convert display order (front-first within each group) back to
+        // storage order (index0 = furthest back, index(last) = furthest
+        // front — see handleToggleLock in SiteBuilderView) by un-reversing
+        // each group segment.
+        const storageOrder = [
+          ...newBackIds.slice().reverse(),
+          ...newNormalIds.slice().reverse(),
+          ...newFrontIds.slice().reverse(),
+        ];
+        onReorder(storageOrder);
+      }
+    }
+    setDragId(null);
+    setDragGroup(null);
+    setDropIndex(null);
+  };
+
+  const renderRow = ({ block, style }: WithStyle) => {
     const isSelected = block.id === selectedId;
     const isEditing = editingId === block.id;
     const isDragging = dragId === block.id;
-    const isDropTarget = dropTargetId === block.id && dragId !== null && dragId !== block.id;
     const Icon = blockMeta(block.block_type).icon;
     const summary = blockSummary(block.block_type, safeParse(block.content));
     const label = style.custom_label || blockMeta(block.block_type).label;
@@ -111,31 +159,26 @@ export default function SiteLayersPanel({
     return (
       <div
         key={block.id}
+        ref={(el) => { rowRefs.current[block.id] = el; }}
         onClick={() => !isEditing && onSelect(block)}
-        onDragOver={(e) => {
-          if (dragId === null || groupOf(dragId) !== groupOf(block.id)) return;
-          e.preventDefault();
-          if (dropTargetId !== block.id) setDropTargetId(block.id);
-        }}
-        onDrop={(e) => { e.preventDefault(); handleDrop(block.id); }}
-        onDragEnd={() => { setDragId(null); setDropTargetId(null); }}
         className={`rounded-lg border px-2.5 py-2 transition ${isEditing ? 'cursor-default' : 'cursor-pointer'} ${
           isDragging ? 'opacity-40' : ''
         } ${
-          isDropTarget
-            ? 'border-amber-400/70 bg-amber-950/10 border-dashed'
-            : isSelected
-              ? 'border-amber-400 bg-amber-950/20'
-              : 'border-transparent hover:border-white/10 hover:bg-white/5'
+          isSelected
+            ? 'border-amber-400 bg-amber-950/20'
+            : 'border-transparent hover:border-white/10 hover:bg-white/5'
         }`}
       >
         <div className="flex items-center gap-1.5 min-w-0">
           <button
             type="button"
-            draggable={!isEditing}
-            onDragStart={(e) => { e.stopPropagation(); setDragId(block.id); e.dataTransfer.effectAllowed = 'move'; }}
+            onPointerDown={(e) => startDrag(e, block)}
+            onPointerMove={handleDragMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
             onClick={(e) => e.stopPropagation()}
             title="Drag to reorder within this group"
+            style={{ touchAction: 'none' }}
             className="shrink-0 p-0.5 -ml-1 rounded text-slate-600 hover:text-slate-300 cursor-grab active:cursor-grabbing"
           >
             <GripVertical className="w-3.5 h-3.5" />
@@ -205,6 +248,22 @@ export default function SiteLayersPanel({
     );
   };
 
+  // Interleaves a live amber insertion-line between rows at whichever gap
+  // the pointer currently sits over, only for the group actually being
+  // dragged within — this is the "you'll land exactly here" feedback that
+  // was missing from the old native-DnD version (which had no equivalent of
+  // "drop after the last row").
+  const renderGroup = (group: LockGroup, items: WithStyle[]) => {
+    const dragging = dragGroup === group && dragId !== null;
+    const nodes: React.ReactNode[] = [];
+    items.forEach((item, i) => {
+      if (dragging && dropIndex === i) nodes.push(<DropIndicator key={`gap-${group}-${i}`} />);
+      nodes.push(renderRow(item));
+    });
+    if (dragging && dropIndex === items.length) nodes.push(<DropIndicator key={`gap-${group}-end`} />);
+    return nodes;
+  };
+
   // Section headers only add value once there's something to distinguish —
   // a single-group page (the common case) stays exactly as simple as before.
   const showSections = [front.length > 0, normal.length > 0, back.length > 0].filter(Boolean).length > 1;
@@ -239,25 +298,29 @@ export default function SiteLayersPanel({
           {front.length > 0 && (
             <>
               {showSections && <SectionHeader label="Locked to Front" />}
-              {front.map(renderRow)}
+              {renderGroup('front', front)}
             </>
           )}
           {normal.length > 0 && (
             <>
               {showSections && <SectionHeader label="Unlocked" />}
-              {normal.map(renderRow)}
+              {renderGroup('normal', normal)}
             </>
           )}
           {back.length > 0 && (
             <>
               {showSections && <SectionHeader label="Locked to Back" />}
-              {back.map(renderRow)}
+              {renderGroup('back', back)}
             </>
           )}
         </div>
       )}
     </div>
   );
+}
+
+function DropIndicator() {
+  return <div className="h-[3px] my-0.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.6)]" />;
 }
 
 function SectionHeader({ label }: { label: string }) {

@@ -652,6 +652,30 @@ concerns: each group's rows now render whenever that group is non-empty,
 full stop; `showSections` only gates whether the little label above them is
 shown.
 
+**Layers panel drag-to-reorder rewritten on pointer events instead of native
+HTML5 Drag and Drop (2026-07-12).** Reported as "hard, doesn't always work,"
+especially reordering between two rows in the same lock group. Root cause:
+the original implementation used real `draggable`/`onDragStart`/`onDragOver`/
+`onDrop` — HTML5 DnD requires calling `preventDefault()` on every single
+`dragover` tick just to keep accepting a drop (easy to miss a frame and have
+the browser silently reject it), and structurally, dropping ON a row could
+only ever insert the dragged item BEFORE that row — there was no drop target
+that meant "after," so a layer could never be dragged to become the new last
+item in its group without a workaround. Rewrote `SiteLayersPanel.tsx` to
+track drags with pointer events instead: `onPointerDown` on the grip handle
+calls `setPointerCapture()` so subsequent `pointermove`/`pointerup` keep
+firing on that same element regardless of where the cursor physically is,
+removing the whole preventDefault-every-tick fragility. While dragging, the
+drop position is recomputed continuously by comparing the pointer's Y
+position against every other row's vertical midpoint within the same lock
+group (`handleDragMove`), and a live amber insertion-line (`DropIndicator`)
+renders in the actual gap where the item will land — including a gap after
+the last row, which fixes the "can't drop after" problem. `endDrag` converts
+that display-order insertion back to storage order using the same
+back/normal/front-segment-reversal math the old drop handler used. Dragging
+is still restricted to within the same lock group (front/normal/back) —
+unchanged from before, use the lock buttons to move a layer between groups.
+
 ## The two repos
 
 1. **usmc6123/Workshop-Ragnarok** (this repo) — the actual app, frontend + backend.
