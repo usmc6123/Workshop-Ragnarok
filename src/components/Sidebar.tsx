@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   LayoutDashboard, Users, Car, ClipboardList, Calendar, BookOpen, Settings,
-  ChevronLeft, ChevronRight, Menu, ShieldCheck, LogOut, Package, Mail, MessageSquare, Zap, DollarSign, Megaphone, Scissors, Globe
+  ChevronLeft, ChevronRight, Menu, ShieldCheck, LogOut, Package, Mail, MessageSquare, Zap, DollarSign, Megaphone, Scissors, Globe, Bot
 } from 'lucide-react';
 import { LOGO_URL } from '../constants/branding';
 import { useAuth } from '../contexts/AuthContext';
@@ -39,6 +39,7 @@ export default function Sidebar({
     { id: 'payments', label: 'Payments', icon: DollarSign },
     { id: 'funnels', label: 'Funnels', icon: Megaphone },
     { id: 'sites', label: 'Websites', icon: Globe },
+    { id: 'ai-chat-bot', label: 'AI Chat Bot', icon: Bot },
     { id: 'youtube-trimmer', label: 'Youtube Trimmer', icon: Scissors },
   ];
 

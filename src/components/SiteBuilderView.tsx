@@ -145,7 +145,7 @@ function ColorField({ label, value, onChange }: { label: string; value: string |
 // `dark` reflects the site's own current dark/light mode (set elsewhere, in
 // SitesView's Settings modal) so the preview's background always matches what
 // the preset would actually look like on this specific site.
-function ThemePresetCard({ preset, active, dark, onClick }: { preset: SiteThemePreset; active: boolean; dark: boolean; onClick: () => void }) {
+function ThemePresetCard({ preset, active, dark, onClick }: { preset: SiteThemePreset; active: boolean; dark: boolean; onClick: () => void; key?: string }) {
   const pageBg = dark ? '#0b0c10' : '#ffffff';
   const mutedText = dark ? '#94a3b8' : '#64748b';
   const buttonText = dark ? '#0b0c10' : '#ffffff';
