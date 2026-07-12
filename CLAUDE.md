@@ -548,6 +548,34 @@ Fixed to always show "Front"/"Back", with lock state conveyed instead by
 the existing amber highlight plus a small `Lock` icon appended next to
 whichever one is currently active.
 
+**Site Theme tab redesigned with a visual preset gallery (2026-07-12).**
+Reported as "ugly as hell" with no way to tell what a color/font combo
+actually looks like before saving. New file `src/constants/sitePresets.ts`
+exports `SITE_THEME_PRESETS` — 12 curated `{ accent_color, secondary_color,
+heading_font, body_font }` bundles (Amber Workshop, Ocean Blue, Crimson
+Racer, Emerald Garage, Violet Neon, Sunset Orange, Racing Yellow, Classic
+Editorial, Slate Minimal, Pastel Soft, Forest Trail, Midnight Steel), each
+font value pulled from the existing `SITE_FONT_OPTIONS` list so nothing new
+needs loading. `SiteBuilderView.tsx`'s `tab === 'theme'` view is now two
+stacked cards instead of one cramped `max-w-lg` form: a "Theme Presets" grid
+(`ThemePresetCard`, new local component) where every thumbnail is a real
+live-rendered mockup — a mini mock hero (shop name in the preset's heading
+font/accent color, a body line in its body font, a pill button in its
+accent color) actually styled with that preset's exact values, not a static
+image or screenshot, so it can never go stale — followed by a "Customize"
+card with the original manual color/font pickers plus a new large live
+preview strip on top of them showing the current (possibly hand-edited)
+combination the same way. Clicking a preset (`handleApplyPreset`) only
+updates the in-memory `themeForm` — still requires the existing Save Theme
+button to persist, so trying one is always a no-commitment preview.
+`activePresetId` (exact-match compare against all 4 fields) puts a
+checkmark on whichever preset currently matches the form, and correctly
+un-highlights the moment any field is hand-edited away from it. Preview
+backgrounds use the site's own current dark/light mode (`site.theme`,
+edited separately in `SitesView.tsx`'s Settings modal) so what's shown
+always matches what applying the preset would really look like on this
+specific site — presets themselves don't touch dark/light.
+
 ## The two repos
 
 1. **usmc6123/Workshop-Ragnarok** (this repo) — the actual app, frontend + backend.

@@ -12,6 +12,7 @@ import { BLOCK_TYPES, blockMeta } from '../constants/siteBlockTypes';
 import { GridPosition, defaultGridPosition, nextAvailableRow, positionFromStyle } from '../constants/siteGrid';
 import { SITE_ICON_NAMES } from '../constants/siteIcons';
 import { SITES_BASE_DOMAIN } from '../constants/sites';
+import { SITE_THEME_PRESETS, SiteThemePreset } from '../constants/sitePresets';
 import SiteGridCanvas, { TransformEditTarget } from './SiteGridCanvas';
 import SiteLayersPanel from './SiteLayersPanel';
 import TemplateThumbnail from './TemplateThumbnail';
@@ -22,6 +23,7 @@ import {
   Palette, AlignLeft, AlignCenter, AlignRight, Paintbrush, Sparkles, LayoutGrid, LayoutTemplate,
   Undo2, Redo2, Monitor, Tablet, Smartphone, Copy, Settings2, EyeOff, Download, FileJson, RefreshCw,
   ArrowUpToLine, ArrowDownToLine, ZoomIn, FileCode, Printer, History, ChevronDown,
+  Check, Sliders,
 } from 'lucide-react';
 
 const DEFAULT_ACCENT = '#f59e0b';
@@ -134,6 +136,52 @@ function ColorField({ label, value, onChange }: { label: string; value: string |
         )}
       </div>
     </div>
+  );
+}
+
+// A theme preset's "thumbnail" is a real live mockup rendered with the preset's
+// actual accent/secondary colors and font pairing — not a screenshot or a static
+// image, so it never goes stale and always shows exactly what applying it does.
+// `dark` reflects the site's own current dark/light mode (set elsewhere, in
+// SitesView's Settings modal) so the preview's background always matches what
+// the preset would actually look like on this specific site.
+function ThemePresetCard({ preset, active, dark, onClick }: { preset: SiteThemePreset; active: boolean; dark: boolean; onClick: () => void }) {
+  const pageBg = dark ? '#0b0c10' : '#ffffff';
+  const mutedText = dark ? '#94a3b8' : '#64748b';
+  const buttonText = dark ? '#0b0c10' : '#ffffff';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={preset.description}
+      className={`group text-left rounded-xl border p-2.5 transition cursor-pointer ${
+        active ? 'border-amber-400 ring-2 ring-amber-400/30 bg-amber-500/[0.06]' : 'border-[#1e2028] bg-[#0f1015] hover:border-slate-500'
+      }`}
+    >
+      <div
+        className="rounded-lg overflow-hidden border border-black/30 p-3 flex flex-col gap-1.5 shadow-inner"
+        style={{ backgroundColor: pageBg }}
+      >
+        <div className="w-7 h-1.5 rounded-full" style={{ backgroundColor: preset.secondary_color }} />
+        <div className="text-[15px] leading-tight font-bold truncate" style={{ fontFamily: preset.heading_font, color: preset.accent_color }}>
+          Your Shop Name
+        </div>
+        <div className="text-[9.5px] leading-snug" style={{ fontFamily: preset.body_font, color: mutedText }}>
+          Trusted auto repair, done right.
+        </div>
+        <div
+          className="mt-1 inline-flex w-fit px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wide"
+          style={{ backgroundColor: preset.accent_color, color: buttonText, fontFamily: preset.body_font }}
+        >
+          Book Now
+        </div>
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-1">
+        <span className="text-[11px] font-bold text-white truncate">{preset.name}</span>
+        {active && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+      </div>
+      <p className="text-[9.5px] text-slate-500 leading-snug mt-0.5 line-clamp-2">{preset.description}</p>
+    </button>
   );
 }
 
@@ -1117,6 +1165,32 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     }
   };
 
+  // Applies a preset to the in-progress theme form only — still requires
+  // clicking Save Theme to persist, same as any other manual edit here, so a
+  // preset click is always undo-able by just not saving.
+  const handleApplyPreset = (preset: SiteThemePreset) => {
+    setThemeForm(prev => ({
+      ...prev,
+      accent_color: preset.accent_color,
+      secondary_color: preset.secondary_color,
+      heading_font: preset.heading_font,
+      body_font: preset.body_font,
+      font_family: preset.body_font,
+    }));
+    setThemeSaved(false);
+  };
+
+  // A preset counts as "active" (gets the checkmark) only when every one of
+  // its fields matches the current form exactly — a manual tweak after
+  // applying a preset correctly un-highlights it rather than showing a stale
+  // selection.
+  const activePresetId = SITE_THEME_PRESETS.find(p =>
+    (themeForm.accent_color || DEFAULT_ACCENT) === p.accent_color &&
+    (themeForm.secondary_color || '') === p.secondary_color &&
+    (themeForm.heading_font || '') === p.heading_font &&
+    (themeForm.body_font || themeForm.font_family || '') === p.body_font
+  )?.id;
+
   // Export/import — a plain JSON snapshot of this page's blocks (type, content,
   // opacity, style/position), portable between sites or usable as a manual
   // backup. Deliberately not a ZIP: no new dependency is allowed here since
@@ -1580,46 +1654,112 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
           )}
         </div>
       ) : tab === 'theme' ? (
-        <div className="bg-[#13141a]/80 border border-border-theme rounded-xl p-5 space-y-5 max-w-lg">
-          <div className="flex items-center gap-2 text-xs font-black text-white uppercase tracking-wider">
-            <Sparkles className="w-4 h-4 text-amber-300" /> Site-Wide Theme
-          </div>
-          <p className="text-[11px] text-slate-500 leading-relaxed -mt-3">
-            Sets the default look for every block on this site. Any block can still override the font or colors in its own Style panel.
-          </p>
-          <div>
-            <FieldLabel>Accent Color</FieldLabel>
-            <div className="flex items-center gap-2 rounded-lg bg-[#0c0d12] border border-[#1e2028] px-2 py-1.5">
-              <input type="color" value={themeForm.accent_color || DEFAULT_ACCENT} onChange={(e) => setThemeForm(prev => ({ ...prev, accent_color: e.target.value }))} className="w-8 h-8 rounded cursor-pointer bg-transparent border-0 p-0 shrink-0" />
-              <input type="text" value={themeForm.accent_color || DEFAULT_ACCENT} onChange={(e) => setThemeForm(prev => ({ ...prev, accent_color: e.target.value }))} className="flex-1 min-w-0 bg-transparent text-xs text-white font-mono focus:outline-none" />
+        <div className="max-w-5xl space-y-6">
+          {/* Presets — the visual gallery. Each thumbnail is a real live mockup
+              rendered with that preset's exact colors/fonts, so what you see is
+              exactly what clicking it applies. */}
+          <div className="bg-[#13141a]/80 border border-border-theme rounded-xl p-5 space-y-4">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <div className="flex items-center gap-2 text-xs font-black text-white uppercase tracking-wider">
+                  <Sparkles className="w-4 h-4 text-amber-300" /> Theme Presets
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed mt-1.5 max-w-md">
+                  Pick a ready-made color + font pairing to start from, then fine-tune it below.
+                  Each thumbnail is a live preview — no guessing what a combination looks like.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {SITE_THEME_PRESETS.map(preset => (
+                <ThemePresetCard
+                  key={preset.id}
+                  preset={preset}
+                  dark={dark}
+                  active={activePresetId === preset.id}
+                  onClick={() => handleApplyPreset(preset)}
+                />
+              ))}
             </div>
           </div>
-          <div>
-            <FieldLabel>Secondary Color</FieldLabel>
-            <div className="flex items-center gap-2 rounded-lg bg-[#0c0d12] border border-[#1e2028] px-2 py-1.5">
-              <input type="color" value={themeForm.secondary_color || '#334155'} onChange={(e) => setThemeForm(prev => ({ ...prev, secondary_color: e.target.value }))} className="w-8 h-8 rounded cursor-pointer bg-transparent border-0 p-0 shrink-0" />
-              <input type="text" value={themeForm.secondary_color || ''} onChange={(e) => setThemeForm(prev => ({ ...prev, secondary_color: e.target.value || undefined }))} placeholder="Optional" className="flex-1 min-w-0 bg-transparent text-xs text-white font-mono placeholder-slate-600 focus:outline-none" />
+
+          {/* Customize — manual fine-tuning, plus a live strip previewing exactly
+              the current (possibly hand-edited) combination in context. */}
+          <div className="bg-[#13141a]/80 border border-border-theme rounded-xl p-5 space-y-5">
+            <div className="flex items-center gap-2 text-xs font-black text-white uppercase tracking-wider">
+              <Sliders className="w-4 h-4 text-amber-300" /> Customize
             </div>
-          </div>
-          <div>
-            <FieldLabel>Body Font (default)</FieldLabel>
-            <select value={themeForm.font_family || SITE_FONT_OPTIONS[0].value} onChange={(e) => setThemeForm(prev => ({ ...prev, font_family: e.target.value }))} className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-sm text-white focus:outline-none" style={{ fontFamily: themeForm.font_family }}>
-              {SITE_FONT_OPTIONS.map(f => <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <FieldLabel>Heading Font (optional pairing)</FieldLabel>
-            <select value={themeForm.heading_font || ''} onChange={(e) => setThemeForm(prev => ({ ...prev, heading_font: e.target.value || undefined }))} className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-sm text-white focus:outline-none" style={{ fontFamily: themeForm.heading_font || undefined }}>
-              <option value="">Same as body font</option>
-              {SITE_FONT_OPTIONS.map(f => <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>)}
-            </select>
-          </div>
-          <div className="flex items-center gap-3 pt-2 border-t border-border-theme">
-            <button onClick={handleSaveTheme} disabled={themeSaving} className="px-4 py-2 bg-primary-theme hover:opacity-90 text-slate-950 rounded-lg text-xs uppercase tracking-wider font-black transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50">
-              {themeSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              Save Theme
-            </button>
-            {themeSaved && <span className="text-[11px] text-emerald-400 font-mono">Saved!</span>}
+            <p className="text-[11px] text-slate-500 leading-relaxed -mt-3">
+              Sets the default look for every block on this site. Any block can still override the font or colors in its own Style panel.
+            </p>
+
+            {/* Live preview of the current form state, independent of any preset */}
+            <div
+              className="rounded-lg overflow-hidden border border-black/30 p-5 flex flex-col gap-2 shadow-inner"
+              style={{ backgroundColor: dark ? '#0b0c10' : '#ffffff' }}
+            >
+              <div className="w-10 h-2 rounded-full" style={{ backgroundColor: themeForm.secondary_color || '#334155' }} />
+              <div
+                className="text-2xl leading-tight font-bold"
+                style={{ fontFamily: themeForm.heading_font || themeForm.font_family || SITE_FONT_OPTIONS[0].value, color: themeForm.accent_color || DEFAULT_ACCENT }}
+              >
+                Your Shop Name
+              </div>
+              <div
+                className="text-xs leading-snug"
+                style={{ fontFamily: themeForm.body_font || themeForm.font_family || SITE_FONT_OPTIONS[0].value, color: dark ? '#94a3b8' : '#64748b' }}
+              >
+                Trusted auto repair, done right — book your next service in minutes.
+              </div>
+              <div
+                className="mt-1.5 inline-flex w-fit px-4 py-2 rounded-full text-xs font-black uppercase tracking-wide"
+                style={{
+                  backgroundColor: themeForm.accent_color || DEFAULT_ACCENT,
+                  color: dark ? '#0b0c10' : '#ffffff',
+                  fontFamily: themeForm.body_font || themeForm.font_family || SITE_FONT_OPTIONS[0].value,
+                }}
+              >
+                Book Now
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <FieldLabel>Accent Color</FieldLabel>
+                <div className="flex items-center gap-2 rounded-lg bg-[#0c0d12] border border-[#1e2028] px-2 py-1.5">
+                  <input type="color" value={themeForm.accent_color || DEFAULT_ACCENT} onChange={(e) => setThemeForm(prev => ({ ...prev, accent_color: e.target.value }))} className="w-8 h-8 rounded cursor-pointer bg-transparent border-0 p-0 shrink-0" />
+                  <input type="text" value={themeForm.accent_color || DEFAULT_ACCENT} onChange={(e) => setThemeForm(prev => ({ ...prev, accent_color: e.target.value }))} className="flex-1 min-w-0 bg-transparent text-xs text-white font-mono focus:outline-none" />
+                </div>
+              </div>
+              <div>
+                <FieldLabel>Secondary Color</FieldLabel>
+                <div className="flex items-center gap-2 rounded-lg bg-[#0c0d12] border border-[#1e2028] px-2 py-1.5">
+                  <input type="color" value={themeForm.secondary_color || '#334155'} onChange={(e) => setThemeForm(prev => ({ ...prev, secondary_color: e.target.value }))} className="w-8 h-8 rounded cursor-pointer bg-transparent border-0 p-0 shrink-0" />
+                  <input type="text" value={themeForm.secondary_color || ''} onChange={(e) => setThemeForm(prev => ({ ...prev, secondary_color: e.target.value || undefined }))} placeholder="Optional" className="flex-1 min-w-0 bg-transparent text-xs text-white font-mono placeholder-slate-600 focus:outline-none" />
+                </div>
+              </div>
+              <div>
+                <FieldLabel>Body Font (default)</FieldLabel>
+                <select value={themeForm.font_family || SITE_FONT_OPTIONS[0].value} onChange={(e) => setThemeForm(prev => ({ ...prev, font_family: e.target.value }))} className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-sm text-white focus:outline-none" style={{ fontFamily: themeForm.font_family }}>
+                  {SITE_FONT_OPTIONS.map(f => <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <FieldLabel>Heading Font (optional pairing)</FieldLabel>
+                <select value={themeForm.heading_font || ''} onChange={(e) => setThemeForm(prev => ({ ...prev, heading_font: e.target.value || undefined }))} className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-sm text-white focus:outline-none" style={{ fontFamily: themeForm.heading_font || undefined }}>
+                  <option value="">Same as body font</option>
+                  {SITE_FONT_OPTIONS.map(f => <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2 border-t border-border-theme">
+              <button onClick={handleSaveTheme} disabled={themeSaving} className="px-4 py-2 bg-primary-theme hover:opacity-90 text-slate-950 rounded-lg text-xs uppercase tracking-wider font-black transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50">
+                {themeSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                Save Theme
+              </button>
+              {themeSaved && <span className="text-[11px] text-emerald-400 font-mono">Saved!</span>}
+            </div>
           </div>
         </div>
       ) : (
