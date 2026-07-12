@@ -3,10 +3,11 @@ import { createPortal } from 'react-dom';
 import { api } from '../lib/api';
 import { Funnel, FunnelLead } from '../types';
 import MediaField from './MediaField';
+import MediaLibraryModal from './MediaLibraryModal';
 import {
   Megaphone, Plus, Pencil, Trash2, Copy, ExternalLink, Loader2, X,
   Users, CheckCircle2, Clock, Ban, RefreshCw, LayoutTemplate, Sparkles, ImageOff, Clapperboard, Code2, Check,
-  Image as ImageIcon,
+  Image as ImageIcon, FolderOpen,
 } from 'lucide-react';
 
 // Sensible starting height for the embed iframe, per layout — these are just defaults
@@ -49,6 +50,7 @@ export default function FunnelsView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -275,6 +277,14 @@ export default function FunnelsView() {
             <Sparkles className="w-3.5 h-3.5 text-primary-theme" />
             <span>Generate Video</span>
           </a>
+          <button
+            onClick={() => setShowMediaLibrary(true)}
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs uppercase tracking-wider font-bold transition flex items-center gap-1.5 cursor-pointer"
+            title="Browse everything you've uploaded or reformatted"
+          >
+            <FolderOpen className="w-3.5 h-3.5 text-primary-theme" />
+            <span>Formatted Media</span>
+          </button>
           <button
             onClick={loadFunnels}
             disabled={loading}
@@ -974,6 +984,8 @@ export default function FunnelsView() {
         </div>,
         document.body
       )}
+
+      {showMediaLibrary && <MediaLibraryModal onClose={() => setShowMediaLibrary(false)} />}
     </div>
   );
 }

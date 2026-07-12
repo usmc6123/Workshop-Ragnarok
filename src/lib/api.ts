@@ -1301,6 +1301,17 @@ export const api = {
     return await request<any>(`/api/uploads/compress-video/${jobId}`, { method: 'GET' }, 15000);
   },
 
+  // Backs the "Formatted Media" library (a substitute for a native file
+  // browser, which a web page can't open — see backend/server.js's comment
+  // on GET /api/uploads/media for why).
+  async getMediaLibrary(): Promise<Array<{ filename: string; url: string; size_bytes: number; modified_at: string; kind: 'image' | 'video' | 'other' }>> {
+    return await request<any>('/api/uploads/media', { method: 'GET' });
+  },
+
+  async deleteMediaFile(filename: string): Promise<{ success: boolean }> {
+    return await request<any>(`/api/uploads/media/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+  },
+
   // --- WORK ORDER INTEGRATION ---
   async getJobParts(jobId: number): Promise<any[]> {
     const raw = await request<any[]>(`/api/jobs/${jobId}/parts`);

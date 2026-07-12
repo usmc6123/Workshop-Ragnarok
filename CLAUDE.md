@@ -128,6 +128,41 @@ probed duration (`durationMs * 4`, floor 15min, ceiling 90min), so raising the
 size cap again later won't also require remembering to bump a hardcoded
 timeout by hand.
 
+**Sites layers panel (added 2026-07-12).** `src/components/SiteLayersPanel.tsx`
+— a new left-side column in `SiteBuilderView.tsx`'s block editor (`tab ===
+'blocks'`), lists every block on the page frontmost-first, click to select,
+plus bring-to-front/forward/backward/send-to-back buttons per block. There's
+no dedicated z-index field on `SiteBlock` — stacking order has always just
+been array/DOM order (the `position` column), with `SiteGridCanvas.tsx` only
+ever adding a `z-20` bump for the currently-selected block on top of a flat
+`z-10` for everything else. Reordering therefore only needed a frontend
+change: `handleReorderBlock()` in `SiteBuilderView.tsx` splices/swaps the
+local `blocks` array, then persists via `api.reorderSiteBlocks()` — which
+turned out to already exist, calling an already-built backend route
+(`PUT /api/sites/:id/blocks/reorder` in `backend/server.js`) that was fully
+wired end-to-end but had never been called from any UI. No schema or backend
+changes were needed at all.
+
+**"Formatted Media" library (added 2026-07-12).** A web page can't open a
+native OS file browser — that's a real browser security restriction, not
+something fixable from app code — so this is the actual substitute: a
+`FolderOpen` button on `FunnelsView.tsx` (next to Generate Video) opens
+`MediaLibraryModal.tsx`, which lists every file in `UPLOADS_ROOT/media/`
+(everything ever written by either `POST /api/uploads` or the Reformat tool)
+with a thumbnail, size, date, a "Copy URL" button, and delete. Backend:
+`GET /api/uploads/media` (lists the directory via `fs.readdirSync`) and
+`DELETE /api/uploads/media/:filename` (deletes one, `path.basename()`d to
+prevent directory traversal) in `backend/server.js`. Works from any device,
+not just the machine the files physically live on. The modal renders via
+`createPortal(..., document.body)`, not a plain `fixed` div — `App.tsx`'s
+page-zoom feature applies a CSS `transform: scale()` to the page wrapper,
+which creates a new containing block and breaks naive `position: fixed`
+full-screen modals if they're not portalled straight to `document.body`
+(the existing modals in `FunnelsView.tsx` already do this for the same
+reason — matched that pattern here). No warning is given if a file being
+deleted is still referenced by a live Site or Funnel — deleting one just
+breaks that image/video slot, no different from deleting any other asset.
+
 ## The two repos
 
 1. **usmc6123/Workshop-Ragnarok** (this repo) — the actual app, frontend + backend.

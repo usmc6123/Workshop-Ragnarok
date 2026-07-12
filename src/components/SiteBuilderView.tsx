@@ -12,6 +12,7 @@ import { BLOCK_TYPES, blockMeta } from '../constants/siteBlockTypes';
 import { GridPosition, defaultGridPosition, nextAvailableRow, positionFromStyle } from '../constants/siteGrid';
 import { SITE_ICON_NAMES } from '../constants/siteIcons';
 import SiteGridCanvas from './SiteGridCanvas';
+import SiteLayersPanel from './SiteLayersPanel';
 import TemplateThumbnail from './TemplateThumbnail';
 import MediaField from './MediaField';
 import {
@@ -796,6 +797,38 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     }
   };
 
+  // Layers panel front/back/forward/backward — stacking order IS array order
+  // (no separate z-index field), so this is just an array reorder + the
+  // existing (previously unused by any UI) reorder endpoint, same one-call
+  // persistence pattern as handlePositionChange above.
+  const handleReorderBlock = async (blockId: number, action: 'front' | 'back' | 'forward' | 'backward') => {
+    const idx = blocks.findIndex(b => b.id === blockId);
+    if (idx === -1) return;
+    const next = [...blocks];
+    if (action === 'front') {
+      const [item] = next.splice(idx, 1);
+      next.push(item);
+    } else if (action === 'back') {
+      const [item] = next.splice(idx, 1);
+      next.unshift(item);
+    } else if (action === 'forward' && idx < next.length - 1) {
+      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+    } else if (action === 'backward' && idx > 0) {
+      [next[idx], next[idx - 1]] = [next[idx - 1], next[idx]];
+    } else {
+      return; // no-op (already at front/back)
+    }
+    pushHistory();
+    setBlocks(next);
+    try {
+      const updated = await api.reorderSiteBlocks(site.id, next.map(b => b.id));
+      setBlocks(updated);
+    } catch (err) {
+      console.error(err);
+      loadBlocks();
+    }
+  };
+
   // Inline content edits made directly on the canvas — update local state
   // immediately for a snappy feel, debounce the actual server save, and only
   // record ONE undo step per burst of typing rather than one per keystroke.
@@ -1056,6 +1089,15 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
 
       {tab === 'blocks' ? (
         <div className="flex gap-5 items-start">
+          {!loading && blocks.length > 0 && (
+            <SiteLayersPanel
+              blocks={blocks}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onReorder={handleReorderBlock}
+            />
+          )}
+
           <div className="flex-1 min-w-0 space-y-4">
             {error && <div className="bg-rose-950/40 border border-rose-500/20 text-rose-300 rounded-xl p-4 text-xs font-mono">{error}</div>}
 

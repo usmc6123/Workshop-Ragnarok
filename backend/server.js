@@ -1674,6 +1674,55 @@ app.get('/api/uploads/compress-video/:jobId', (req, res) => {
   res.json(job);
 });
 
+// Backs the in-app "Formatted Media" library — lists everything that's ever
+// gone through POST /api/uploads or the Reformat tool, since both write into
+// the same UPLOADS_ROOT/media/ directory. Added because there's no way for a
+// web page to open a native OS file browser (that's a real browser security
+// restriction, not something we can route around), so this is the actual
+// substitute: browse/copy/delete uploaded media from inside the app itself,
+// works from any device instead of just the machine the files live on.
+app.get('/api/uploads/media', (req, res) => {
+  try {
+    const mediaDir = path.join(UPLOADS_ROOT, 'media');
+    if (!fs.existsSync(mediaDir)) return res.json([]);
+    const files = fs.readdirSync(mediaDir)
+      .filter((name) => !name.startsWith('.'))
+      .map((name) => {
+        const stat = fs.statSync(path.join(mediaDir, name));
+        const ext = (name.split('.').pop() || '').toLowerCase();
+        const isVideo = ['mp4', 'webm', 'mov', 'ogg', 'ogv'].includes(ext);
+        const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext);
+        return {
+          filename: name,
+          url: `/uploads/media/${name}`,
+          size_bytes: stat.size,
+          modified_at: stat.mtime.toISOString(),
+          kind: isVideo ? 'video' : isImage ? 'image' : 'other',
+        };
+      })
+      .sort((a, b) => new Date(b.modified_at).getTime() - new Date(a.modified_at).getTime());
+    res.json(files);
+  } catch (error) {
+    console.error('Error listing media library:', error);
+    res.status(500).json({ error: 'Server error listing media' });
+  }
+});
+
+app.delete('/api/uploads/media/:filename', (req, res) => {
+  try {
+    // path.basename strips any directory traversal (../, absolute paths,
+    // etc.) so this can only ever touch a file directly inside media/.
+    const safeName = path.basename(req.params.filename);
+    const fullPath = path.join(UPLOADS_ROOT, 'media', safeName);
+    if (!fs.existsSync(fullPath)) return res.status(404).json({ error: 'File not found' });
+    fs.unlinkSync(fullPath);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting media file:', error);
+    res.status(500).json({ error: 'Server error deleting file' });
+  }
+});
+
 // --- AUTHENTICATION ENDPOINTS ---
 app.post('/api/auth/login', (req, res) => {
   try {
