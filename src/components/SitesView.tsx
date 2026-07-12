@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../lib/api';
-import { Site, ThemeConfig } from '../types';
+import { Site, SiteBlock, ThemeConfig } from '../types';
 import {
   Globe, Plus, Pencil, Trash2, Copy, ExternalLink, Loader2, X,
   RefreshCw, Layers, Mail, Moon, Sun, CheckCircle2, Palette, Type, Search, Image as ImageIcon,
 } from 'lucide-react';
 import SiteBuilderView from './SiteBuilderView';
+import SiteThumbnail from './SiteThumbnail';
 import { SITE_FONT_OPTIONS, ensureGoogleFontsLoaded } from '../constants/siteFonts';
 
 const DEFAULT_ACCENT = '#f59e0b';
@@ -42,6 +43,7 @@ function slugifySubdomain(value: string): string {
 
 export default function SitesView() {
   const [sites, setSites] = useState<Site[]>([]);
+  const [blocksBySite, setBlocksBySite] = useState<Record<number, SiteBlock[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -65,6 +67,17 @@ export default function SitesView() {
     try {
       const data = await api.getSites();
       setSites(data);
+      // Fetch each site's blocks in parallel, purely for the thumbnail
+      // previews below — best-effort, so one failed fetch just means that
+      // card falls back to the "No content yet" placeholder, not a page error.
+      const entries = await Promise.all(data.map(async site => {
+        try {
+          return [site.id, await api.getSiteBlocks(site.id)] as const;
+        } catch {
+          return [site.id, []] as const;
+        }
+      }));
+      setBlocksBySite(Object.fromEntries(entries));
     } catch (err: any) {
       console.error(err);
       setError('Failed to load sites.');
@@ -256,6 +269,14 @@ export default function SitesView() {
                   {site.active ? 'Pause' : 'Activate'}
                 </button>
               </div>
+
+              {/* Live thumbnail — real mini-render of the site's current content, not a stock icon */}
+              <SiteThumbnail
+                blocks={blocksBySite[site.id] || []}
+                theme={parseThemeConfig(site.theme_config)}
+                dark={site.theme !== 'light'}
+                accent={parseThemeConfig(site.theme_config).accent_color || DEFAULT_ACCENT}
+              />
 
               {/* Live link row */}
               <div className="flex items-center gap-2 bg-[#0c0d12] border border-[#1e2028] rounded-lg px-3 py-2">
