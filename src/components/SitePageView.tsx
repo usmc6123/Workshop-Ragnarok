@@ -153,8 +153,25 @@ export default function SitePageView({ subdomain }: SitePageViewProps) {
             display: 'grid',
             gridTemplateColumns: `repeat(${GRID_COLUMNS}, 1fr)`,
             gridAutoRows: `minmax(${ROW_UNIT_PX}px, auto)`,
-            columnGap: 20,
-            rowGap: 20,
+            // Zero gap is deliberate, not an oversight — the builder canvas
+            // (SiteGridCanvas) positions blocks with plain absolute pixel math
+            // (`top: row * ROW_UNIT_PX`) and NO gutter at all between grid
+            // lines, and every template's grid_row values were authored
+            // assuming blocks that share a boundary sit flush against each
+            // other (e.g. one block ending at row 20 and the next starting at
+            // row 20). A non-zero `rowGap` here doesn't just add one visible
+            // gap between blocks — CSS Grid inserts it between EVERY implicit
+            // row track, including the ones INSIDE a single block's own
+            // multi-row span, so a 20-row-tall hero silently rendered ~380px
+            // taller here than in the editor (19 internal gaps × 20px), and
+            // intentionally-overlapping locked blocks (a front-locked card
+            // meant to sit over a back-locked hero image) ended up pushed far
+            // apart instead. That's what caused the editor/live-preview
+            // mismatch — matching the editor's zero-gap model exactly fixes
+            // it. Use a spacer block or a block's own internal padding for
+            // breathing room, same as the editor already assumes.
+            columnGap: 0,
+            rowGap: 0,
           }}
         >
           {blocks.map((block, idx) => {

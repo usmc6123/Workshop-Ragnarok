@@ -676,6 +676,37 @@ back/normal/front-segment-reversal math the old drop handler used. Dragging
 is still restricted to within the same lock group (front/normal/back) —
 unchanged from before, use the lock buttons to move a layer between groups.
 
+**Editor/live-preview mismatch — the real cause of "templates don't stay
+where I left them" (2026-07-12).** Reported two ways that turned out to be
+the same bug: blocks (esp. from templates) looked repositioned after leaving
+and returning to the builder, and — confirmed via a direct screenshot
+comparison — a front-locked Pricing card sat right at the bottom edge of a
+back-locked hero image in the editor, but rendered far below it with a large
+gap on the live site (`workshop.homeslab.uk/site/roscoe`). Root cause found
+by reading `SitePageView.tsx`'s grid container style: it used a real CSS
+Grid (`display: grid`, `gridAutoRows: minmax(20px, auto)`) with
+`columnGap: 20, rowGap: 20` — but the builder canvas (`SiteGridCanvas.tsx`)
+positions every block with plain absolute pixel math (`top: row *
+ROW_UNIT_PX`, no gutter at all), and every template's `grid_row` values were
+authored assuming adjacent blocks sit flush against each other (one ending
+at row 20, the next starting at row 20). CSS Grid's `row-gap` doesn't just
+add one visible gap between blocks — it inserts a gap between EVERY implicit
+row track, including the ones INSIDE a single block's own multi-row span. So
+a 20-row-tall hero rendered ~380px taller live than in the editor (19
+internal gaps × 20px), and any intentionally-overlapping locked blocks (a
+front-locked card meant to sit over a back-locked background image — exactly
+what today's whole z-lock feature was built for) ended up pushed far apart
+instead of overlapping. This compounds across a whole page, so the more rows
+a site used, the worse editor and live view diverged — matching "some
+templates" being affected more visibly than others. `SiteThumbnail.tsx` (the
+Sites-list card mini preview, which reuses the same CSS Grid approach) had
+the exact same `columnGap: 20, rowGap: 20` and the same bug. Fixed by zeroing
+both gaps in both files so they match the editor's zero-gap model exactly;
+breathing room between blocks now comes from a Spacer block or a block's own
+internal padding, same as the editor already assumed. HTML/PDF export were
+never affected since both capture the live page verbatim (they inherit this
+fix automatically, no separate change needed).
+
 ## The two repos
 
 1. **usmc6123/Workshop-Ragnarok** (this repo) — the actual app, frontend + backend.

@@ -69,8 +69,13 @@ export default function SiteThumbnail({
               display: 'grid',
               gridTemplateColumns: `repeat(${GRID_COLUMNS}, 1fr)`,
               gridAutoRows: `minmax(${ROW_UNIT_PX}px, auto)`,
-              columnGap: 20,
-              rowGap: 20,
+              // Zero gap to exactly match SitePageView (the real live page
+              // this is a miniature of) and the builder canvas — see the long
+              // comment in SitePageView.tsx for why a non-zero gap here
+              // silently inflates every multi-row-spanning block's height and
+              // breaks intentional block overlap.
+              columnGap: 0,
+              rowGap: 0,
               padding: 24,
             }}
           >
