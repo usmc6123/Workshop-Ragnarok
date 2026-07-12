@@ -561,7 +561,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
   const [draftContent, setDraftContent] = useState<any>(null);
   const [draftOpacity, setDraftOpacity] = useState<Record<string, number>>({});
   const [draftStyle, setDraftStyle] = useState<BlockStyle>({});
-  const inspectorSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inspectorSaveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
   const [contextMenu, setContextMenu] = useState<{ block: SiteBlock; x: number; y: number } | null>(null);
 
@@ -916,12 +916,29 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     setContextMenu(null);
   };
 
+  // Canvas click — plain select, EXCEPT if the inspector is already open for
+  // some other block: in that case, switch it to follow the new selection
+  // (same tab it was already on) instead of leaving it showing stale content
+  // for a block that's no longer selected.
+  const handleCanvasSelect = (id: number | null) => {
+    setSelectedId(id);
+    if (id === null || !inspectorBlock) return;
+    const block = blocks.find(b => b.id === id);
+    if (block) openInspector(block, inspectorTab);
+  };
+
   // Inspector edits (structural content + style) also autosave, debounced,
   // rather than requiring an explicit Save button — matches the "click and
-  // it's just saved" feel of the inline canvas editing.
+  // it's just saved" feel of the inline canvas editing. Keyed per-block: a
+  // shared single timer would let switching to a different block within the
+  // debounce window silently cancel — and lose — the previous block's still-
+  // pending save (this was the "my image goes away, I have to re-upload"
+  // bug: uploading in block A, then clicking block B before A's 500ms save
+  // fired, cancelled A's save entirely).
   const scheduleInspectorSave = (blockId: number, patch: { content?: any; media_opacity?: any; style?: any }) => {
-    if (inspectorSaveTimer.current) clearTimeout(inspectorSaveTimer.current);
-    inspectorSaveTimer.current = setTimeout(async () => {
+    if (inspectorSaveTimers.current[blockId]) clearTimeout(inspectorSaveTimers.current[blockId]);
+    inspectorSaveTimers.current[blockId] = setTimeout(async () => {
+      delete inspectorSaveTimers.current[blockId];
       try {
         const updated = await api.updateSiteBlock(site.id, blockId, patch);
         setBlocks(prev => prev.map(b => b.id === blockId ? updated : b));
@@ -1237,7 +1254,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
                     theme={themeForm}
                     dark={dark}
                     accent={accent}
-                    onSelect={setSelectedId}
+                    onSelect={handleCanvasSelect}
                     onContentChange={handleCanvasContentChange}
                     onDuplicate={handleDuplicateBlock}
                     onDelete={handleDeleteBlock}

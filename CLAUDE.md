@@ -168,6 +168,49 @@ be renamed inline (pencil icon → text input → Enter/blur saves via
 shown in the layers list and the canvas's floating toolbar in place of the
 generic block-type label.
 
+**Two real bugs found and fixed in the block inspector (2026-07-12), reported
+as "my image goes away, I have to re-upload" and "the preview changes size
+dramatically and doesn't match the live site."**
+
+1. `scheduleInspectorSave()` in `SiteBuilderView.tsx` used ONE shared
+   `inspectorSaveTimer` ref for every block's debounced autosave (500ms).
+   Uploading an image schedules a save; if the user clicked to select a
+   *different* block before that 500ms elapsed (very easy to do — e.g.
+   clicking a different layer right after an upload), the new block's call to
+   `scheduleInspectorSave()` called `clearTimeout()` on the SAME shared timer,
+   silently cancelling and permanently losing the first block's pending save.
+   The image URL had already been applied to local state (so it looked fine
+   for a moment) but was never persisted — a later block reload then showed
+   it as gone. Fixed by keying the timers per-block:
+   `inspectorSaveTimers = useRef<Record<number, Timeout>>({})`, so saves for
+   different blocks can never cancel each other.
+
+2. `SiteGridCanvas.tsx` measured its own container's actual width and used
+   that for column math, while row height stayed a hardcoded constant
+   (`ROW_UNIT_PX`) regardless. Opening the ~420px inspector panel shrinks the
+   canvas's container — so column widths shrank but row heights didn't,
+   visibly distorting every block's aspect ratio, and the "Page width preview
+   — matches the live site's max width" label became false the moment the
+   panel was narrower than that claimed width. Fixed by making the canvas
+   always render its actual content at the device's true design width
+   (1152/768/375px — same numbers `SitePageView.tsx` effectively targets),
+   then visually scaling the whole thing down as one rigid unit
+   (`transform: scale()`) to fit whatever space is actually available.
+   Proportions can now never distort — opening the inspector just zooms the
+   same accurate preview out, and the size label now says e.g. "1152px
+   (zoomed to 61% to fit)" so it's honest about what's happening. Drag/resize
+   math (`handlePointerMove`) had to be adjusted to divide screen-pixel mouse
+   deltas by the current `scale` before converting to grid columns/rows,
+   since a screen pixel of mouse movement now corresponds to more than one
+   canvas-space pixel whenever zoomed out.
+
+Also: clicking a block directly on the canvas now also switches the
+inspector to that block IF the inspector is already open for a different one
+(`handleCanvasSelect()` in `SiteBuilderView.tsx`) — previously only the
+Layers panel did this; a plain canvas click only changed the selection
+outline and left the inspector showing stale content for whatever block was
+last opened.
+
 **Image Gallery block was missing the opacity slider (fixed same day).**
 Hero/Video/Testimonial blocks all had a `showOpacity` slider on their
 `MediaField` already; the Image Gallery block's per-image `MediaField` in

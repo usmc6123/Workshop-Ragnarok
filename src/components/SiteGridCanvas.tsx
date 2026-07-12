@@ -29,6 +29,7 @@ interface DragState {
   startPointerY: number;
   startPos: GridPosition;
   colWidthPx: number;
+  scale: number;
 }
 
 export default function SiteGridCanvas({
@@ -49,17 +50,32 @@ export default function SiteGridCanvas({
   onContextMenu: (block: SiteBlock, x: number, y: number) => void;
   onOpenInspector: (block: SiteBlock) => void;
 }) {
+  // The canvas's own content ALWAYS renders at the device's true design width
+  // (1152/768/375px) so column widths, row heights, and drag math never
+  // change — it's then visually scaled down as a single rigid unit to fit
+  // whatever space is actually available. Before this, the canvas rendered
+  // at whatever width its flex container happened to give it (which shrinks
+  // whenever the inspector panel opens) while row height stayed a fixed
+  // pixel amount — so opening the inspector didn't just make the preview
+  // smaller, it visibly distorted every block's aspect ratio, and the "page
+  // width preview" label became a lie the moment the panel was narrower than
+  // the claimed width. Scaling as a whole fixes both: proportions never
+  // distort, and what you see is always geometrically the live site, just
+  // zoomed out.
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const [canvasWidth, setCanvasWidth] = useState(1152);
+  const [availableWidth, setAvailableWidth] = useState(1152);
   const [liveOverrides, setLiveOverrides] = useState<Record<number, GridPosition>>({});
   const dragState = useRef<DragState | null>(null);
   const isMobilePreview = device === 'mobile';
+  const designWidth = MAX_WIDTH_PX[device];
+  const scale = Math.min(1, availableWidth / designWidth) || 1;
 
   useEffect(() => {
-    const measure = () => { if (canvasRef.current) setCanvasWidth(canvasRef.current.clientWidth); };
+    const measure = () => { if (wrapperRef.current) setAvailableWidth(wrapperRef.current.clientWidth); };
     measure();
     const observer = new ResizeObserver(measure);
-    if (canvasRef.current) observer.observe(canvasRef.current);
+    if (wrapperRef.current) observer.observe(wrapperRef.current);
     return () => observer.disconnect();
   }, [device]);
 
@@ -69,13 +85,16 @@ export default function SiteGridCanvas({
   }, {});
 
   const totalRows = Math.max(20, ...blocks.map(b => positions[b.id].grid_row + positions[b.id].grid_row_span)) + 4;
-  const colWidthPx = canvasWidth / GRID_COLUMNS;
+  const colWidthPx = designWidth / GRID_COLUMNS;
 
   const handlePointerMove = useCallback((e: PointerEvent) => {
     const drag = dragState.current;
     if (!drag) return;
-    const dx = e.clientX - drag.startPointerX;
-    const dy = e.clientY - drag.startPointerY;
+    // Mouse movement is in real screen pixels, but the canvas is visually
+    // shrunk by `scale` — so a screen-pixel delta corresponds to a bigger
+    // delta in the canvas's own (unscaled) coordinate space.
+    const dx = (e.clientX - drag.startPointerX) / drag.scale;
+    const dy = (e.clientY - drag.startPointerY) / drag.scale;
     const dCol = dx / drag.colWidthPx;
     const dRow = dy / ROW_UNIT_PX;
     let next: GridPosition = { ...drag.startPos };
@@ -127,6 +146,7 @@ export default function SiteGridCanvas({
       startPointerY: e.clientY,
       startPos: positions[block.id],
       colWidthPx,
+      scale,
     };
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp);
@@ -158,18 +178,28 @@ export default function SiteGridCanvas({
     return (pa.grid_row - pb.grid_row) || (pa.grid_col - pb.grid_col);
   });
 
+  const canvasHeight = isMobilePreview ? undefined : totalRows * ROW_UNIT_PX;
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono px-1">
         <span>{isMobilePreview ? 'Mobile preview — stacked order, matches the live site' : device === 'tablet' ? 'Tablet-width preview — grid layout still applies' : 'Page width preview — matches the live site\'s max width'}</span>
-        <span>{Math.round(canvasWidth)}px</span>
+        <span>{designWidth}px{scale < 1 ? ` (zoomed to ${Math.round(scale * 100)}% to fit — proportions match the live site exactly)` : ''}</span>
       </div>
-      <div
-        ref={canvasRef}
-        onPointerDown={() => onSelect(null)}
-        className="relative mx-auto rounded-2xl border-2 border-dashed border-[#2a2d3a] bg-[#0a0b0f] overflow-hidden transition-all duration-300"
-        style={{ maxWidth: MAX_WIDTH_PX[device], minHeight: isMobilePreview ? undefined : totalRows * ROW_UNIT_PX }}
-      >
+      {/* Measures available space only — the canvas itself always renders at
+          the device's true design width, then gets visually scaled down as a
+          rigid unit to fit here, so proportions never distort. This sizing
+          box reserves the actual SHRUNK footprint in the surrounding layout
+          (a transform alone wouldn't do that — the browser would still think
+          the canvas takes up its full unscaled size). */}
+      <div ref={wrapperRef} className="w-full">
+        <div className="mx-auto" style={{ width: designWidth * scale, height: canvasHeight ? canvasHeight * scale : undefined }}>
+          <div
+            ref={canvasRef}
+            onPointerDown={() => onSelect(null)}
+            className="relative rounded-2xl border-2 border-dashed border-[#2a2d3a] bg-[#0a0b0f] overflow-hidden transition-all duration-300"
+            style={{ width: designWidth, height: canvasHeight, transform: `scale(${scale})`, transformOrigin: 'top left' }}
+          >
         {!isMobilePreview && (
           <div className="absolute inset-0 pointer-events-none flex">
             {Array.from({ length: GRID_COLUMNS }).map((_, i) => (
@@ -262,6 +292,8 @@ export default function SiteGridCanvas({
             </div>
           );
         })}
+          </div>
+        </div>
       </div>
     </div>
   );
