@@ -133,16 +133,22 @@ export default function SiteGridCanvas({
   };
 
   const HANDLES: HandleDir[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
-  const handlePos: Record<HandleDir, React.CSSProperties> = {
-    n: { top: -5, left: '50%', transform: 'translateX(-50%)' },
+  // Toolbar sits 32px above the block by default; when a block is dragged near
+  // the canvas's own top edge there isn't 32px of room above it, and since the
+  // canvas has overflow-hidden, the toolbar (and the top-row resize handles,
+  // which sit 5px above) get clipped and become invisible/unclickable. Below
+  // this threshold we flip both to render just inside the block's top edge.
+  const TOOLBAR_CLEARANCE_PX = 36;
+  const getHandlePos = (nearTop: boolean): Record<HandleDir, React.CSSProperties> => ({
+    n: { top: nearTop ? 5 : -5, left: '50%', transform: 'translateX(-50%)' },
     s: { bottom: -5, left: '50%', transform: 'translateX(-50%)' },
     e: { right: -5, top: '50%', transform: 'translateY(-50%)' },
     w: { left: -5, top: '50%', transform: 'translateY(-50%)' },
-    ne: { top: -5, right: -5 },
-    nw: { top: -5, left: -5 },
+    ne: { top: nearTop ? 5 : -5, right: -5 },
+    nw: { top: nearTop ? 5 : -5, left: -5 },
     se: { bottom: -5, right: -5 },
     sw: { bottom: -5, left: -5 },
-  };
+  });
 
   // In mobile preview, blocks render stacked full-width in (row, col) order —
   // exactly what SitePageView's own mobile collapse produces — so what's
@@ -184,6 +190,8 @@ export default function SiteGridCanvas({
           const pos = positions[block.id];
           const isSelected = selectedId === block.id;
           const isDragging = dragState.current?.blockId === block.id;
+          const nearTop = pos.grid_row * ROW_UNIT_PX < TOOLBAR_CLEARANCE_PX;
+          const handlePos = getHandlePos(nearTop);
 
           return (
             <div
@@ -217,10 +225,12 @@ export default function SiteGridCanvas({
                 />
               </div>
 
-              {/* Slim floating toolbar — appears on hover/select, drag anywhere on it to move the block */}
+              {/* Slim floating toolbar — appears on hover/select, drag anywhere on it to move the block.
+                  Flips to just inside the block's top edge when there's no room above (block near
+                  the canvas top), instead of rendering off the top and getting clipped. */}
               <div
                 onPointerDown={(e) => startDrag(e, block, 'move')}
-                className={`absolute -top-8 left-0 flex items-center gap-1 px-1.5 h-7 rounded-lg bg-[#1a1c24] border border-white/10 shadow-lg cursor-grab active:cursor-grabbing transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                className={`absolute flex items-center gap-1 px-1.5 h-7 rounded-lg bg-[#1a1c24] border border-white/10 shadow-lg cursor-grab active:cursor-grabbing transition-opacity z-30 ${nearTop ? 'top-1 left-1' : '-top-8 left-0'} ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
               >
                 <Move className="w-3 h-3 text-slate-500 shrink-0 ml-0.5" />
                 <span className="text-[9px] font-bold text-slate-300 uppercase tracking-wide truncate max-w-[90px]">{blockMeta(block.block_type).label}</span>

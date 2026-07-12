@@ -235,6 +235,166 @@ that something's newly broken.
   content all session. When something looks corrupted, clone fresh and check
   history rather than trusting a single raw-URL fetch.
 
+## Host environment: shared homelab stack (read if anything Docker/WSL-related looks wrong)
+
+Ragnarök's `ragnarok-backend` and `workshop-webhook` containers run on the same
+physical machine, same WSL2 instance, and same Docker Desktop as the owner's much
+larger homelab stack. That stack is defined in a **separate** compose file at
+`D:\HomeServer\docker-compose.yml` (root of D:, not inside this repo) — currently
+~20 services: `gluetun`, `seerr`, `sonarr`, `radarr`, `bazarr`, `prowlarr`,
+`flaresolverr`, `lidarr`, `qbittorrent`, `sabnzbd`, `lazylibrarian`, `portainer`,
+`tautulli`, `wizarr`, `watchtower`, `nginx-proxy-manager`, `nginx-db`, `n8n`,
+`n8n-postgres`, `homarr`, `cloudflared`. All its bind-mount volume paths use
+**WSL-style `/mnt/d/...` syntax, not Windows-style `D:\...`** — this is required,
+not stylistic: `docker compose` invoked from the WSL/Ubuntu-24.04 bash terminal
+throws `invalid volume specification` on Windows-style paths. Confirmed by testing;
+don't "fix" these to `D:\...` again.
+
+There are also several other completely separate stacks/containers on the same
+host, unrelated to the compose file above: `nextcloud_app`/`nextcloud_db`/
+`nextcloud_redis`, `pihole`, `mealie`, `uptime-kuma`, `immich_server`/
+`immich_machine_learning`/`immich_postgres`/`immich_redis`, and `kometa` (this one
+was created via a bare `docker run`, not any compose file — no
+`com.docker.compose.project` label, uses a Docker-managed named volume
+`kometa_config` rather than a bind mount, and had `RestartPolicy: no` until fixed
+via `docker update --restart unless-stopped kometa` on 2026-07-11). A small
+separate `seerr-wrapper` proxy (`D:\HomeServer\seerr-wrapper`, service
+`seerr-tv`, port 3000) also exists — owner has explicitly said to ignore it and
+`gluetun` unless he raises them again.
+
+### The July 11–12, 2026 incident (what happened, what it means going forward)
+
+A real WSL2 virtual-disk I/O failure (ext4 corruption, forced read-only remount —
+confirmed via `dmesg`) cascaded into Docker Desktop's WSL2 integration breaking
+entirely (`execvpe(...docker-desktop-user-distro) failed: No such file or
+directory`). Using Task Manager "End all tasks" on Docker Desktop mid-troubleshoot
+made things *worse* — always use the tray icon's graceful "Quit Docker Desktop",
+or `wsl --shutdown` from a real **Windows PowerShell window** (not from inside the
+WSL/Linux bash prompt — `wsl` isn't a command there). A full computer restart
+eventually restored basic Docker Desktop functionality.
+
+**The lingering, less obvious symptom:** afterward, `radarr`, `sonarr`,
+`prowlarr`, and `sabnzbd` all appeared to have fresh/empty data — Radarr's logs
+showed FluentMigrator running a full migration burst plus
+`QualityProfileService: Setting up default quality profiles` (the fresh-DB tell),
+Sonarr/Radarr/Prowlarr showed "Authentication Required"/empty libraries, sabnzbd
+showed "External internet access denied." **None of this was real data loss.**
+The actual `radarr.db`/`sonarr.db` files on `D:\HomeServer\radarr\` etc. were
+confirmed intact and full-size the entire time (via Windows Explorer, via a
+`ls -la` directly on the WSL host path, and via the scheduled backup zips in each
+app's own `Backups\scheduled\` folder — Radarr/Sonarr/Prowlarr all have their own
+built-in scheduled backup feature, Settings → General → Backup, separate from
+anything Cowork manages). What was actually happening: **`docker exec <container>
+ls -la <path>` was reading a stale, wrong (tiny, freshly-initialized) view of the
+bind-mounted file through Docker's mount bridge**, even though the real file on
+disk was untouched. Neither a plain `docker restart <name>` nor a full computer
+reboot fixed this — both just reuse/re-launch the existing container against the
+same stale bridge. **The actual fix: `docker compose down` (full remove) followed
+by `docker compose up -d` (full recreate)** for the affected stack, which forces
+Docker to re-resolve every bind mount fresh. Confirmed working — file sizes
+reported by `docker exec` matched the real host files immediately after.
+
+**Diagnostic pattern worth reusing:** if any container ever looks like it "lost"
+its data again, compare three things before assuming real loss: (1) the file size
+via `docker exec <container> ls -la <path>`, (2) the file size via `ls -la`
+directly on the actual WSL host path (e.g. `/mnt/d/HomeServer/radarr/radarr.db`),
+and (3) Windows Explorer's own view of the same file. If (2) and (3) agree but
+(1) doesn't, it's a stale Docker mount bridge, not lost data — fix with
+`docker compose down && docker compose up -d`, not a restart.
+
+**Update, 2026-07-11 evening — this bug is NOT limited to crash recovery, and it hit
+`ragnarok-backend` too.** A plain Windows restart (no crash, no WSL2 corruption —
+just a normal reboot) triggered the same stale-bind-mount symptom on
+`ragnarok-backend`: the Payments page (and by extension every other page, since all
+of them read through the same `/data` bind mount) showed $0.00 / empty, even though
+the real data in `data/db/workshop.db` was completely intact (verified: 4 customers,
+3 jobs, 1 succeeded $567.93 payment from 2026-07-08, all correctly owned by the
+logged-in user). Likely mechanism: `ragnarok-backend` has `restart: unless-stopped`
+in `docker-compose.yml`, so on reboot Docker Desktop resumes the *existing* container
+object rather than recreating it. If WSL2's DrvFs mount for `D:\` isn't fully
+re-established by the time Docker Desktop resumes the container, the resumed
+container can end up bound to a stale/incomplete view of `/data` — same root
+mechanism as the radarr/sonarr incident, just triggered by an ordinary restart
+instead of a crash. `docker compose down` alone can fail to fully remove it
+(`Network ... Resource is still in use` + a leftover `ragnarok-backend` container
+name conflict on the following `up`) — when that happens, force it with
+`docker stop ragnarok-backend && docker rm ragnarok-backend`, then
+`docker compose up -d workshop-backend`. This fixed it immediately.
+
+**Practical implication: treat this as possible after ANY computer restart, not
+just after a crash.** If Ragnarök's data ever looks empty/reset after rebooting the
+machine — Payments, Dashboard, Customers, anything — try the recreate fix above
+before assuming real data loss or an auth/user-scoping bug.
+
+**Fixed at the source, 2026-07-12 — self-heal added directly to the webhook.**
+Rather than a separate Windows Task Scheduler script, `/opt/workshop-webhook/webhook.js`
+itself now force-recreates `ragnarok-backend` automatically, since that container
+already runs with `restart: unless-stopped` (so it starts fresh on every reboot)
+and already has docker.sock access. On every webhook-process startup it schedules
+a `reconcileBackendMount()` call ~90s later — enough time for WSL2/Docker to settle
+after boot — which does the same `docker stop`/`rm`/`run` sequence the deploy path
+already uses (recreate from the existing tagged image, no rebuild, ~1-2s of
+backend downtime). A `rebuildInProgress` flag skips the reconcile if a real deploy
+happens to be running at that exact moment. Confirmed working via
+`docker logs workshop-webhook`: `Scheduling startup mount reconcile in 90s...` →
+`Startup mount reconcile complete - ragnarok-backend recreated`.
+
+**Practical effect: this class of bug should now self-correct on every boot without
+manual intervention.** If it ever recurs anyway, check `docker logs workshop-webhook`
+first to see whether the reconcile actually ran and what it logged, before falling
+back to the manual `docker stop ragnarok-backend && docker rm ragnarok-backend &&
+docker compose up -d workshop-backend` fix.
+
+**Note on file location:** `webhook.js` lives only at `/opt/workshop-webhook/webhook.js`
+on the host — it is NOT part of the git-based protected-files restore mechanism (it's
+not in the protected files list above, and isn't rebuilt from any Dockerfile; the
+`webhook` service in `docker-compose.yml` bind-mounts `/opt/workshop-webhook` straight
+into the container). Edits take effect on-disk immediately; only
+`docker restart workshop-webhook` is needed to reload the running process — no git
+push, no mirror-first dance. The copy that sits inside the images mirror repo
+(`workshop-core/webhook.js`) is a stale, disconnected reference copy only — confirmed
+stale again on 2026-07-12 (missing several `restoreCoreFiles()` entries and the
+`--env-file`/timeout changes present in the live version). Always fetch the live file
+via `cat /opt/workshop-webhook/webhook.js` before editing it, never trust the mirror
+copy.
+
+**A red herring from this incident, debunked:** a diff against an older copy of
+`D:\HomeServer\docker-compose.yml` showed its volume paths had changed from
+`D:\...` to `/mnt/d/...` at some point. This looked like a plausible root cause
+but wasn't — see the path-syntax note above. Don't revisit this theory.
+
+**Other fixes made to `D:\HomeServer\docker-compose.yml` during this incident**
+(still in effect, don't undo):
+- `seerr` service: added `user: "0:0"` — fixed an `EACCES: permission denied,
+  mkdir '/app/config/logs/'` crash-loop.
+- `sabnzbd.ini` had a genuine bug introduced and then fixed in this same
+  session: a duplicate `host_whitelist` key (one added redundantly by Claude,
+  one already present further down the file) — configobj doesn't tolerate
+  duplicate keys in the same section. Removed the duplicate; the file now has
+  exactly one `host_whitelist` line.
+
+**Known, still-open issues as of 2026-07-11** (flagged, not yet fixed — ask the
+owner before touching):
+- Sonarr and Radarr both repeatedly log
+  `Import failed, path does not exist or is not accessible by Sonarr/Radarr` for
+  `/downloads/complete/...` paths — likely a PUID/PGID or path-mapping mismatch
+  between qbittorrent/sabnzbd's view of `/downloads` and Sonarr/Radarr's view of
+  the same mount.
+- `wizarr` repeatedly logs `PermissionError: Operation not permitted` on its own
+  session cache files under `/data/database/sessions/`.
+
+**General prevention rules for this host going forward:**
+- Never hard-kill Docker Desktop via Task Manager "End all tasks" — always quit
+  gracefully or use `wsl --shutdown` from actual Windows PowerShell.
+- Low free space on the C: drive (where WSL2's own virtual disks live) is the
+  most likely cause of a repeat ext4/DrvFs corruption event — worth checking
+  periodically.
+- Keep Docker Desktop itself updated — this class of WSL2 file-sharing bridge
+  bug gets patched over time.
+- The Cowork nightly DB backup scheduled task is scoped **only** to this repo's
+  own `data/`/`workshop.db` — it has no relationship to the homelab stack above
+  and can't affect or be affected by anything in this section.
+
 ## Standing workflow rules
 
 - Any edit to a protected-list file must be made in BOTH `Workshop-Ragnarok` and the
@@ -243,3 +403,7 @@ that something's newly broken.
   build, when confirming whether something is actually fixed.
 - If a file looks corrupted identically across multiple fetch methods, suspect the
   committed source before suspecting the network.
+- If a container on the shared host ever looks like it lost its data after a
+  crash or forced restart, see "Host environment" above before assuming real
+  loss — `docker compose down && docker compose up -d` is very likely the fix,
+  not a restart.
