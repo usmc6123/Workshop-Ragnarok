@@ -498,6 +498,56 @@ confirmed by checking each against exactly what had been touched:**
    had matching entries. Added all 4, purely additive (existing entries
    untouched).
 
+**Sites URL structure flattened to one-level subdomains (2026-07-12) — real
+architecture change, not cosmetic.** Originally sites lived at
+`<subdomain>.sites.homeslab.uk` (two levels below the zone). Setting up the
+one-time wildcard Cloudflare Tunnel route for that hit "Invalid subdomain
+format" in the dashboard's Add Published Application form — turned out to be
+two compounding things, confirmed via web research, not guessing: (1) a
+genuine Cloudflare dashboard bug that rejects wildcard subdomain entries in
+that specific form even though the underlying tunnel/API fully supports
+them, and (2) more fundamentally, a *multi-level* wildcard (a wildcard plus
+an extra label before the zone, like `*.sites.homeslab.uk`) needs Cloudflare
+Total TLS to get a valid certificate, and on this account Total TLS itself
+is gated behind Advanced Certificate Manager — a **$10/month paid add-on**.
+Owner chose NOT to pay for that (confirmed explicitly, weighed against the
+one-time code cost below) and instead flatten the URL scheme to
+`<subdomain>.homeslab.uk` (one level), which IS covered by the zone's
+existing free Universal SSL wildcard cert (`*.homeslab.uk`) — same wildcard
+tunnel-route mechanism, zero ongoing cost, zero future per-site setup, just
+one label shorter.
+
+**The real tradeoff of flattening, and how it's handled:** with sites now
+sharing the exact same one-level namespace as the main app's own hostname
+(`workshop.homeslab.uk`), there's no longer a structural way (like the old
+literal `.sites.` marker) to tell "this is a site" apart from "this is the
+dashboard" purely from the hostname shape — a site could theoretically be
+named `workshop` and collide. Solved with a reserved-word list rather than
+a schema change: `src/constants/sites.ts` exports `SITES_BASE_DOMAIN`
+(`'homeslab.uk'`) and `RESERVED_SITE_SUBDOMAINS` (currently just `workshop`
+and `www`), imported by both `App.tsx` (hostname-detection routing — a
+request to `<label>.homeslab.uk` only renders `SitePageView` if `<label>`
+isn't reserved) and `SitesView.tsx` (rejects the reserved words in the
+create/edit form). `backend/server.js` has its own copy of the same set
+(`RESERVED_SITE_SUBDOMAINS` near `cleanSubdomain()`) enforced in both
+`POST`/`PUT /api/sites`, since a direct API call could otherwise bypass the
+frontend form check — **keep both lists in sync if this ever changes, and
+add to both any time another single-level hostname gets pointed at the
+`ragnarok-backend` container** (the failure mode if forgotten: a visitor to
+that new hostname would incorrectly see "site not found" instead of the
+real page, since it'd get treated as an unmatched site subdomain lookup).
+All hardcoded `.sites.homeslab.uk` references were swept and updated:
+`SiteBuilderView.tsx`'s header subtitle, `SitesView.tsx`'s live-URL builder/
+subdomain input suffix/help card, and `backend/site-routes.js`'s comments.
+
+**Layers panel lock buttons: kept the word "Front"/"Back" always visible
+instead of swapping to "Locked" (2026-07-12).** Originally `LockButton` in
+`SiteLayersPanel.tsx` displayed "Locked" in place of "Front"/"Back" once
+active — reported as confusing since the label changes out from under you.
+Fixed to always show "Front"/"Back", with lock state conveyed instead by
+the existing amber highlight plus a small `Lock` icon appended next to
+whichever one is currently active.
+
 ## The two repos
 
 1. **usmc6123/Workshop-Ragnarok** (this repo) — the actual app, frontend + backend.

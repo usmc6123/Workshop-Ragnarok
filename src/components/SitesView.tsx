@@ -10,14 +10,9 @@ import SiteBuilderView from './SiteBuilderView';
 import SiteThumbnail from './SiteThumbnail';
 import MediaField from './MediaField';
 import { SITE_FONT_OPTIONS, ensureGoogleFontsLoaded } from '../constants/siteFonts';
+import { SITES_BASE_DOMAIN, RESERVED_SITE_SUBDOMAINS } from '../constants/sites';
 
 const DEFAULT_ACCENT = '#f59e0b';
-
-// The base domain for wildcard subdomain sites — a site named "portfolio" is
-// reachable at portfolio.sites.<this domain>, once the one-time wildcard
-// Cloudflare Tunnel route is set up (see the help card at the bottom of this
-// page). Change this if the home lab's domain ever changes.
-const SITES_BASE_DOMAIN = 'homeslab.uk';
 
 const EMPTY_FORM = {
   name: '',
@@ -132,6 +127,7 @@ export default function SitesView() {
     if (!form.name.trim()) return setFormError('Name is required.');
     const cleanSub = slugifySubdomain(form.subdomain);
     if (!cleanSub) return setFormError('Subdomain is required (letters, numbers, and dashes only).');
+    if (RESERVED_SITE_SUBDOMAINS.has(cleanSub)) return setFormError(`"${cleanSub}" is reserved and can't be used as a site subdomain — try something else.`);
 
     setSaving(true);
     setFormError(null);
@@ -181,7 +177,7 @@ export default function SitesView() {
     }
   };
 
-  const liveUrlFor = (subdomain: string) => `https://${subdomain}.sites.${SITES_BASE_DOMAIN}`;
+  const liveUrlFor = (subdomain: string) => `https://${subdomain}.${SITES_BASE_DOMAIN}`;
   const previewUrlFor = (subdomain: string) => `${window.location.origin}/site/${subdomain}`;
 
   const handleCopyLink = (subdomain: string) => {
@@ -368,7 +364,7 @@ export default function SitesView() {
       {/* One-time subdomain setup help card */}
       <div className="max-w-3xl mx-auto bg-[#0c0d12]/60 border border-border-theme rounded-xl p-4 text-[11px] text-slate-500 leading-relaxed font-mono">
         <span className="text-slate-300 font-bold uppercase tracking-wider text-[10px] block mb-1.5">One-time subdomain setup</span>
-        Every site here shares one wildcard Cloudflare Tunnel route — add a Public Hostname for <span className="text-primary-theme">*.sites.{SITES_BASE_DOMAIN}</span> pointing at the same service Workshop Ragnarök already uses, and every site you create from here on just works at its own subdomain automatically, with zero further setup. Until that's added (or to test before it is), the preview link (↗ icon above) works right now with no DNS involved.
+        Every site here shares one wildcard Cloudflare Tunnel route — add a Public Hostname for <span className="text-primary-theme">*.{SITES_BASE_DOMAIN}</span> pointing at the same service Workshop Ragnarök already uses, and every site you create from here on just works at its own subdomain automatically, with zero further setup. (A two-level route like *.sites.{SITES_BASE_DOMAIN} would need Cloudflare's paid Advanced Certificate Manager for a valid cert — this flat, one-level wildcard is covered by the free plan instead.) Until that's added (or to test before it is), the preview link (↗ icon above) works right now with no DNS involved.
       </div>
 
       {/* Create/Edit Modal */}
@@ -415,7 +411,7 @@ export default function SitesView() {
                     placeholder="my-portfolio"
                     className="flex-1 min-w-0 rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
                   />
-                  <span className="text-[11px] text-slate-500 font-mono shrink-0">.sites.{SITES_BASE_DOMAIN}</span>
+                  <span className="text-[11px] text-slate-500 font-mono shrink-0">.{SITES_BASE_DOMAIN}</span>
                 </div>
               </div>
 

@@ -9,9 +9,11 @@ const db = require('./db');
 // this is simpler to reason about and just as effective).
 //
 // Two ways a visitor's browser ends up here:
-//   1. Real subdomain (e.g. myportfolio.sites.homeslab.uk) once the one-time
-//      wildcard Cloudflare Tunnel route is set up — the frontend reads
-//      window.location.hostname and calls resolveBySubdomain().
+//   1. Real subdomain (e.g. myportfolio.homeslab.uk — a flat one-level
+//      hostname, not myportfolio.sites.homeslab.uk, since a two-level
+//      wildcard needs paid Cloudflare Advanced Certificate Manager) once the
+//      one-time wildcard Cloudflare Tunnel route is set up — the frontend
+//      reads window.location.hostname and calls resolveBySubdomain().
 //   2. Local preview path (/site/:subdomain) for testing a site before DNS/tunnel
 //      config is even touched — same resolve endpoint, just reached a different way.
 

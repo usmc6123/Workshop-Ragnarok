@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, ArrowUpToLine, ArrowDownToLine, Pencil, Check, X, GripVertical } from 'lucide-react';
+import { Layers, ArrowUpToLine, ArrowDownToLine, Pencil, Check, X, GripVertical, Lock } from 'lucide-react';
 import { SiteBlock, BlockStyle } from '../types';
 import { blockMeta, blockSummary } from '../constants/siteBlockTypes';
 
@@ -240,10 +240,14 @@ function SectionHeader({ label }: { label: string }) {
 }
 
 function LockButton({ active, label, onClick, children }: { active: boolean; label: string; onClick: () => void; children: React.ReactNode }) {
+  // The word always stays "Front"/"Back" — never swaps to "Locked" — so it
+  // doesn't change out from under you every time you click. Lock state is
+  // shown instead via the amber highlight plus a small lock icon next to
+  // whichever one is currently active.
   return (
     <button
       type="button"
-      title={label}
+      title={active ? `${label} (currently locked)` : label}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       className={`flex-1 flex items-center justify-center gap-1 py-1 rounded border text-[9px] font-bold uppercase tracking-wide transition cursor-pointer ${
         active
@@ -252,7 +256,8 @@ function LockButton({ active, label, onClick, children }: { active: boolean; lab
       }`}
     >
       {children}
-      <span className="hidden xl:inline">{active ? 'Locked' : label.replace('Lock to ', '')}</span>
+      <span className="hidden xl:inline">{label.replace('Lock to ', '')}</span>
+      {active && <Lock className="w-2.5 h-2.5 shrink-0" />}
     </button>
   );
 }

@@ -4639,6 +4639,15 @@ function cleanSubdomain(value) {
   return String(value || '').trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
+// Sites live at flat one-level hostnames (<subdomain>.<domain>, not
+// <subdomain>.sites.<domain> — a two-level wildcard needs paid Cloudflare
+// Advanced Certificate Manager). Because of that, a site subdomain shares
+// the same namespace as the main app's own hostname, so 'workshop' must be
+// rejected server-side too, not just in the SitesView.tsx form (which a
+// direct API call could bypass). Keep this in sync with
+// RESERVED_SITE_SUBDOMAINS in src/constants/sites.ts.
+const RESERVED_SITE_SUBDOMAINS = new Set(['workshop', 'www']);
+
 app.get('/api/sites', (req, res) => {
   try {
     const sites = db.prepare(`
@@ -4662,6 +4671,7 @@ app.post('/api/sites', (req, res) => {
 
     const cleanSub = cleanSubdomain(subdomain);
     if (!cleanSub) return res.status(400).json({ error: 'subdomain must contain at least one letter or number' });
+    if (RESERVED_SITE_SUBDOMAINS.has(cleanSub)) return res.status(400).json({ error: `Subdomain "${cleanSub}" is reserved and can't be used` });
 
     const existing = db.prepare('SELECT id FROM sites WHERE subdomain = ?').get(cleanSub);
     if (existing) return res.status(409).json({ error: `Subdomain "${cleanSub}" is already in use` });

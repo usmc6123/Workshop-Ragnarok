@@ -30,6 +30,7 @@ import SitesView from './components/SitesView';
 import YoutubeTrimmerView from './components/YoutubeTrimmerView';
 import QuickReformatView from './components/QuickReformatView';
 import { LOGO_URL, BACKGROUND_URL } from './constants/branding';
+import { SITES_BASE_DOMAIN, RESERVED_SITE_SUBDOMAINS } from './constants/sites';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminPage from './pages/AdminPage';
 import LoginPage from './pages/LoginPage';
@@ -250,13 +251,20 @@ export default function App() {
   const isFunnel = pathParts[1] === 'funnel' && pathParts[2];
   const isSitePreviewPath = pathParts[1] === 'site' && pathParts[2];
 
-  // Once the one-time wildcard Cloudflare Tunnel route for *.sites.<domain> is
+  // Once the one-time wildcard Cloudflare Tunnel route for *.<domain> is
   // added, a visitor's browser hits this app with a hostname like
-  // "my-portfolio.sites.homeslab.uk" instead of the usual shop hostname — pull
-  // the subdomain straight out of window.location.hostname, same idea as the
+  // "my-portfolio.homeslab.uk" instead of the usual shop hostname — pull the
+  // subdomain straight out of window.location.hostname, same idea as the
   // existing path-based detection above but for real subdomain traffic.
-  const siteHostnameMatch = window.location.hostname.match(/^([a-z0-9-]+)\.sites\./i);
-  const siteSubdomain = isSitePreviewPath ? pathParts[2] : (siteHostnameMatch ? siteHostnameMatch[1] : null);
+  // Sites live at flat one-level hostnames (not a dedicated "sites." prefix)
+  // since a two-level wildcard needs paid Advanced Certificate Manager —
+  // see RESERVED_SITE_SUBDOMAINS for why this must exclude 'workshop'.
+  const siteHostnameSuffix = `.${SITES_BASE_DOMAIN}`;
+  const siteHostnameLabel = window.location.hostname.endsWith(siteHostnameSuffix)
+    ? window.location.hostname.slice(0, -siteHostnameSuffix.length)
+    : null;
+  const isValidSiteLabel = !!siteHostnameLabel && /^[a-z0-9-]+$/i.test(siteHostnameLabel) && !RESERVED_SITE_SUBDOMAINS.has(siteHostnameLabel.toLowerCase());
+  const siteSubdomain = isSitePreviewPath ? pathParts[2] : (isValidSiteLabel ? siteHostnameLabel : null);
 
   if (isPortal) {
     const portalToken = pathParts[2];

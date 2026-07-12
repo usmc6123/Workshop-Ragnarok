@@ -11,6 +11,7 @@ import { SITE_TEMPLATES, SiteTemplate } from '../constants/siteTemplates';
 import { BLOCK_TYPES, blockMeta } from '../constants/siteBlockTypes';
 import { GridPosition, defaultGridPosition, nextAvailableRow, positionFromStyle } from '../constants/siteGrid';
 import { SITE_ICON_NAMES } from '../constants/siteIcons';
+import { SITES_BASE_DOMAIN } from '../constants/sites';
 import SiteGridCanvas, { TransformEditTarget } from './SiteGridCanvas';
 import SiteLayersPanel from './SiteLayersPanel';
 import TemplateThumbnail from './TemplateThumbnail';
@@ -1292,7 +1293,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
           </button>
           <div className="min-w-0">
             <h1 className="text-lg md:text-xl font-black text-slate-100 uppercase tracking-wider truncate">{site.name}</h1>
-            <p className="text-xs text-slate-500 font-mono truncate">{site.subdomain}.sites.homeslab.uk</p>
+            <p className="text-xs text-slate-500 font-mono truncate">{site.subdomain}.{SITES_BASE_DOMAIN}</p>
           </div>
         </div>
         <a href={previewUrl} target="_blank" rel="noreferrer" className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs uppercase tracking-wider font-bold transition flex items-center gap-1.5 cursor-pointer self-start md:self-center">
