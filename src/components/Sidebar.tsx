@@ -38,7 +38,7 @@ export default function Sidebar({
     { id: 'automations', label: 'Automations', icon: Zap },
     { id: 'payments', label: 'Payments', icon: DollarSign },
     { id: 'funnels', label: 'Funnels', icon: Megaphone },
-    { id: 'sites', label: 'Sites', icon: Globe },
+    { id: 'sites', label: 'Websites', icon: Globe },
     { id: 'youtube-trimmer', label: 'Youtube Trimmer', icon: Scissors },
   ];
 

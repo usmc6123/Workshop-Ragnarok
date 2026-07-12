@@ -1076,6 +1076,14 @@ try {
       db.exec(`ALTER TABLE funnels ADD COLUMN media_opacity TEXT DEFAULT '{}'`);
       console.log('Successfully migrated funnels to include media_opacity column.');
     }
+    // Explicit override for the funnels-list card preview — same idea as
+    // Sites' thumbnail_url. Without this the card just falls back to
+    // whichever of image_url/video_url/hero_video_url happens to be set,
+    // which isn't always what looks best as a small thumbnail.
+    if (!funnelsCols.some(c => c.name === 'thumbnail_url')) {
+      db.exec(`ALTER TABLE funnels ADD COLUMN thumbnail_url TEXT`);
+      console.log('Successfully migrated funnels to include thumbnail_url column.');
+    }
   } catch (err) {
     console.error('Error migrating funnels layout/card_video_url columns:', err);
   }
@@ -1277,6 +1285,20 @@ try {
     }
   } catch (err) {
     console.error('Error migrating sites SEO columns:', err);
+  }
+
+  // Custom card thumbnail (Sites list page) — an explicit override for the
+  // live mini-render preview, uploaded the same way as every other image in
+  // the app (POST /api/uploads via MediaField). Null/empty just falls back
+  // to the existing live block-render thumbnail, so this is fully optional.
+  try {
+    const sitesCols3 = db.prepare('PRAGMA table_info(sites)').all();
+    if (!sitesCols3.some(c => c.name === 'thumbnail_url')) {
+      db.exec(`ALTER TABLE sites ADD COLUMN thumbnail_url TEXT`);
+      console.log('Successfully migrated sites to include thumbnail_url column.');
+    }
+  } catch (err) {
+    console.error('Error migrating sites thumbnail_url column:', err);
   }
 
   try {
@@ -4507,7 +4529,7 @@ app.get('/api/funnels', (req, res) => {
 
 app.post('/api/funnels', (req, res) => {
   try {
-    const { slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, hero_video_url, video_form_bg_image_url, media_opacity, service_type, cta_text, active, layout } = req.body;
+    const { slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, hero_video_url, video_form_bg_image_url, media_opacity, service_type, cta_text, active, layout, thumbnail_url } = req.body;
     if (!slug || !headline) return res.status(400).json({ error: 'slug and headline are required' });
 
     const cleanSlug = String(slug).trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
@@ -4522,13 +4544,13 @@ app.post('/api/funnels', (req, res) => {
     const cleanMediaOpacity = typeof media_opacity === 'string' ? media_opacity : JSON.stringify(media_opacity || {});
 
     const stmt = db.prepare(`
-      INSERT INTO funnels (slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, hero_video_url, video_form_bg_image_url, media_opacity, service_type, cta_text, active, layout, user_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO funnels (slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, hero_video_url, video_form_bg_image_url, media_opacity, service_type, cta_text, active, layout, thumbnail_url, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
       cleanSlug, headline, subheadline || null, body || null, image_url || null, video_url || null, card_video_url || null,
       headline_bg_image_url || null, headline_bg_video_url || null, headline_bg_video_url_2 || null, secondary_video_url || null, secondary_video_url_2 || null, hero_video_url || null, video_form_bg_image_url || null, cleanMediaOpacity,
-      service_type || null, cta_text || 'Get My Free Quote', active === false ? 0 : 1, cleanLayout, req.user.id
+      service_type || null, cta_text || 'Get My Free Quote', active === false ? 0 : 1, cleanLayout, thumbnail_url || null, req.user.id
     );
     const inserted = db.prepare('SELECT * FROM funnels WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
     res.json(inserted);
@@ -4541,7 +4563,7 @@ app.post('/api/funnels', (req, res) => {
 app.put('/api/funnels/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const { slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, hero_video_url, video_form_bg_image_url, media_opacity, service_type, cta_text, active, layout } = req.body;
+    const { slug, headline, subheadline, body, image_url, video_url, card_video_url, headline_bg_image_url, headline_bg_video_url, headline_bg_video_url_2, secondary_video_url, secondary_video_url_2, hero_video_url, video_form_bg_image_url, media_opacity, service_type, cta_text, active, layout, thumbnail_url } = req.body;
     if (!slug || !headline) return res.status(400).json({ error: 'slug and headline are required' });
 
     const cleanSlug = String(slug).trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
@@ -4557,13 +4579,13 @@ app.put('/api/funnels/:id', (req, res) => {
       UPDATE funnels
       SET slug = ?, headline = ?, subheadline = ?, body = ?, image_url = ?, video_url = ?, card_video_url = ?,
           headline_bg_image_url = ?, headline_bg_video_url = ?, headline_bg_video_url_2 = ?, secondary_video_url = ?, secondary_video_url_2 = ?, hero_video_url = ?, video_form_bg_image_url = ?, media_opacity = ?,
-          service_type = ?, cta_text = ?, active = ?, layout = ?, updated_at = CURRENT_TIMESTAMP
+          service_type = ?, cta_text = ?, active = ?, layout = ?, thumbnail_url = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
     `);
     const info = stmt.run(
       cleanSlug, headline, subheadline || null, body || null, image_url || null, video_url || null, card_video_url || null,
       headline_bg_image_url || null, headline_bg_video_url || null, headline_bg_video_url_2 || null, secondary_video_url || null, secondary_video_url_2 || null, hero_video_url || null, video_form_bg_image_url || null, cleanMediaOpacity,
-      service_type || null, cta_text || 'Get My Free Quote', active === false ? 0 : 1, cleanLayout, id, req.user.id
+      service_type || null, cta_text || 'Get My Free Quote', active === false ? 0 : 1, cleanLayout, thumbnail_url || null, id, req.user.id
     );
     if (info.changes === 0) return res.status(404).json({ error: 'Funnel not found' });
     const updated = db.prepare('SELECT * FROM funnels WHERE id = ? AND user_id = ?').get(id, req.user.id);
@@ -4635,7 +4657,7 @@ app.get('/api/sites', (req, res) => {
 
 app.post('/api/sites', (req, res) => {
   try {
-    const { name, subdomain, title, theme, active, theme_config, meta_description, favicon_url } = req.body;
+    const { name, subdomain, title, theme, active, theme_config, meta_description, favicon_url, thumbnail_url } = req.body;
     if (!name || !subdomain) return res.status(400).json({ error: 'name and subdomain are required' });
 
     const cleanSub = cleanSubdomain(subdomain);
@@ -4645,9 +4667,9 @@ app.post('/api/sites', (req, res) => {
     if (existing) return res.status(409).json({ error: `Subdomain "${cleanSub}" is already in use` });
 
     const info = db.prepare(`
-      INSERT INTO sites (name, subdomain, title, theme, active, theme_config, meta_description, favicon_url, user_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, JSON.stringify(theme_config || {}), meta_description || null, favicon_url || null, req.user.id);
+      INSERT INTO sites (name, subdomain, title, theme, active, theme_config, meta_description, favicon_url, thumbnail_url, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, JSON.stringify(theme_config || {}), meta_description || null, favicon_url || null, thumbnail_url || null, req.user.id);
 
     const inserted = db.prepare('SELECT * FROM sites WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
     res.json(inserted);
@@ -4660,7 +4682,7 @@ app.post('/api/sites', (req, res) => {
 app.put('/api/sites/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const { name, subdomain, title, theme, active, theme_config, meta_description, favicon_url } = req.body;
+    const { name, subdomain, title, theme, active, theme_config, meta_description, favicon_url, thumbnail_url } = req.body;
     if (!name || !subdomain) return res.status(400).json({ error: 'name and subdomain are required' });
 
     const cleanSub = cleanSubdomain(subdomain);
@@ -4670,9 +4692,9 @@ app.put('/api/sites/:id', (req, res) => {
     if (conflict) return res.status(409).json({ error: `Subdomain "${cleanSub}" is already in use` });
 
     const info = db.prepare(`
-      UPDATE sites SET name = ?, subdomain = ?, title = ?, theme = ?, active = ?, theme_config = ?, meta_description = ?, favicon_url = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE sites SET name = ?, subdomain = ?, title = ?, theme = ?, active = ?, theme_config = ?, meta_description = ?, favicon_url = ?, thumbnail_url = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
-    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, JSON.stringify(theme_config || {}), meta_description || null, favicon_url || null, id, req.user.id);
+    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, JSON.stringify(theme_config || {}), meta_description || null, favicon_url || null, thumbnail_url || null, id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Site not found' });
 
     const updated = db.prepare('SELECT * FROM sites WHERE id = ? AND user_id = ?').get(id, req.user.id);

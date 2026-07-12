@@ -251,6 +251,7 @@ export interface Funnel {
   cta_text: string;
   active: number; // 0 or 1
   layout: 'classic' | 'modern' | 'video';
+  thumbnail_url: string | null; // explicit override for the funnels-list card preview (falls back to image_url/video_url/hero_video_url if unset)
   created_at?: string;
   updated_at?: string;
   user_id?: number;
@@ -311,6 +312,7 @@ export interface Site {
   theme_config: string | null; // JSON string of ThemeConfig
   meta_description: string | null; // SEO <meta name="description">
   favicon_url: string | null;
+  thumbnail_url: string | null; // custom override for the Sites list card preview (falls back to a live block-render if unset)
   created_at?: string;
   updated_at?: string;
   user_id?: number;

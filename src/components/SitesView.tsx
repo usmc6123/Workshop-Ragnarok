@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import SiteBuilderView from './SiteBuilderView';
 import SiteThumbnail from './SiteThumbnail';
+import MediaField from './MediaField';
 import { SITE_FONT_OPTIONS, ensureGoogleFontsLoaded } from '../constants/siteFonts';
 
 const DEFAULT_ACCENT = '#f59e0b';
@@ -30,6 +31,7 @@ const EMPTY_FORM = {
   heading_font: '',
   meta_description: '',
   favicon_url: '',
+  thumbnail_url: '',
 };
 
 function parseThemeConfig(raw: string | null | undefined): ThemeConfig {
@@ -110,6 +112,7 @@ export default function SitesView() {
       heading_font: themeConfig.heading_font || '',
       meta_description: site.meta_description || '',
       favicon_url: site.favicon_url || '',
+      thumbnail_url: site.thumbnail_url || '',
     });
     setSubdomainTouched(true);
     setFormError(null);
@@ -133,13 +136,14 @@ export default function SitesView() {
     setSaving(true);
     setFormError(null);
     try {
-      const { accent_color, secondary_color, font_family, heading_font, meta_description, favicon_url, ...rest } = form;
+      const { accent_color, secondary_color, font_family, heading_font, meta_description, favicon_url, thumbnail_url, ...rest } = form;
       const payload = {
         ...rest,
         subdomain: cleanSub,
         theme_config: { accent_color, secondary_color: secondary_color || undefined, font_family, heading_font: heading_font || undefined } as ThemeConfig,
         meta_description: meta_description || null,
         favicon_url: favicon_url || null,
+        thumbnail_url: thumbnail_url || null,
       };
       if (editingId) {
         await api.updateSite(editingId, payload);
@@ -197,7 +201,7 @@ export default function SitesView() {
         <div>
           <h1 className="text-xl md:text-2xl font-black text-slate-100 uppercase tracking-wider flex items-center gap-2">
             <Globe className="w-5 h-5 text-primary-theme" />
-            Sites
+            Website Builder
           </h1>
           <p className="text-xs text-slate-400 mt-0.5 font-mono">
             Build full webpages out of stackable blocks — each one lives at its own subdomain on your domain.
@@ -270,13 +274,22 @@ export default function SitesView() {
                 </button>
               </div>
 
-              {/* Live thumbnail — real mini-render of the site's current content, not a stock icon */}
-              <SiteThumbnail
-                blocks={blocksBySite[site.id] || []}
-                theme={parseThemeConfig(site.theme_config)}
-                dark={site.theme !== 'light'}
-                accent={parseThemeConfig(site.theme_config).accent_color || DEFAULT_ACCENT}
-              />
+              {/* Card thumbnail — a custom uploaded image if the owner set one in
+                  Settings, otherwise a real mini-render of the site's current
+                  content (not a stock icon). Same size/rounding either way so
+                  the grid of cards stays visually consistent. */}
+              {site.thumbnail_url ? (
+                <div className={`relative w-full h-[170px] rounded-lg border overflow-hidden ${site.theme !== 'light' ? 'bg-[#0a0a0f] border-white/10' : 'bg-slate-50 border-black/10'}`}>
+                  <img src={site.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <SiteThumbnail
+                  blocks={blocksBySite[site.id] || []}
+                  theme={parseThemeConfig(site.theme_config)}
+                  dark={site.theme !== 'light'}
+                  accent={parseThemeConfig(site.theme_config).accent_color || DEFAULT_ACCENT}
+                />
+              )}
 
               {/* Live link row */}
               <div className="flex items-center gap-2 bg-[#0c0d12] border border-[#1e2028] rounded-lg px-3 py-2">
@@ -439,6 +452,19 @@ export default function SitesView() {
                     {form.theme === 'light' && <CheckCircle2 className="w-3.5 h-3.5 text-amber-300" />}
                   </button>
                 </div>
+              </div>
+
+              <div>
+                <MediaField
+                  label="Card Thumbnail"
+                  value={form.thumbnail_url}
+                  onChange={(v) => setForm(prev => ({ ...prev, thumbnail_url: v }))}
+                  accept="image"
+                  maxImageDimension={800}
+                  showPreview
+                  placeholder="https://... or upload a file"
+                  help="Shown on this site's card on the Sites list. Uploads are auto-scaled to 800px max. Leave blank to keep the live preview of the page's current blocks instead."
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">

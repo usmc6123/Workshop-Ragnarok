@@ -20,7 +20,7 @@ import {
   Save, X, Mailbox, ExternalLink,
   Palette, AlignLeft, AlignCenter, AlignRight, Paintbrush, Sparkles, LayoutGrid, LayoutTemplate,
   Undo2, Redo2, Monitor, Tablet, Smartphone, Copy, Settings2, EyeOff, Download, FileJson, RefreshCw,
-  ArrowUpToLine, ArrowDownToLine, ZoomIn, FileCode, Printer,
+  ArrowUpToLine, ArrowDownToLine, ZoomIn, FileCode, Printer, History, ChevronDown,
 } from 'lucide-react';
 
 const DEFAULT_ACCENT = '#f59e0b';
@@ -80,7 +80,7 @@ function IconPickerSelect({ value, onChange, label }: { value: string | undefine
   );
 }
 
-function PresetToggle<T extends string>({
+function PresetToggle<T extends string | number>({
   options, value, onChange,
 }: {
   options: { value: T; label: string; icon?: React.ElementType }[];
@@ -565,11 +565,26 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
 
   const [contextMenu, setContextMenu] = useState<{ block: SiteBlock; x: number; y: number; mediaKey: string | null } | null>(null);
 
+  // Right-click on Undo/Redo — a jump-list of past/future edits instead of
+  // clicking one-by-one.
+  const [historyMenu, setHistoryMenu] = useState<{ direction: 'undo' | 'redo'; x: number; y: number } | null>(null);
+
+  // One "Export" button with a format picker dropdown, instead of a separate
+  // toolbar button per format.
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+
   // "Zoom & Position" (right-click a block's image/video) — which block +
   // media-field key is currently in the interactive drag/scroll-to-zoom
   // mode on the canvas. null means normal editing.
   const [transformEditTarget, setTransformEditTarget] = useState<TransformEditTarget | null>(null);
   const transformSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // One undo step per drag/scroll burst, not per pixel/wheel-tick — same
+  // "pushed" flag pattern as the inspector/content debounced saves above.
+  // (Declared here even though `pushHistory` itself is defined further down
+  // in this component — fine, since this function only ever runs later, as
+  // an event callback, by which point `pushHistory` already exists in the
+  // closure for that render.)
+  const transformHistoryPushed = useRef<Set<string>>(new Set());
 
   // Same per-key debounce pattern as scheduleInspectorSave, and same
   // partial-update contract on the backend — only media_transform is ever
@@ -582,9 +597,14 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, media_transform: JSON.stringify(nextMap) } : b));
 
     const timerKey = `${blockId}:${mediaKey}`;
+    if (!transformHistoryPushed.current.has(timerKey)) {
+      pushHistory(`Repositioned image/video: ${blockMeta(block.block_type).label} block`);
+      transformHistoryPushed.current.add(timerKey);
+    }
     if (transformSaveTimers.current[timerKey]) clearTimeout(transformSaveTimers.current[timerKey]);
     transformSaveTimers.current[timerKey] = setTimeout(async () => {
       delete transformSaveTimers.current[timerKey];
+      transformHistoryPushed.current.delete(timerKey);
       try {
         const updated = await api.updateSiteBlock(site.id, blockId, { media_transform: nextMap });
         setBlocks(prev => prev.map(b => b.id === blockId ? updated : b));
@@ -607,14 +627,24 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
   const accent = themeForm.accent_color || DEFAULT_ACCENT;
 
   // Undo/redo — a real, server-persisted history, not just a visual rollback.
-  const [history, setHistory] = useState<SiteBlock[][]>([]);
-  const [future, setFuture] = useState<SiteBlock[][]>([]);
+  // Each entry is exactly ONE logical edit (one click, one drag gesture, one
+  // debounced burst of typing/dragging) with a human-readable label, so the
+  // history dropdown (right-click Undo/Redo) can show a real list to jump
+  // through instead of just a stack depth.
+  interface HistoryEntry { label: string; blocks: SiteBlock[]; }
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [future, setFuture] = useState<HistoryEntry[]>([]);
   const [historyBusy, setHistoryBusy] = useState(false);
   const blocksRef = useRef<SiteBlock[]>([]);
   blocksRef.current = blocks;
 
-  const pushHistory = () => {
-    setHistory(prev => [...prev, blocksRef.current.map(b => ({ ...b }))].slice(-30));
+  // Called BEFORE a mutation is applied to local state, so it snapshots the
+  // pre-edit state (blocksRef.current still reflects last render's committed
+  // state at the point any handler below calls this, even if called after a
+  // setBlocks() earlier in the same handler — React doesn't re-render, and
+  // therefore doesn't update the ref, until the handler finishes).
+  const pushHistory = (label: string) => {
+    setHistory(prev => [...prev, { label, blocks: blocksRef.current.map(b => ({ ...b })) }].slice(-30));
     setFuture([]);
   };
 
@@ -642,10 +672,11 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
       }
       for (const b of snapshot) {
         const cur = current.find(x => x.id === b.id);
-        if (cur && (cur.content !== b.content || cur.media_opacity !== b.media_opacity || cur.style !== b.style)) {
+        if (cur && (cur.content !== b.content || cur.media_opacity !== b.media_opacity || cur.style !== b.style || cur.media_transform !== b.media_transform)) {
           await api.updateSiteBlock(site.id, b.id, {
             content: parseJson(b.content, {}),
             media_opacity: parseJson(b.media_opacity, {}),
+            media_transform: parseJson(b.media_transform, {}),
             style: parseJson(b.style, {}),
           }).catch(() => {});
         }
@@ -656,21 +687,49 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     }
   };
 
-  const handleUndo = async () => {
-    if (history.length === 0 || historyBusy) return;
-    const previous = history[history.length - 1];
-    setHistory(prev => prev.slice(0, -1));
-    setFuture(prev => [...prev, blocksRef.current.map(b => ({ ...b }))]);
-    await restoreSnapshot(previous);
+  // Converts a "chain" of entries being passed over (oldest-of-chain first,
+  // nearest-to-current-boundary last — i.e. exactly what history.slice(index)
+  // or future.slice(index) produces) into the correctly re-labeled entries
+  // for the OTHER stack. Each entry's label describes an edit; the state that
+  // edit PRODUCES is the next entry's stored blocks (or `boundaryBlocks` —
+  // the actual current state — for the very last one in the chain). Walking
+  // the chain back-to-front pairs each label with the right resulting state
+  // and naturally comes out in the correct order for the destination stack.
+  const relabelChain = (chain: HistoryEntry[], boundaryBlocks: SiteBlock[]): HistoryEntry[] => {
+    const out: HistoryEntry[] = [];
+    for (let j = chain.length - 1; j >= 0; j--) {
+      const producedBlocks = j + 1 < chain.length ? chain[j + 1].blocks : boundaryBlocks;
+      out.push({ label: chain[j].label, blocks: producedBlocks });
+    }
+    return out;
   };
 
-  const handleRedo = async () => {
-    if (future.length === 0 || historyBusy) return;
-    const next = future[future.length - 1];
-    setFuture(prev => prev.slice(0, -1));
-    setHistory(prev => [...prev, blocksRef.current.map(b => ({ ...b }))]);
-    await restoreSnapshot(next);
+  // Jump directly to any point in the past/future timeline (used by both the
+  // plain Undo/Redo buttons — jumping exactly one step — and the right-click
+  // history dropdown, which can jump several steps at once). `index` is
+  // 0-based into `history`/`future` (both ordered oldest-first).
+  const jumpBackTo = async (index: number) => {
+    if (index < 0 || index >= history.length || historyBusy) return;
+    const target = history[index];
+    const currentBlocks = blocksRef.current.map(b => ({ ...b }));
+    const newFutureEntries = relabelChain(history.slice(index), currentBlocks);
+    setHistory(prev => prev.slice(0, index));
+    setFuture(prev => [...prev, ...newFutureEntries]);
+    await restoreSnapshot(target.blocks);
   };
+
+  const jumpForwardTo = async (index: number) => {
+    if (index < 0 || index >= future.length || historyBusy) return;
+    const target = future[index];
+    const currentBlocks = blocksRef.current.map(b => ({ ...b }));
+    const newHistoryEntries = relabelChain(future.slice(index), currentBlocks);
+    setFuture(prev => prev.slice(0, index));
+    setHistory(prev => [...prev, ...newHistoryEntries]);
+    await restoreSnapshot(target.blocks);
+  };
+
+  const handleUndo = () => jumpBackTo(history.length - 1);
+  const handleRedo = () => jumpForwardTo(future.length - 1);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -685,7 +744,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
   }, [tab, history, future, historyBusy]);
 
   useEffect(() => {
-    const closeMenu = () => setContextMenu(null);
+    const closeMenu = () => { setContextMenu(null); setHistoryMenu(null); setExportMenuOpen(false); };
     window.addEventListener('click', closeMenu);
     return () => window.removeEventListener('click', closeMenu);
   }, []);
@@ -738,7 +797,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
 
   const handleAddBlock = async (blockType: SiteBlockType) => {
     setShowPicker(false);
-    pushHistory();
+    pushHistory(`Added ${blockMeta(blockType).label} block`);
     try {
       const row = nextAvailableRow(currentPositions());
       const gridPos = defaultGridPosition(blockType, row);
@@ -759,7 +818,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
   const handleApplyTemplate = async (template: SiteTemplate) => {
     if (blocks.length > 0 && !confirm(`Add the "${template.name}" template's ${template.blocks.length} blocks to this page?`)) return;
     setApplyingTemplateId(template.id);
-    pushHistory();
+    pushHistory(`Applied "${template.name}" template`);
     try {
       const rowOffset = nextAvailableRow(currentPositions());
       for (const tplBlock of template.blocks) {
@@ -788,7 +847,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
   };
 
   const handleDuplicateBlock = async (block: SiteBlock) => {
-    pushHistory();
+    pushHistory(`Duplicated ${blockMeta(block.block_type).label} block`);
     try {
       const result = await api.duplicateSiteBlock(site.id, block.id);
       setBlocks(result.blocks.sort((a, b) => a.position - b.position));
@@ -800,7 +859,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
 
   const handleDeleteBlock = async (block: SiteBlock) => {
     if (!confirm('Delete this block?')) return;
-    pushHistory();
+    pushHistory(`Deleted ${blockMeta(block.block_type).label} block`);
     try {
       await api.deleteSiteBlock(site.id, block.id);
       setBlocks(prev => prev.filter(b => b.id !== block.id));
@@ -817,7 +876,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
   const handlePositionChange = async (blockId: number, position: GridPosition) => {
     const block = blocks.find(b => b.id === blockId);
     if (!block) return;
-    pushHistory();
+    pushHistory(`Moved ${blockMeta(block.block_type).label} block`);
     const nextStyle: BlockStyle = { ...parseJson<BlockStyle>(block.style, {}), ...position };
     setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, style: JSON.stringify(nextStyle) } : b));
     try {
@@ -835,6 +894,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
   const handleReorderBlock = async (blockId: number, action: 'front' | 'back' | 'forward' | 'backward') => {
     const idx = blocks.findIndex(b => b.id === blockId);
     if (idx === -1) return;
+    const blockLabel = blockMeta(blocks[idx].block_type).label;
     const next = [...blocks];
     if (action === 'front') {
       const [item] = next.splice(idx, 1);
@@ -849,10 +909,30 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     } else {
       return; // no-op (already at front/back)
     }
-    pushHistory();
+    const actionLabel = action === 'front' ? 'Brought to front' : action === 'back' ? 'Sent to back' : action === 'forward' ? 'Moved forward' : 'Moved backward';
+    pushHistory(`${actionLabel}: ${blockLabel} block`);
     setBlocks(next);
     try {
       const updated = await api.reorderSiteBlocks(site.id, next.map(b => b.id));
+      setBlocks(updated);
+    } catch (err) {
+      console.error(err);
+      loadBlocks();
+    }
+  };
+
+  // Layers panel drag-to-reorder — the panel does all the group-aware
+  // reordering math itself (dragging only ever reorders within the same
+  // lock group) and just hands back the full ordered id list, same
+  // single-call persistence pattern as handleReorderBlock above.
+  const handleDragReorderBlocks = async (orderedIds: number[]) => {
+    const byId = new Map(blocks.map(b => [b.id, b]));
+    const next = orderedIds.map(id => byId.get(id)).filter((b): b is SiteBlock => !!b);
+    if (next.length !== blocks.length) return;
+    pushHistory('Reordered layers');
+    setBlocks(next);
+    try {
+      const updated = await api.reorderSiteBlocks(site.id, orderedIds);
       setBlocks(updated);
     } catch (err) {
       console.error(err);
@@ -870,7 +950,8 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     if (!block) return;
     const currentStyle = parseJson<BlockStyle>(block.style, {});
     const turningOff = currentStyle.z_lock === lock;
-    pushHistory();
+    const lockLabel = turningOff ? 'Unlocked' : lock === 'front' ? 'Locked to front' : 'Locked to back';
+    pushHistory(`${lockLabel}: ${blockMeta(block.block_type).label} block`);
 
     let next = blocks;
     if (!turningOff) {
@@ -902,6 +983,9 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     const currentStyle = parseJson<BlockStyle>(block.style, {});
     const trimmed = name.trim();
     const nextStyle: BlockStyle = { ...currentStyle, custom_label: trimmed || undefined };
+    // Committed once on Enter/blur (not per-keystroke), so a single push here
+    // is already exactly one undo step per rename — no debouncing needed.
+    pushHistory(`Renamed ${blockMeta(block.block_type).label} block`);
     setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, style: JSON.stringify(nextStyle) } : b));
     if (inspectorBlock?.id === blockId) setDraftStyle(nextStyle);
     try {
@@ -920,9 +1004,10 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
   const contentHistoryPushed = useRef<Set<number>>(new Set());
 
   const handleCanvasContentChange = (blockId: number, content: any) => {
+    const block = blocks.find(b => b.id === blockId);
     setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, content: JSON.stringify(content) } : b));
     if (!contentHistoryPushed.current.has(blockId)) {
-      pushHistory();
+      pushHistory(block ? `Edited ${blockMeta(block.block_type).label} content` : 'Edited content');
       contentHistoryPushed.current.add(blockId);
     }
     if (contentSaveTimers.current[blockId]) clearTimeout(contentSaveTimers.current[blockId]);
@@ -965,10 +1050,22 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
   // pending save (this was the "my image goes away, I have to re-upload"
   // bug: uploading in block A, then clicking block B before A's 500ms save
   // fired, cancelled A's save entirely).
-  const scheduleInspectorSave = (blockId: number, patch: { content?: any; media_opacity?: any; style?: any }) => {
+  // One history entry per debounced save burst (same "don't record a step
+  // per keystroke" rule as the inline canvas editor above) — the entry is
+  // pushed on the FIRST change of a burst, using blocksRef's still-stale
+  // pre-burst state, and the "pushed" flag resets once the burst's save
+  // actually fires so the next burst records its own separate step.
+  const inspectorHistoryPushed = useRef<Set<number>>(new Set());
+
+  const scheduleInspectorSave = (blockId: number, patch: { content?: any; media_opacity?: any; style?: any }, historyLabel?: string) => {
+    if (historyLabel && !inspectorHistoryPushed.current.has(blockId)) {
+      pushHistory(historyLabel);
+      inspectorHistoryPushed.current.add(blockId);
+    }
     if (inspectorSaveTimers.current[blockId]) clearTimeout(inspectorSaveTimers.current[blockId]);
     inspectorSaveTimers.current[blockId] = setTimeout(async () => {
       delete inspectorSaveTimers.current[blockId];
+      inspectorHistoryPushed.current.delete(blockId);
       try {
         const updated = await api.updateSiteBlock(site.id, blockId, patch);
         setBlocks(prev => prev.map(b => b.id === blockId ? updated : b));
@@ -982,7 +1079,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     if (!inspectorBlock) return;
     setDraftContent(next);
     setBlocks(prev => prev.map(b => b.id === inspectorBlock.id ? { ...b, content: JSON.stringify(next) } : b));
-    scheduleInspectorSave(inspectorBlock.id, { content: next, media_opacity: draftOpacity, style: draftStyle });
+    scheduleInspectorSave(inspectorBlock.id, { content: next, media_opacity: draftOpacity, style: draftStyle }, `Edited ${blockMeta(inspectorBlock.block_type).label} content`);
   };
 
   const handleDraftOpacityChange = (key: string, value: number) => {
@@ -990,14 +1087,14 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     const next = { ...draftOpacity, [key]: value };
     setDraftOpacity(next);
     setBlocks(prev => prev.map(b => b.id === inspectorBlock.id ? { ...b, media_opacity: JSON.stringify(next) } : b));
-    scheduleInspectorSave(inspectorBlock.id, { content: draftContent, media_opacity: next, style: draftStyle });
+    scheduleInspectorSave(inspectorBlock.id, { content: draftContent, media_opacity: next, style: draftStyle }, `Changed opacity: ${blockMeta(inspectorBlock.block_type).label} block`);
   };
 
   const handleDraftStyleChange = (next: BlockStyle) => {
     if (!inspectorBlock) return;
     setDraftStyle(next);
     setBlocks(prev => prev.map(b => b.id === inspectorBlock.id ? { ...b, style: JSON.stringify(next) } : b));
-    scheduleInspectorSave(inspectorBlock.id, { content: draftContent, media_opacity: draftOpacity, style: next });
+    scheduleInspectorSave(inspectorBlock.id, { content: draftContent, media_opacity: draftOpacity, style: next }, `Changed style: ${blockMeta(inspectorBlock.block_type).label} block`);
   };
 
   const handleSaveTheme = async () => {
@@ -1059,7 +1156,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
         return;
       }
       if (!confirm(`Import ${importedBlocks.length} block(s) from "${payload.site_name || file.name}"? They'll be added after your existing content.`)) return;
-      pushHistory();
+      pushHistory(`Imported ${importedBlocks.length} block(s)`);
       const rowOffset = nextAvailableRow(currentPositions());
       for (const b of importedBlocks) {
         const pos = positionFromStyle(b.style || {}, 0);
@@ -1258,8 +1355,9 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
             </button>
             <button
               onClick={handleUndo}
+              onContextMenu={(e) => { e.preventDefault(); if (history.length > 0) setHistoryMenu({ direction: 'undo', x: e.clientX, y: e.clientY }); }}
               disabled={history.length === 0 || historyBusy}
-              title="Undo (Ctrl+Z)"
+              title="Undo (Ctrl+Z) — right-click for history"
               className="px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
             >
               {historyBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Undo2 className="w-3.5 h-3.5" />}
@@ -1267,30 +1365,69 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
             </button>
             <button
               onClick={handleRedo}
+              onContextMenu={(e) => { e.preventDefault(); if (future.length > 0) setHistoryMenu({ direction: 'redo', x: e.clientX, y: e.clientY }); }}
               disabled={future.length === 0 || historyBusy}
-              title="Redo (Ctrl+Y)"
+              title="Redo (Ctrl+Y) — right-click for history"
               className="px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <Redo2 className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Redo</span>
-            </button>
-            <button onClick={handleExportSite} disabled={blocks.length === 0} title="Export this page's blocks as a JSON file" className="px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed">
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Export</span>
             </button>
             <input ref={importFileRef} type="file" accept="application/json" className="hidden" onChange={(e) => handleImportFile(e.target.files?.[0])} />
             <button onClick={() => importFileRef.current?.click()} title="Import blocks from a JSON export" className="px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700">
               <FileJson className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Import</span>
             </button>
-            <button onClick={handleExportHTML} disabled={blocks.length === 0 || exportingHTML} title="Download a standalone HTML snapshot of the live site (needs this server reachable for images/video)" className="px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed">
-              {exportingHTML ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCode className="w-3.5 h-3.5" />}
-              <span className="hidden sm:inline">Export HTML</span>
-            </button>
-            <button onClick={handleExportPDF} disabled={blocks.length === 0} title="Open the live site and print / save it as a PDF" className="px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed">
-              <Printer className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Export PDF</span>
-            </button>
+            <div className="relative">
+              <button
+                onClick={(e) => { e.stopPropagation(); setExportMenuOpen(v => !v); }}
+                disabled={blocks.length === 0}
+                title="Export this page"
+                className={`px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 disabled:opacity-30 disabled:cursor-not-allowed ${exportMenuOpen ? 'bg-primary-theme text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+              >
+                {exportingHTML ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                <span className="hidden sm:inline">Export</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${exportMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {exportMenuOpen && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute right-0 top-full mt-1.5 z-50 w-60 rounded-xl border border-white/10 bg-[#1a1c24]/98 backdrop-blur-xl shadow-2xl overflow-hidden py-1"
+                >
+                  <button
+                    onClick={() => { handleExportSite(); setExportMenuOpen(false); }}
+                    className="w-full flex items-start gap-2.5 px-3 py-2.5 text-left hover:bg-white/10 cursor-pointer"
+                  >
+                    <FileJson className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                    <span>
+                      <span className="block text-xs font-bold text-slate-200">Export as JSON</span>
+                      <span className="block text-[10px] text-slate-500">Portable blocks file — re-import here or into another site</span>
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => { handleExportHTML(); setExportMenuOpen(false); }}
+                    disabled={exportingHTML}
+                    className="w-full flex items-start gap-2.5 px-3 py-2.5 text-left hover:bg-white/10 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <FileCode className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                    <span>
+                      <span className="block text-xs font-bold text-slate-200">Export as HTML</span>
+                      <span className="block text-[10px] text-slate-500">Standalone snapshot — needs this server reachable for images/video</span>
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => { handleExportPDF(); setExportMenuOpen(false); }}
+                    className="w-full flex items-start gap-2.5 px-3 py-2.5 text-left hover:bg-white/10 cursor-pointer"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                    <span>
+                      <span className="block text-xs font-bold text-slate-200">Export as PDF</span>
+                      <span className="block text-[10px] text-slate-500">Opens the live site and triggers Print / Save as PDF</span>
+                    </span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -1304,6 +1441,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
               onSelect={(block) => openInspector(block, inspectorTab)}
               onToggleLock={handleToggleLock}
               onRename={handleRenameBlock}
+              onReorder={handleDragReorderBlocks}
             />
           )}
 
@@ -1556,6 +1694,40 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
           </button>
         </div>
       )}
+
+      {historyMenu && (() => {
+        // Nearest edit first (most useful at the top): history[] is
+        // oldest-first so we walk it backward; future[] is already
+        // farthest-first, i.e. reverse-of-nearest, so it's walked forward.
+        const entries = historyMenu.direction === 'undo'
+          ? history.map((h, i) => ({ ...h, index: i })).reverse()
+          : future.map((f, i) => ({ ...f, index: i })).reverse();
+        return (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="fixed z-50 w-64 max-h-80 overflow-y-auto rounded-xl border border-white/10 bg-[#1a1c24]/98 backdrop-blur-xl shadow-2xl py-1"
+            style={{ top: historyMenu.y, left: historyMenu.x }}
+          >
+            <div className="flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-500 border-b border-white/10 mb-1">
+              <History className="w-3 h-3" />
+              {historyMenu.direction === 'undo' ? 'Jump back to…' : 'Jump forward to…'}
+            </div>
+            {entries.map((entry, displayIdx) => (
+              <button
+                key={`${entry.index}-${entry.label}`}
+                onClick={() => {
+                  if (historyMenu.direction === 'undo') jumpBackTo(entry.index); else jumpForwardTo(entry.index);
+                  setHistoryMenu(null);
+                }}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 cursor-pointer text-left"
+              >
+                <span className="truncate">{entry.label}</span>
+                <span className="shrink-0 text-[9px] font-mono text-slate-500">{displayIdx === 0 ? '1 step' : `${displayIdx + 1} steps`}</span>
+              </button>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }

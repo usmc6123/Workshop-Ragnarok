@@ -39,6 +39,7 @@ const EMPTY_FORM = {
   media_opacity: {} as Record<string, number>,
   active: true,
   layout: 'classic' as 'classic' | 'modern' | 'video',
+  thumbnail_url: '',
 };
 
 function slugify(value: string): string {
@@ -123,6 +124,7 @@ export default function FunnelsView() {
       })(),
       active: !!funnel.active,
       layout: funnel.layout || 'classic',
+      thumbnail_url: funnel.thumbnail_url || '',
     });
     setSlugTouched(true);
     setFormError(null);
@@ -178,7 +180,7 @@ export default function FunnelsView() {
 
   const handleToggleActive = async (funnel: Funnel) => {
     try {
-      await api.updateFunnel(funnel.id, { ...funnel, active: !funnel.active });
+      await api.updateFunnel(funnel.id, { ...funnel, active: funnel.active ? 0 : 1 });
       await loadFunnels();
     } catch (err: any) {
       console.error(err);
@@ -323,9 +325,13 @@ export default function FunnelsView() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {funnels.map(funnel => (
             <div key={funnel.id} className="bg-[#13141a]/80 backdrop-blur-sm border border-border-theme rounded-xl p-5 shadow-xl flex flex-col gap-4">
-              {/* Thumbnail preview */}
+              {/* Thumbnail preview — a custom uploaded image if the owner set one
+                  in the form, otherwise falls back to whichever hero
+                  image/video the funnel already has set. */}
               <div className="w-full aspect-video rounded-lg overflow-hidden border border-border-theme bg-[#0c0d12] flex items-center justify-center">
-                {funnel.image_url ? (
+                {funnel.thumbnail_url ? (
+                  <img src={funnel.thumbnail_url} alt={funnel.headline} className="w-full h-full object-cover" />
+                ) : funnel.image_url ? (
                   <img src={funnel.image_url} alt={funnel.headline} className="w-full h-full object-cover" />
                 ) : funnel.video_url ? (
                   <video src={funnel.video_url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
@@ -553,6 +559,20 @@ export default function FunnelsView() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* --- Card Thumbnail --- */}
+              <div className="space-y-3">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-border-theme pb-2">Card Thumbnail</h3>
+                <MediaField
+                  value={form.thumbnail_url}
+                  onChange={(v) => setForm(prev => ({ ...prev, thumbnail_url: v }))}
+                  accept="image"
+                  maxImageDimension={800}
+                  showPreview
+                  placeholder="https://... or upload a file"
+                  help="Shown on this funnel's card on the Funnels list. Uploads are auto-scaled to 800px max. Leave blank to fall back to the hero image/video below."
+                />
               </div>
 
               {/* --- Page Layout (moved up so the media section below makes contextual sense) --- */}

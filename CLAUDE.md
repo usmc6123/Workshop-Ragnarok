@@ -362,6 +362,142 @@ cost of reflecting the last-saved state rather than any unsaved keystroke
   block — without it, a dark-themed site would print as a solid black,
   unreadable, ink-wasting page.
 
+**Undo/redo overhaul + Layers panel drag-reordering (added 2026-07-12).**
+Reported as two issues: "make sure undo/redo only go back one edit at a time"
+and "I want a history I can jump back through instead of clicking one-by-one,
+plus a better way to organize many overlapping layers."
+
+*Root cause of the granularity bug*: several real edit paths never called
+`pushHistory()` at all — the right-side Inspector's content/opacity/style
+fields (`handleDraftContentChange`/`handleDraftOpacityChange`/
+`handleDraftStyleChange`), the Layers panel rename action, and the "Zoom &
+Position" drag/scroll transform. Since only some edits were recorded, a
+single Undo click could silently skip over — or permanently strand — edits
+made through those paths, which is what made undo feel like it was jumping
+more than one step. Fixed by pushing exactly one history entry per logical
+edit everywhere: a plain single `pushHistory(label)` call for one-shot
+actions (add/duplicate/delete/reorder/lock/rename), and the same
+debounce-once-per-burst pattern already used for inline canvas text editing
+(`contentHistoryPushed`) extended to the Inspector fields
+(`inspectorHistoryPushed`, keyed per block) and the zoom/pan transform
+(`transformHistoryPushed`, keyed per `blockId:mediaKey`) — the history push
+fires on the FIRST change of a burst and the "pushed" flag only resets once
+that burst's debounced save actually completes, so a flurry of keystrokes,
+opacity-slider drags, or scroll-to-zoom ticks all collapse into one undo
+step. `restoreSnapshot()` was also fixed to diff/restore `media_transform`
+too — it was being silently ignored before, so undoing a zoom/pan change
+wouldn't actually revert it even once it started being tracked.
+
+*History dropdown*: `history`/`future` (in `SiteBuilderView.tsx`) changed
+from plain `SiteBlock[][]` snapshots to `{ label, blocks }[]` — every
+`pushHistory()` call site now passes a human-readable label (e.g. "Moved
+Video block", "Locked to front: Image Gallery block"). Right-clicking Undo
+or Redo opens a dropdown (`historyMenu` state) listing entries nearest-first,
+and clicking one jumps straight there via `jumpBackTo(index)` /
+`jumpForwardTo(index)` — generalized versions of plain Undo/Redo (which are
+now just `jumpBackTo(history.length-1)` / `jumpForwardTo(future.length-1)`).
+The tricky part was re-labeling entries correctly when skipping multiple
+steps at once: each stored label describes the edit that *produced* the
+entry's paired blocks in the array it's moving TO, not the array it came
+from — `relabelChain()` walks the skipped entries back-to-front to re-pair
+each label with the right resulting state before handing them to the other
+stack. Worked out on paper against concrete 3-4-state traces before writing
+the code, specifically to avoid an off-by-one in which label ends up next to
+which snapshot.
+
+*Layers panel reorganization*: with several overlapping blocks, the
+front/back lock buttons alone weren't precise enough — no way to set
+relative order among multiple blocks that are all locked front (or all
+normal, or all locked back). `SiteLayersPanel.tsx` gained real drag-and-drop
+reordering (grip handle icon, HTML5 drag events, dashed drop-target
+outline), restricted to reordering WITHIN the same lock group only (dragging
+a normal-group row onto a locked-front row is a no-op — use the lock buttons
+to move between groups, dragging to set order within one). Section headers
+("Locked to Front" / "Unlocked" / "Locked to Back") now appear automatically
+once 2+ of the three groups are non-empty, so the list stays readable as
+layer count grows instead of turning into one undifferentiated stack — a
+single-group page looks exactly as simple as before. The drop handler
+(`handleDrop` in `SiteLayersPanel.tsx`) works entirely in display-order
+(front-first) space then converts back to the array's actual storage order
+(back-to-front, per-group) before calling the new `onReorder` prop, wired to
+`handleDragReorderBlocks` in `SiteBuilderView.tsx` — same single-call
+persist-then-reconcile pattern as every other block mutation, and correctly
+pushes one `'Reordered layers'` undo step per drop.
+
+**Custom Sites card thumbnail (added 2026-07-12).** The Sites list previously
+always showed a live mini-render of the page's current blocks
+(`SiteThumbnail.tsx`) as each card's preview, with no way to override it.
+Added a `thumbnail_url TEXT` column on `sites` (migration in `server.js`,
+same pattern as `favicon_url`), plumbed through `POST`/`PUT /api/sites` and
+the `Site` type. `SitesView.tsx`'s Settings modal gained a "Card Thumbnail"
+`MediaField` (same upload/paste-URL/reformat component used everywhere else
+in the app — shop logo, block images, etc.), placed right under the
+Dark/Light theme toggle. The card grid now shows `site.thumbnail_url` as a
+plain `object-cover` image when set, matching `SiteThumbnail`'s exact
+size/rounding/border so the two don't look inconsistent side by side;
+leaving it blank keeps the existing live block-render behavior — this is a
+pure additive override, not a replacement of the old thumbnail system.
+Public-facing site data (`PublicSite` type, the public `by-subdomain` route)
+deliberately does NOT expose `thumbnail_url` — it's Sites-list-only, visitors
+never see it.
+
+**Funnels custom card thumbnail (added 2026-07-12, same pattern as Sites'
+thumbnail_url above).** `funnels` gained a `thumbnail_url TEXT` column
+(migration in `server.js`, right after `media_opacity`), plumbed through
+`POST`/`PUT /api/funnels` and the `Funnel` type. `FunnelsView.tsx`'s
+Create/Edit modal gained a "Card Thumbnail" `MediaField` section (same
+upload component, `maxImageDimension={800}`, right after Basic Info, before
+Page Layout). The funnels list card's thumbnail preview now checks
+`thumbnail_url` FIRST, before falling back to the existing chain
+(`image_url` → `video_url` → `hero_video_url` → "No preview media"
+placeholder) — so funnels that never set an explicit thumbnail keep
+behaving exactly as before.
+
+**Sites builder toolbar: consolidated export buttons (added 2026-07-12).**
+The three separate "Export" / "Export HTML" / "Export PDF" buttons in
+`SiteBuilderView.tsx` were replaced with a single "Export" button that opens
+a dropdown (`exportMenuOpen` state) listing all three formats with a short
+description each, styled like the existing context-menu/history-dropdown
+pattern (`bg-[#1a1c24]/98 backdrop-blur-xl`). "Import" stays a separate
+toolbar button since it's not an export format. Closing behavior reuses the
+same outside-click effect that already closes the block context menu and
+the undo/redo history dropdown.
+
+**"Sites" relabeled to "Website Builder" / "Websites" (2026-07-12).** Purely
+cosmetic — the internal `view` routing id (`'sites'`), URL paths
+(`/site/:subdomain`), API routes (`/api/sites`), and DB table names are all
+UNCHANGED (renaming those would have been a much bigger, riskier change for
+zero user-facing benefit). Only visible label text changed: `Sidebar.tsx`'s
+nav item label ("Sites" → "Websites"), `SitesView.tsx`'s own page `<h1>`
+("Sites" → "Website Builder"), and in `App.tsx`'s top header bar both
+`getViewTitle()` (gained an explicit `case 'sites'`, previously fell through
+to the generic "Workshop Management" default) and the breadcrumb line below
+it (special-cased `view === 'sites'` to show "website builder" instead of
+the raw `sites` view id, same pattern already used for `manual-library` →
+"manuals").
+
+**Three pre-existing TypeScript errors fixed (2026-07-12), found via `npm run
+lint` after a deploy-readiness check — none were introduced by same-day work,
+confirmed by checking each against exactly what had been touched:**
+1. `FunnelsView.tsx`'s `handleToggleActive` sent a boolean where `Partial<Funnel>.active`
+   expects `0 | 1`. Worked fine at runtime (backend does `active === false ? 0 : 1`,
+   so a real boolean already coerced correctly) but was a genuine type-checker complaint.
+   Fixed: `active: funnel.active ? 0 : 1`, matching the pattern `SitesView.tsx` already used.
+2. `SiteBuilderView.tsx`'s `PresetToggle<T extends string>` rejected
+   `BORDER_WIDTH_OPTIONS` (numeric `0|1|2|4` values) — the only one of its 19
+   call sites using non-string values. `PresetToggle`'s internals only ever
+   do `===` comparisons and pass the raw value through, no string-specific
+   logic — so widening the constraint to `T extends string | number` fixed
+   it with zero effect on the other 18 (string-based) call sites.
+3. `TextsView.tsx`'s `TRIGGER_META` map was missing entries for 4 of the 9
+   `SmsTriggerType` values (`stale_lead_followup`, `unpaid_reminder`,
+   `winback`, `review_request`) — these automations (in `backend/server.js`:
+   stale funnel-lead nudge, unpaid-invoice reminder, service-due win-back,
+   post-completion review request) have been firing real SMS with these
+   trigger types for a while; the UI's icon/label/color lookup just never
+   had matching entries. Added all 4, purely additive (existing entries
+   untouched).
+
 ## The two repos
 
 1. **usmc6123/Workshop-Ragnarok** (this repo) — the actual app, frontend + backend.

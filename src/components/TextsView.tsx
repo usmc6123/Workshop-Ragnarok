@@ -4,7 +4,8 @@ import { api } from '../lib/api';
 import { SmsMessage, SmsTriggerType, SmsStatus, Customer } from '../types';
 import {
   MessageSquare, Send, Search, Plus, ChevronLeft, Clock, Wrench,
-  Megaphone, User, X, Loader2, CheckCircle2, AlertTriangle, Zap
+  Megaphone, User, X, Loader2, CheckCircle2, AlertTriangle, Zap,
+  RefreshCw, DollarSign, RotateCcw, Star
 } from 'lucide-react';
 
 const TRIGGER_META: Record<SmsTriggerType, { label: string; icon: any; color: string }> = {
@@ -13,6 +14,14 @@ const TRIGGER_META: Record<SmsTriggerType, { label: string; icon: any; color: st
   job_complete: { label: 'Job Complete', icon: Wrench, color: 'text-green-400' },
   funnel_confirmation: { label: 'Funnel Lead', icon: Megaphone, color: 'text-purple-400' },
   funnel_admin_alert: { label: 'Funnel Alert', icon: Megaphone, color: 'text-amber-400' },
+  // Added 2026-07-12 — these 4 automation sweeps (backend/server.js: stale
+  // funnel-lead nudge, unpaid-invoice reminder, service-due win-back, and
+  // post-completion review request) already fire real SMS with these
+  // trigger_type values; TRIGGER_META just didn't have entries for them yet.
+  stale_lead_followup: { label: 'Lead Follow-up', icon: RefreshCw, color: 'text-purple-400' },
+  unpaid_reminder: { label: 'Unpaid Reminder', icon: DollarSign, color: 'text-rose-400' },
+  winback: { label: 'Win-back', icon: RotateCcw, color: 'text-cyan-400' },
+  review_request: { label: 'Review Request', icon: Star, color: 'text-yellow-400' },
 };
 
 const STATUS_META: Record<SmsStatus, { label: string; icon: any; color: string }> = {

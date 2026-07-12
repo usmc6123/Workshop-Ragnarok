@@ -209,6 +209,7 @@ export default function App() {
       case 'admin': return 'Manage Users';
       case 'automations': return 'Automations';
       case 'payments': return 'Payments';
+      case 'sites': return 'Website Builder';
       case 'login': return 'Terminal Auth';
       case 'reformat-tool': return 'Quick Upload / Reformat';
       default: return 'Workshop Management';
@@ -323,7 +324,7 @@ export default function App() {
                   {getViewTitle()}
                 </h2>
                 <p className="hidden sm:block text-[9px] text-slate-500 font-mono tracking-widest mt-0.5 uppercase">
-                  Workshop RAGNARÖK / {view === 'manual-library' ? 'manuals' : view}
+                  Workshop RAGNARÖK / {view === 'manual-library' ? 'manuals' : view === 'sites' ? 'website builder' : view}
                 </p>
               </div>
             </div>
