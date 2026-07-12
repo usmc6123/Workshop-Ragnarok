@@ -256,48 +256,48 @@ export default function FunnelsView() {
             Public landing pages that turn social/QR traffic into Customers + Jobs automatically.
           </p>
         </div>
-        <div className="flex items-center gap-2 self-start md:self-center">
+        <div className="flex items-center gap-1.5 self-start md:self-center flex-nowrap overflow-x-auto">
           <a
             href="https://gemini.google.com/"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs uppercase tracking-wider font-bold transition flex items-center gap-1.5 cursor-pointer"
+            className="shrink-0 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] uppercase tracking-wider font-bold transition flex items-center gap-1 cursor-pointer whitespace-nowrap"
             title="Opens Gemini in a new tab for image generation"
           >
-            <ImageIcon className="w-3.5 h-3.5 text-primary-theme" />
+            <ImageIcon className="w-3 h-3 text-primary-theme shrink-0" />
             <span>Generate Image</span>
           </a>
           <a
             href="https://labs.google/fx/tools/flow"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs uppercase tracking-wider font-bold transition flex items-center gap-1.5 cursor-pointer"
+            className="shrink-0 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] uppercase tracking-wider font-bold transition flex items-center gap-1 cursor-pointer whitespace-nowrap"
             title="Opens Google Flow (Veo video generation) in a new tab — uses your Google AI Pro Flow credits"
           >
-            <Sparkles className="w-3.5 h-3.5 text-primary-theme" />
+            <Sparkles className="w-3 h-3 text-primary-theme shrink-0" />
             <span>Generate Video</span>
           </a>
           <button
             onClick={() => setShowMediaLibrary(true)}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs uppercase tracking-wider font-bold transition flex items-center gap-1.5 cursor-pointer"
+            className="shrink-0 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] uppercase tracking-wider font-bold transition flex items-center gap-1 cursor-pointer whitespace-nowrap"
             title="Browse everything you've uploaded or reformatted"
           >
-            <FolderOpen className="w-3.5 h-3.5 text-primary-theme" />
+            <FolderOpen className="w-3 h-3 text-primary-theme shrink-0" />
             <span>Formatted Media</span>
           </button>
           <button
             onClick={loadFunnels}
             disabled={loading}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs uppercase tracking-wider font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            className="shrink-0 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] uppercase tracking-wider font-bold transition flex items-center gap-1 cursor-pointer whitespace-nowrap disabled:opacity-50"
           >
-            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            {loading ? <Loader2 className="w-3 h-3 animate-spin shrink-0" /> : <RefreshCw className="w-3 h-3 shrink-0" />}
             <span>Refresh</span>
           </button>
           <button
             onClick={openCreateForm}
-            className="px-4 py-2 bg-primary-theme hover:opacity-90 text-slate-950 rounded-lg text-xs uppercase tracking-wider font-black transition flex items-center gap-1.5 cursor-pointer"
+            className="shrink-0 px-2.5 py-1.5 bg-primary-theme hover:opacity-90 text-slate-950 rounded-lg text-[10px] uppercase tracking-wider font-black transition flex items-center gap-1 cursor-pointer whitespace-nowrap"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3 h-3 shrink-0" />
             <span>New Funnel</span>
           </button>
         </div>
