@@ -77,12 +77,37 @@ function TransformOverlay({
     return () => observer.disconnect();
   }, [measure, containerEl]);
 
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const nextZoom = clampZoom(transform.zoom - e.deltaY * 0.0015);
-    onChange({ zoom: nextZoom, x: clampPan(transform.x, nextZoom), y: clampPan(transform.y, nextZoom) });
-  };
+  // React's synthetic onWheel is attached passively at the root, so calling
+  // preventDefault() from it does NOT reliably stop the page underneath from
+  // scrolling too (a known React/browser gotcha, not a bug in the handler
+  // itself) — the fix is a real native listener with { passive: false },
+  // which is the only way the browser honors preventDefault() on wheel.
+  const transformRef = useRef(transform);
+  transformRef.current = transform;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  useEffect(() => {
+    const el = overlayRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const t = transformRef.current;
+      const nextZoom = clampZoom(t.zoom - e.deltaY * 0.0015);
+      onChangeRef.current({ zoom: nextZoom, x: clampPan(t.x, nextZoom), y: clampPan(t.y, nextZoom) });
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, [rect]);
+
+  // Escape or right-click both exit the mode — right-click intentionally
+  // does NOT open the normal block context menu while this is active, since
+  // that would be a confusing double-mode; treat it purely as an exit.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onDone(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onDone]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -121,9 +146,8 @@ function TransformOverlay({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onWheel={handleWheel}
       onClick={(e) => e.stopPropagation()}
-      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onDone(); }}
       className="absolute z-40 cursor-grab active:cursor-grabbing ring-2 ring-amber-400 rounded-lg bg-black/10"
       style={{ left: `${rect.left}%`, top: `${rect.top}%`, width: `${rect.width}%`, height: `${rect.height}%` }}
     >
@@ -145,7 +169,7 @@ function TransformOverlay({
           <Check className="w-3 h-3" />
         </button>
       </div>
-      <p className="absolute -bottom-6 left-0 text-[9px] text-slate-500 font-mono whitespace-nowrap">Scroll to zoom, drag to reposition</p>
+      <p className="absolute -bottom-6 left-0 text-[9px] text-slate-500 font-mono whitespace-nowrap">Scroll to zoom, drag to reposition — right-click or Esc to exit</p>
     </div>
   );
 }
