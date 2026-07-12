@@ -152,6 +152,11 @@ export default function SitePageView({ subdomain }: SitePageViewProps) {
             // the JS device hook) so it works even with SSR/no-JS and stays
             // perfectly in sync with the same 640px breakpoint used above.
             const visibilityClass = style.hide_on === 'mobile' ? 'hidden sm:block' : style.hide_on === 'desktop' ? 'sm:hidden' : '';
+            // Locked blocks (see the Layers panel in the builder) always
+            // paint in front of / behind everything else, matching the
+            // editor's canvas — without this, stacking here just falls back
+            // to plain DOM order, which only coincidentally matches intent.
+            const zIndex = style.z_lock === 'front' ? 30 : style.z_lock === 'back' ? 0 : undefined;
             return (
               <div
                 key={block.id}
@@ -159,7 +164,20 @@ export default function SitePageView({ subdomain }: SitePageViewProps) {
                 style={{
                   gridColumn: `${pos.grid_col + 1} / span ${pos.grid_col_span}`,
                   gridRow: `${pos.grid_row + 1} / span ${pos.grid_row_span}`,
+                  // A definite height, not just a CSS Grid `auto` row-track,
+                  // is required here — `h-full`/`height:100%` on a video or
+                  // image inside a grid item whose row is auto-sized cannot
+                  // reliably resolve (classic CSS Grid circular-sizing
+                  // gotcha), so without this the video/image falls back to
+                  // its own native intrinsic size instead of filling its
+                  // block, which can balloon the whole page's height. This
+                  // matches the editor canvas's math exactly (same
+                  // ROW_UNIT_PX), so what you see while editing is what
+                  // actually ships.
+                  height: pos.grid_row_span * ROW_UNIT_PX,
                   order: pos.grid_row * 1000 + pos.grid_col,
+                  position: zIndex !== undefined ? 'relative' : undefined,
+                  zIndex,
                 }}
               >
                 <SiteBlockView
