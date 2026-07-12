@@ -980,7 +980,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
             <Palette className="w-3.5 h-3.5" /> Site Theme
           </button>
           <button onClick={() => setTab('messages')} className={`px-4 py-2 rounded-lg text-xs uppercase tracking-wider font-bold transition cursor-pointer flex items-center gap-1.5 ${tab === 'messages' ? 'bg-primary-theme text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
-            <Mailbox className="w-3.5 h-3.5" /> Messages{messages.length > 0 ? ` (${messages.length})` : ''}
+            <Mailbox className="w-3.5 h-3.5" /> Contact Form Submissions{messages.length > 0 ? ` (${messages.length})` : ''}
           </button>
         </div>
         {tab === 'blocks' && (
@@ -1234,11 +1234,11 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
           {messagesLoading ? (
             <div className="py-16 text-center text-slate-400 font-mono text-xs flex flex-col items-center gap-3">
               <Loader2 className="w-8 h-8 text-primary-theme animate-spin" />
-              <span>Loading messages...</span>
+              <span>Loading submissions...</span>
             </div>
           ) : messages.length === 0 ? (
             <div className="py-12 text-center border border-dashed border-[#1e2028] rounded-xl bg-[#13141a]/10 font-mono text-xs text-slate-500">
-              No messages yet. When a visitor submits your Contact Form block, it shows up here.
+              No submissions yet. When a visitor fills out your Contact Form block, it shows up here.
             </div>
           ) : (
             messages.map(msg => (
