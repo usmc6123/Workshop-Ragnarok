@@ -1220,7 +1220,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
 
           {/* Docked Inspector panel — Windows-11-style rounded acrylic card, replaces the old popup modal */}
           {inspectorBlock && (
-            <div className="w-80 shrink-0 sticky top-4 rounded-2xl border border-white/10 bg-[#111218]/95 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100vh-140px)]">
+            <div className="w-[420px] shrink-0 sticky top-4 rounded-2xl border border-white/10 bg-[#111218]/95 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100vh-140px)]">
               <div className="flex items-center justify-between p-4 border-b border-border-theme shrink-0">
                 <h2 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2 truncate">
                   {React.createElement(blockMeta(inspectorBlock.block_type).icon, { className: 'w-4 h-4 text-primary-theme shrink-0' })}
