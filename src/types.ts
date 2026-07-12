@@ -407,10 +407,23 @@ export interface SiteBlock {
   position: number;
   content: string; // JSON string, shape depends on block_type (see BlockContent below)
   media_opacity: string; // JSON map of media field key -> 0-100 opacity
+  media_transform?: string; // JSON map of media field key -> MediaTransform (zoom/pan)
   style: string; // JSON string of BlockStyle
   created_at?: string;
   updated_at?: string;
   user_id?: number;
+}
+
+// Per-media-field zoom/pan, set via the builder canvas's right-click "Zoom &
+// Position" mode. `zoom` is a scale factor (1 = fit/cover as normal, up to 4
+// = 400%). `x`/`y` are percentage offsets of the media's own box, applied as
+// `translate(x%, y%) scale(zoom)` — panning is intentionally computed in the
+// UI relative to the CURRENT zoom level so a given mouse-drag distance feels
+// the same regardless of how zoomed in you are.
+export interface MediaTransform {
+  zoom: number;
+  x: number;
+  y: number;
 }
 
 export type HeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'p';

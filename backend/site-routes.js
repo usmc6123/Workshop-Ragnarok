@@ -61,6 +61,7 @@ function publicBlockFields(block) {
     position: block.position,
     content: block.content,
     media_opacity: block.media_opacity,
+    media_transform: block.media_transform || '{}',
     style: block.style || '{}',
   };
 }

@@ -246,7 +246,54 @@ renamed without also having its content freshly saved in the same request may
 have had its content wiped at some point before this fix landed — worth
 spot-checking older Sites pages, not just Cooper, after this deploys.**
 
-**Image Gallery block was missing the opacity slider (fixed same day).**
+**"Zoom & Position" — per-media crop/pan tool (added 2026-07-12).** Right-click
+any image or video on a Sites builder canvas and (if the click landed on an
+actual image/video, not empty block padding) a "Zoom & Position" option
+appears in the context menu. Picking it drops the canvas into an interactive
+mode for THAT specific media element: scroll to zoom (100%-400%), click-and-
+drag to pan, a small floating toolbar (zoom %, +/-, reset, done) follows it.
+Works on every media field app-wide, including each photo individually inside
+a multi-image Image Gallery block.
+
+Data model: a new `media_transform` JSON column on `site_blocks` (added via
+the same migration-array pattern as `style`), map-keyed exactly like
+`media_opacity` (`image_url`, `video_url`, `photo_url`, `gallery_0`,
+`gallery_1`, ...) — `{ zoom: number, x: number, y: number }` per key, applied
+as `transform: translate(x%, y%) scale(zoom)`. Rendering helpers
+`getMediaTransform()`/`mediaTransformStyle()` live in `SiteBlockRenderers.tsx`
+right next to the existing `getOpacity()`, and every media element (Hero
+image/video, Video block, Testimonial photo, Gallery images in both grid and
+carousel layout) got a `data-media-key` attribute stamped on it — that
+attribute is how the canvas figures out WHICH media field a right-click
+landed on without needing to know each block type's internal layout. Hero's
+image background was refactored from a CSS `background-image` div to a real
+`<img>` in the process, purely so it could share the exact same transform
+mechanism as everything else instead of needing its own
+`backgroundSize`/`backgroundPosition` math.
+
+Canvas interaction (`SiteGridCanvas.tsx`'s new `TransformOverlay`): right-
+click walks up from `e.target` looking for the nearest `data-media-key`
+ancestor (`findMediaKey()`), sets `transformEditTarget` in
+`SiteBuilderView.tsx`. While active, a transparent overlay is positioned
+via `getBoundingClientRect()` math to sit exactly on top of that one media
+element (as percentages of the block's own box, so it stays correct
+regardless of the canvas's own zoom-to-fit scale from the "distortion" fix
+above) — the block's normal move/resize handles are hidden while this overlay
+is showing, swapped back in once you hit Done. Drag-to-pan divides the
+screen-pixel delta by the CURRENT zoom level before converting to a percent
+offset, since `translate(x%, y%) scale(zoom)` applies scale AFTER translate
+and would otherwise make dragging feel like it accelerates the more zoomed
+in you already are. Pan is clamped to `50 * (1 - 1/zoom)` in each direction
+so you can't drag the image so far the box shows empty space past its edge.
+
+Persistence reuses the exact per-key debounced-save pattern established for
+the inspector fields earlier the same day (`handleTransformChange()` in
+`SiteBuilderView.tsx`), and the backend's now-genuinely-partial `PUT
+/api/sites/:id/blocks/:blockId` (see the bug entry above) was extended to
+recognize `media_transform` as a fourth independently-patchable field —
+important, since without that this feature would have hit the exact same
+"send just the field you changed, silently wipe everything else" bug that had
+just been fixed for content/style.
 Hero/Video/Testimonial blocks all had a `showOpacity` slider on their
 `MediaField` already; the Image Gallery block's per-image `MediaField` in
 `SiteBuilderView.tsx`'s `BlockContentEditor` never got the same `opacityKey`/

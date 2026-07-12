@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
 import {
-  Site, SiteBlock, SiteBlockType, SiteMessage, ThemeConfig, BlockStyle, DeviceBreakpoint,
+  Site, SiteBlock, SiteBlockType, SiteMessage, ThemeConfig, BlockStyle, DeviceBreakpoint, MediaTransform,
   HeroBlockContent, ImageBlockContent, VideoBlockContent, CtaBlockContent,
   ContactFormBlockContent, TestimonialBlockContent, PricingBlockContent, FaqBlockContent, SpacerBlockContent,
   PricingTier, FaqItem, ContactFormField,
@@ -11,7 +11,7 @@ import { SITE_TEMPLATES, SiteTemplate } from '../constants/siteTemplates';
 import { BLOCK_TYPES, blockMeta } from '../constants/siteBlockTypes';
 import { GridPosition, defaultGridPosition, nextAvailableRow, positionFromStyle } from '../constants/siteGrid';
 import { SITE_ICON_NAMES } from '../constants/siteIcons';
-import SiteGridCanvas from './SiteGridCanvas';
+import SiteGridCanvas, { TransformEditTarget } from './SiteGridCanvas';
 import SiteLayersPanel from './SiteLayersPanel';
 import TemplateThumbnail from './TemplateThumbnail';
 import MediaField from './MediaField';
@@ -20,7 +20,7 @@ import {
   Save, X, Mailbox, ExternalLink,
   Palette, AlignLeft, AlignCenter, AlignRight, Paintbrush, Sparkles, LayoutGrid, LayoutTemplate,
   Undo2, Redo2, Monitor, Tablet, Smartphone, Copy, Settings2, EyeOff, Download, FileJson, RefreshCw,
-  ArrowUpToLine, ArrowDownToLine,
+  ArrowUpToLine, ArrowDownToLine, ZoomIn,
 } from 'lucide-react';
 
 const DEFAULT_ACCENT = '#f59e0b';
@@ -563,7 +563,37 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
   const [draftStyle, setDraftStyle] = useState<BlockStyle>({});
   const inspectorSaveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
-  const [contextMenu, setContextMenu] = useState<{ block: SiteBlock; x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ block: SiteBlock; x: number; y: number; mediaKey: string | null } | null>(null);
+
+  // "Zoom & Position" (right-click a block's image/video) — which block +
+  // media-field key is currently in the interactive drag/scroll-to-zoom
+  // mode on the canvas. null means normal editing.
+  const [transformEditTarget, setTransformEditTarget] = useState<TransformEditTarget | null>(null);
+  const transformSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  // Same per-key debounce pattern as scheduleInspectorSave, and same
+  // partial-update contract on the backend — only media_transform is ever
+  // sent, content/style are left untouched.
+  const handleTransformChange = (blockId: number, mediaKey: string, next: MediaTransform) => {
+    const block = blocks.find(b => b.id === blockId);
+    if (!block) return;
+    const currentMap = parseJson<Record<string, MediaTransform>>(block.media_transform, {});
+    const nextMap = { ...currentMap, [mediaKey]: next };
+    setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, media_transform: JSON.stringify(nextMap) } : b));
+
+    const timerKey = `${blockId}:${mediaKey}`;
+    if (transformSaveTimers.current[timerKey]) clearTimeout(transformSaveTimers.current[timerKey]);
+    transformSaveTimers.current[timerKey] = setTimeout(async () => {
+      delete transformSaveTimers.current[timerKey];
+      try {
+        const updated = await api.updateSiteBlock(site.id, blockId, { media_transform: nextMap });
+        setBlocks(prev => prev.map(b => b.id === blockId ? updated : b));
+      } catch (err) {
+        console.error(err);
+        loadBlocks();
+      }
+    }, 300);
+  };
 
   const [tab, setTab] = useState<'blocks' | 'theme' | 'messages'>('blocks');
   const [messages, setMessages] = useState<SiteMessage[]>([]);
@@ -1259,8 +1289,11 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
                     onDuplicate={handleDuplicateBlock}
                     onDelete={handleDeleteBlock}
                     onPositionChange={handlePositionChange}
-                    onContextMenu={(block, x, y) => setContextMenu({ block, x, y })}
+                    onContextMenu={(block, x, y, mediaKey) => setContextMenu({ block, x, y, mediaKey })}
                     onOpenInspector={(block) => openInspector(block, 'style')}
+                    transformEditTarget={transformEditTarget}
+                    onTransformChange={handleTransformChange}
+                    onExitTransformEdit={() => setTransformEditTarget(null)}
                   />
                 )}
               </>
@@ -1379,6 +1412,14 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
           <button onClick={() => openInspector(contextMenu.block, 'style')} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 cursor-pointer">
             <Settings2 className="w-3.5 h-3.5" /> Style & Settings
           </button>
+          {contextMenu.mediaKey && (
+            <button
+              onClick={() => { setTransformEditTarget({ blockId: contextMenu.block.id, mediaKey: contextMenu.mediaKey! }); setContextMenu(null); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-amber-300 hover:bg-amber-500/10 cursor-pointer"
+            >
+              <ZoomIn className="w-3.5 h-3.5" /> Zoom & Position
+            </button>
+          )}
           <button onClick={() => { handleDuplicateBlock(contextMenu.block); setContextMenu(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 cursor-pointer">
             <Copy className="w-3.5 h-3.5" /> Duplicate
           </button>

@@ -1671,7 +1671,7 @@ export const api = {
     });
   },
 
-  async updateSiteBlock(siteId: number, blockId: number, data: { content?: object; media_opacity?: object; style?: object }): Promise<SiteBlock> {
+  async updateSiteBlock(siteId: number, blockId: number, data: { content?: object; media_opacity?: object; media_transform?: object; style?: object }): Promise<SiteBlock> {
     return await request<SiteBlock>(`/api/sites/${siteId}/blocks/${blockId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

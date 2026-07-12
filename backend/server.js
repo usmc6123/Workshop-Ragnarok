@@ -1200,6 +1200,7 @@ try {
       position INTEGER DEFAULT 0,
       content TEXT DEFAULT '{}',
       media_opacity TEXT DEFAULT '{}',
+      media_transform TEXT DEFAULT '{}',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
@@ -1248,6 +1249,15 @@ try {
     if (!blockCols.some(c => c.name === 'style')) {
       db.exec(`ALTER TABLE site_blocks ADD COLUMN style TEXT DEFAULT '{}'`);
       console.log('Successfully migrated site_blocks to include style column.');
+    }
+    // Per-media zoom/pan (Layers panel's right-click "Zoom & Position"):
+    // { [mediaKey]: { zoom: number, x: number, y: number } }, same map-keyed
+    // shape as media_opacity above so it's fully backward compatible — a
+    // missing key (or the whole column being empty) just means "no zoom/pan,
+    // render as-is."
+    if (!blockCols.some(c => c.name === 'media_transform')) {
+      db.exec(`ALTER TABLE site_blocks ADD COLUMN media_transform TEXT DEFAULT '{}'`);
+      console.log('Successfully migrated site_blocks to include media_transform column.');
     }
   } catch (err) {
     console.error('Error migrating site_blocks style column:', err);
@@ -4710,16 +4720,16 @@ app.post('/api/sites/:id/blocks', (req, res) => {
     const site = db.prepare('SELECT id FROM sites WHERE id = ? AND user_id = ?').get(id, req.user.id);
     if (!site) return res.status(404).json({ error: 'Site not found' });
 
-    const { block_type, content, media_opacity, style } = req.body;
+    const { block_type, content, media_opacity, media_transform, style } = req.body;
     if (!block_type) return res.status(400).json({ error: 'block_type is required' });
 
     const maxPos = db.prepare('SELECT MAX(position) as maxPos FROM site_blocks WHERE site_id = ?').get(id);
     const nextPosition = (maxPos.maxPos === null ? -1 : maxPos.maxPos) + 1;
 
     const info = db.prepare(`
-      INSERT INTO site_blocks (site_id, block_type, position, content, media_opacity, style, user_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(id, block_type, nextPosition, JSON.stringify(content || {}), JSON.stringify(media_opacity || {}), JSON.stringify(style || {}), req.user.id);
+      INSERT INTO site_blocks (site_id, block_type, position, content, media_opacity, media_transform, style, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, block_type, nextPosition, JSON.stringify(content || {}), JSON.stringify(media_opacity || {}), JSON.stringify(media_transform || {}), JSON.stringify(style || {}), req.user.id);
 
     const inserted = db.prepare('SELECT * FROM site_blocks WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
     res.json(inserted);
@@ -4747,9 +4757,9 @@ app.post('/api/sites/:id/blocks/:blockId/duplicate', (req, res) => {
       .run(id, original.position, req.user.id);
 
     const info = db.prepare(`
-      INSERT INTO site_blocks (site_id, block_type, position, content, media_opacity, style, user_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(id, original.block_type, original.position + 1, original.content, original.media_opacity, original.style, req.user.id);
+      INSERT INTO site_blocks (site_id, block_type, position, content, media_opacity, media_transform, style, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, original.block_type, original.position + 1, original.content, original.media_opacity, original.media_transform || '{}', original.style, req.user.id);
 
     const blocks = db.prepare('SELECT * FROM site_blocks WHERE site_id = ? AND user_id = ? ORDER BY position ASC, id ASC').all(id, req.user.id);
     res.json({ blocks, newBlockId: info.lastInsertRowid });
@@ -4802,12 +4812,13 @@ app.put('/api/sites/:id/blocks/:blockId', (req, res) => {
     // as "{}" after being locked in the Layers panel.
     const content = ('content' in req.body) ? JSON.stringify(req.body.content || {}) : existing.content;
     const media_opacity = ('media_opacity' in req.body) ? JSON.stringify(req.body.media_opacity || {}) : existing.media_opacity;
+    const media_transform = ('media_transform' in req.body) ? JSON.stringify(req.body.media_transform || {}) : (existing.media_transform || '{}');
     const style = ('style' in req.body) ? JSON.stringify(req.body.style || {}) : existing.style;
 
     db.prepare(`
-      UPDATE site_blocks SET content = ?, media_opacity = ?, style = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE site_blocks SET content = ?, media_opacity = ?, media_transform = ?, style = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND site_id = ? AND user_id = ?
-    `).run(content, media_opacity, style, blockId, id, req.user.id);
+    `).run(content, media_opacity, media_transform, style, blockId, id, req.user.id);
 
     const updated = db.prepare('SELECT * FROM site_blocks WHERE id = ? AND user_id = ?').get(blockId, req.user.id);
     res.json(updated);

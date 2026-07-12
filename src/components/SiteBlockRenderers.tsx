@@ -34,6 +34,29 @@ export function getOpacity(block: SiteBlock, key: string, defaultPercent: number
   }
 }
 
+// Per-media "Zoom & Position" (right-click a block on the canvas). `zoom` is
+// clamped 1-4, `x`/`y` are percentage offsets — see MediaTransform in
+// types.ts for the full contract this reads.
+export function getMediaTransform(block: SiteBlock, key: string): { zoom: number; x: number; y: number } {
+  try {
+    const map = block.media_transform ? JSON.parse(block.media_transform) : {};
+    const t = map?.[key];
+    const zoom = typeof t?.zoom === 'number' ? Math.max(1, Math.min(4, t.zoom)) : 1;
+    const x = typeof t?.x === 'number' ? t.x : 0;
+    const y = typeof t?.y === 'number' ? t.y : 0;
+    return { zoom, x, y };
+  } catch {
+    return { zoom: 1, x: 0, y: 0 };
+  }
+}
+
+// CSS for the above — a no-op object when nothing's been adjusted, so this is
+// safe to spread onto any media element unconditionally.
+export function mediaTransformStyle(t: { zoom: number; x: number; y: number }): React.CSSProperties {
+  if (t.zoom === 1 && t.x === 0 && t.y === 0) return {};
+  return { transform: `translate(${t.x}%, ${t.y}%) scale(${t.zoom})` };
+}
+
 export function getContrastText(hex: string | undefined): string {
   if (!hex) return '#0f172a';
   const clean = hex.replace('#', '');
@@ -116,14 +139,20 @@ function parseVideoEmbed(url: string): { type: 'youtube' | 'vimeo' | 'direct'; i
 }
 
 // A standard aspect-ratio video embed — used by the dedicated Video block.
-function VideoEmbed({ url, autoplay, controls, opacity, objectFit }: { url: string; autoplay?: boolean; controls?: boolean; opacity: number; objectFit?: 'cover' | 'contain' }) {
+// `mediaKey` is stamped on as data-media-key so the builder canvas's
+// right-click "Zoom & Position" can figure out which media field was
+// targeted; `transform` applies whatever zoom/pan was set for that key.
+function VideoEmbed({ url, autoplay, controls, opacity, objectFit, transform, mediaKey }: { url: string; autoplay?: boolean; controls?: boolean; opacity: number; objectFit?: 'cover' | 'contain'; transform: { zoom: number; x: number; y: number }; mediaKey: string }) {
   const parsed = parseVideoEmbed(url);
   if (parsed.type === 'direct') {
     return (
-      <video
-        src={url} autoPlay={!!autoplay} muted={!!autoplay} controls={controls !== false} loop={!!autoplay} playsInline
-        className="w-full h-full rounded-xl" style={{ opacity, objectFit: objectFit || 'cover' }}
-      />
+      <div className="w-full h-full rounded-xl overflow-hidden">
+        <video
+          data-media-key={mediaKey}
+          src={url} autoPlay={!!autoplay} muted={!!autoplay} controls={controls !== false} loop={!!autoplay} playsInline
+          className="w-full h-full" style={{ opacity, objectFit: objectFit || 'cover', ...mediaTransformStyle(transform) }}
+        />
+      </div>
     );
   }
   const src = parsed.type === 'youtube'
@@ -131,24 +160,26 @@ function VideoEmbed({ url, autoplay, controls, opacity, objectFit }: { url: stri
     : `https://player.vimeo.com/video/${parsed.id}?${autoplay ? 'autoplay=1&muted=1&' : ''}`;
   return (
     <div className="w-full h-full rounded-xl overflow-hidden" style={{ opacity }}>
-      <iframe src={src} className="w-full h-full" style={{ border: 0 }} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen title="Embedded video" />
+      <iframe data-media-key={mediaKey} src={src} className="w-full h-full" style={{ border: 0, ...mediaTransformStyle(transform) }} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen title="Embedded video" />
     </div>
   );
 }
 
 // A "video as background" version — used behind the Hero block. Direct MP4s
 // use a real <video>; YouTube/Vimeo use the classic oversized-iframe trick
-// (no official API for a true cover-fit background embed).
-function VideoBackground({ url, opacity }: { url: string; opacity: number }) {
+// (no official API for a true cover-fit background embed). The zoom/pan
+// transform is applied on top of that existing 300%-oversize-plus-center
+// trick for the iframe case — it just zooms/pans further from there.
+function VideoBackground({ url, opacity, transform, mediaKey }: { url: string; opacity: number; transform: { zoom: number; x: number; y: number }; mediaKey: string }) {
   const parsed = parseVideoEmbed(url);
   if (parsed.type === 'direct') {
-    return <video src={url} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover" style={{ opacity }} />;
+    return <video data-media-key={mediaKey} src={url} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover" style={{ opacity, ...mediaTransformStyle(transform) }} />;
   }
   const src = parsed.type === 'youtube'
     ? `https://www.youtube.com/embed/${parsed.id}?autoplay=1&mute=1&loop=1&playlist=${parsed.id}&controls=0&rel=0`
     : `https://player.vimeo.com/video/${parsed.id}?autoplay=1&muted=1&loop=1&background=1`;
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ opacity }}>
+    <div data-media-key={mediaKey} className="absolute inset-0 overflow-hidden pointer-events-none" style={{ opacity, ...mediaTransformStyle(transform) }}>
       <iframe
         src={src}
         className="absolute top-1/2 left-1/2 pointer-events-none"
@@ -237,9 +268,15 @@ function HeroView({ block, dark, accent, headingFont, editable, onContentChange,
 
   return (
     <section className={`relative overflow-hidden rounded-2xl w-full h-full flex items-center ${paddingClass(style.padding)}`} style={boxAppearanceStyle(style)}>
-      {c.video_url && <VideoBackground url={c.video_url} opacity={getOpacity(block, 'video_url')} />}
+      {c.video_url && <VideoBackground url={c.video_url} opacity={getOpacity(block, 'video_url')} transform={getMediaTransform(block, 'video_url')} mediaKey="video_url" />}
       {c.image_url && !c.video_url && (
-        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${c.image_url})`, backgroundSize: c.object_fit === 'contain' ? 'contain' : 'cover', opacity: getOpacity(block, 'image_url') }} />
+        <img
+          data-media-key="image_url"
+          src={c.image_url}
+          alt=""
+          className="absolute inset-0 w-full h-full"
+          style={{ objectFit: c.object_fit === 'contain' ? 'contain' : 'cover', opacity: getOpacity(block, 'image_url'), ...mediaTransformStyle(getMediaTransform(block, 'image_url')) }}
+        />
       )}
       <div className={`absolute inset-0 ${dark ? 'bg-gradient-to-b from-black/60 via-black/50 to-black/70' : 'bg-gradient-to-b from-white/50 via-white/40 to-white/60'}`} />
       <div className={`relative z-10 w-full space-y-4 ${alignClass(style.align, 'center')}`}>
@@ -301,7 +338,14 @@ function ImageView({ block, editable, onContentChange }: SiteBlockViewProps) {
     return (
       <section className="relative w-full h-full rounded-xl overflow-hidden bg-black/20">
         {images.map((img, i) => (
-          <img key={i} src={img.url} alt={img.caption || ''} className="absolute inset-0 w-full h-full transition-opacity duration-500" style={{ opacity: (i === idx ? 1 : 0) * getOpacity(block, `gallery_${i}`), objectFit: c.object_fit || 'cover' }} />
+          <img
+            key={i}
+            data-media-key={`gallery_${i}`}
+            src={img.url}
+            alt={img.caption || ''}
+            className="absolute inset-0 w-full h-full transition-opacity duration-500"
+            style={{ opacity: (i === idx ? 1 : 0) * getOpacity(block, `gallery_${i}`), objectFit: c.object_fit || 'cover', ...mediaTransformStyle(getMediaTransform(block, `gallery_${i}`)) }}
+          />
         ))}
         {images.length > 1 && (
           <>
@@ -321,7 +365,15 @@ function ImageView({ block, editable, onContentChange }: SiteBlockViewProps) {
       <div className={`grid gap-3 h-full ${images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
         {images.map((img, i) => (
           <figure key={i} className="rounded-xl overflow-hidden bg-black/20 relative">
-            {img.url && <img src={img.url} alt={img.caption || ''} className="w-full h-full" style={{ objectFit: c.object_fit || 'cover', opacity: getOpacity(block, `gallery_${i}`) }} />}
+            {img.url && (
+              <img
+                data-media-key={`gallery_${i}`}
+                src={img.url}
+                alt={img.caption || ''}
+                className="w-full h-full"
+                style={{ objectFit: c.object_fit || 'cover', opacity: getOpacity(block, `gallery_${i}`), ...mediaTransformStyle(getMediaTransform(block, `gallery_${i}`)) }}
+              />
+            )}
             {img.caption && <figcaption className="text-[11px] text-slate-400 p-2 text-center">{img.caption}</figcaption>}
           </figure>
         ))}
@@ -335,7 +387,7 @@ function VideoView({ block }: SiteBlockViewProps) {
   if (!c.video_url) return null;
   return (
     <section className="w-full h-full">
-      <VideoEmbed url={c.video_url} autoplay={c.autoplay} controls={c.controls} opacity={getOpacity(block, 'video_url')} objectFit={c.object_fit} />
+      <VideoEmbed url={c.video_url} autoplay={c.autoplay} controls={c.controls} opacity={getOpacity(block, 'video_url')} objectFit={c.object_fit} transform={getMediaTransform(block, 'video_url')} mediaKey="video_url" />
     </section>
   );
 }
@@ -381,7 +433,17 @@ function TestimonialView({ block, dark, accent, editable, onContentChange, devic
         <RichTextEditor value={c.quote || ''} onChange={(v) => set({ quote: v })} editable={editable} placeholder="Write the testimonial..." />
       </div>
       <div className="flex items-center gap-3">
-        {c.photo_url && <img src={c.photo_url} alt={c.author || ''} className="w-10 h-10 rounded-full object-cover" style={{ opacity: getOpacity(block, 'photo_url') }} />}
+        {c.photo_url && (
+          <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
+            <img
+              data-media-key="photo_url"
+              src={c.photo_url}
+              alt={c.author || ''}
+              className="w-full h-full object-cover"
+              style={{ opacity: getOpacity(block, 'photo_url'), ...mediaTransformStyle(getMediaTransform(block, 'photo_url')) }}
+            />
+          </div>
+        )}
         <div>
           <div className={`text-sm font-bold ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
             <InlineText value={c.author || ''} onCommit={(v) => set({ author: v })} editable={editable} placeholder="Author name" />

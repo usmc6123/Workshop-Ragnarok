@@ -1,14 +1,154 @@
-import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { SiteBlock, BlockStyle, ThemeConfig, DeviceBreakpoint } from '../types';
+import React, { useRef, useState, useCallback, useEffect, useLayoutEffect } from 'react';
+import { SiteBlock, BlockStyle, ThemeConfig, DeviceBreakpoint, MediaTransform } from '../types';
 import {
   GRID_COLUMNS, ROW_UNIT_PX, GridPosition,
   clampCol, clampColSpan, clampRow, clampRowSpan, positionFromStyle,
 } from '../constants/siteGrid';
 import { blockMeta } from '../constants/siteBlockTypes';
-import SiteBlockView, { parseJson } from './SiteBlockRenderers';
-import { Copy, Trash2, Settings2, Move, Lock } from 'lucide-react';
+import SiteBlockView, { parseJson, getMediaTransform } from './SiteBlockRenderers';
+import { Copy, Trash2, Settings2, Move, Lock, ZoomIn, ZoomOut, RotateCcw, Check } from 'lucide-react';
 
 type HandleDir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+
+export interface TransformEditTarget {
+  blockId: number;
+  mediaKey: string;
+}
+
+// Finds the nearest ancestor (inclusive) carrying data-media-key, starting
+// from wherever the user actually right-clicked — this is how we figure out
+// WHICH image in a multi-image block (e.g. one photo out of an Image Gallery)
+// they meant, without SiteGridCanvas needing to know each block type's
+// internal layout.
+function findMediaKey(target: EventTarget | null): string | null {
+  let el = target as HTMLElement | null;
+  while (el) {
+    const key = el.dataset?.mediaKey;
+    if (key) return key;
+    el = el.parentElement;
+  }
+  return null;
+}
+
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 4;
+function clampZoom(z: number) { return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z)); }
+function maxPanPercent(zoom: number) { return 50 * (1 - 1 / zoom); }
+function clampPan(v: number, zoom: number) { const m = maxPanPercent(zoom); return Math.max(-m, Math.min(m, v)); }
+
+// The interactive "Zoom & Position" layer — a transparent, precisely-
+// positioned box overlaid exactly on top of whichever media element is being
+// adjusted (found via data-media-key, sized in percentages relative to the
+// block so it stays correct regardless of the canvas's own zoom-to-fit
+// scale). Scroll to zoom, drag to pan; both are computed relative to the
+// overlay's own on-screen size so the feel is consistent at any canvas scale
+// or media zoom level.
+function TransformOverlay({
+  containerEl, mediaKey, transform, onChange, onDone,
+}: {
+  containerEl: HTMLElement;
+  mediaKey: string;
+  transform: MediaTransform;
+  onChange: (next: MediaTransform) => void;
+  onDone: () => void;
+}) {
+  const [rect, setRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ startX: number; startY: number; startTx: number; startTy: number } | null>(null);
+
+  const measure = useCallback(() => {
+    const mediaEl = containerEl.querySelector<HTMLElement>(`[data-media-key="${mediaKey}"]`);
+    if (!mediaEl) { setRect(null); return; }
+    const containerRect = containerEl.getBoundingClientRect();
+    const mediaRect = mediaEl.getBoundingClientRect();
+    if (containerRect.width === 0 || containerRect.height === 0) return;
+    setRect({
+      left: ((mediaRect.left - containerRect.left) / containerRect.width) * 100,
+      top: ((mediaRect.top - containerRect.top) / containerRect.height) * 100,
+      width: (mediaRect.width / containerRect.width) * 100,
+      height: (mediaRect.height / containerRect.height) * 100,
+    });
+  }, [containerEl, mediaKey]);
+
+  useLayoutEffect(() => {
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(containerEl);
+    return () => observer.disconnect();
+  }, [measure, containerEl]);
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const nextZoom = clampZoom(transform.zoom - e.deltaY * 0.0015);
+    onChange({ zoom: nextZoom, x: clampPan(transform.x, nextZoom), y: clampPan(transform.y, nextZoom) });
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = { startX: e.clientX, startY: e.clientY, startTx: transform.x, startTy: transform.y };
+  };
+  const handlePointerMove = (e: React.PointerEvent) => {
+    const drag = dragRef.current;
+    if (!drag || !overlayRef.current) return;
+    e.stopPropagation();
+    const box = overlayRef.current.getBoundingClientRect();
+    if (box.width === 0 || box.height === 0) return;
+    // Screen-pixel drag distance -> percent of the media's own box -> divided
+    // by zoom, since `translate(x%, y%) scale(zoom)` applies the scale AFTER
+    // the translate, amplifying it — without dividing here, dragging would
+    // feel like it accelerates the more zoomed in you are.
+    const dxPercent = ((e.clientX - drag.startX) / box.width) * 100 / transform.zoom;
+    const dyPercent = ((e.clientY - drag.startY) / box.height) * 100 / transform.zoom;
+    onChange({
+      zoom: transform.zoom,
+      x: clampPan(drag.startTx + dxPercent, transform.zoom),
+      y: clampPan(drag.startTy + dyPercent, transform.zoom),
+    });
+  };
+  const handlePointerUp = (e: React.PointerEvent) => {
+    dragRef.current = null;
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+  };
+
+  if (!rect) return null;
+
+  return (
+    <div
+      ref={overlayRef}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onWheel={handleWheel}
+      onClick={(e) => e.stopPropagation()}
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      className="absolute z-40 cursor-grab active:cursor-grabbing ring-2 ring-amber-400 rounded-lg bg-black/10"
+      style={{ left: `${rect.left}%`, top: `${rect.top}%`, width: `${rect.width}%`, height: `${rect.height}%` }}
+    >
+      <div
+        onPointerDown={(e) => e.stopPropagation()}
+        className="absolute -top-9 left-0 flex items-center gap-1 px-1.5 h-7 rounded-lg bg-[#1a1c24] border border-white/10 shadow-lg z-50"
+      >
+        <button onClick={() => onChange({ ...transform, zoom: clampZoom(transform.zoom - 0.2) })} className="p-1 rounded hover:bg-white/10 text-slate-300 hover:text-white cursor-pointer" title="Zoom out">
+          <ZoomOut className="w-3 h-3" />
+        </button>
+        <span className="text-[9px] font-mono text-slate-400 w-9 text-center">{Math.round(transform.zoom * 100)}%</span>
+        <button onClick={() => onChange({ ...transform, zoom: clampZoom(transform.zoom + 0.2) })} className="p-1 rounded hover:bg-white/10 text-slate-300 hover:text-white cursor-pointer" title="Zoom in">
+          <ZoomIn className="w-3 h-3" />
+        </button>
+        <button onClick={() => onChange({ zoom: 1, x: 0, y: 0 })} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer" title="Reset">
+          <RotateCcw className="w-3 h-3" />
+        </button>
+        <button onClick={onDone} className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 cursor-pointer" title="Done">
+          <Check className="w-3 h-3" />
+        </button>
+      </div>
+      <p className="absolute -bottom-6 left-0 text-[9px] text-slate-500 font-mono whitespace-nowrap">Scroll to zoom, drag to reposition</p>
+    </div>
+  );
+}
 
 // Tablet still renders the real 12-column grid (only phones collapse to a
 // single stacked column, matching the 640px breakpoint SitePageView uses) —
@@ -35,6 +175,7 @@ interface DragState {
 export default function SiteGridCanvas({
   blocks, selectedId, device, theme, dark, accent,
   onSelect, onContentChange, onDuplicate, onDelete, onPositionChange, onContextMenu, onOpenInspector,
+  transformEditTarget, onTransformChange, onExitTransformEdit,
 }: {
   blocks: SiteBlock[];
   selectedId: number | null;
@@ -47,8 +188,11 @@ export default function SiteGridCanvas({
   onDuplicate: (block: SiteBlock) => void;
   onDelete: (block: SiteBlock) => void;
   onPositionChange: (blockId: number, position: GridPosition) => void;
-  onContextMenu: (block: SiteBlock, x: number, y: number) => void;
+  onContextMenu: (block: SiteBlock, x: number, y: number, mediaKey: string | null) => void;
   onOpenInspector: (block: SiteBlock) => void;
+  transformEditTarget: TransformEditTarget | null;
+  onTransformChange: (blockId: number, mediaKey: string, next: MediaTransform) => void;
+  onExitTransformEdit: () => void;
 }) {
   // The canvas's own content ALWAYS renders at the device's true design width
   // (1152/768/375px) so column widths, row heights, and drag math never
@@ -64,6 +208,7 @@ export default function SiteGridCanvas({
   // zoomed out.
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const blockContentRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const [availableWidth, setAvailableWidth] = useState(1152);
   const [liveOverrides, setLiveOverrides] = useState<Record<number, GridPosition>>({});
   const dragState = useRef<DragState | null>(null);
@@ -232,11 +377,18 @@ export default function SiteGridCanvas({
             ? 'border-amber-400 shadow-[0_0_0_2px_rgba(245,158,11,0.35),0_8px_24px_rgba(0,0,0,0.4)]'
             : 'border-transparent hover:border-white/20';
 
+          const editingTransform = transformEditTarget?.blockId === block.id ? transformEditTarget : null;
+
           return (
             <div
               key={block.id}
               onPointerDown={(e) => { e.stopPropagation(); onSelect(block.id); }}
-              onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onSelect(block.id); onContextMenu(block, e.clientX, e.clientY); }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onSelect(block.id);
+                onContextMenu(block, e.clientX, e.clientY, findMediaKey(e.target));
+              }}
               className={`absolute rounded-xl border shadow-lg transition-shadow group ${borderClass} ${zIndexClass} ${isDragging ? 'cursor-grabbing' : ''}`}
               style={{
                 left: `${(pos.grid_col / GRID_COLUMNS) * 100}%`,
@@ -246,7 +398,7 @@ export default function SiteGridCanvas({
               }}
             >
               {/* Real, live-styled block content — click text to edit it directly */}
-              <div className="w-full h-full overflow-hidden rounded-xl">
+              <div ref={(el) => { blockContentRefs.current[block.id] = el; }} className="w-full h-full overflow-hidden rounded-xl">
                 <SiteBlockView
                   block={block}
                   dark={dark}
@@ -260,35 +412,49 @@ export default function SiteGridCanvas({
                 />
               </div>
 
-              {/* Slim floating toolbar — appears on hover/select, drag anywhere on it to move the block.
-                  Flips to just inside the block's top edge when there's no room above (block near
-                  the canvas top), instead of rendering off the top and getting clipped. */}
-              <div
-                onPointerDown={(e) => startDrag(e, block, 'move')}
-                className={`absolute flex items-center gap-1 px-1.5 h-7 rounded-lg bg-[#1a1c24] border border-white/10 shadow-lg cursor-grab active:cursor-grabbing transition-opacity z-30 ${nearTop ? 'top-1 left-1' : '-top-8 left-0'} ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-              >
-                <Move className="w-3 h-3 text-slate-500 shrink-0 ml-0.5" />
-                {zLock && <Lock className="w-2.5 h-2.5 text-amber-400 shrink-0" aria-label={zLock === 'front' ? 'Locked to front' : 'Locked to back'} />}
-                <span className="text-[9px] font-bold text-slate-300 uppercase tracking-wide truncate max-w-[90px]">{parseJson<BlockStyle>(block.style, {}).custom_label || blockMeta(block.block_type).label}</span>
-                <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onOpenInspector(block)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer" title="Style & settings">
-                  <Settings2 className="w-3 h-3" />
-                </button>
-                <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDuplicate(block)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer" title="Duplicate">
-                  <Copy className="w-3 h-3" />
-                </button>
-                <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDelete(block)} className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 cursor-pointer" title="Delete">
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              </div>
-
-              {isSelected && HANDLES.map(h => (
-                <div
-                  key={h}
-                  onPointerDown={(e) => startDrag(e, block, 'resize', h)}
-                  className="absolute w-2.5 h-2.5 rounded-[3px] bg-amber-400 border border-[#0a0b0f] shadow-sm z-30"
-                  style={{ ...handlePos[h], cursor: HANDLE_CURSOR[h] }}
+              {editingTransform && blockContentRefs.current[block.id] && (
+                <TransformOverlay
+                  containerEl={blockContentRefs.current[block.id]!}
+                  mediaKey={editingTransform.mediaKey}
+                  transform={getMediaTransform(block, editingTransform.mediaKey)}
+                  onChange={(next) => onTransformChange(block.id, editingTransform.mediaKey, next)}
+                  onDone={onExitTransformEdit}
                 />
-              ))}
+              )}
+
+              {!editingTransform && (
+                <>
+                  {/* Slim floating toolbar — appears on hover/select, drag anywhere on it to move the block.
+                      Flips to just inside the block's top edge when there's no room above (block near
+                      the canvas top), instead of rendering off the top and getting clipped. */}
+                  <div
+                    onPointerDown={(e) => startDrag(e, block, 'move')}
+                    className={`absolute flex items-center gap-1 px-1.5 h-7 rounded-lg bg-[#1a1c24] border border-white/10 shadow-lg cursor-grab active:cursor-grabbing transition-opacity z-30 ${nearTop ? 'top-1 left-1' : '-top-8 left-0'} ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                  >
+                    <Move className="w-3 h-3 text-slate-500 shrink-0 ml-0.5" />
+                    {zLock && <Lock className="w-2.5 h-2.5 text-amber-400 shrink-0" aria-label={zLock === 'front' ? 'Locked to front' : 'Locked to back'} />}
+                    <span className="text-[9px] font-bold text-slate-300 uppercase tracking-wide truncate max-w-[90px]">{parseJson<BlockStyle>(block.style, {}).custom_label || blockMeta(block.block_type).label}</span>
+                    <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onOpenInspector(block)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer" title="Style & settings">
+                      <Settings2 className="w-3 h-3" />
+                    </button>
+                    <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDuplicate(block)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer" title="Duplicate">
+                      <Copy className="w-3 h-3" />
+                    </button>
+                    <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDelete(block)} className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 cursor-pointer" title="Delete">
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  {isSelected && HANDLES.map(h => (
+                    <div
+                      key={h}
+                      onPointerDown={(e) => startDrag(e, block, 'resize', h)}
+                      className="absolute w-2.5 h-2.5 rounded-[3px] bg-amber-400 border border-[#0a0b0f] shadow-sm z-30"
+                      style={{ ...handlePos[h], cursor: HANDLE_CURSOR[h] }}
+                    />
+                  ))}
+                </>
+              )}
             </div>
           );
         })}
