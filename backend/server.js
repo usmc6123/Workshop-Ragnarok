@@ -12,6 +12,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { execFile } = require('child_process');
+const multer = require('multer');
 const jwt = require('jsonwebtoken');
 
 // Load environment variables
@@ -31,11 +32,11 @@ if (!fs.existsSync(dbDir)) {
 // Enable CORS and JSON parsing with rawBody capture
 app.use(cors());
 app.use(express.json({
-  // Raised from 10mb to fit base64-encoded video. Normal uploads cap at 100MB
-  // (~133MB as base64) — see POST /api/uploads. The "Reformat" tool accepts raw
-  // input up to 300MB to shrink (~400MB as base64) — see POST
-  // /api/uploads/compress-video. 450mb gives headroom above that.
-  limit: '450mb',
+  // Media uploads (POST /api/uploads, POST /api/uploads/compress-video) go
+  // through multer as multipart/form-data instead, streamed straight to disk —
+  // they never touch this JSON parser, so this limit only needs to cover
+  // normal JSON payloads (e.g. a single invoice photo in parse-invoice).
+  limit: '20mb',
   verify: (req, res, buf) => {
     req.rawBody = buf;
   }
@@ -1399,7 +1400,11 @@ try {
 // Generic, reusable upload endpoint backing every "Upload" button across the app
 // (Sites block editor, Funnels editor, Settings shop logo, etc.) — writes the file
 // to disk and returns a URL, rather than embedding it as base64 in a DB column.
-// Client sends { file_data (base64 or data URI), file_type (mime), file_name }.
+// Sent as multipart/form-data (field name "file"), NOT base64-in-JSON — multer
+// streams the upload straight to disk as bytes arrive, so a large file is never
+// fully materialized as a string in server memory (and, more importantly, never
+// has to be built as one giant base64 string in the BROWSER's memory either,
+// which is what caused an "Out of Memory" tab crash on larger videos).
 const ALLOWED_UPLOAD_MIME = {
   image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
   video: ['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg'],
@@ -1407,130 +1412,149 @@ const ALLOWED_UPLOAD_MIME = {
 const MAX_IMAGE_UPLOAD_BYTES = 20 * 1024 * 1024;  // 20MB
 const MAX_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB
 
-app.post('/api/uploads', (req, res) => {
-  try {
-    const { file_data, file_type, file_name } = req.body;
-    if (!file_data || !file_type) {
-      return res.status(400).json({ error: 'file_data and file_type are required' });
-    }
+function safeFilenameBase(name) {
+  return (name || 'upload').replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40) || 'upload';
+}
 
-    const isImage = ALLOWED_UPLOAD_MIME.image.includes(file_type);
-    const isVideo = ALLOWED_UPLOAD_MIME.video.includes(file_type);
-    if (!isImage && !isVideo) {
-      return res.status(400).json({ error: `Unsupported file type: ${file_type}` });
-    }
-
-    let rawBase64 = file_data;
-    if (file_data.includes(';base64,')) {
-      rawBase64 = file_data.split(';base64,')[1];
-    }
-
-    const sizeBytes = Buffer.byteLength(rawBase64, 'base64');
-    const maxBytes = isImage ? MAX_IMAGE_UPLOAD_BYTES : MAX_VIDEO_UPLOAD_BYTES;
-    if (sizeBytes > maxBytes) {
-      return res.status(413).json({
-        error: `File is too large (${(sizeBytes / 1024 / 1024).toFixed(1)}MB) — max is ${(maxBytes / 1024 / 1024).toFixed(0)}MB for ${isImage ? 'images' : 'video'}.`,
-      });
-    }
-
+const mediaUploadStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
     const mediaDir = path.join(UPLOADS_ROOT, 'media');
-    if (!fs.existsSync(mediaDir)) {
-      fs.mkdirSync(mediaDir, { recursive: true });
+    if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
+    cb(null, mediaDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = (file.mimetype.split('/')[1] || 'bin').replace('quicktime', 'mov').replace('svg+xml', 'svg');
+    cb(null, `${safeFilenameBase(file.originalname)}_${Date.now()}_${Math.floor(Math.random() * 1e6)}.${ext}`);
+  },
+});
+const uploadMedia = multer({
+  storage: mediaUploadStorage,
+  // Outer backstop only (the larger of the two caps) — the precise per-type
+  // limit (20MB image / 100MB video) is enforced below, after upload, where a
+  // proper error message can be returned.
+  limits: { fileSize: MAX_VIDEO_UPLOAD_BYTES },
+  fileFilter: (req, file, cb) => {
+    const isImage = ALLOWED_UPLOAD_MIME.image.includes(file.mimetype);
+    const isVideo = ALLOWED_UPLOAD_MIME.video.includes(file.mimetype);
+    if (!isImage && !isVideo) return cb(new Error(`Unsupported file type: ${file.mimetype}`));
+    cb(null, true);
+  },
+});
+
+app.post('/api/uploads', (req, res) => {
+  uploadMedia.single('file')(req, res, (err) => {
+    if (err) {
+      const msg = err.code === 'LIMIT_FILE_SIZE'
+        ? `File is too large — max is ${(MAX_VIDEO_UPLOAD_BYTES / 1024 / 1024).toFixed(0)}MB.`
+        : (err.message || 'Upload failed');
+      return res.status(400).json({ error: msg });
     }
-
-    const ext = (file_type.split('/')[1] || 'bin').replace('quicktime', 'mov').replace('svg+xml', 'svg');
-    const safeBase = (file_name || 'upload').replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40) || 'upload';
-    const filename = `${safeBase}_${Date.now()}_${Math.floor(Math.random() * 1e6)}.${ext}`;
-    const fullPath = path.join(mediaDir, filename);
-    fs.writeFileSync(fullPath, Buffer.from(rawBase64, 'base64'));
-
-    res.json({ url: `/uploads/media/${filename}`, size_bytes: sizeBytes, file_type });
-  } catch (error) {
-    console.error('Error handling media upload:', error);
-    res.status(500).json({ error: 'Server error handling upload' });
-  }
+    try {
+      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+      const isImage = ALLOWED_UPLOAD_MIME.image.includes(req.file.mimetype);
+      const maxBytes = isImage ? MAX_IMAGE_UPLOAD_BYTES : MAX_VIDEO_UPLOAD_BYTES;
+      if (req.file.size > maxBytes) {
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
+        return res.status(413).json({
+          error: `File is too large (${(req.file.size / 1024 / 1024).toFixed(1)}MB) — max is ${(maxBytes / 1024 / 1024).toFixed(0)}MB for ${isImage ? 'images' : 'video'}. Use "Reformat" to shrink it first.`,
+        });
+      }
+      res.json({ url: `/uploads/media/${req.file.filename}`, size_bytes: req.file.size, file_type: req.file.mimetype });
+    } catch (error) {
+      console.error('Error handling media upload:', error);
+      res.status(500).json({ error: 'Server error handling upload' });
+    }
+  });
 });
 
 // Backs the "Reformat" tool's video path — re-encodes an oversized video down to
 // a target resolution via ffmpeg (installed in backend/Dockerfile), then stores
-// the result exactly like a normal upload. Uses execFile (async, not execSync) so
-// a multi-minute transcode doesn't block the rest of the API while it runs.
+// the result exactly like a normal upload. The raw video also arrives as
+// multipart/form-data (same reasoning as above — a 300MB file must never be
+// built as a base64 string in browser memory), streamed to a temp file, which
+// ffmpeg then reads via execFile (async, not execSync) so a multi-minute
+// transcode doesn't block the rest of the API while it runs.
 const REFORMAT_MAX_RAW_INPUT_BYTES = 300 * 1024 * 1024; // 300MB — matches src/components/MediaField.tsx
 const VIDEO_RESOLUTION_HEIGHTS = { '480': 480, '720': 720, '1080': 1080 };
 
-app.post('/api/uploads/compress-video', async (req, res) => {
-  let tempInputPath = null;
-  let tempOutputPath = null;
-  try {
-    const { file_data, file_type, file_name, target_resolution } = req.body;
-    if (!file_data || !file_type) {
-      return res.status(400).json({ error: 'file_data and file_type are required' });
-    }
-    if (!ALLOWED_UPLOAD_MIME.video.includes(file_type)) {
-      return res.status(400).json({ error: `Unsupported video type: ${file_type}` });
-    }
-    const targetHeight = VIDEO_RESOLUTION_HEIGHTS[target_resolution];
-    if (!targetHeight) {
-      return res.status(400).json({ error: `Unsupported target_resolution: ${target_resolution}` });
-    }
+const reformatUploadStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, os.tmpdir()),
+  filename: (req, file, cb) => {
+    const ext = (file.mimetype.split('/')[1] || 'mp4').replace('quicktime', 'mov');
+    cb(null, `reformat_in_${Date.now()}_${Math.floor(Math.random() * 1e6)}.${ext}`);
+  },
+});
+const uploadForReformat = multer({
+  storage: reformatUploadStorage,
+  limits: { fileSize: REFORMAT_MAX_RAW_INPUT_BYTES },
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_UPLOAD_MIME.video.includes(file.mimetype)) return cb(new Error(`Unsupported video type: ${file.mimetype}`));
+    cb(null, true);
+  },
+});
 
-    let rawBase64 = file_data;
-    if (file_data.includes(';base64,')) {
-      rawBase64 = file_data.split(';base64,')[1];
-    }
-    const sizeBytes = Buffer.byteLength(rawBase64, 'base64');
-    if (sizeBytes > REFORMAT_MAX_RAW_INPUT_BYTES) {
-      return res.status(413).json({
-        error: `File is too large to reformat (${(sizeBytes / 1024 / 1024).toFixed(0)}MB) — max is ${(REFORMAT_MAX_RAW_INPUT_BYTES / 1024 / 1024).toFixed(0)}MB going in.`,
+app.post('/api/uploads/compress-video', (req, res) => {
+  uploadForReformat.single('file')(req, res, async (err) => {
+    let tempInputPath = null;
+    let tempOutputPath = null;
+    try {
+      if (err) {
+        const msg = err.code === 'LIMIT_FILE_SIZE'
+          ? `File is too large to reformat — max is ${(REFORMAT_MAX_RAW_INPUT_BYTES / 1024 / 1024).toFixed(0)}MB going in.`
+          : (err.message || 'Upload failed');
+        return res.status(400).json({ error: msg });
+      }
+      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+      tempInputPath = req.file.path;
+
+      const targetHeight = VIDEO_RESOLUTION_HEIGHTS[req.body.target_resolution];
+      if (!targetHeight) {
+        return res.status(400).json({ error: `Unsupported target_resolution: ${req.body.target_resolution}` });
+      }
+
+      const tmpId = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+      tempOutputPath = path.join(os.tmpdir(), `reformat_out_${tmpId}.mp4`);
+
+      await new Promise((resolve, reject) => {
+        execFile('ffmpeg', [
+          '-y',
+          '-i', tempInputPath,
+          '-vf', `scale=-2:${targetHeight}`,
+          '-c:v', 'libx264',
+          '-crf', '28',
+          '-preset', 'veryfast',
+          '-c:a', 'aac',
+          '-b:a', '128k',
+          '-movflags', '+faststart',
+          tempOutputPath,
+        ], { timeout: 15 * 60 * 1000 }, (error, stdout, stderr) => {
+          if (error) {
+            console.error('ffmpeg compression failed:', stderr || error.message);
+            return reject(new Error('Video compression failed — the file may be corrupted or in an unsupported format.'));
+          }
+          resolve();
+        });
       });
+
+      const mediaDir = path.join(UPLOADS_ROOT, 'media');
+      if (!fs.existsSync(mediaDir)) {
+        fs.mkdirSync(mediaDir, { recursive: true });
+      }
+      const filename = `${safeFilenameBase(req.file.originalname)}_${tmpId}.mp4`;
+      const fullPath = path.join(mediaDir, filename);
+      fs.copyFileSync(tempOutputPath, fullPath);
+      const outSizeBytes = fs.statSync(fullPath).size;
+
+      res.json({ url: `/uploads/media/${filename}`, size_bytes: outSizeBytes, file_type: 'video/mp4' });
+    } catch (error) {
+      console.error('Error handling video compression:', error);
+      res.status(500).json({ error: error.message || 'Server error compressing video' });
+    } finally {
+      // Always clean up temp files, success or failure
+      try { if (tempInputPath && fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath); } catch (e) {}
+      try { if (tempOutputPath && fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath); } catch (e) {}
     }
-
-    const ext = (file_type.split('/')[1] || 'mp4').replace('quicktime', 'mov');
-    const tmpId = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
-    tempInputPath = path.join(os.tmpdir(), `reformat_in_${tmpId}.${ext}`);
-    tempOutputPath = path.join(os.tmpdir(), `reformat_out_${tmpId}.mp4`);
-    fs.writeFileSync(tempInputPath, Buffer.from(rawBase64, 'base64'));
-
-    await new Promise((resolve, reject) => {
-      execFile('ffmpeg', [
-        '-y',
-        '-i', tempInputPath,
-        '-vf', `scale=-2:${targetHeight}`,
-        '-c:v', 'libx264',
-        '-crf', '28',
-        '-preset', 'veryfast',
-        '-c:a', 'aac',
-        '-b:a', '128k',
-        '-movflags', '+faststart',
-        tempOutputPath,
-      ], { timeout: 15 * 60 * 1000 }, (error, stdout, stderr) => {
-        if (error) {
-          console.error('ffmpeg compression failed:', stderr || error.message);
-          return reject(new Error('Video compression failed — the file may be corrupted or in an unsupported format.'));
-        }
-        resolve();
-      });
-    });
-
-    const mediaDir = path.join(UPLOADS_ROOT, 'media');
-    if (!fs.existsSync(mediaDir)) {
-      fs.mkdirSync(mediaDir, { recursive: true });
-    }
-    const safeBase = (file_name || 'video').replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40) || 'video';
-    const filename = `${safeBase}_${tmpId}.mp4`;
-    const fullPath = path.join(mediaDir, filename);
-    fs.copyFileSync(tempOutputPath, fullPath);
-    const outSizeBytes = fs.statSync(fullPath).size;
-
-    res.json({ url: `/uploads/media/${filename}`, size_bytes: outSizeBytes, file_type: 'video/mp4' });
-  } catch (error) {
-    console.error('Error handling video compression:', error);
-    res.status(500).json({ error: error.message || 'Server error compressing video' });
-  } finally {
-    // Always clean up temp files, success or failure
-    try { if (tempInputPath && fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath); } catch (e) {}
-    try { if (tempOutputPath && fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath); } catch (e) {}
-  }
+  });
 });
 
 // --- AUTHENTICATION ENDPOINTS ---

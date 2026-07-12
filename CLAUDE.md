@@ -251,6 +251,29 @@ that something's newly broken.
    download/CDN/tooling problem — the "source of truth" itself may be the thing
    that's actually broken.**
 
+7. **Reformat tool crashed the Chrome tab with "Out of Memory" on video files.**
+   Root cause: the upload/reformat transport encoded files as base64 via
+   `FileReader.readAsDataURL()` then `JSON.stringify()`'d that into the fetch
+   body — for a ~300MB video this creates multiple full in-memory string copies,
+   ballooning to 1.5-2GB+ of browser heap. Fixed by switching the entire
+   transport to `multipart/form-data`: frontend builds a `FormData` and sends
+   the raw `File`/`Blob` (`api.uploadMedia(file, fileName)` and
+   `api.compressVideo(file, fileName, targetResolution)` in `src/lib/api.ts`,
+   both now taking a `Blob` instead of a base64 string), backend receives it via
+   `multer.diskStorage` (`POST /api/uploads` and `POST /api/uploads/compress-video`
+   in `backend/server.js`) which streams straight to disk without buffering the
+   whole file as a string. `MediaField.tsx`'s image-compression path was updated
+   to match: `compressImage()` now takes a `File` and returns a `Blob` via
+   `canvas.toBlob()` (using `URL.createObjectURL()` to load the source image),
+   instead of a base64 data URL via `canvas.toDataURL()`. `express.json()`'s body
+   limit was lowered back from 450mb to 20mb since large files no longer touch
+   that parser at all. Added `multer` to `backend/package.json` — this needs
+   `npm install` run in `backend/` to regenerate `backend/package-lock.json`
+   (a protected file, mirror-first push required) before this can deploy.
+   **Lesson: never round-trip a large file through a base64 string + JSON for
+   upload — always use `FormData`/multipart so the browser streams it instead
+   of materializing it as a string in memory.**
+
 ## Tooling lessons (for future Claude sessions specifically)
 
 - The bash sandbox's mounted view of these Windows folders can be **stale/cached**

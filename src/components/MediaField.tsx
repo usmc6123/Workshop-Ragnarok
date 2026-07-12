@@ -12,21 +12,17 @@ const VIDEO_RESOLUTIONS = [
   { value: '1080' as const, label: '1080p (largest)' },
 ];
 
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => (typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Failed to read file')));
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsDataURL(file);
-  });
-}
-
 // Client-side downscale before upload — used for things like the shop logo, where a
-// full-resolution photo is pointless. Skips SVGs (not rasterizable via canvas).
-function compressImage(dataUrl: string, maxDimension: number): Promise<string> {
+// full-resolution photo is pointless, and for the "Reformat" tool's image path.
+// Skips SVGs (not rasterizable via canvas). Uses createObjectURL + canvas.toBlob
+// rather than FileReader + toDataURL, so the image is never held as a base64
+// string in memory — just a lightweight Blob reference the whole way through.
+function compressImage(file: File, maxDimension: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
       let { width, height } = img;
       if (width > maxDimension || height > maxDimension) {
         if (width > height) {
@@ -43,10 +39,10 @@ function compressImage(dataUrl: string, maxDimension: number): Promise<string> {
       const ctx = canvas.getContext('2d');
       if (!ctx) return reject(new Error('Canvas not supported'));
       ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', 0.85));
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Failed to compress image'))), 'image/jpeg', 0.85);
     };
-    img.onerror = () => reject(new Error('Failed to load image for compression'));
-    img.src = dataUrl;
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Failed to load image for compression')); };
+    img.src = objectUrl;
   });
 }
 
@@ -114,13 +110,13 @@ export default function MediaField({
 
     setUploading(true);
     try {
-      let dataUrl = await readFileAsDataUrl(file);
-      let fileType = file.type;
+      let toSend: Blob = file;
+      let fileName = file.name;
       if (isImage && maxImageDimension && file.type !== 'image/svg+xml') {
-        dataUrl = await compressImage(dataUrl, maxImageDimension);
-        fileType = 'image/jpeg';
+        toSend = await compressImage(file, maxImageDimension);
+        fileName = fileName.replace(/\.[^/.]+$/, '') + '.jpg';
       }
-      const result = await api.uploadMedia(dataUrl, fileType, file.name);
+      const result = await api.uploadMedia(toSend, fileName);
       onChange(result.url);
     } catch (err: any) {
       setUploadError(err?.message || 'Upload failed — please try again, or paste a hosted URL instead.');
@@ -153,14 +149,14 @@ export default function MediaField({
     setReformatError(null);
     setReformatDoneNote(null);
     try {
-      const dataUrl = await readFileAsDataUrl(reformatFile);
       if (reformatKind === 'image') {
-        const compressed = await compressImage(dataUrl, reformatMaxDim);
-        const result = await api.uploadMedia(compressed, 'image/jpeg', reformatFile.name);
+        const compressed = await compressImage(reformatFile, reformatMaxDim);
+        const fileName = reformatFile.name.replace(/\.[^/.]+$/, '') + '.jpg';
+        const result = await api.uploadMedia(compressed, fileName);
         onChange(result.url);
         setReformatDoneNote(`Done — new size: ${(result.size_bytes / 1024 / 1024).toFixed(2)}MB.`);
       } else {
-        const result = await api.compressVideo(dataUrl, reformatFile.type, reformatFile.name, reformatResolution);
+        const result = await api.compressVideo(reformatFile, reformatFile.name, reformatResolution);
         onChange(result.url);
         setReformatDoneNote(`Done — shrunk from ${(reformatFile.size / 1024 / 1024).toFixed(0)}MB to ${(result.size_bytes / 1024 / 1024).toFixed(1)}MB.`);
       }

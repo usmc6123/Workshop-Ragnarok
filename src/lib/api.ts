@@ -1248,26 +1248,35 @@ export const api = {
   },
 
   // Generic media upload, backing every "Upload" button across the app (Sites,
-  // Funnels, Settings shop logo, etc). fileData is a data: URI (or raw base64) —
-  // server writes it to disk and hands back a URL. 3-minute timeout since video
-  // uploads over a home connection can take a while.
-  async uploadMedia(fileData: string, fileType: string, fileName: string): Promise<{ url: string; size_bytes: number; file_type: string }> {
+  // Funnels, Settings shop logo, etc). Sent as multipart/form-data (NOT base64
+  // in a JSON string) — a File/Blob handed to FormData is streamed straight to
+  // the network by the browser, never fully materialized as a giant string in
+  // page memory. A base64-JSON version of this used to crash the tab on larger
+  // videos ("Out of Memory") because base64-encoding inflates size ~33% and the
+  // JSON.stringify'd body created a second full in-memory copy on top of that.
+  // 3-minute timeout since video uploads over a home connection can take a while.
+  async uploadMedia(file: Blob, fileName: string): Promise<{ url: string; size_bytes: number; file_type: string }> {
+    const formData = new FormData();
+    formData.append('file', file, fileName);
     return await request<any>('/api/uploads', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file_data: fileData, file_type: fileType, file_name: fileName })
+      body: formData,
     }, 180000);
   },
 
   // Backs the "Reformat" tool's video path — re-encodes an oversized video down
   // to the given target resolution via server-side ffmpeg and returns the result
-  // as a normal uploaded URL. 10-minute timeout since transcoding a large video
+  // as a normal uploaded URL. Also multipart/form-data, for the same memory
+  // reason as uploadMedia above — critical here since Reformat's whole purpose
+  // is handling larger files. 10-minute timeout since transcoding a large video
   // on a home server can genuinely take a few minutes.
-  async compressVideo(fileData: string, fileType: string, fileName: string, targetResolution: '480' | '720' | '1080'): Promise<{ url: string; size_bytes: number; file_type: string }> {
+  async compressVideo(file: Blob, fileName: string, targetResolution: '480' | '720' | '1080'): Promise<{ url: string; size_bytes: number; file_type: string }> {
+    const formData = new FormData();
+    formData.append('file', file, fileName);
+    formData.append('target_resolution', targetResolution);
     return await request<any>('/api/uploads/compress-video', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file_data: fileData, file_type: fileType, file_name: fileName, target_resolution: targetResolution })
+      body: formData,
     }, 600000);
   },
 
