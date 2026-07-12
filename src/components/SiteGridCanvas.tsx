@@ -6,7 +6,7 @@ import {
 } from '../constants/siteGrid';
 import { blockMeta } from '../constants/siteBlockTypes';
 import SiteBlockView, { parseJson } from './SiteBlockRenderers';
-import { Copy, Trash2, Settings2, Move } from 'lucide-react';
+import { Copy, Trash2, Settings2, Move, Lock } from 'lucide-react';
 
 type HandleDir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
@@ -192,17 +192,22 @@ export default function SiteGridCanvas({
           const isDragging = dragState.current?.blockId === block.id;
           const nearTop = pos.grid_row * ROW_UNIT_PX < TOOLBAR_CLEARANCE_PX;
           const handlePos = getHandlePos(nearTop);
+          // A locked block's stacking is pinned regardless of selection — this
+          // is what actually fixes "clicking the background pushes the video
+          // behind it": without a lock, ANY selected block jumps to z-20,
+          // which can outrank a block that was previously brought to front.
+          const zLock = parseJson<BlockStyle>(block.style, {}).z_lock;
+          const zIndexClass = zLock === 'front' ? 'z-30' : zLock === 'back' ? 'z-0' : isSelected ? 'z-20' : 'z-10';
+          const borderClass = isSelected
+            ? 'border-amber-400 shadow-[0_0_0_2px_rgba(245,158,11,0.35),0_8px_24px_rgba(0,0,0,0.4)]'
+            : 'border-transparent hover:border-white/20';
 
           return (
             <div
               key={block.id}
               onPointerDown={(e) => { e.stopPropagation(); onSelect(block.id); }}
               onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onSelect(block.id); onContextMenu(block, e.clientX, e.clientY); }}
-              className={`absolute rounded-xl border shadow-lg transition-shadow group ${
-                isSelected
-                  ? 'border-amber-400 shadow-[0_0_0_2px_rgba(245,158,11,0.35),0_8px_24px_rgba(0,0,0,0.4)] z-20'
-                  : 'border-transparent hover:border-white/20 z-10'
-              } ${isDragging ? 'cursor-grabbing' : ''}`}
+              className={`absolute rounded-xl border shadow-lg transition-shadow group ${borderClass} ${zIndexClass} ${isDragging ? 'cursor-grabbing' : ''}`}
               style={{
                 left: `${(pos.grid_col / GRID_COLUMNS) * 100}%`,
                 width: `${(pos.grid_col_span / GRID_COLUMNS) * 100}%`,
@@ -233,7 +238,8 @@ export default function SiteGridCanvas({
                 className={`absolute flex items-center gap-1 px-1.5 h-7 rounded-lg bg-[#1a1c24] border border-white/10 shadow-lg cursor-grab active:cursor-grabbing transition-opacity z-30 ${nearTop ? 'top-1 left-1' : '-top-8 left-0'} ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
               >
                 <Move className="w-3 h-3 text-slate-500 shrink-0 ml-0.5" />
-                <span className="text-[9px] font-bold text-slate-300 uppercase tracking-wide truncate max-w-[90px]">{blockMeta(block.block_type).label}</span>
+                {zLock && <Lock className="w-2.5 h-2.5 text-amber-400 shrink-0" aria-label={zLock === 'front' ? 'Locked to front' : 'Locked to back'} />}
+                <span className="text-[9px] font-bold text-slate-300 uppercase tracking-wide truncate max-w-[90px]">{parseJson<BlockStyle>(block.style, {}).custom_label || blockMeta(block.block_type).label}</span>
                 <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onOpenInspector(block)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer" title="Style & settings">
                   <Settings2 className="w-3 h-3" />
                 </button>

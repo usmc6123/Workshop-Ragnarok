@@ -301,7 +301,7 @@ function ImageView({ block, editable, onContentChange }: SiteBlockViewProps) {
     return (
       <section className="relative w-full h-full rounded-xl overflow-hidden bg-black/20">
         {images.map((img, i) => (
-          <img key={i} src={img.url} alt={img.caption || ''} className="absolute inset-0 w-full h-full transition-opacity duration-500" style={{ opacity: i === idx ? 1 : 0, objectFit: c.object_fit || 'cover' }} />
+          <img key={i} src={img.url} alt={img.caption || ''} className="absolute inset-0 w-full h-full transition-opacity duration-500" style={{ opacity: (i === idx ? 1 : 0) * getOpacity(block, `gallery_${i}`), objectFit: c.object_fit || 'cover' }} />
         ))}
         {images.length > 1 && (
           <>
@@ -321,7 +321,7 @@ function ImageView({ block, editable, onContentChange }: SiteBlockViewProps) {
       <div className={`grid gap-3 h-full ${images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
         {images.map((img, i) => (
           <figure key={i} className="rounded-xl overflow-hidden bg-black/20 relative">
-            {img.url && <img src={img.url} alt={img.caption || ''} className="w-full h-full" style={{ objectFit: c.object_fit || 'cover' }} />}
+            {img.url && <img src={img.url} alt={img.caption || ''} className="w-full h-full" style={{ objectFit: c.object_fit || 'cover', opacity: getOpacity(block, `gallery_${i}`) }} />}
             {img.caption && <figcaption className="text-[11px] text-slate-400 p-2 text-center">{img.caption}</figcaption>}
           </figure>
         ))}

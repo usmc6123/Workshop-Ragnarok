@@ -128,20 +128,55 @@ probed duration (`durationMs * 4`, floor 15min, ceiling 90min), so raising the
 size cap again later won't also require remembering to bump a hardcoded
 timeout by hand.
 
-**Sites layers panel (added 2026-07-12).** `src/components/SiteLayersPanel.tsx`
-— a new left-side column in `SiteBuilderView.tsx`'s block editor (`tab ===
-'blocks'`), lists every block on the page frontmost-first, click to select,
-plus bring-to-front/forward/backward/send-to-back buttons per block. There's
-no dedicated z-index field on `SiteBlock` — stacking order has always just
-been array/DOM order (the `position` column), with `SiteGridCanvas.tsx` only
-ever adding a `z-20` bump for the currently-selected block on top of a flat
-`z-10` for everything else. Reordering therefore only needed a frontend
-change: `handleReorderBlock()` in `SiteBuilderView.tsx` splices/swaps the
-local `blocks` array, then persists via `api.reorderSiteBlocks()` — which
-turned out to already exist, calling an already-built backend route
-(`PUT /api/sites/:id/blocks/reorder` in `backend/server.js`) that was fully
-wired end-to-end but had never been called from any UI. No schema or backend
-changes were needed at all.
+**Sites layers panel (added 2026-07-12, reworked same day).** `src/components/SiteLayersPanel.tsx`
+— a left-side column in `SiteBuilderView.tsx`'s block editor (`tab ===
+'blocks'`), lists every block on the page frontmost-first. There's no
+dedicated z-index field on `SiteBlock` — stacking order has always just been
+array/DOM order (the `position` column). The original version added plain
+bring-to-front/forward/backward/send-to-back buttons (`handleReorderBlock()`
++ the already-existing-but-previously-unused `PUT /api/sites/:id/blocks/reorder`
+backend route / `api.reorderSiteBlocks()`), but this had a real bug: `SiteGridCanvas.tsx`
+gave whichever block was *currently selected* a `z-20` bump on top of a flat
+`z-10` for everything else, so selecting a different (e.g. background) block
+could visually re-bury a block the user had deliberately brought to front —
+reported as "when i click on another image..it wont push the video behind it
+again."
+
+**Fix: per-block lock.** `BlockStyle` (the JSON blob in `SiteBlock.style`)
+gained two new optional keys, no DB migration needed: `z_lock?: 'front' |
+'back'` and `custom_label?: string`. `SiteGridCanvas.tsx` now computes
+z-index as `z_lock==='front' ? z-30 : z_lock==='back' ? z-0 : isSelected ?
+z-20 : z-10` — a lock now always outranks the selection bump, which is the
+actual fix. `SiteLayersPanel.tsx` was redesigned around this: the old 4
+arrow buttons (reported as "confusing") are gone, replaced by exactly 2
+per-row toggle buttons, "Lock to Front" / "Lock to Back" — clicking one both
+moves the block there (via `handleToggleLock()` in `SiteBuilderView.tsx`,
+which reorders the array via the same `reorderSiteBlocks()` endpoint AND
+patches `style.z_lock`) and pins it there regardless of what else gets
+selected afterward. The plain one-shot (non-locking) bring-to-front/send-to-
+back actions weren't dropped — they moved to the canvas's right-click
+context menu instead (`handleReorderBlock()` is still there, just no longer
+wired to the layers panel). The layers list is now also displayed in the
+exact order things actually render (locked-front blocks, then normal blocks,
+then locked-back blocks, each group most-front-first) instead of raw array
+order, so "position in the list" always matches "position in the stack."
+Clicking a row now also opens that block's inspector on the right
+(previously it only selected the block on canvas, leaving the inspector
+showing whatever was last opened — a real mismatch bug). Each layer can also
+be renamed inline (pencil icon → text input → Enter/blur saves via
+`handleRenameBlock()`), storing the custom name in `style.custom_label`,
+shown in the layers list and the canvas's floating toolbar in place of the
+generic block-type label.
+
+**Image Gallery block was missing the opacity slider (fixed same day).**
+Hero/Video/Testimonial blocks all had a `showOpacity` slider on their
+`MediaField` already; the Image Gallery block's per-image `MediaField` in
+`SiteBuilderView.tsx`'s `BlockContentEditor` never got the same `opacityKey`/
+`mediaOpacity`/`onOpacityChange`/`showOpacity` props. Fixed by wiring those
+in, keyed per-image as `gallery_${idx}` in the existing `media_opacity` JSON
+map, and applying it in `SiteBlockRenderers.tsx`'s `ImageView` (both the grid
+and carousel layouts — for carousel, multiplied into the existing crossfade
+opacity rather than replacing it).
 
 **"Formatted Media" library (added 2026-07-12).** A web page can't open a
 native OS file browser — that's a real browser security restriction, not

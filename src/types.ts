@@ -386,6 +386,18 @@ export interface BlockStyle {
   grid_col_span?: number;
   grid_row?: number;
   grid_row_span?: number;
+
+  // Layers panel: pins a block's stacking order so it always renders in
+  // front of (or behind) every other block on the page, regardless of which
+  // block is currently selected. Without this, the canvas's selection-based
+  // z-index bump (see SiteGridCanvas) can visually override a manually
+  // arranged stacking order just by clicking a different block.
+  z_lock?: 'front' | 'back';
+
+  // Layers panel: user-editable display name shown instead of the generic
+  // block-type label (e.g. "Hero Video" instead of just "Video"), purely
+  // cosmetic — falls back to the block type's default label when unset.
+  custom_label?: string;
 }
 
 export interface SiteBlock {

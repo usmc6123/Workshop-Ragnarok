@@ -20,6 +20,7 @@ import {
   Save, X, Mailbox, ExternalLink,
   Palette, AlignLeft, AlignCenter, AlignRight, Paintbrush, Sparkles, LayoutGrid, LayoutTemplate,
   Undo2, Redo2, Monitor, Tablet, Smartphone, Copy, Settings2, EyeOff, Download, FileJson, RefreshCw,
+  ArrowUpToLine, ArrowDownToLine,
 } from 'lucide-react';
 
 const DEFAULT_ACCENT = '#f59e0b';
@@ -377,7 +378,7 @@ function BlockContentEditor({
                 <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Image {idx + 1}</span>
                 <button onClick={() => removeImage(idx)} className="text-rose-400 hover:text-rose-300 cursor-pointer"><Trash2 className="w-3 h-3" /></button>
               </div>
-              <MediaField value={img.url} onChange={(v) => updateImage(idx, { url: v })} accept="image" placeholder="https://..." />
+              <MediaField value={img.url} onChange={(v) => updateImage(idx, { url: v })} opacityKey={`gallery_${idx}`} mediaOpacity={mediaOpacity} onOpacityChange={onOpacityChange} showOpacity accept="image" placeholder="https://..." />
               <TextInput value={img.caption || ''} onChange={(v) => updateImage(idx, { caption: v })} placeholder="Caption (optional)" />
             </div>
           ))}
@@ -829,6 +830,59 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     }
   };
 
+  // Layers panel lock toggle — "lock to front"/"lock to back" both pins the
+  // block's z-index (see SiteGridCanvas) so selecting some other block can
+  // never visually bury it again, AND immediately moves it to the actual
+  // front/back of the array so unlocking later leaves it somewhere sensible.
+  // Clicking an already-active lock turns it off without moving the block.
+  const handleToggleLock = async (blockId: number, lock: 'front' | 'back') => {
+    const block = blocks.find(b => b.id === blockId);
+    if (!block) return;
+    const currentStyle = parseJson<BlockStyle>(block.style, {});
+    const turningOff = currentStyle.z_lock === lock;
+    pushHistory();
+
+    let next = blocks;
+    if (!turningOff) {
+      const idx = blocks.findIndex(b => b.id === blockId);
+      next = [...blocks];
+      const [item] = next.splice(idx, 1);
+      if (lock === 'front') next.push(item); else next.unshift(item);
+    }
+    const nextStyle: BlockStyle = { ...currentStyle, z_lock: turningOff ? undefined : lock };
+    next = next.map(b => b.id === blockId ? { ...b, style: JSON.stringify(nextStyle) } : b);
+    setBlocks(next);
+    if (inspectorBlock?.id === blockId) setDraftStyle(nextStyle);
+
+    try {
+      if (!turningOff) await api.reorderSiteBlocks(site.id, next.map(b => b.id));
+      const updated = await api.updateSiteBlock(site.id, blockId, { style: nextStyle });
+      setBlocks(prev => prev.map(b => b.id === blockId ? updated : b));
+    } catch (err) {
+      console.error(err);
+      loadBlocks();
+    }
+  };
+
+  // Layers panel rename — purely cosmetic label stored in the style JSON
+  // (see BlockStyle.custom_label), no schema change needed.
+  const handleRenameBlock = async (blockId: number, name: string) => {
+    const block = blocks.find(b => b.id === blockId);
+    if (!block) return;
+    const currentStyle = parseJson<BlockStyle>(block.style, {});
+    const trimmed = name.trim();
+    const nextStyle: BlockStyle = { ...currentStyle, custom_label: trimmed || undefined };
+    setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, style: JSON.stringify(nextStyle) } : b));
+    if (inspectorBlock?.id === blockId) setDraftStyle(nextStyle);
+    try {
+      const updated = await api.updateSiteBlock(site.id, blockId, { style: nextStyle });
+      setBlocks(prev => prev.map(b => b.id === blockId ? updated : b));
+    } catch (err) {
+      console.error(err);
+      loadBlocks();
+    }
+  };
+
   // Inline content edits made directly on the canvas — update local state
   // immediately for a snappy feel, debounce the actual server save, and only
   // record ONE undo step per burst of typing rather than one per keystroke.
@@ -1093,8 +1147,9 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
             <SiteLayersPanel
               blocks={blocks}
               selectedId={selectedId}
-              onSelect={setSelectedId}
-              onReorder={handleReorderBlock}
+              onSelect={(block) => openInspector(block, inspectorTab)}
+              onToggleLock={handleToggleLock}
+              onRename={handleRenameBlock}
             />
           )}
 
@@ -1309,6 +1364,12 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
           </button>
           <button onClick={() => { handleDuplicateBlock(contextMenu.block); setContextMenu(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 cursor-pointer">
             <Copy className="w-3.5 h-3.5" /> Duplicate
+          </button>
+          <button onClick={() => { handleReorderBlock(contextMenu.block.id, 'front'); setContextMenu(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 cursor-pointer">
+            <ArrowUpToLine className="w-3.5 h-3.5" /> Bring to Front
+          </button>
+          <button onClick={() => { handleReorderBlock(contextMenu.block.id, 'back'); setContextMenu(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 cursor-pointer">
+            <ArrowDownToLine className="w-3.5 h-3.5" /> Send to Back
           </button>
           <button
             onClick={() => {

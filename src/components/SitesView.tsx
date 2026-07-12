@@ -331,7 +331,7 @@ export default function SitesView() {
                   className="flex-1 px-3 py-2 bg-primary-theme hover:opacity-90 text-slate-950 rounded-lg text-[10px] uppercase tracking-wider font-black transition flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Layers className="w-3.5 h-3.5" />
-                  <span>Edit Blocks</span>
+                  <span>Edit Site</span>
                 </button>
                 <button
                   onClick={() => openEditForm(site)}
