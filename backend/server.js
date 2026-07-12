@@ -1413,7 +1413,13 @@ try {
 // which is what caused an "Out of Memory" tab crash on larger videos).
 const ALLOWED_UPLOAD_MIME = {
   image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
-  video: ['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg'],
+  // video/x-matroska (.mkv) and video/x-msvideo (.avi) added after a real bug:
+  // an .mkv was rejected by fileFilter, but for a large file the connection got
+  // torn down mid-upload before the browser finished sending it, which showed
+  // up client-side as a generic "Failed to fetch" instead of a clean error —
+  // ffmpeg reads any of these containers fine and always outputs .mp4 anyway,
+  // so there's no real reason to reject them going in.
+  video: ['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg', 'video/x-matroska', 'video/x-msvideo'],
 };
 const MAX_IMAGE_UPLOAD_BYTES = 20 * 1024 * 1024;  // 20MB
 const MAX_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB
@@ -1429,7 +1435,7 @@ const mediaUploadStorage = multer.diskStorage({
     cb(null, mediaDir);
   },
   filename: (req, file, cb) => {
-    const ext = (file.mimetype.split('/')[1] || 'bin').replace('quicktime', 'mov').replace('svg+xml', 'svg');
+    const ext = (file.mimetype.split('/')[1] || 'bin').replace('quicktime', 'mov').replace('svg+xml', 'svg').replace('x-matroska', 'mkv').replace('x-msvideo', 'avi');
     cb(null, `${safeFilenameBase(file.originalname)}_${Date.now()}_${Math.floor(Math.random() * 1e6)}.${ext}`);
   },
 });
@@ -1450,6 +1456,11 @@ const uploadMedia = multer({
 app.post('/api/uploads', (req, res) => {
   uploadMedia.single('file')(req, res, (err) => {
     if (err) {
+      // Log this — a rejection on a large file can tear the connection down
+      // before the browser finishes sending it, showing up client-side as a
+      // generic "Failed to fetch" with no clue why. This is the only place
+      // that actually says what happened.
+      console.error('Upload rejected by multer:', err.code || '', err.message);
       const msg = err.code === 'LIMIT_FILE_SIZE'
         ? `File is too large — max is ${(MAX_VIDEO_UPLOAD_BYTES / 1024 / 1024).toFixed(0)}MB.`
         : (err.message || 'Upload failed');
@@ -1486,7 +1497,7 @@ const VIDEO_RESOLUTION_HEIGHTS = { '480': 480, '720': 720, '1080': 1080 };
 const reformatUploadStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, os.tmpdir()),
   filename: (req, file, cb) => {
-    const ext = (file.mimetype.split('/')[1] || 'mp4').replace('quicktime', 'mov');
+    const ext = (file.mimetype.split('/')[1] || 'mp4').replace('quicktime', 'mov').replace('x-matroska', 'mkv').replace('x-msvideo', 'avi');
     cb(null, `reformat_in_${Date.now()}_${Math.floor(Math.random() * 1e6)}.${ext}`);
   },
 });
@@ -1532,6 +1543,7 @@ function probeDurationSeconds(inputPath) {
 app.post('/api/uploads/compress-video', (req, res) => {
   uploadForReformat.single('file')(req, res, (err) => {
     if (err) {
+      console.error('Reformat upload rejected by multer:', err.code || '', err.message);
       const msg = err.code === 'LIMIT_FILE_SIZE'
         ? `File is too large to reformat — max is ${(REFORMAT_MAX_RAW_INPUT_BYTES / 1024 / 1024).toFixed(0)}MB going in.`
         : (err.message || 'Upload failed');

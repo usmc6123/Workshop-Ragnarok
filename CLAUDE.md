@@ -332,6 +332,35 @@ that something's newly broken.
    especially with Cloudflare, which drops oversized requests without a clean
    error the app could catch and explain.**
 
+9. **"Failed to fetch" on a 1.28GB `.mkv` reformat upload, over LAN — a
+   completely different bug that looked identical to #8.** Root cause:
+   `ALLOWED_UPLOAD_MIME.video` in `backend/server.js` never included
+   `video/x-matroska` (.mkv) or `video/x-msvideo` (.avi) — only mp4/webm/
+   quicktime/ogg. The client-side check in `MediaField.tsx` was too loose
+   (`file.type.startsWith('video/')`), so it let the .mkv through; the
+   server's multer `fileFilter` then correctly rejected it — but for a file
+   this large, the rejection tore the connection down while the browser was
+   still mid-upload, and that abrupt cutoff surfaced as a generic
+   "Failed to fetch" instead of a clean 400 with our actual error message.
+   `docker logs` showed nothing at all, because the multer error-handling
+   path never had a `console.error` in it to begin with. Fixed by: adding
+   `video/x-matroska`/`video/x-msvideo` to the allowed list (ffmpeg reads
+   either fine and always outputs .mp4 regardless of input container, so
+   there was no real reason to reject them), replacing the loose client-side
+   prefix check with one that validates against the exact same allowed list
+   (`detectMediaType()` in `MediaField.tsx`, with an extension-based fallback
+   for the cases — mainly `.mkv` on Windows — where the browser reports an
+   empty `file.type`), and adding `console.error` on both multer rejection
+   paths in `server.js` so this isn't silent next time.
+   **Lesson: diagnosed by first ruling out the already-known Cloudflare cause
+   (#8) via a clean LAN test that still failed, then requesting the exact
+   file size (1.28GB — nowhere near the 2GB app cap) and noticing the
+   extension was `.mkv`, not `.mp4`. When a "Failed to fetch" recurs after a
+   previous root cause was already fixed, don't assume it's the same bug
+   recurring — re-verify from scratch, because a response-less failure can
+   have several unrelated causes that all look identical from the browser's
+   side.**
+
 ## Tooling lessons (for future Claude sessions specifically)
 
 - The bash sandbox's mounted view of these Windows folders can be **stale/cached**

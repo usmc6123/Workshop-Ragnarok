@@ -19,6 +19,35 @@ function formatSize(bytes: number): string {
   return `${mb.toFixed(mb < 10 ? 1 : 0)}MB`;
 }
 
+// Must match ALLOWED_UPLOAD_MIME in backend/server.js exactly. A real bug came
+// from checking file.type.startsWith('video/') here instead of the actual
+// allowed list — that loose check let an .mkv (video/x-matroska, not in the
+// server's list) through client-side, and for a large file the server's
+// rejection tore the connection down mid-upload before the browser finished
+// sending it, which showed up as a generic "Failed to fetch" with zero clue
+// why. Checking the real list here means an unsupported type gets caught
+// instantly, before a multi-GB upload even starts.
+const ALLOWED_IMAGE_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+const ALLOWED_VIDEO_MIME = ['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg', 'video/x-matroska', 'video/x-msvideo'];
+// Some browsers/OSes don't map certain extensions to a MIME type at all
+// (file.type comes back ''), most commonly .mkv on Windows — fall back to the
+// extension itself rather than rejecting a perfectly fine file for that.
+const EXTENSION_MIME_FALLBACK: Record<string, string> = {
+  mkv: 'video/x-matroska', avi: 'video/x-msvideo', mov: 'video/quicktime',
+  mp4: 'video/mp4', webm: 'video/webm', ogv: 'video/ogg',
+};
+
+function detectMediaType(file: File): { kind: 'image' | 'video' | null; mimeType: string } {
+  let mimeType = file.type;
+  if (!mimeType) {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (ext && EXTENSION_MIME_FALLBACK[ext]) mimeType = EXTENSION_MIME_FALLBACK[ext];
+  }
+  if (ALLOWED_IMAGE_MIME.includes(mimeType)) return { kind: 'image', mimeType };
+  if (ALLOWED_VIDEO_MIME.includes(mimeType)) return { kind: 'video', mimeType };
+  return { kind: null, mimeType };
+}
+
 // Client-side downscale before upload — used for things like the shop logo, where a
 // full-resolution photo is pointless, and for the "Reformat" tool's image path.
 // Skips SVGs (not rasterizable via canvas). Uses createObjectURL + canvas.toBlob
@@ -128,15 +157,15 @@ export default function MediaField({
     if (!file) return;
     setUploadError(null);
 
-    const isImage = file.type.startsWith('image/');
-    const isVideo = file.type.startsWith('video/');
-    if (!isImage && !isVideo) {
-      setUploadError('Unsupported file type — please choose an image or video.');
+    const { kind, mimeType } = detectMediaType(file);
+    if (!kind) {
+      setUploadError(`Unsupported file type (${mimeType || 'unknown'}) — please choose a common image or video format.`);
       return;
     }
+    const isImage = kind === 'image';
     const maxBytes = isImage ? MAX_IMAGE_UPLOAD_BYTES : MAX_VIDEO_UPLOAD_BYTES;
     if (file.size > maxBytes) {
-      setUploadError(`File is too large (${(file.size / 1024 / 1024).toFixed(1)}MB) — max is ${(maxBytes / 1024 / 1024).toFixed(0)}MB for ${isImage ? 'images' : 'video'}. Use "Reformat" below to shrink it, or paste a hosted URL instead.`);
+      setUploadError(`File is too large (${formatSize(file.size)}) — max is ${formatSize(maxBytes)} for ${isImage ? 'images' : 'video'}. Use "Reformat" below to shrink it, or paste a hosted URL instead.`);
       return;
     }
 
@@ -161,12 +190,12 @@ export default function MediaField({
     if (!file) return;
     setReformatError(null);
     setReformatDoneNote(null);
-    const isImage = file.type.startsWith('image/');
-    const isVideo = file.type.startsWith('video/');
-    if (!isImage && !isVideo) {
-      setReformatError('Unsupported file type — please choose an image or video.');
+    const { kind, mimeType } = detectMediaType(file);
+    if (!kind) {
+      setReformatError(`Unsupported file type (${mimeType || 'unknown'}) — please choose a common image or video format.`);
       return;
     }
+    const isImage = kind === 'image';
     if (file.size > REFORMAT_MAX_RAW_INPUT_BYTES) {
       setReformatError(`That's ${formatSize(file.size)} — too large for this tool even locally (${formatSize(REFORMAT_MAX_RAW_INPUT_BYTES)} is the hard limit going in). Shrink it first with something like HandBrake or your phone's built-in video editor, then upload the result here.`);
       return;
