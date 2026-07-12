@@ -157,7 +157,7 @@ export default function MediaField({
       return;
     }
     if (file.size > REFORMAT_MAX_RAW_INPUT_BYTES) {
-      setReformatError(`That file is too large to reformat here (${(file.size / 1024 / 1024).toFixed(0)}MB) — max is ${(REFORMAT_MAX_RAW_INPUT_BYTES / 1024 / 1024).toFixed(0)}MB going in.`);
+      setReformatError(`That's ${(file.size / 1024 / 1024).toFixed(0)}MB — too large for this tool even locally (${(REFORMAT_MAX_RAW_INPUT_BYTES / 1024 / 1024).toFixed(0)}MB is the hard limit going in). Shrink it first with something like HandBrake or your phone's built-in video editor, then upload the result here.`);
       return;
     }
     setReformatFile(file);
@@ -270,6 +270,13 @@ export default function MediaField({
           <p className="text-[9px] text-slate-500 leading-relaxed">
             Have a file that's too big to upload directly? Pick it here — this shrinks it (images downscale instantly; video is re-encoded on the server, which takes longer) and uploads the result automatically.
           </p>
+          {accept !== 'image' && (
+            <ul className="text-[9px] text-slate-500 leading-relaxed list-none space-y-0.5 border-l-2 border-[#1e2028] pl-2">
+              <li><span className="text-slate-300 font-bold">Under 100MB</span> — works fine here, public domain or local.</li>
+              <li><span className="text-amber-400 font-bold">100–300MB</span> — works, but only reliably over your local/Tailscale network (Cloudflare caps public uploads around 100-200MB).</li>
+              <li><span className="text-rose-400 font-bold">Over 300MB</span> — too big for this tool. Shrink it elsewhere first, then come back.</li>
+            </ul>
+          )}
           <input ref={reformatFileInputRef} type="file" accept={acceptAttr} className="hidden" onChange={(e) => handlePickReformatFile(e.target.files?.[0])} />
           <button
             type="button"
@@ -279,14 +286,20 @@ export default function MediaField({
             {reformatFile ? `Selected: ${reformatFile.name} (${(reformatFile.size / 1024 / 1024).toFixed(1)}MB)` : 'Choose a file to shrink'}
           </button>
 
-          {reformatFile && reformatKind === 'video' && reformatFile.size > 80 * 1024 * 1024 && localAccessUrl && !isAlreadyOnLocalUrl && (
-            <p className="text-[9px] text-amber-400 leading-relaxed bg-amber-950/20 border border-amber-900/40 rounded-lg px-2 py-1.5">
-              A file this size can fail over the public domain — Cloudflare caps uploads around 100-200MB.{' '}
-              <a href={localAccessUrl} target="_blank" rel="noreferrer" className="underline font-bold hover:text-amber-300">
-                Open this app locally
-              </a>{' '}
-              instead and try again from there (you'll need to log back in).
-            </p>
+          {reformatFile && reformatKind === 'video' && reformatFile.size > 100 * 1024 * 1024 && !isAlreadyOnLocalUrl && (
+            localAccessUrl ? (
+              <p className="text-[9px] text-amber-400 leading-relaxed bg-amber-950/20 border border-amber-900/40 rounded-lg px-2 py-1.5">
+                This file is in the 100-300MB range — it can fail over the public domain.{' '}
+                <a href={localAccessUrl} target="_blank" rel="noreferrer" className="underline font-bold hover:text-amber-300">
+                  Open this app locally
+                </a>{' '}
+                instead and try again from there (you'll need to log back in — it's the same data either way).
+              </p>
+            ) : (
+              <p className="text-[9px] text-amber-400 leading-relaxed bg-amber-950/20 border border-amber-900/40 rounded-lg px-2 py-1.5">
+                This file is in the 100-300MB range — it can fail over the public domain. Add a "Local / Tailscale Access URL" in Settings to get a one-click link here for next time.
+              </p>
+            )
           )}
 
           {reformatFile && reformatKind === 'image' && (
