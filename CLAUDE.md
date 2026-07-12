@@ -599,6 +599,59 @@ message name the specific layer (`Delete "X"? This can't be undone.`) since
 the Layers panel context doesn't have the canvas visible to double check
 against.
 
+**Sites template library doubled + thumbnails now show real example content
+(2026-07-12).** Reported as wanting "several more templates that are very
+well thought out and useful," with actual example data visible in the
+thumbnail so picking one isn't a guess. Added 6 new entries to
+`src/constants/siteTemplates.ts` alongside the original 6 (Portfolio, Local
+Service Business, Product/App Landing Page, Personal/About Me,
+Restaurant/Menu, Coming Soon): Auto Repair Shop, Real Estate Listing,
+Fitness/Gym, Photography Studio, Nonprofit/Fundraiser, and Event/Wedding —
+each a full, realistic multi-block layout (hero, text, testimonial, pricing,
+FAQ, image gallery, contact form in varying multi-column arrangements) with
+example copy specific to that business type, not generic Lorem-ipsum-style
+placeholders. `TemplateThumbnail.tsx` was rewritten: previously each block in
+the mini schematic just showed a centered generic type icon (a grid icon, a
+tag icon, etc.) regardless of what the template actually contained — now a
+new `ThumbBlockContent` renders each block's REAL template content at a tiny
+scale (hero/cta show the actual headline + button text, text blocks show
+headline + a body excerpt, pricing shows the actual tier names/prices as
+mini columns, testimonials show the actual quote + author, FAQ shows the
+actual question list, contact forms show a headline + fake input-line
+placeholders + the actual button text, image blocks show a small row of
+placeholder tiles). This makes the thumbnail an actual preview of what
+applying the template produces, not just an abstract wireframe. The template
+picker grid in `SiteBuilderView.tsx` (`tab === 'blocks'`, `showTemplatePicker`
+section) was also tightened to fit the now-12-template library: grid columns
+went from a max of 3 to a max of 4 (`sm:grid-cols-3 xl:grid-cols-4`), card
+padding/gaps and thumbnail aspect ratio were trimmed slightly (16/11 →
+16/10), and the grid gained `max-h-[560px] overflow-y-auto` so a full
+12-template library doesn't push the rest of the builder down excessively.
+
+**Layers panel: rows vanishing whenever fewer than 2 lock groups had blocks
+(2026-07-12) — the real cause of "my layers keep disappearing."** Reported
+as layers disappearing after adding a third image, not coming back on
+refresh, but reappearing after adding another block — which ruled out real
+data loss (a refresh re-fetches from the DB; if the block still exists
+server-side, this had to be a pure rendering bug) and pointed straight at
+`SiteLayersPanel.tsx`. Root cause: `showSections` (`front/normal/back` counts,
+true only when 2+ of the 3 groups are non-empty) was meant to control ONLY
+whether the small section-header labels show, but it was also wrapping the
+front and back groups' actual row rendering (`{showSections && front.length
+> 0 && (...)}`). The `normal` group's rows rendered unconditionally with no
+such gate. So any time fewer than 2 groups had anything in them — e.g. every
+block locked to back and nothing left unlocked, a completely ordinary setup
+(a background image locked back, a CTA locked front, nothing "normal") —
+`showSections` went false and the one populated group's rows disappeared
+outright, even though the blocks were still there in the database the whole
+time. Adding a new block defaults to unlocked (`normal`), which bumped the
+non-empty-group count back to 2+, flipped `showSections` back to true, and
+made everything reappear at once — exactly matching "disappears, refresh
+doesn't fix it, adding a block brings it back." Fixed by decoupling the two
+concerns: each group's rows now render whenever that group is non-empty,
+full stop; `showSections` only gates whether the little label above them is
+shown.
+
 ## The two repos
 
 1. **usmc6123/Workshop-Ragnarok** (this repo) — the actual app, frontend + backend.

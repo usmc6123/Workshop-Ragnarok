@@ -224,19 +224,33 @@ export default function SiteLayersPanel({
         <p className="p-4 text-[10px] text-slate-500 font-mono">No blocks yet.</p>
       ) : (
         <div className="overflow-y-auto flex-1 min-h-0 p-2 space-y-1.5 mt-1">
-          {showSections && front.length > 0 && (
+          {/* A group's rows always render whenever it has blocks — `showSections`
+              only ever controls whether the little label above them shows, never
+              whether the rows themselves do. Previously `showSections &&` also
+              wrapped the front/back rows directly, so whenever fewer than 2 of
+              the 3 groups had anything in them (e.g. every block locked to back
+              and none unlocked — a completely normal setup, like a background
+              image behind a locked-front CTA), showSections went false and the
+              only populated group's rows vanished entirely, looking exactly like
+              the layers had disappeared. Adding a new block (which defaults to
+              unlocked) bumped the non-empty-group count back to 2+, flipping
+              showSections back on and un-hiding everything at once — which is
+              why it looked like it "came back" only after adding a block. */}
+          {front.length > 0 && (
             <>
-              <SectionHeader label="Locked to Front" />
+              {showSections && <SectionHeader label="Locked to Front" />}
               {front.map(renderRow)}
             </>
           )}
-          {showSections && normal.length > 0 && (
-            <SectionHeader label="Unlocked" />
-          )}
-          {normal.map(renderRow)}
-          {showSections && back.length > 0 && (
+          {normal.length > 0 && (
             <>
-              <SectionHeader label="Locked to Back" />
+              {showSections && <SectionHeader label="Unlocked" />}
+              {normal.map(renderRow)}
+            </>
+          )}
+          {back.length > 0 && (
+            <>
+              {showSections && <SectionHeader label="Locked to Back" />}
               {back.map(renderRow)}
             </>
           )}

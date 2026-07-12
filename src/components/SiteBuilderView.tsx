@@ -1550,8 +1550,8 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
                   </span>
                   <button onClick={() => setShowTemplatePicker(false)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
                 </div>
-                <p className="text-[10px] text-slate-500 -mt-2">Adds a ready-made, multi-column layout with placeholder copy — nothing existing gets touched.</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <p className="text-[10px] text-slate-500 -mt-2">Adds a ready-made, multi-column layout with placeholder copy — nothing existing gets touched. Each thumbnail shows the template's actual example content.</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2.5 max-h-[560px] overflow-y-auto pr-1 -mr-1">
                   {SITE_TEMPLATES.map(tpl => {
                     const isApplying = applyingTemplateId === tpl.id;
                     return (
@@ -1559,15 +1559,15 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
                         key={tpl.id}
                         onClick={() => handleApplyTemplate(tpl)}
                         disabled={!!applyingTemplateId}
-                        className="flex flex-col gap-2 p-3 rounded-xl border border-[#1e2028] hover:border-amber-500/40 bg-[#0c0d12]/60 hover:bg-amber-950/10 transition cursor-pointer text-left disabled:opacity-50"
+                        className="flex flex-col gap-1.5 p-2.5 rounded-xl border border-[#1e2028] hover:border-amber-500/40 bg-[#0c0d12]/60 hover:bg-amber-950/10 transition cursor-pointer text-left disabled:opacity-50"
                       >
                         <TemplateThumbnail template={tpl} />
-                        <div className="flex items-center gap-2">
-                          <tpl.icon className="w-3.5 h-3.5 text-primary-theme shrink-0" />
-                          <span className="text-xs font-black text-white">{tpl.name}</span>
-                          {isApplying && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-300 ml-auto" />}
+                        <div className="flex items-center gap-1.5">
+                          <tpl.icon className="w-3 h-3 text-primary-theme shrink-0" />
+                          <span className="text-[11px] font-black text-white truncate">{tpl.name}</span>
+                          {isApplying && <Loader2 className="w-3 h-3 animate-spin text-amber-300 ml-auto shrink-0" />}
                         </div>
-                        <span className="block text-[10px] text-slate-500 leading-snug">{tpl.description}</span>
+                        <span className="block text-[9.5px] text-slate-500 leading-snug line-clamp-2">{tpl.description}</span>
                       </button>
                     );
                   })}
