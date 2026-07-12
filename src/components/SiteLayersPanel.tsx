@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, ArrowUpToLine, ArrowDownToLine, Pencil, Check, X, GripVertical, Lock } from 'lucide-react';
+import { Layers, ArrowUpToLine, ArrowDownToLine, Pencil, Check, X, GripVertical, Lock, Trash2 } from 'lucide-react';
 import { SiteBlock, BlockStyle } from '../types';
 import { blockMeta, blockSummary } from '../constants/siteBlockTypes';
 
@@ -29,9 +29,15 @@ type LockGroup = 'front' | 'normal' | 'back';
  * handle) to reorder WITHIN their own group — precise ordering beyond just
  * "front" or "back" is exactly what's needed once several blocks share a
  * lock state and their relative order among each other starts to matter.
+ * Locking/unlocking a layer never moves it in the list on its own — only a
+ * manual drag (or the canvas's Bring to Front/Send to Back context menu
+ * actions) changes order, so an arrangement you set stays exactly where you
+ * put it. Each row also has a delete button — deletion always confirms
+ * first via the same confirm() dialog used everywhere else blocks are
+ * deleted (canvas context menu, keyboard delete).
  */
 export default function SiteLayersPanel({
-  blocks, selectedId, onSelect, onToggleLock, onRename, onReorder,
+  blocks, selectedId, onSelect, onToggleLock, onRename, onReorder, onDelete,
 }: {
   blocks: SiteBlock[];
   selectedId: number | null;
@@ -39,6 +45,7 @@ export default function SiteLayersPanel({
   onToggleLock: (blockId: number, lock: 'front' | 'back') => void;
   onRename: (blockId: number, name: string) => void;
   onReorder: (orderedIds: number[]) => void;
+  onDelete: (block: SiteBlock) => void;
 }) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [draftName, setDraftName] = useState('');
@@ -185,6 +192,14 @@ export default function SiteLayersPanel({
           >
             <ArrowDownToLine className="w-3 h-3" />
           </LockButton>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDelete(block); }}
+            title="Delete layer"
+            className="shrink-0 flex items-center justify-center p-1.5 rounded border border-[#1e2028] text-slate-500 hover:text-rose-400 hover:border-rose-500/50 hover:bg-rose-500/10 cursor-pointer transition"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
         </div>
       </div>
     );

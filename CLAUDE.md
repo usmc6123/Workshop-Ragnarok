@@ -576,6 +576,29 @@ edited separately in `SitesView.tsx`'s Settings modal) so what's shown
 always matches what applying the preset would really look like on this
 specific site — presets themselves don't touch dark/light.
 
+**Layers panel: stopped lock toggle from silently reordering, added per-layer
+delete (2026-07-12).** Reported as "don't move the layers once we lock or
+unlock them, I'll arrange them however I want and it will stay there," plus a
+request to delete a layer directly from the panel (with a confirmation) and
+confirmation that drag-to-reorder should really work. Root cause of the
+reorder complaint: `handleToggleLock` in `SiteBuilderView.tsx` didn't just
+flip `style.z_lock`, it also spliced the block to the literal front (`push`)
+or back (`unshift`) of the entire blocks array every time a lock was turned
+on — so locking a layer after manually dragging it to a specific spot in the
+Layers panel would immediately throw that arrangement away. Fixed by making
+lock toggle a pure style flip with no array mutation at all; the block now
+stays exactly where it was, and the Layers panel's front/normal/back grouping
+just re-reads from whatever `z_lock` is currently set — manual drag order
+(already implemented, see the drag-reordering entry above) is now the only
+thing that ever moves a layer, unless you use the canvas's right-click Bring
+to Front/Send to Back one-shot actions. Delete: `SiteLayersPanel.tsx` gained
+a per-row trash-icon button (next to the two lock buttons) wired to the
+existing `handleDeleteBlock`, which already gates on `confirm()` — reused
+as-is rather than building a second delete path, just made the confirm
+message name the specific layer (`Delete "X"? This can't be undone.`) since
+the Layers panel context doesn't have the canvas visible to double check
+against.
+
 ## The two repos
 
 1. **usmc6123/Workshop-Ragnarok** (this repo) — the actual app, frontend + backend.

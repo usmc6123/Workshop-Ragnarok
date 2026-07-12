@@ -907,7 +907,8 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
   };
 
   const handleDeleteBlock = async (block: SiteBlock) => {
-    if (!confirm('Delete this block?')) return;
+    const label = parseJson<BlockStyle>(block.style, {}).custom_label || blockMeta(block.block_type).label;
+    if (!confirm(`Delete "${label}"? This can't be undone.`)) return;
     pushHistory(`Deleted ${blockMeta(block.block_type).label} block`);
     try {
       await api.deleteSiteBlock(site.id, block.id);
@@ -989,11 +990,16 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     }
   };
 
-  // Layers panel lock toggle — "lock to front"/"lock to back" both pins the
+  // Layers panel lock toggle — "lock to front"/"lock to back" pins the
   // block's z-index (see SiteGridCanvas) so selecting some other block can
-  // never visually bury it again, AND immediately moves it to the actual
-  // front/back of the array so unlocking later leaves it somewhere sensible.
-  // Clicking an already-active lock turns it off without moving the block.
+  // never visually bury it again. This deliberately does NOT touch array
+  // order any more — it used to force the block to the literal front/back of
+  // the whole array on lock, which silently undid whatever position the user
+  // had just dragged it to in the Layers panel. Locking/unlocking now only
+  // flips style.z_lock; the block stays exactly where it was arranged, and
+  // grouping in the Layers panel (front/normal/back sections) just re-reads
+  // from whatever z_lock is now set. Clicking an already-active lock turns
+  // it off, same no-move behavior.
   const handleToggleLock = async (blockId: number, lock: 'front' | 'back') => {
     const block = blocks.find(b => b.id === blockId);
     if (!block) return;
@@ -1002,20 +1008,12 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     const lockLabel = turningOff ? 'Unlocked' : lock === 'front' ? 'Locked to front' : 'Locked to back';
     pushHistory(`${lockLabel}: ${blockMeta(block.block_type).label} block`);
 
-    let next = blocks;
-    if (!turningOff) {
-      const idx = blocks.findIndex(b => b.id === blockId);
-      next = [...blocks];
-      const [item] = next.splice(idx, 1);
-      if (lock === 'front') next.push(item); else next.unshift(item);
-    }
     const nextStyle: BlockStyle = { ...currentStyle, z_lock: turningOff ? undefined : lock };
-    next = next.map(b => b.id === blockId ? { ...b, style: JSON.stringify(nextStyle) } : b);
+    const next = blocks.map(b => b.id === blockId ? { ...b, style: JSON.stringify(nextStyle) } : b);
     setBlocks(next);
     if (inspectorBlock?.id === blockId) setDraftStyle(nextStyle);
 
     try {
-      if (!turningOff) await api.reorderSiteBlocks(site.id, next.map(b => b.id));
       const updated = await api.updateSiteBlock(site.id, blockId, { style: nextStyle });
       setBlocks(prev => prev.map(b => b.id === blockId ? updated : b));
     } catch (err) {
@@ -1517,6 +1515,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
               onToggleLock={handleToggleLock}
               onRename={handleRenameBlock}
               onReorder={handleDragReorderBlocks}
+              onDelete={handleDeleteBlock}
             />
           )}
 
