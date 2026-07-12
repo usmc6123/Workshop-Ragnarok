@@ -4,13 +4,20 @@ import { api } from '../lib/api';
 
 const MAX_IMAGE_UPLOAD_BYTES = 20 * 1024 * 1024;  // 20MB — matches backend/server.js POST /api/uploads
 const MAX_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB — matches backend/server.js POST /api/uploads
-const REFORMAT_MAX_RAW_INPUT_BYTES = 300 * 1024 * 1024; // 300MB — raw file being shrunk, before compression
+const REFORMAT_MAX_RAW_INPUT_BYTES = 2 * 1024 * 1024 * 1024; // 2GB — matches backend/server.js. Our own app-level cap, not an infra limit — over LAN/Tailscale there's no Cloudflare involved.
 
 const VIDEO_RESOLUTIONS = [
   { value: '480' as const, label: '480p (smallest)' },
   { value: '720' as const, label: '720p (recommended)' },
   { value: '1080' as const, label: '1080p (largest)' },
 ];
+
+// Human-friendly size display — "300MB" reads fine, but "2048MB" doesn't.
+function formatSize(bytes: number): string {
+  const mb = bytes / 1024 / 1024;
+  if (mb >= 1024) return `${(mb / 1024).toFixed(mb % 1024 === 0 ? 0 : 1)}GB`;
+  return `${mb.toFixed(mb < 10 ? 1 : 0)}MB`;
+}
 
 // Client-side downscale before upload — used for things like the shop logo, where a
 // full-resolution photo is pointless, and for the "Reformat" tool's image path.
@@ -161,7 +168,7 @@ export default function MediaField({
       return;
     }
     if (file.size > REFORMAT_MAX_RAW_INPUT_BYTES) {
-      setReformatError(`That's ${(file.size / 1024 / 1024).toFixed(0)}MB — too large for this tool even locally (${(REFORMAT_MAX_RAW_INPUT_BYTES / 1024 / 1024).toFixed(0)}MB is the hard limit going in). Shrink it first with something like HandBrake or your phone's built-in video editor, then upload the result here.`);
+      setReformatError(`That's ${formatSize(file.size)} — too large for this tool even locally (${formatSize(REFORMAT_MAX_RAW_INPUT_BYTES)} is the hard limit going in). Shrink it first with something like HandBrake or your phone's built-in video editor, then upload the result here.`);
       return;
     }
     setReformatFile(file);
@@ -184,7 +191,7 @@ export default function MediaField({
         onChange(result.url);
         setReformatDoneNote(`Done — new size: ${(result.size_bytes / 1024 / 1024).toFixed(2)}MB.`);
       } else {
-        const originalSizeMb = reformatFile.size / 1024 / 1024;
+        const originalSize = reformatFile.size;
         const { jobId } = await api.startVideoCompress(reformatFile, reformatFile.name, reformatResolution);
         if (reformatRunIdRef.current !== runId) return; // a newer run (or unmount) superseded this one
         setReformatPhase('probing');
@@ -203,7 +210,7 @@ export default function MediaField({
           setReformatPercent(status.percent);
           if (status.status === 'done') {
             onChange(status.url!);
-            setReformatDoneNote(`Done — shrunk from ${originalSizeMb.toFixed(0)}MB to ${(status.size_bytes! / 1024 / 1024).toFixed(1)}MB.`);
+            setReformatDoneNote(`Done — shrunk from ${formatSize(originalSize)} to ${formatSize(status.size_bytes!)}.`);
             break;
           }
         }
@@ -277,8 +284,8 @@ export default function MediaField({
           {accept !== 'image' && (
             <ul className="text-[9px] text-slate-500 leading-relaxed list-none space-y-0.5 border-l-2 border-[#1e2028] pl-2">
               <li><span className="text-slate-300 font-bold">Under 100MB</span> — works fine here, public domain or local.</li>
-              <li><span className="text-amber-400 font-bold">100–300MB</span> — works, but only reliably over your local/Tailscale network (Cloudflare caps public uploads around 100-200MB).</li>
-              <li><span className="text-rose-400 font-bold">Over 300MB</span> — too big for this tool. Shrink it elsewhere first, then come back.</li>
+              <li><span className="text-amber-400 font-bold">100MB–2GB</span> — works, but only reliably over your local/Tailscale network (Cloudflare caps public uploads around 100-200MB).</li>
+              <li><span className="text-rose-400 font-bold">Over 2GB</span> — too big for this tool. Shrink it elsewhere first, then come back.</li>
             </ul>
           )}
           <input ref={reformatFileInputRef} type="file" accept={acceptAttr} className="hidden" onChange={(e) => handlePickReformatFile(e.target.files?.[0])} />
@@ -287,14 +294,14 @@ export default function MediaField({
             onClick={() => reformatFileInputRef.current?.click()}
             className="w-full px-2.5 py-1.5 rounded-lg border border-dashed border-[#1e2028] hover:border-slate-500 text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-white transition cursor-pointer truncate"
           >
-            {reformatFile ? `Selected: ${reformatFile.name} (${(reformatFile.size / 1024 / 1024).toFixed(1)}MB)` : 'Choose a file to shrink'}
+            {reformatFile ? `Selected: ${reformatFile.name} (${formatSize(reformatFile.size)})` : 'Choose a file to shrink'}
           </button>
 
           {reformatFile && reformatKind === 'video' && reformatFile.size > 100 * 1024 * 1024 && !isAlreadyOnLocalUrl && (
             quickUploadUrl ? (
               <div className="space-y-1.5 bg-amber-950/20 border border-amber-900/40 rounded-lg p-2">
                 <p className="text-[9px] text-amber-400 leading-relaxed">
-                  This file is in the 100-300MB range — it can fail over the public domain. It's the same data either way, so you can just do this part locally.
+                  This file is over 100MB — it can fail over the public domain. It's the same data either way, so you can just do this part locally.
                 </p>
                 <a
                   href={quickUploadUrl}
@@ -309,7 +316,7 @@ export default function MediaField({
               </div>
             ) : (
               <p className="text-[9px] text-amber-400 leading-relaxed bg-amber-950/20 border border-amber-900/40 rounded-lg px-2 py-1.5">
-                This file is in the 100-300MB range — it can fail over the public domain. Add a "Local / Tailscale Access URL" in Settings to get a one-click link here for next time.
+                This file is over 100MB — it can fail over the public domain. Add a "Local / Tailscale Access URL" in Settings to get a one-click link here for next time.
               </p>
             )
           )}

@@ -1480,7 +1480,7 @@ app.post('/api/uploads', (req, res) => {
 // built as a base64 string in browser memory), streamed to a temp file, which
 // ffmpeg then reads via execFile (async, not execSync) so a multi-minute
 // transcode doesn't block the rest of the API while it runs.
-const REFORMAT_MAX_RAW_INPUT_BYTES = 300 * 1024 * 1024; // 300MB — matches src/components/MediaField.tsx
+const REFORMAT_MAX_RAW_INPUT_BYTES = 2 * 1024 * 1024 * 1024; // 2GB — matches src/components/MediaField.tsx. This is our own app-level cap, not an infra limit — over LAN/Tailscale there's no Cloudflare involved, so the practical ceiling is really just temp disk space and encode time.
 const VIDEO_RESOLUTION_HEIGHTS = { '480': 480, '720': 720, '1080': 1080 };
 
 const reformatUploadStorage = multer.diskStorage({
@@ -1559,6 +1559,16 @@ app.post('/api/uploads/compress-video', (req, res) => {
         const durationMs = durationSeconds * 1000;
         compressJobs.set(jobId, { status: 'processing', percent: 0 });
 
+        // Scales with the video's actual length instead of a flat number, so
+        // raising the raw-input size cap doesn't also require remembering to
+        // bump this by hand — a longer/heavier source just gets more time
+        // automatically. Floor covers short clips on a slow/cold-cache first
+        // run; ceiling keeps a stuck job from hanging around forever.
+        const encodeTimeoutMs = Math.min(
+          90 * 60 * 1000,
+          Math.max(15 * 60 * 1000, durationMs * 4)
+        );
+
         await new Promise((resolve, reject) => {
           const proc = spawn('ffmpeg', [
             '-y',
@@ -1602,7 +1612,7 @@ app.post('/api/uploads/compress-video', (req, res) => {
           const timeoutHandle = setTimeout(() => {
             proc.kill('SIGKILL');
             reject(new Error('Video compression timed out.'));
-          }, 15 * 60 * 1000);
+          }, encodeTimeoutMs);
 
           proc.on('error', (error) => {
             clearTimeout(timeoutHandle);

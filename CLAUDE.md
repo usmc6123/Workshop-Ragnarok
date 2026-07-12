@@ -115,6 +115,19 @@ alongside `ffmpeg` from the same apt package — no separate Dockerfile change
 needed). Targets 480p/720p/1080p via `-vf scale=-2:<height>` + libx264
 `-crf 28 -preset veryfast`.
 
+**Raw-input cap raised to 2GB (2026-07-12).** `REFORMAT_MAX_RAW_INPUT_BYTES` in
+both `backend/server.js` and `src/components/MediaField.tsx` — this was always
+just an app-level number we picked, not an infra limit (Cloudflare's cap only
+applies going over the public domain; over LAN/Tailscale the only real ceiling
+is temp disk space and encode time). The raw input never gets served to
+anyone — it's deleted right after encoding — so a large source file (e.g. raw
+4K phone footage) just produces a normal small output once scaled down to
+480/720/1080p; the two aren't related. Paired with this, the ffmpeg encode
+timeout is no longer a flat 15 minutes — it now scales off the video's actual
+probed duration (`durationMs * 4`, floor 15min, ceiling 90min), so raising the
+size cap again later won't also require remembering to bump a hardcoded
+timeout by hand.
+
 ## The two repos
 
 1. **usmc6123/Workshop-Ragnarok** (this repo) — the actual app, frontend + backend.
