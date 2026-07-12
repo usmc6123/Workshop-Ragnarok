@@ -288,6 +288,37 @@ that something's newly broken.
    upload — always use `FormData`/multipart so the browser streams it instead
    of materializing it as a string in memory.**
 
+8. **Reformat/upload fails inconsistently ("Failed to fetch" or a client-side
+   timeout) on large video files (~200MB+), but only when accessed via the
+   public domain — not over LAN.** Root cause: the public domain routes through
+   a `cloudflared` Tunnel, and Cloudflare's own edge proxy caps request body
+   size — 100MB on the Free plan, 200MB on Pro — silently dropping/resetting
+   the connection for anything larger, rather than returning a clean error.
+   This is why the symptom varies (sometimes an immediate "Failed to fetch",
+   sometimes our own client-side upload timeout firing instead) — Cloudflare
+   doesn't give the browser a normal HTTP response to work with either way.
+   **Important: Tunnel-backed hostnames can't be set to "DNS only" (grey-cloud)
+   to bypass this** — a Cloudflare Tunnel hostname is a CNAME to
+   `<tunnel-id>.cfargotunnel.com` and only resolves/routes while proxied
+   (orange-cloud), so the usual "just disable the proxy" workaround doesn't
+   apply here. Until/unless the Cloudflare plan is upgraded, the practical
+   workaround for reformatting very large raw video files is to do it from the
+   shop's own LAN (direct IP:port to `ragnarok-backend`, bypassing Cloudflare
+   entirely) rather than over the public domain. Also fixed in the same pass:
+   `request()` in `src/lib/api.ts` used to show a hardcoded "Invoice parsing
+   with Gemini can take 15-30 seconds" message on every timeout, regardless of
+   which endpoint actually timed out — it now takes an optional
+   `timeoutMessage` param so each caller (`parseInvoice`, `uploadMedia`,
+   `startVideoCompress`) surfaces an accurate, endpoint-specific message.
+   `startVideoCompress`'s own timeout was also raised from 5 to 20 minutes,
+   since that's a real bottleneck independent of the Cloudflare cap on a slow
+   home upload connection for files under the cap.
+   **Lesson: an inconsistent, response-less failure ("Failed to fetch") on
+   large uploads through a public/proxied domain is a strong signal to check
+   the proxy layer's own body-size limits before assuming it's an app bug —
+   especially with Cloudflare, which drops oversized requests without a clean
+   error the app could catch and explain.**
+
 ## Tooling lessons (for future Claude sessions specifically)
 
 - The bash sandbox's mounted view of these Windows folders can be **stale/cached**
@@ -361,6 +392,18 @@ same stale bridge. **The actual fix: `docker compose down` (full remove) followe
 by `docker compose up -d` (full recreate)** for the affected stack, which forces
 Docker to re-resolve every bind mount fresh. Confirmed working — file sizes
 reported by `docker exec` matched the real host files immediately after.
+
+**Workaround for the Cloudflare upload cap (added 2026-07-12):** Settings now
+has a "Local / Tailscale Access URL" field (`shop_settings.local_access_url`,
+`GET`/`PUT /api/shop-settings` in `backend/server.js`, `ShopSettings.local_access_url`
+in `src/types.ts`). When set, `MediaField.tsx`'s Reformat panel shows a one-click
+link to open the app there whenever a selected video is over 80MB — big enough to
+risk hitting Cloudflare's 100-200MB proxy cap — and hides the hint entirely if
+you're already on that origin. The owner has Tailscale running on the host
+(`100.88.5.11` as of this writing) and confirmed the LAN IP `192.168.50.223:4000`
+also works, since `workshop-backend` maps port 4000 straight through in
+`docker-compose.yml`. Switching origins means logging back in — `workshop_token`
+in `localStorage` is scoped per-origin and doesn't carry over.
 
 **Diagnostic pattern worth reusing:** if any container ever looks like it "lost"
 its data again, compare three things before assuming real loss: (1) the file size

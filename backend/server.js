@@ -867,7 +867,13 @@ try {
     // Link to your Google Business review page — required for the automated
     // review-request sweep to actually send anything (it's skipped, not "sent",
     // while this is blank, so it just starts working the moment you add it).
-    { name: 'google_review_url', type: 'TEXT' }
+    { name: 'google_review_url', type: 'TEXT' },
+    // LAN or Tailscale URL for this app (e.g. http://192.168.x.x:4000), shown
+    // as a hint in the Reformat tool for large video files — Cloudflare's proxy
+    // caps uploads around 100-200MB, so going through the public domain fails
+    // for anything bigger, but the same request works fine hitting the backend
+    // directly over a local/Tailscale network.
+    { name: 'local_access_url', type: 'TEXT' }
   ];
   try {
     const columns = db.prepare('PRAGMA table_info(shop_settings)').all();
@@ -3330,22 +3336,22 @@ app.get('/api/shop-settings', (req, res) => {
 
 app.put('/api/shop-settings', (req, res) => {
   try {
-    const { shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup, admin_notification_email, daily_capacity_hours, google_review_url } = req.body;
+    const { shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup, admin_notification_email, daily_capacity_hours, google_review_url, local_access_url } = req.body;
 
     const settings = db.prepare('SELECT id FROM shop_settings WHERE user_id = ?').get(req.user.id);
     if (!settings) {
       const stmt = db.prepare(`
-        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup, admin_notification_email, daily_capacity_hours, google_review_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup, admin_notification_email, daily_capacity_hours, google_review_url, local_access_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(req.user.id, shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, admin_notification_email || '', daily_capacity_hours || 8, google_review_url || '');
+      stmt.run(req.user.id, shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, admin_notification_email || '', daily_capacity_hours || 8, google_review_url || '', local_access_url || '');
     } else {
       const stmt = db.prepare(`
         UPDATE shop_settings
-        SET shop_name = ?, shop_address = ?, shop_city = ?, shop_state = ?, shop_phone = ?, shop_logo_url = ?, tax_rate = ?, default_labor_rate = ?, zip_code = ?, default_parts_markup = ?, admin_notification_email = ?, daily_capacity_hours = ?, google_review_url = ?
+        SET shop_name = ?, shop_address = ?, shop_city = ?, shop_state = ?, shop_phone = ?, shop_logo_url = ?, tax_rate = ?, default_labor_rate = ?, zip_code = ?, default_parts_markup = ?, admin_notification_email = ?, daily_capacity_hours = ?, google_review_url = ?, local_access_url = ?
         WHERE user_id = ?
       `);
-      stmt.run(shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, admin_notification_email || '', daily_capacity_hours || 8, google_review_url || '', req.user.id);
+      stmt.run(shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, admin_notification_email || '', daily_capacity_hours || 8, google_review_url || '', local_access_url || '', req.user.id);
     }
 
     const updated = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(req.user.id);

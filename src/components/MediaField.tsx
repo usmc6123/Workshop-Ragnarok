@@ -96,6 +96,21 @@ export default function MediaField({
   const reformatRunIdRef = useRef(0);
   useEffect(() => () => { reformatRunIdRef.current += 1; }, []);
 
+  // Shop's LAN/Tailscale URL (Settings → "Local / Tailscale Access URL"), shown
+  // as a one-click link in the Reformat panel for large videos — Cloudflare's
+  // proxy caps uploads around 100-200MB on the public domain, but the same
+  // upload works fine hitting the backend directly over a local/Tailscale network.
+  const [localAccessUrl, setLocalAccessUrl] = useState<string | null>(null);
+  useEffect(() => {
+    api.getShopSettings()
+      .then((s) => { if (s.local_access_url) setLocalAccessUrl(s.local_access_url.trim()); })
+      .catch(() => {}); // silent — this is a convenience hint, not critical
+  }, []);
+  const isAlreadyOnLocalUrl = (() => {
+    if (!localAccessUrl) return false;
+    try { return new URL(localAccessUrl).origin === window.location.origin; } catch { return false; }
+  })();
+
   const acceptAttr = accept === 'image' ? 'image/*' : accept === 'video' ? 'video/*' : 'image/*,video/*';
 
   const handleFile = async (file: File | undefined) => {
@@ -263,6 +278,16 @@ export default function MediaField({
           >
             {reformatFile ? `Selected: ${reformatFile.name} (${(reformatFile.size / 1024 / 1024).toFixed(1)}MB)` : 'Choose a file to shrink'}
           </button>
+
+          {reformatFile && reformatKind === 'video' && reformatFile.size > 80 * 1024 * 1024 && localAccessUrl && !isAlreadyOnLocalUrl && (
+            <p className="text-[9px] text-amber-400 leading-relaxed bg-amber-950/20 border border-amber-900/40 rounded-lg px-2 py-1.5">
+              A file this size can fail over the public domain — Cloudflare caps uploads around 100-200MB.{' '}
+              <a href={localAccessUrl} target="_blank" rel="noreferrer" className="underline font-bold hover:text-amber-300">
+                Open this app locally
+              </a>{' '}
+              instead and try again from there (you'll need to log back in).
+            </p>
+          )}
 
           {reformatFile && reformatKind === 'image' && (
             <div className="space-y-1">

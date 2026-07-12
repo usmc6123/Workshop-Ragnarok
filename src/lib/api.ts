@@ -246,7 +246,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}, timeout?: number): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}, timeout?: number, timeoutMessage?: string): Promise<T> {
   const base = getApiBase();
   const url = `${base}${path}`;
 
@@ -276,8 +276,14 @@ async function request<T>(path: string, options: RequestInit = {}, timeout?: num
       throw error;
     }
     if (error.name === 'AbortError') {
-      throw new ApiError("The request timed out or was cancelled. Invoice parsing with Gemini can take 15-30 seconds — please try again with a clear photo.", false);
+      throw new ApiError(timeoutMessage || 'The request timed out or was cancelled — please try again.', false);
     }
+    // A raw "Failed to fetch" (no HTTP response at all — connection dropped/reset before
+    // the server ever replied) most often means a proxy in front of the app, not the app
+    // itself. If this is a big file upload, Cloudflare's own proxy caps request bodies at
+    // 100MB (Free) / 200MB (Pro) — a file over that gets silently dropped rather than a
+    // clean error. If you're going through the public domain (cloudflared tunnel), try
+    // the same thing over your LAN IP directly to confirm.
     throw new ApiError(
       error.message || "Can't reach the manual server — make sure it's running on Roscoe or your LAN IP.",
       true
@@ -1244,7 +1250,7 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image, mimeType })
-    }, 120000);
+    }, 120000, "The request timed out or was cancelled. Invoice parsing with Gemini can take 15-30 seconds — please try again with a clear photo.");
   },
 
   // Generic media upload, backing every "Upload" button across the app (Sites,
@@ -1261,7 +1267,7 @@ export const api = {
     return await request<any>('/api/uploads', {
       method: 'POST',
       body: formData,
-    }, 180000);
+    }, 180000, "The upload timed out. If this is a large file and you're on the public domain, try again over your local network — Cloudflare's proxy caps uploads at 100-200MB.");
   },
 
   // Backs the "Reformat" tool's video path — re-encodes an oversized video down
@@ -1275,10 +1281,13 @@ export const api = {
     const formData = new FormData();
     formData.append('file', file, fileName);
     formData.append('target_resolution', targetResolution);
+    // 20-minute timeout on this leg — it's just the raw upload (the encode itself
+    // happens after and is tracked separately via polling), but a 200-300MB file
+    // over a slow home upload connection can genuinely take a while.
     return await request<any>('/api/uploads/compress-video', {
       method: 'POST',
       body: formData,
-    }, 300000); // covers the upload leg for a large file on a slow connection
+    }, 1200000, "The upload timed out. If this is a large file (200MB+) and you're on the public domain, that's almost certainly Cloudflare's proxy — it caps uploads at 100MB (Free) / 200MB (Pro) and silently drops anything bigger. Try again from your local network instead.");
   },
 
   async getVideoCompressStatus(jobId: string): Promise<{

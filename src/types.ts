@@ -587,6 +587,7 @@ export interface ShopSettings {
   daily_capacity_hours?: number;
   ical_token?: string;
   google_review_url?: string;
+  local_access_url?: string;
 }
 
 export interface InventoryItem {
