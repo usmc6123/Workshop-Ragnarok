@@ -1413,13 +1413,15 @@ try {
 // which is what caused an "Out of Memory" tab crash on larger videos).
 const ALLOWED_UPLOAD_MIME = {
   image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
-  // video/x-matroska (.mkv) and video/x-msvideo (.avi) added after a real bug:
-  // an .mkv was rejected by fileFilter, but for a large file the connection got
-  // torn down mid-upload before the browser finished sending it, which showed
-  // up client-side as a generic "Failed to fetch" instead of a clean error —
-  // ffmpeg reads any of these containers fine and always outputs .mp4 anyway,
-  // so there's no real reason to reject them going in.
-  video: ['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg', 'video/x-matroska', 'video/x-msvideo'],
+  // .mkv/.avi added after a real bug: an .mkv was rejected by fileFilter, but
+  // for a large file the connection got torn down mid-upload before the
+  // browser finished sending it, which showed up client-side as a generic
+  // "Failed to fetch" instead of a clean error. Both mkv variants are listed
+  // because Windows reports .mkv as plain "video/matroska" (no "x-" prefix)
+  // rather than the more common "video/x-matroska" — same file, different
+  // MIME string depending on the OS's file-type registry. ffmpeg reads any of
+  // these containers fine and always outputs .mp4 anyway either way.
+  video: ['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg', 'video/x-matroska', 'video/matroska', 'video/x-msvideo', 'video/avi'],
 };
 const MAX_IMAGE_UPLOAD_BYTES = 20 * 1024 * 1024;  // 20MB
 const MAX_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB
@@ -1435,7 +1437,7 @@ const mediaUploadStorage = multer.diskStorage({
     cb(null, mediaDir);
   },
   filename: (req, file, cb) => {
-    const ext = (file.mimetype.split('/')[1] || 'bin').replace('quicktime', 'mov').replace('svg+xml', 'svg').replace('x-matroska', 'mkv').replace('x-msvideo', 'avi');
+    const ext = (file.mimetype.split('/')[1] || 'bin').replace('quicktime', 'mov').replace('svg+xml', 'svg').replace('x-matroska', 'mkv').replace('matroska', 'mkv').replace('x-msvideo', 'avi');
     cb(null, `${safeFilenameBase(file.originalname)}_${Date.now()}_${Math.floor(Math.random() * 1e6)}.${ext}`);
   },
 });
@@ -1497,7 +1499,7 @@ const VIDEO_RESOLUTION_HEIGHTS = { '480': 480, '720': 720, '1080': 1080 };
 const reformatUploadStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, os.tmpdir()),
   filename: (req, file, cb) => {
-    const ext = (file.mimetype.split('/')[1] || 'mp4').replace('quicktime', 'mov').replace('x-matroska', 'mkv').replace('x-msvideo', 'avi');
+    const ext = (file.mimetype.split('/')[1] || 'mp4').replace('quicktime', 'mov').replace('x-matroska', 'mkv').replace('matroska', 'mkv').replace('x-msvideo', 'avi');
     cb(null, `reformat_in_${Date.now()}_${Math.floor(Math.random() * 1e6)}.${ext}`);
   },
 });

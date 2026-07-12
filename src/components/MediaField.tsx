@@ -28,7 +28,11 @@ function formatSize(bytes: number): string {
 // why. Checking the real list here means an unsupported type gets caught
 // instantly, before a multi-GB upload even starts.
 const ALLOWED_IMAGE_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
-const ALLOWED_VIDEO_MIME = ['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg', 'video/x-matroska', 'video/x-msvideo'];
+// Both mkv variants are listed because Windows reports .mkv as plain
+// "video/matroska" (no "x-" prefix) rather than the more common
+// "video/x-matroska" — same file, different MIME string depending on the
+// OS's file-type registry. Confirmed by an actual failed upload.
+const ALLOWED_VIDEO_MIME = ['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg', 'video/x-matroska', 'video/matroska', 'video/x-msvideo', 'video/avi'];
 // Some browsers/OSes don't map certain extensions to a MIME type at all
 // (file.type comes back ''), most commonly .mkv on Windows — fall back to the
 // extension itself rather than rejecting a perfectly fine file for that.

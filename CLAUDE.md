@@ -343,15 +343,20 @@ that something's newly broken.
    still mid-upload, and that abrupt cutoff surfaced as a generic
    "Failed to fetch" instead of a clean 400 with our actual error message.
    `docker logs` showed nothing at all, because the multer error-handling
-   path never had a `console.error` in it to begin with. Fixed by: adding
-   `video/x-matroska`/`video/x-msvideo` to the allowed list (ffmpeg reads
-   either fine and always outputs .mp4 regardless of input container, so
-   there was no real reason to reject them), replacing the loose client-side
-   prefix check with one that validates against the exact same allowed list
+   path never had a `console.error` in it to begin with. First fix attempt
+   added `video/x-matroska`/`video/x-msvideo` — still failed, because Windows
+   actually reported this file's MIME type as plain `video/matroska` (no
+   "x-" prefix), a different string than the more commonly-referenced
+   `video/x-matroska`. Both variants (plus `video/avi` alongside
+   `video/x-msvideo`) are now allowed, confirmed against the actual MIME
+   string the browser sent. ffmpeg reads any of these containers fine and
+   always outputs .mp4 regardless of input container, so there was no real
+   reason to reject any of them. Also replaced the loose client-side prefix
+   check with one that validates against the exact same allowed list
    (`detectMediaType()` in `MediaField.tsx`, with an extension-based fallback
-   for the cases — mainly `.mkv` on Windows — where the browser reports an
-   empty `file.type`), and adding `console.error` on both multer rejection
-   paths in `server.js` so this isn't silent next time.
+   for the cases where the browser reports an empty `file.type`), and added
+   `console.error` on both multer rejection paths in `server.js` so this
+   isn't silent next time.
    **Lesson: diagnosed by first ruling out the already-known Cloudflare cause
    (#8) via a clean LAN test that still failed, then requesting the exact
    file size (1.28GB — nowhere near the 2GB app cap) and noticing the
