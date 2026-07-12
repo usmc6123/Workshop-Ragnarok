@@ -20,7 +20,7 @@ import {
   Save, X, Mailbox, ExternalLink,
   Palette, AlignLeft, AlignCenter, AlignRight, Paintbrush, Sparkles, LayoutGrid, LayoutTemplate,
   Undo2, Redo2, Monitor, Tablet, Smartphone, Copy, Settings2, EyeOff, Download, FileJson, RefreshCw,
-  ArrowUpToLine, ArrowDownToLine, ZoomIn,
+  ArrowUpToLine, ArrowDownToLine, ZoomIn, FileCode, Printer,
 } from 'lucide-react';
 
 const DEFAULT_ACCENT = '#f59e0b';
@@ -1079,6 +1079,105 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     }
   };
 
+  // HTML/PDF export both reuse the actual live public page (loaded in a
+  // hidden iframe / new tab) rather than re-implementing the block renderer —
+  // that guarantees the export looks exactly like what visitors see, and
+  // means it reflects the LAST SAVED state (autosave already covers normal
+  // editing within ~300-500ms, so this is only stale mid-keystroke).
+  const [exportingHTML, setExportingHTML] = useState(false);
+
+  const handleExportHTML = async () => {
+    const url = `${window.location.origin}/site/${site.subdomain}`;
+    setExportingHTML(true);
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.left = '-9999px';
+    iframe.style.top = '0';
+    iframe.style.width = '1200px';
+    iframe.style.height = '2000px';
+    document.body.appendChild(iframe);
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const deadline = Date.now() + 15000;
+        const poll = () => {
+          const doc = iframe.contentDocument;
+          const ready = doc && (doc.querySelector('.site-grid') || doc.body?.textContent?.includes("doesn't have any content yet"));
+          if (ready) { resolve(); return; }
+          if (Date.now() > deadline) { reject(new Error('Timed out loading the live site — make sure it\'s active and try again.')); return; }
+          setTimeout(poll, 150);
+        };
+        iframe.onload = () => setTimeout(poll, 150);
+        iframe.src = url;
+      });
+
+      const doc = iframe.contentDocument!;
+      // Inline the app's own compiled CSS bundle so the exported file needs
+      // no server for styling (media URLs stay pointed at this server though
+      // — they're not base64-embedded, so this server must stay reachable
+      // for images/video in the export to load).
+      const linkEls = Array.from(doc.querySelectorAll('link[rel="stylesheet"]')) as HTMLLinkElement[];
+      let css = '';
+      for (const link of linkEls) {
+        try {
+          const res = await fetch(link.href);
+          css += `\n/* ${link.href} */\n${await res.text()}`;
+        } catch (err) {
+          console.warn('Could not inline stylesheet', link.href, err);
+        }
+      }
+
+      const clone = doc.documentElement.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll('script').forEach(s => s.remove());
+      clone.querySelectorAll('link[rel="stylesheet"], link[rel="modulepreload"]').forEach(l => l.remove());
+      const head = clone.querySelector('head');
+      if (head) {
+        const styleTag = document.createElement('style');
+        styleTag.textContent = css;
+        head.appendChild(styleTag);
+        const baseTag = document.createElement('base');
+        baseTag.setAttribute('href', `${window.location.origin}/`);
+        head.prepend(baseTag);
+      }
+
+      const html = `<!doctype html>\n${clone.outerHTML}`;
+      const blob = new Blob([html], { type: 'text/html' });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `${site.subdomain}-site-snapshot.html`;
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Failed to export HTML.');
+    } finally {
+      document.body.removeChild(iframe);
+      setExportingHTML(false);
+    }
+  };
+
+  const handleExportPDF = () => {
+    const url = `${window.location.origin}/site/${site.subdomain}`;
+    const win = window.open(url, '_blank');
+    if (!win) {
+      alert('Please allow pop-ups for this site to export a PDF.');
+      return;
+    }
+    const deadline = Date.now() + 15000;
+    const tryPrint = () => {
+      try {
+        const doc = win.document;
+        const ready = doc && (doc.querySelector('.site-grid') || doc.body?.textContent?.includes("doesn't have any content yet"));
+        if (ready) { setTimeout(() => win.print(), 400); return; }
+      } catch {
+        // Cross-origin during initial load — ignore and keep polling.
+      }
+      if (Date.now() < deadline) setTimeout(tryPrint, 200);
+    };
+    tryPrint();
+  };
+
   const previewUrl = `${window.location.origin}/site/${site.subdomain}`;
 
   const DEVICE_OPTIONS: { value: DeviceBreakpoint; icon: React.ElementType; label: string }[] = [
@@ -1183,6 +1282,14 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
             <button onClick={() => importFileRef.current?.click()} title="Import blocks from a JSON export" className="px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700">
               <FileJson className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Import</span>
+            </button>
+            <button onClick={handleExportHTML} disabled={blocks.length === 0 || exportingHTML} title="Download a standalone HTML snapshot of the live site (needs this server reachable for images/video)" className="px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed">
+              {exportingHTML ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCode className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">Export HTML</span>
+            </button>
+            <button onClick={handleExportPDF} disabled={blocks.length === 0} title="Open the live site and print / save it as a PDF" className="px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed">
+              <Printer className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Export PDF</span>
             </button>
           </div>
         )}

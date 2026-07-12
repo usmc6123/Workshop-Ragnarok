@@ -65,6 +65,18 @@ const MOBILE_COLLAPSE_CSS = `
 }
 `;
 
+// Dark-theme sites would otherwise print as a solid black page (unreadable,
+// wastes ink) — force a white background and keep blocks from splitting
+// across a page break. Used by the "Export PDF" button in the Sites builder
+// (window.print() on this same live page), but harmless/always-on so a
+// manual Ctrl+P from a visitor also gets a sane result.
+const PRINT_CSS = `
+@media print {
+  html, body { background: #ffffff !important; }
+  .site-grid-block { break-inside: avoid; page-break-inside: avoid; }
+}
+`;
+
 export default function SitePageView({ subdomain }: SitePageViewProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -133,7 +145,7 @@ export default function SitePageView({ subdomain }: SitePageViewProps) {
 
   return (
     <div className={dark ? 'min-h-screen bg-[#0a0a0f]' : 'min-h-screen bg-slate-50'} style={{ fontFamily }}>
-      <style dangerouslySetInnerHTML={{ __html: MOBILE_COLLAPSE_CSS }} />
+      <style dangerouslySetInnerHTML={{ __html: MOBILE_COLLAPSE_CSS + PRINT_CSS }} />
       <div className="max-w-6xl mx-auto px-6 py-10">
         <div
           className="site-grid"

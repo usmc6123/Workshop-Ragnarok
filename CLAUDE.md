@@ -323,6 +323,45 @@ reason — matched that pattern here). No warning is given if a file being
 deleted is still referenced by a live Site or Funnel — deleting one just
 breaks that image/video slot, no different from deleting any other asset.
 
+**Export features added 2026-07-12: Sites HTML/PDF export, Customers/Inventory
+CSV export.** All three deliberately avoid new dependencies (no jsPDF/html2canvas,
+no CSV library) — `src/lib/csv.ts` is a ~20-line hand-rolled CSV writer
+(`downloadCSV(filename, columns, rows)`, handles quoting/escaping + a UTF-8 BOM
+so Excel doesn't mangle accented characters), wired into "Export CSV" buttons on
+`CustomersView.tsx` (exports `filteredCustomers`, respecting the search box) and
+`InventoryView.tsx` (exports `items`, which is already server-filtered by the
+current search/category selection — so both exports always match what's on
+screen, not the full unfiltered table).
+
+Sites HTML/PDF export (`handleExportHTML`/`handleExportPDF` in
+`SiteBuilderView.tsx`, next to the existing JSON Export/Import buttons) both
+deliberately reuse the REAL live public page at `/site/:subdomain`
+(`SitePageView.tsx`) instead of re-implementing block rendering — this
+guarantees the export always looks exactly like what a visitor sees, at the
+cost of reflecting the last-saved state rather than any unsaved keystroke
+(autosave is ~300-500ms, so in practice this is a non-issue).
+- **HTML export**: loads the live page in an off-screen hidden iframe, polls
+  for `.site-grid` (or the empty-state text) to confirm React has actually
+  rendered before capturing anything, then fetches and inlines every
+  `<link rel="stylesheet">` bundle as a single `<style>` tag, strips
+  `<script>`/`modulepreload` tags (a static snapshot needs no JS), prepends a
+  `<base href>` pointing back at this server, and downloads the result as
+  `<subdomain>-site-snapshot.html`. **Known limitation, accepted by design**:
+  media (image/video) URLs are left pointing at this server rather than
+  base64-embedded — the exported file is a real, portable HTML document, but
+  this server needs to stay reachable for its images/video to actually load.
+- **PDF export**: opens the live page in a real new tab/window and calls
+  `window.print()` once it's confirmed rendered (same `.site-grid` poll,
+  cross-origin-during-load exceptions from checking `win.document` early are
+  expected and just retried) — deliberately NOT a JS PDF library
+  (jsPDF/html2canvas), since those have real, well-known fidelity problems
+  with CSS Grid layouts, `<video>` elements, and custom web fonts; letting the
+  browser's own native print pipeline handle it sidesteps all of that.
+  `SitePageView.tsx` also gained an always-on `@media print` block
+  (`PRINT_CSS`) forcing a white background and `break-inside: avoid` on each
+  block — without it, a dark-themed site would print as a solid black,
+  unreadable, ink-wasting page.
+
 ## The two repos
 
 1. **usmc6123/Workshop-Ragnarok** (this repo) — the actual app, frontend + backend.

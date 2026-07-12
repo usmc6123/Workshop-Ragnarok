@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Customer, CustomerVehicle, Job } from '../types';
 import { api } from '../lib/api';
+import { downloadCSV } from '../lib/csv';
 import CustomersHeaderVideo from './CustomersHeaderVideo';
-import { 
-  Users, Plus, Search, Edit2, Trash2, ArrowLeft, Phone, Mail, 
+import {
+  Users, Plus, Search, Edit2, Trash2, ArrowLeft, Phone, Mail,
   MapPin, ClipboardList, Car, FileText, ChevronRight, X, User,
-  Calendar, Wrench, Package, Info
+  Calendar, Wrench, Package, Info, Download
 } from 'lucide-react';
 
 interface CustomersViewProps {
@@ -137,11 +138,29 @@ export default function CustomersView({ onNavigateToTab, onTriggerEmail }: Custo
   };
 
   // Filter list by name/phone/email
-  const filteredCustomers = customers.filter(c => 
+  const filteredCustomers = customers.filter(c =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.phone.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Exports exactly what's currently visible (respects the search filter).
+  const handleExportCSV = () => {
+    downloadCSV(
+      'customers.csv',
+      [
+        { key: 'name', label: 'Name' },
+        { key: 'phone', label: 'Phone' },
+        { key: 'email', label: 'Email' },
+        { key: 'address', label: 'Address' },
+        { key: 'vehicle_count', label: 'Vehicles' },
+        { key: 'last_visit', label: 'Last Visit' },
+        { key: 'created_at', label: 'Customer Since' },
+        { key: 'notes', label: 'Notes' },
+      ],
+      filteredCustomers,
+    );
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 py-6" id="customers-view-container">
@@ -169,14 +188,26 @@ export default function CustomersView({ onNavigateToTab, onTriggerEmail }: Custo
                 </p>
               </div>
 
-              <button
-                onClick={() => openCustomerModal()}
-                className="bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-bold rounded-lg px-4 py-2 text-xs uppercase tracking-wider flex items-center gap-1.5 transition shadow self-start md:self-center cursor-pointer"
-                id="btn-add-customer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Customer</span>
-              </button>
+              <div className="flex items-center gap-2 self-start md:self-center">
+                <button
+                  onClick={handleExportCSV}
+                  disabled={filteredCustomers.length === 0}
+                  title="Export the customers currently shown as a CSV file"
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg px-4 py-2 text-xs uppercase tracking-wider flex items-center gap-1.5 transition shadow cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                  id="btn-export-customers-csv"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export CSV</span>
+                </button>
+                <button
+                  onClick={() => openCustomerModal()}
+                  className="bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-bold rounded-lg px-4 py-2 text-xs uppercase tracking-wider flex items-center gap-1.5 transition shadow cursor-pointer"
+                  id="btn-add-customer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Customer</span>
+                </button>
+              </div>
             </div>
 
             {/* Search Bar */}

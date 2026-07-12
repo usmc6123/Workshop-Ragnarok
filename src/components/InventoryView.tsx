@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../lib/api';
 import { InventoryItem } from '../types';
-import { 
-  Search, Plus, Edit2, Trash2, Sliders, AlertTriangle, 
+import { downloadCSV } from '../lib/csv';
+import {
+  Search, Plus, Edit2, Trash2, Sliders, AlertTriangle,
   TrendingUp, Layers, DollarSign, MapPin, Package, RotateCcw,
   CheckCircle, ArrowDown, ArrowUp, RefreshCw, X, AlertCircle,
-  Upload, Camera, FolderOpen, Calendar, Eye, FileText
+  Upload, Camera, FolderOpen, Calendar, Eye, FileText, Download
 } from 'lucide-react';
 
 interface ReviewItem {
@@ -577,6 +578,29 @@ export default function InventoryView() {
   const potentialRevenue = items.reduce((sum, item) => sum + (item.quantity_on_hand * item.sell_price), 0);
   const potentialProfit = potentialRevenue - totalValuation;
 
+  // Exports exactly what's currently shown (respects the search/category filters,
+  // since `items` is already filtered server-side by those).
+  const handleExportCSV = () => {
+    downloadCSV(
+      'inventory.csv',
+      [
+        { key: 'part_number', label: 'Part Number' },
+        { key: 'name', label: 'Name' },
+        { key: 'category', label: 'Category' },
+        { key: 'quantity_on_hand', label: 'Qty On Hand' },
+        { key: 'reorder_threshold', label: 'Reorder Threshold' },
+        { key: 'unit_type', label: 'Unit Type' },
+        { key: 'cost_price', label: 'Cost Price' },
+        { key: 'sell_price', label: 'Sell Price' },
+        { key: 'supplier_name', label: 'Supplier' },
+        { key: 'location', label: 'Location' },
+        { key: 'core_charge', label: 'Core Charge' },
+        { key: 'notes', label: 'Notes' },
+      ],
+      items,
+    );
+  };
+
   const filteredReceipts = receipts.filter(r => {
     const matchesSearch = !receiptSearch || 
       (r.supplier_name && r.supplier_name.toLowerCase().includes(receiptSearch.toLowerCase())) ||
@@ -621,6 +645,16 @@ export default function InventoryView() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleExportCSV}
+            disabled={items.length === 0}
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono font-bold text-xs rounded-lg border border-border-theme transition active:scale-95 shadow-md cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Export the parts currently shown as a CSV file"
+            id="btn-export-inventory-csv"
+          >
+            <Download className="w-4 h-4 shrink-0 text-slate-400" />
+            Export CSV
+          </button>
           <button
             onClick={() => {
               fetchReceipts();
