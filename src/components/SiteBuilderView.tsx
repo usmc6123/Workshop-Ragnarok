@@ -997,6 +997,24 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
               })}
             </div>
             <button
+              onClick={() => { setShowPicker(v => !v); setShowTemplatePicker(false); }}
+              title="Add a new block"
+              className={`px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${showPicker ? 'bg-primary-theme text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Add Block</span>
+            </button>
+            {blocks.length > 0 && (
+              <button
+                onClick={() => { setShowTemplatePicker(v => !v); setShowPicker(false); }}
+                title="Add a ready-made template layout"
+                className={`px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${showTemplatePicker ? 'bg-primary-theme text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Use a Template</span>
+              </button>
+            )}
+            <button
               onClick={handleRefreshBlocks}
               disabled={loading}
               title="Reload this page's blocks from the server — discards any unsaved local edits"
@@ -1041,44 +1059,24 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
           <div className="flex-1 min-w-0 space-y-4">
             {error && <div className="bg-rose-950/40 border border-rose-500/20 text-rose-300 rounded-xl p-4 text-xs font-mono">{error}</div>}
 
-            {loading ? (
-              <div className="py-16 text-center text-slate-400 font-mono text-xs flex flex-col items-center gap-3">
-                <Loader2 className="w-8 h-8 text-primary-theme animate-spin" />
-                <span>Loading blocks...</span>
+            {showPicker && (
+              <div className="bg-[#13141a]/80 border border-border-theme rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-white uppercase tracking-wider">Choose a Block Type</span>
+                  <button onClick={() => setShowPicker(false)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {BLOCK_TYPES.map(bt => {
+                    const Icon = bt.icon;
+                    return (
+                      <button key={bt.type} onClick={() => handleAddBlock(bt.type)} className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-[#1e2028] hover:border-amber-500/40 bg-[#0c0d12]/60 hover:bg-amber-950/10 transition cursor-pointer">
+                        <Icon className="w-4 h-4 text-primary-theme" />
+                        <span className="text-[10px] font-bold text-slate-200">{bt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            ) : (
-              <>
-                <p className="text-[11px] text-slate-500 font-mono">
-                  Click any text directly on the canvas to edit it in place. Drag a block's title bar to move it anywhere, or drag a corner/edge handle to resize — right-click a block for more options.
-                </p>
-
-                {blocks.length === 0 && !showTemplatePicker && (
-                  <div className="py-10 text-center border border-dashed border-[#1e2028] rounded-xl bg-[#13141a]/10 space-y-3">
-                    <p className="font-mono text-xs text-slate-500">No blocks yet. Start from a template, or build from scratch below.</p>
-                    <button onClick={() => setShowTemplatePicker(true)} className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-lg text-[10px] uppercase tracking-wider font-black transition cursor-pointer inline-flex items-center gap-1.5">
-                      <LayoutGrid className="w-3.5 h-3.5" /> Choose a Template
-                    </button>
-                  </div>
-                )}
-
-                {blocks.length > 0 && (
-                  <SiteGridCanvas
-                    blocks={blocks}
-                    selectedId={selectedId}
-                    device={device}
-                    theme={themeForm}
-                    dark={dark}
-                    accent={accent}
-                    onSelect={setSelectedId}
-                    onContentChange={handleCanvasContentChange}
-                    onDuplicate={handleDuplicateBlock}
-                    onDelete={handleDeleteBlock}
-                    onPositionChange={handlePositionChange}
-                    onContextMenu={(block, x, y) => setContextMenu({ block, x, y })}
-                    onOpenInspector={(block) => openInspector(block, 'style')}
-                  />
-                )}
-              </>
             )}
 
             {showTemplatePicker && (
@@ -1114,36 +1112,45 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
               </div>
             )}
 
-            <div className="flex gap-2.5">
-              {!showPicker ? (
-                <button onClick={() => setShowPicker(true)} className="flex-1 px-4 py-4 border-2 border-dashed border-[#1e2028] hover:border-amber-500/40 rounded-xl text-xs uppercase tracking-wider font-black text-slate-400 hover:text-amber-300 transition cursor-pointer flex items-center justify-center gap-2">
-                  <Plus className="w-4 h-4" /> Add Block
-                </button>
-              ) : (
-                <div className="flex-1 bg-[#13141a]/80 border border-border-theme rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-white uppercase tracking-wider">Choose a Block Type</span>
-                    <button onClick={() => setShowPicker(false)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+            {loading ? (
+              <div className="py-16 text-center text-slate-400 font-mono text-xs flex flex-col items-center gap-3">
+                <Loader2 className="w-8 h-8 text-primary-theme animate-spin" />
+                <span>Loading blocks...</span>
+              </div>
+            ) : (
+              <>
+                <p className="text-[11px] text-slate-500 font-mono">
+                  Click any text directly on the canvas to edit it in place. Drag a block's title bar to move it anywhere, or drag a corner/edge handle to resize — right-click a block for more options.
+                </p>
+
+                {blocks.length === 0 && !showTemplatePicker && (
+                  <div className="py-10 text-center border border-dashed border-[#1e2028] rounded-xl bg-[#13141a]/10 space-y-3">
+                    <p className="font-mono text-xs text-slate-500">No blocks yet. Start from a template, or build from scratch above.</p>
+                    <button onClick={() => setShowTemplatePicker(true)} className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-lg text-[10px] uppercase tracking-wider font-black transition cursor-pointer inline-flex items-center gap-1.5">
+                      <LayoutGrid className="w-3.5 h-3.5" /> Choose a Template
+                    </button>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                    {BLOCK_TYPES.map(bt => {
-                      const Icon = bt.icon;
-                      return (
-                        <button key={bt.type} onClick={() => handleAddBlock(bt.type)} className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-[#1e2028] hover:border-amber-500/40 bg-[#0c0d12]/60 hover:bg-amber-950/10 transition cursor-pointer">
-                          <Icon className="w-4 h-4 text-primary-theme" />
-                          <span className="text-[10px] font-bold text-slate-200">{bt.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {!showTemplatePicker && blocks.length > 0 && (
-                <button onClick={() => setShowTemplatePicker(true)} className="px-4 py-4 border-2 border-dashed border-[#1e2028] hover:border-amber-500/40 rounded-xl text-xs uppercase tracking-wider font-black text-slate-400 hover:text-amber-300 transition cursor-pointer flex items-center justify-center gap-2 shrink-0">
-                  <LayoutGrid className="w-4 h-4" /> Use a Template
-                </button>
-              )}
-            </div>
+                )}
+
+                {blocks.length > 0 && (
+                  <SiteGridCanvas
+                    blocks={blocks}
+                    selectedId={selectedId}
+                    device={device}
+                    theme={themeForm}
+                    dark={dark}
+                    accent={accent}
+                    onSelect={setSelectedId}
+                    onContentChange={handleCanvasContentChange}
+                    onDuplicate={handleDuplicateBlock}
+                    onDelete={handleDeleteBlock}
+                    onPositionChange={handlePositionChange}
+                    onContextMenu={(block, x, y) => setContextMenu({ block, x, y })}
+                    onOpenInspector={(block) => openInspector(block, 'style')}
+                  />
+                )}
+              </>
+            )}
           </div>
 
           {/* Docked Inspector panel — Windows-11-style rounded acrylic card, replaces the old popup modal */}
