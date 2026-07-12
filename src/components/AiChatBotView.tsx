@@ -5,6 +5,7 @@ import {
   SlidersHorizontal, CheckSquare, Search, Filter, Cpu, Play, HelpCircle
 } from 'lucide-react';
 import BotThreeCanvas from './BotThreeCanvas';
+import MediaField from './MediaField';
 
 interface BotProfile {
   name: string;
@@ -29,6 +30,8 @@ interface UiConfiguration {
   three_speed: number;
   three_wireframe: boolean;
   three_particles: number;
+  three_file?: string;
+  bot_opacity?: number;
   // bubble configuration
   bubble_phrases?: string;
 }
@@ -770,6 +773,13 @@ export default function AiChatBotView() {
 
   const [activeBotId, setActiveBotId] = useState<string>('cooper-patrol-cat');
   const [activeTab, setActiveTab] = useState<'preview' | 'json_code'>('preview');
+  const [activeDevSubTab, setActiveDevSubTab] = useState<'embed' | 'css' | 'html' | 'api' | 'history' | 'json'>('embed');
+
+  // Copy success sub-states
+  const [copyCssSuccess, setCopyCssSuccess] = useState(false);
+  const [copyHtmlSuccess, setCopyHtmlSuccess] = useState(false);
+  const [copyApiSuccess, setCopyApiSuccess] = useState(false);
+  const [copyHistorySuccess, setCopyHistorySuccess] = useState(false);
 
   // Persona filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -809,6 +819,8 @@ export default function AiChatBotView() {
   const [threeSpeed, setThreeSpeed] = useState<number>(1.2);
   const [threeWireframe, setThreeWireframe] = useState<boolean>(false);
   const [threeParticles, setThreeParticles] = useState<number>(1000);
+  const [threeFile, setThreeFile] = useState<string>('');
+  const [botOpacity, setBotOpacity] = useState<number>(100);
 
   // Outputs (Generated)
   const [generatedJson, setGeneratedJson] = useState<string>('');
@@ -856,6 +868,8 @@ export default function AiChatBotView() {
       setThreeSpeed(target.ui_configuration.three_speed ?? 1.2);
       setThreeWireframe(target.ui_configuration.three_wireframe ?? false);
       setThreeParticles(target.ui_configuration.three_particles ?? 1000);
+      setThreeFile(target.ui_configuration.three_file || '');
+      setBotOpacity(target.ui_configuration.bot_opacity ?? 100);
       setBubblePhrases(target.ui_configuration.bubble_phrases || 'Need an LS swap? I can quote you in seconds! 🐾, ATF Transmission Flush is only $110! ⚡, Cooper on Laser Patrol! Ready to scan your engine! 📡, Book a custom build slot today! 🏎️');
       
       // Auto compile instructions and JSON on load
@@ -971,6 +985,8 @@ export default function AiChatBotView() {
     const currentThreeSpeed = overrideBot ? overrideBot.ui_configuration.three_speed : threeSpeed;
     const currentThreeWireframe = overrideBot ? overrideBot.ui_configuration.three_wireframe : threeWireframe;
     const currentThreeParticles = overrideBot ? overrideBot.ui_configuration.three_particles : threeParticles;
+    const currentThreeFile = overrideBot ? (overrideBot.ui_configuration.three_file || '') : threeFile;
+    const currentBotOpacity = overrideBot ? (overrideBot.ui_configuration.bot_opacity ?? 100) : botOpacity;
     const currentBubblePhrases = overrideBot ? (overrideBot.ui_configuration.bubble_phrases || '') : bubblePhrases;
 
     // 1. Build System Instructions (Rule 1: combine role and doc text, NEVER mention AI, < 3 sentences, steer to CTA)
@@ -1024,6 +1040,8 @@ export default function AiChatBotView() {
         three_speed: currentThreeSpeed,
         three_wireframe: currentThreeWireframe,
         three_particles: currentThreeParticles,
+        three_file: currentThreeFile,
+        bot_opacity: currentBotOpacity,
         bubble_phrases: currentBubblePhrases
       },
       embed_code_snippet: `<!-- Ragnarök Custom Funnel AI Chat Bot Widget -->
@@ -1052,6 +1070,8 @@ export default function AiChatBotView() {
         three_speed: ${currentThreeSpeed},
         three_wireframe: ${currentThreeWireframe},
         three_particles: ${currentThreeParticles},
+        three_file: "${currentThreeFile}",
+        bot_opacity: ${currentBotOpacity},
         bubble_phrases: "${currentBubblePhrases.replace(/"/g, '\\"')}"
       }
     });
@@ -1110,6 +1130,8 @@ export default function AiChatBotView() {
             three_speed: threeSpeed,
             three_wireframe: threeWireframe,
             three_particles: threeParticles,
+            three_file: threeFile,
+            bot_opacity: botOpacity,
             bubble_phrases: bubblePhrases
           },
           embed_code_snippet: embedCode
@@ -1156,6 +1178,8 @@ export default function AiChatBotView() {
         three_speed: 1.0,
         three_wireframe: false,
         three_particles: 1000,
+        three_file: '',
+        bot_opacity: 100,
         bubble_phrases: 'Need an LS swap? I can quote you in seconds! 🐾, ATF Transmission Flush is only $110! ⚡, Cooper on Laser Patrol! Ready to scan your engine! 📡, Book a custom build slot today! 🏎️'
       },
       embed_code_snippet: ''
@@ -1268,6 +1292,183 @@ export default function AiChatBotView() {
     }, 1000);
   };
 
+  // Dynamic Developer Asset Snippets based on bot configuration
+  const customCss = `/* ragnarok-chatbot-${activeBotId}.css */
+:root {
+  --ragnarok-bot-primary: ${primaryColor};
+  --ragnarok-bot-secondary: ${secondaryColor};
+  --ragnarok-bot-font: ${fontFamily === 'monospace' ? 'Courier New, monospace' : fontFamily === 'Georgia, serif' ? 'Georgia, serif' : 'Inter, sans-serif'};
+  --ragnarok-bot-radius: ${layoutStyle === 'floating_bubble' ? '16px' : '8px'};
+}
+
+/* Chat container card styling */
+.ragnarok-chat-container {
+  font-family: var(--ragnarok-bot-font);
+  border-radius: var(--ragnarok-bot-radius);
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+/* Header style - matches the primary and secondary colors */
+.ragnarok-chat-header {
+  background: linear-gradient(135deg, var(--ragnarok-bot-primary), var(--ragnarok-bot-secondary));
+  color: #ffffff;
+  padding: 12px 16px;
+  border-radius: var(--ragnarok-bot-radius) var(--ragnarok-bot-radius) 0 0;
+}
+
+/* Chat bubble styling */
+.ragnarok-chat-bubble-bot {
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
+  border-radius: 0px 12px 12px 12px;
+}
+
+.ragnarok-chat-bubble-user {
+  background-color: var(--ragnarok-bot-primary);
+  color: #ffffff;
+  border-radius: 12px 0px 12px 12px;
+}
+
+/* Action button style */
+.ragnarok-chat-send-btn {
+  background-color: var(--ragnarok-bot-primary);
+  color: #ffffff;
+  border-radius: 8px;
+}
+`;
+
+  const widgetHtml = `<!-- Custom Chatbox Widget UI Structure -->
+<div class="ragnarok-chat-container" id="ragnarok-chat-widget">
+  <div class="ragnarok-chat-header flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <img src="${avatarImage || '/roscoe-logo.png'}" alt="${botName}" class="w-8 h-8 rounded-full border-2 border-white/40 shadow-sm" />
+      <div>
+        <h4 class="text-xs font-bold font-sans">${botName}</h4>
+        <div class="flex items-center gap-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+          <span class="text-[8px] font-mono opacity-80 uppercase tracking-widest">Active & Online</span>
+        </div>
+      </div>
+    </div>
+    <button class="text-white hover:opacity-80 font-bold text-sm" onclick="toggleRagnarokChat()">&times;</button>
+  </div>
+
+  <div class="ragnarok-chat-messages-feed p-4 overflow-y-auto space-y-3 h-[380px]">
+    <!-- Dynamic welcome message -->
+    <div class="flex items-start gap-2 max-w-[85%]">
+      <img src="${avatarImage || '/roscoe-logo.png'}" class="w-6 h-6 rounded-full shadow-inner mt-0.5" />
+      <div class="ragnarok-chat-bubble-bot p-3 text-xs leading-relaxed">
+        ${welcomeMessage}
+      </div>
+    </div>
+  </div>
+
+  <div class="ragnarok-chat-footer p-2.5 border-t border-slate-100 bg-slate-50 flex items-center gap-2">
+    <input type="text" id="ragnarok-user-input" class="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-${primaryColor}" placeholder="Type inquiry..." />
+    <button id="ragnarok-send-btn" class="ragnarok-chat-send-btn p-2 hover:scale-105 transition flex items-center justify-center">
+      <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+    </button>
+  </div>
+</div>
+`;
+
+  const apiCode = `// Security Keys & Whitelist Protection Logic
+const RAGNAROK_API_CREDENTIALS = {
+  publicKey: "pk_live_${activeBotId}_" + btoa("${activeBotId}").substr(0, 16),
+  secretSignatureKey: "sig_sec_" + Math.random().toString(36).substr(2, 12),
+  authorizedOrigins: [
+    "https://*.yourdomain.com",
+    "http://localhost:3000",
+    window.location.origin
+  ],
+  rateLimiting: {
+    maxRequestsPerMinute: 60,
+    enableSpamProtection: true
+  }
+};
+
+// Validate request origin at gateway
+function validateOrigin(request) {
+  const origin = request.headers.get("Origin");
+  if (!origin) return true; // server-to-server fallback
+  
+  const isAuthorized = RAGNAROK_API_CREDENTIALS.authorizedOrigins.some(pattern => {
+    const regex = new RegExp("^" + pattern.replace(/\\\\*/g, ".*") + "$");
+    return regex.test(origin);
+  });
+  
+  if (!isAuthorized) {
+    throw new Error("403 Forbidden: Origin not whitelisted on this API Key.");
+  }
+}
+`;
+
+  const historyCode = `// Local Persistence & Refresh Continuity Engine
+const CHAT_HISTORY_STORAGE_KEY = \`ragnarok_session_history_\${activeBotId}\`;
+
+// Save messages to LocalStorage
+function saveChatHistory(messages) {
+  try {
+    localStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(messages));
+  } catch (error) {
+    console.warn("Storage write blocked:", error);
+  }
+}
+
+// Load past messages on page initialization
+function loadChatHistory() {
+  try {
+    const rawHistory = localStorage.getItem(CHAT_HISTORY_STORAGE_KEY);
+    if (rawHistory) {
+      return JSON.parse(rawHistory);
+    }
+  } catch (error) {
+    console.error("Storage read failed:", error);
+  }
+  // Fallback to initial bot greeting
+  return [{
+    sender: "bot",
+    text: "${welcomeMessage}",
+    timestamp: new Date().toISOString()
+  }];
+}
+
+// Reset/Clear active history on logout or close
+function clearSession() {
+  localStorage.removeItem(CHAT_HISTORY_STORAGE_KEY);
+}
+`;
+
+  // Copy helper handlers for dynamic assets
+  const handleCopyCss = () => {
+    navigator.clipboard.writeText(customCss);
+    setCopyCssSuccess(true);
+    setTimeout(() => setCopyCssSuccess(false), 2000);
+  };
+
+  const handleCopyHtml = () => {
+    navigator.clipboard.writeText(widgetHtml);
+    setCopyHtmlSuccess(true);
+    setTimeout(() => setCopyHtmlSuccess(false), 2000);
+  };
+
+  const handleCopyApi = () => {
+    navigator.clipboard.writeText(apiCode);
+    setCopyApiSuccess(true);
+    setTimeout(() => setCopyApiSuccess(false), 2000);
+  };
+
+  const handleCopyHistory = () => {
+    navigator.clipboard.writeText(historyCode);
+    setCopyHistorySuccess(true);
+    setTimeout(() => setCopyHistorySuccess(false), 2000);
+  };
+
   // Filter persona list
   const filteredPersonas = savedBots.filter(b => {
     const matchesSearch = b.bot_profile.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -1280,32 +1481,36 @@ export default function AiChatBotView() {
   });
 
   return (
-    <div className="p-6 max-w-[1500px] mx-auto space-y-6 text-text-theme animate-fade-in" id="ai-bot-builder-view">
+    <div className="p-6 max-w-[1500px] mx-auto space-y-6 text-slate-800 animate-fade-in bg-white/70 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/40" id="ai-bot-builder-view">
       {/* Visual Header Block */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-[#0c0d14]/85 backdrop-blur-md border border-[#1e202d] rounded-2xl shadow-2xl">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
-            <Bot className="w-8 h-8 text-amber-500 animate-pulse" />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-500 text-white rounded-2xl shadow-xl relative overflow-hidden">
+        {/* Abstract glowing blobs for a premium modernized look */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none -mr-16 -mt-16" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-cyan-300/10 rounded-full blur-2xl pointer-events-none -ml-8 -mb-8" />
+        
+        <div className="flex items-center gap-4 z-10">
+          <div className="p-3 bg-white/15 border border-white/20 rounded-xl shadow-inner">
+            <Bot className="w-8 h-8 text-yellow-300 animate-pulse" />
           </div>
           <div>
-            <h1 className="text-xl font-black uppercase tracking-wider text-slate-100 flex items-center gap-2">
-              AI Chat Bot Builder <span className="text-[10px] bg-amber-500 text-slate-950 px-2.5 py-0.5 rounded font-mono font-black tracking-wide">v2.0 MULTI-STYLE</span>
+            <h1 className="text-2xl font-black uppercase tracking-wider text-white flex items-center gap-2">
+              AI Chat Bot Builder <span className="text-[10px] bg-yellow-400 text-slate-950 px-2.5 py-0.5 rounded font-mono font-black tracking-wide">v2.0 MULTI-STYLE</span>
             </h1>
-            <p className="text-xs text-slate-400 font-mono tracking-wide mt-1">
+            <p className="text-xs text-slate-100 font-mono tracking-wide mt-1">
               CLASSIC TEXT • DYNAMIC VIDEO AVATAR • THREE.JS 3D ANIMATED HOLOGRAM BOT
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 z-10">
           <button
             onClick={handleCreateNew}
-            className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black uppercase tracking-wider text-xs rounded-lg transition active:scale-95 cursor-pointer"
+            className="px-4 py-2 bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black uppercase tracking-wider text-xs rounded-lg transition active:scale-95 cursor-pointer shadow-lg shadow-yellow-400/20"
           >
             + CREATE CUSTOM BOT
           </button>
           <button
             onClick={handleResetDefaults}
-            className="px-4 py-2 bg-[#12141c]/90 hover:bg-red-500/10 border border-red-500/30 hover:border-red-500/50 text-red-400 font-mono uppercase tracking-wider text-xs rounded-lg transition active:scale-95 cursor-pointer"
+            className="px-4 py-2 bg-white/10 hover:bg-red-500/20 border border-white/20 hover:border-red-500/50 text-white font-mono uppercase tracking-wider text-xs rounded-lg transition active:scale-95 cursor-pointer"
           >
             RESET 20 TEMPLATES
           </button>
@@ -1313,9 +1518,9 @@ export default function AiChatBotView() {
       </div>
 
       {/* Advanced Filter / Search Widget for 20 Personas */}
-      <div className="bg-[#0c0d15]/85 backdrop-blur-md border border-[#1e202d] rounded-xl p-4 flex flex-col md:flex-row gap-3 items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-mono text-amber-500 uppercase tracking-widest font-bold">
-          <Search className="w-4 h-4 text-amber-500" />
+      <div className="bg-white/80 backdrop-blur-md border border-slate-200/60 rounded-xl p-4 flex flex-col md:flex-row gap-3 items-center justify-between shadow-md">
+        <div className="flex items-center gap-2 text-xs font-mono text-indigo-600 uppercase tracking-widest font-bold">
+          <Search className="w-4 h-4 text-indigo-500" />
           <span>QUICK TEMPLATE LIBRARY ({filteredPersonas.length} LOADED)</span>
         </div>
         
@@ -1326,14 +1531,14 @@ export default function AiChatBotView() {
             placeholder="Search personas, platforms, keywords..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 md:w-64 bg-[#05060a] border border-[#212330] rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-amber-500"
+            className="flex-1 md:w-64 bg-slate-50 border border-indigo-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-mono focus:outline-none focus:border-indigo-500 focus:bg-white transition shadow-sm"
           />
 
           {/* Industry Filter dropdown */}
           <select
             value={industryFilter}
             onChange={(e) => setIndustryFilter(e.target.value)}
-            className="bg-[#05060a] border border-[#212330] rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-amber-500 cursor-pointer"
+            className="bg-slate-50 border border-indigo-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-mono focus:outline-none focus:border-indigo-500 focus:bg-white transition cursor-pointer shadow-sm"
           >
             <option value="all">🌐 All Industries</option>
             <option value="automotive">🚗 Automotive</option>
@@ -1356,7 +1561,7 @@ export default function AiChatBotView() {
           const isPro = b.character_theme === 'professional';
           const isTech = b.character_theme === 'minimalist_tech';
 
-          let cardColor = 'border-[#1e202d] bg-[#0c0d15]/80 hover:bg-[#11131e]/90';
+          let cardColor = 'border-slate-200 bg-white hover:bg-slate-50 hover:border-indigo-200 shadow-sm text-slate-800';
           if (isActive) {
             cardColor = isCat 
               ? 'border-orange-500 bg-orange-500/10 shadow-[0_0_15px_rgba(249,115,22,0.15)]' 
@@ -1379,31 +1584,33 @@ export default function AiChatBotView() {
                     src={b.ui_configuration.avatar_image || '/roscoe-logo.png'}
                     alt=""
                     referrerPolicy="no-referrer"
-                    className="w-9 h-9 rounded-full border border-white/10 object-cover"
+                    className="w-9 h-9 rounded-full border border-slate-200/80 object-cover bg-slate-50"
                   />
-                  <div className="absolute -bottom-0.5 -right-0.5 bg-[#0e0f14] border border-white/10 p-0.5 rounded-full">
+                  <div className="absolute -bottom-0.5 -right-0.5 bg-white border border-slate-200 p-0.5 rounded-full shadow-sm">
                     {b.ui_configuration.bot_style === '3d_animated' ? (
-                      <Cpu className="w-2.5 h-2.5 text-teal-400" />
+                      <Cpu className="w-2.5 h-2.5 text-teal-600" />
                     ) : b.ui_configuration.bot_style === 'visual_media' ? (
-                      <Video className="w-2.5 h-2.5 text-orange-400" />
+                      <Video className="w-2.5 h-2.5 text-orange-600" />
+                    ) : b.ui_configuration.bot_style === 'bubble_popup' ? (
+                      <Sparkles className="w-2.5 h-2.5 text-indigo-600" />
                     ) : (
-                      <FileText className="w-2.5 h-2.5 text-blue-400" />
+                      <FileText className="w-2.5 h-2.5 text-blue-600" />
                     )}
                   </div>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-xs font-black text-slate-100 truncate uppercase leading-tight">
+                  <h3 className={`text-xs font-black truncate uppercase leading-tight ${isActive ? 'text-slate-900 font-extrabold' : 'text-slate-700'}`}>
                     {b.bot_profile.name}
                   </h3>
-                  <span className="text-[8px] font-mono font-bold text-slate-500 uppercase block mt-0.5 truncate">
+                  <span className="text-[8px] font-mono font-bold text-slate-400 uppercase block mt-0.5 truncate">
                     {b.interface_platform || 'Web widget'}
                   </span>
                 </div>
               </div>
-              <div className="flex items-center justify-between text-[8px] font-mono text-slate-400 border-t border-white/5 pt-1.5 mt-1.5">
-                <span className="truncate max-w-[60%] uppercase font-bold text-slate-500">{b.target_industry || 'General'}</span>
-                <span className="bg-white/5 border border-white/10 px-1.5 py-0.5 rounded font-bold uppercase text-[7px] text-slate-355">
-                  {b.ui_configuration.bot_style === 'visual_media' ? 'VISUAL_MEDIA' : b.ui_configuration.bot_style === '3d_animated' ? '3D_ANIMATED' : 'CLASSIC'}
+              <div className="flex items-center justify-between text-[8px] font-mono text-slate-500 border-t border-slate-100 pt-1.5 mt-1.5">
+                <span className="truncate max-w-[60%] uppercase font-bold text-indigo-600">{b.target_industry || 'General'}</span>
+                <span className="bg-slate-100 border border-slate-200/60 px-1.5 py-0.5 rounded font-bold uppercase text-[7px] text-slate-600">
+                  {b.ui_configuration.bot_style === 'visual_media' ? 'VISUAL_MEDIA' : b.ui_configuration.bot_style === '3d_animated' ? '3D_ANIMATED' : b.ui_configuration.bot_style === 'bubble_popup' ? 'BUBBLE_POPUP' : 'CLASSIC'}
                 </span>
               </div>
             </div>
@@ -1420,15 +1627,15 @@ export default function AiChatBotView() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Form & Configuration (Lg: 7 columns) */}
         <div className="lg:col-span-7 space-y-6">
-          <form onSubmit={handleGenerate} className="bg-[#0c0d15]/85 backdrop-blur-md border border-[#1e202d] rounded-2xl p-6 space-y-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/5 pb-4">
+          <form onSubmit={handleGenerate} className="bg-white border border-slate-200/80 rounded-2xl p-6 space-y-6 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-2">
-                <Layout className="w-4.5 h-4.5 text-primary-theme" />
-                <h2 className="text-sm font-black uppercase tracking-wider text-slate-100">
+                <Layout className="w-4.5 h-4.5 text-indigo-600" />
+                <h2 className="text-sm font-black uppercase tracking-wider text-slate-800">
                   Configure Bot Engine
                 </h2>
               </div>
-              <span className="text-[10px] font-mono text-slate-500">
+              <span className="text-[10px] font-mono text-slate-400">
                 BOT_ID: {activeBotId}
               </span>
             </div>
@@ -1437,7 +1644,7 @@ export default function AiChatBotView() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1.5">
+                  <label className="block text-[9px] font-mono font-bold text-indigo-600 uppercase tracking-widest mb-1.5">
                     Bot Public Name
                   </label>
                   <input
@@ -1445,18 +1652,18 @@ export default function AiChatBotView() {
                     required
                     value={botName}
                     onChange={(e) => setBotName(e.target.value)}
-                    className="w-full bg-[#0a0b0e] border border-[#212330] rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-primary-theme transition"
+                    className="w-full bg-slate-50 border border-indigo-300 rounded-lg px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:border-indigo-500 focus:bg-white transition shadow-sm"
                     placeholder="e.g. Cooper - Sales Patrol"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1.5">
+                  <label className="block text-[9px] font-mono font-bold text-indigo-600 uppercase tracking-widest mb-1.5">
                     Character Theme Mode
                   </label>
                   <select
                     value={theme}
                     onChange={(e) => handleThemeChange(e.target.value)}
-                    className="w-full bg-[#0a0b0e] border border-[#212330] rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-primary-theme transition cursor-pointer"
+                    className="w-full bg-slate-50 border border-indigo-300 rounded-lg px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:border-indigo-500 focus:bg-white transition cursor-pointer shadow-sm"
                   >
                     <option value="mascot_cat">🐾 High-Energy Sales Cat / Mascot</option>
                     <option value="professional">💼 Professional Assistant</option>
@@ -1468,15 +1675,15 @@ export default function AiChatBotView() {
 
               {/* Custom Theme Rules Panel */}
               {theme === 'custom' && (
-                <div className="p-4 bg-[#1e152a]/40 border border-[#4c1d95]/30 rounded-xl space-y-2 animate-fade-in">
-                  <label className="block text-[10px] font-mono text-purple-400 uppercase tracking-widest">
+                <div className="p-4 bg-purple-50/60 border border-purple-200 rounded-xl space-y-2 animate-fade-in">
+                  <label className="block text-[9px] font-mono font-bold text-purple-700 uppercase tracking-widest">
                     ✏️ Your Custom Character Tone & Persona Guidelines
                   </label>
                   <textarea
                     rows={2}
                     value={customThemeRules}
                     onChange={(e) => setCustomThemeRules(e.target.value)}
-                    className="w-full bg-[#0a0b0e] border border-purple-500/20 rounded-lg p-3 text-xs text-slate-200 focus:outline-none focus:border-purple-500 transition font-mono"
+                    className="w-full bg-slate-50 border border-purple-300 rounded-lg p-3 text-xs text-slate-800 focus:outline-none focus:border-purple-500 focus:bg-white transition font-mono"
                     placeholder="Describe how the bot should behave (e.g. Speak with pirate slang, utilize cool custom references, act witty and curious...)"
                   />
                 </div>
@@ -1485,7 +1692,7 @@ export default function AiChatBotView() {
               {/* Industry & Platform Config (Injected Metadata) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1.5">
+                  <label className="block text-[9px] font-mono font-bold text-indigo-600 uppercase tracking-widest mb-1.5">
                     Target Industry
                   </label>
                   <input
@@ -1493,12 +1700,12 @@ export default function AiChatBotView() {
                     required
                     value={targetIndustry}
                     onChange={(e) => setTargetIndustry(e.target.value)}
-                    className="w-full bg-[#0a0b0e] border border-[#212330] rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-primary-theme transition"
+                    className="w-full bg-slate-50 border border-indigo-300 rounded-lg px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:border-indigo-500 focus:bg-white transition shadow-sm"
                     placeholder="e.g. Real Estate, Fitness, Automotive"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1.5">
+                  <label className="block text-[9px] font-mono font-bold text-indigo-600 uppercase tracking-widest mb-1.5">
                     Interface / Deployment Platform
                   </label>
                   <input
@@ -1506,14 +1713,14 @@ export default function AiChatBotView() {
                     required
                     value={interfacePlatform}
                     onChange={(e) => setInterfacePlatform(e.target.value)}
-                    className="w-full bg-[#0a0b0e] border border-[#212330] rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-primary-theme transition"
+                    className="w-full bg-slate-50 border border-indigo-300 rounded-lg px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:border-indigo-500 focus:bg-white transition shadow-sm"
                     placeholder="e.g. Shopify Agent, Phone Agent, WhatsApp Desk"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1.5">
+                <label className="block text-[9px] font-mono font-bold text-indigo-600 uppercase tracking-widest mb-1.5">
                   Business Description
                 </label>
                 <input
@@ -1521,13 +1728,13 @@ export default function AiChatBotView() {
                   required
                   value={businessDesc}
                   onChange={(e) => setBusinessDesc(e.target.value)}
-                  className="w-full bg-[#0a0b0e] border border-[#212330] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-primary-theme transition"
+                  className="w-full bg-slate-50 border border-indigo-300 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition shadow-sm"
                   placeholder="e.g. Ragnarök Auto Workshop - corvette tuning and repairs"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1.5">
+                <label className="block text-[9px] font-mono font-bold text-indigo-600 uppercase tracking-widest mb-1.5">
                   Main Role & Goal Description
                 </label>
                 <textarea
@@ -1535,28 +1742,28 @@ export default function AiChatBotView() {
                   rows={2}
                   value={mainRole}
                   onChange={(e) => setMainRole(e.target.value)}
-                  className="w-full bg-[#0a0b0e] border border-[#212330] rounded-lg p-3 text-xs text-slate-200 focus:outline-none focus:border-primary-theme transition font-mono"
+                  className="w-full bg-slate-50 border border-indigo-300 rounded-lg p-3 text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition font-mono shadow-sm"
                   placeholder="e.g. Booking assistant & high-converting sales advisor"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1.5 flex items-center justify-between">
+                <label className="block text-[9px] font-mono font-bold text-indigo-600 uppercase tracking-widest mb-1.5 flex items-center justify-between">
                   <span>Uploaded Knowledge base (Documents, prices, FAQ)</span>
-                  <span className="text-[8px] bg-primary-theme/10 text-primary-theme border border-primary-theme/20 px-1.5 py-0.2 rounded">INJECTED TEXT</span>
+                  <span className="text-[8px] bg-indigo-50 text-indigo-600 border border-indigo-200/60 px-1.5 py-0.5 rounded font-bold">INJECTED TEXT</span>
                 </label>
                 <textarea
                   rows={3}
                   value={uploadedDocs}
                   onChange={(e) => setUploadedDocs(e.target.value)}
-                  className="w-full bg-[#0a0b0e] border border-[#212330] rounded-lg p-3 text-xs text-slate-200 font-mono focus:outline-none focus:border-primary-theme transition"
+                  className="w-full bg-slate-50 border border-indigo-300 rounded-lg p-3 text-xs text-slate-800 font-mono focus:outline-none focus:border-indigo-500 focus:bg-white transition shadow-sm"
                   placeholder="Paste pricing schedules, addresses, phone numbers, or rules here..."
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1.5">
+                  <label className="block text-[9px] font-mono font-bold text-indigo-600 uppercase tracking-widest mb-1.5">
                     Call To Action (CTA) Link
                   </label>
                   <input
@@ -1564,18 +1771,18 @@ export default function AiChatBotView() {
                     required
                     value={primaryCta}
                     onChange={(e) => setPrimaryCta(e.target.value)}
-                    className="w-full bg-[#0a0b0e] border border-[#212330] rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-primary-theme transition"
+                    className="w-full bg-slate-50 border border-indigo-300 rounded-lg px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:border-indigo-500 focus:bg-white transition shadow-sm"
                     placeholder="e.g. https://ragnarok.work/book"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1.5">
+                  <label className="block text-[9px] font-mono font-bold text-indigo-600 uppercase tracking-widest mb-1.5">
                     Widget Layout style
                   </label>
                   <select
                     value={layoutStyle}
                     onChange={(e) => setLayoutStyle(e.target.value as any)}
-                    className="w-full bg-[#0a0b0e] border border-[#212330] rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-primary-theme transition cursor-pointer"
+                    className="w-full bg-slate-50 border border-indigo-300 rounded-lg px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:border-indigo-500 focus:bg-white transition cursor-pointer shadow-sm"
                   >
                     <option value="floating_bubble">💬 Floating Bubble (Standard)</option>
                     <option value="side_panel">📋 Side Drawer / Panel</option>
@@ -1584,10 +1791,10 @@ export default function AiChatBotView() {
                 </div>
               </div>
 
-              {/* DUAL MODE CHAT BOT INTERFACE STYLES (CLASSIC, VIDEO, 3D) */}
-              <div className="p-4 bg-[#0a0b0e] border border-white/5 rounded-xl space-y-4">
-                <div className="border-b border-white/5 pb-2">
-                  <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block">
+              {/* DUAL MODE CHAT BOT INTERFACE STYLES (CLASSIC, VIDEO, 3D, AUTO BUBBLE) */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+                <div className="border-b border-slate-200/80 pb-2">
+                  <span className="text-[10px] font-mono font-bold text-slate-700 uppercase tracking-wider block">
                     Choose Dynamic Chat Bot Style (4 Options)
                   </span>
                 </div>
@@ -1598,8 +1805,8 @@ export default function AiChatBotView() {
                     onClick={() => setBotStyle('classic')}
                     className={`p-2.5 rounded-lg border font-mono text-[9px] uppercase tracking-wider text-center transition cursor-pointer ${
                       botStyle === 'classic' 
-                        ? 'border-blue-500 bg-blue-500/10 text-blue-400 font-bold' 
-                        : 'border-white/5 bg-black/40 hover:border-slate-700 text-slate-400'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold shadow-sm' 
+                        : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500 hover:text-slate-800 shadow-sm'
                     }`}
                   >
                     Classic Text
@@ -1609,8 +1816,8 @@ export default function AiChatBotView() {
                     onClick={() => setBotStyle('visual_media')}
                     className={`p-2.5 rounded-lg border font-mono text-[9px] uppercase tracking-wider text-center transition cursor-pointer ${
                       botStyle === 'visual_media' 
-                        ? 'border-orange-500 bg-orange-500/10 text-orange-400 font-bold' 
-                        : 'border-white/5 bg-black/40 hover:border-slate-700 text-slate-400'
+                        ? 'border-orange-500 bg-orange-50 text-orange-700 font-bold shadow-sm' 
+                        : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500 hover:text-slate-800 shadow-sm'
                     }`}
                   >
                     🎥 Media
@@ -1620,8 +1827,8 @@ export default function AiChatBotView() {
                     onClick={() => setBotStyle('3d_animated')}
                     className={`p-2.5 rounded-lg border font-mono text-[9px] uppercase tracking-wider text-center transition cursor-pointer ${
                       botStyle === '3d_animated' 
-                        ? 'border-teal-500 bg-teal-500/10 text-teal-400 font-bold' 
-                        : 'border-white/5 bg-black/40 hover:border-slate-700 text-slate-400'
+                        ? 'border-teal-500 bg-teal-50 text-teal-700 font-bold shadow-sm' 
+                        : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500 hover:text-slate-800 shadow-sm'
                     }`}
                   >
                     🤖 3D Tech
@@ -1631,104 +1838,123 @@ export default function AiChatBotView() {
                     onClick={() => setBotStyle('bubble_popup')}
                     className={`p-2.5 rounded-lg border font-mono text-[9px] uppercase tracking-wider text-center transition cursor-pointer ${
                       botStyle === 'bubble_popup' 
-                        ? 'border-amber-500 bg-amber-500/10 text-amber-400 font-bold' 
-                        : 'border-white/5 bg-black/40 hover:border-slate-700 text-slate-400'
+                        ? 'border-amber-500 bg-amber-50 text-amber-700 font-bold shadow-sm' 
+                        : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500 hover:text-slate-800 shadow-sm'
                     }`}
                   >
                     💬 Auto Bubble
                   </button>
                 </div>
 
-                {/* Sub-panel 1: Visual Media configs (Calm / Run local MP4 state selection) */}
-                {botStyle === 'visual_media' && (
-                  <div className="p-3 bg-black/40 border border-white/5 rounded-lg space-y-3 animate-fade-in">
-                    <span className="text-[9px] font-mono text-amber-500 uppercase font-bold tracking-widest block">
-                      🎥 Media Configuration Settings
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[8px] font-mono text-slate-400 uppercase tracking-wider mb-1">
-                          Media Representation Type
-                        </label>
-                        <select
-                          value={mediaType}
-                          onChange={(e) => setMediaType(e.target.value as any)}
-                          className="w-full bg-black/40 border border-[#212330] rounded p-1 text-[10px] text-slate-200 font-mono"
-                        >
-                          <option value="video">🎥 Multi-State Workshop MP4 Video</option>
-                          <option value="image">🖼️ Static Avatar Logo Image</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[8px] font-mono text-slate-400 uppercase tracking-wider mb-1">
-                          Static Profile Avatar Image
-                        </label>
-                        <select
-                          value={avatarImage}
-                          onChange={(e) => setAvatarImage(e.target.value)}
-                          className="w-full bg-black/40 border border-[#212330] rounded p-1 text-[10px] text-slate-200 font-mono"
-                        >
-                          <option value="/cooper-logo.png">Cooper Cat Logo (/cooper-logo.png)</option>
-                          <option value="/roscoe-logo.png">Roscoe Garage Logo (/roscoe-logo.png)</option>
-                          <option value="/gangstercats.png">Gangster Cats Artwork (/gangstercats.png)</option>
-                          <option value="/scarycats.png">Cyber Scout Cyberpunk Cat (/scarycats.png)</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {mediaType === 'video' && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-2 bg-[#0d0e14] border border-white/5 rounded">
-                        <div>
-                          <label className="block text-[8px] font-mono text-slate-400 uppercase tracking-wider mb-1">
-                            💤 Calm / Idle State Video Loop
-                          </label>
-                          <select
-                            value={calmVideo}
-                            onChange={(e) => setCalmVideo(e.target.value)}
-                            className="w-full bg-black/40 border border-[#212330] rounded p-1 text-[10px] text-slate-200 font-mono"
-                          >
-                            <option value="/garage-calm.mp4">Garage Calm (/garage-calm.mp4)</option>
-                            <option value="/jobs-calm.mp4">Staff Briefing Calm (/jobs-calm.mp4)</option>
-                            <option value="/customer-calm.mp4">Customer Support Room (/customer-calm.mp4)</option>
-                            <option value="/vehicle-calm.mp4">Under Hood Wiring (/vehicle-calm.mp4)</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[8px] font-mono text-slate-400 uppercase tracking-wider mb-1">
-                            ⚡ Active / Speaking State Video Loop
-                          </label>
-                          <select
-                            value={activeVideo}
-                            onChange={(e) => setActiveVideo(e.target.value)}
-                            className="w-full bg-black/40 border border-[#212330] rounded p-1 text-[10px] text-slate-200 font-mono"
-                          >
-                            <option value="/garage-run.mp4">Power Tools Active (/garage-run.mp4)</option>
-                            <option value="/jobs-buff.mp4">Hydraulic Lift Dynamic (/jobs-buff.mp4)</option>
-                            <option value="/customer-run.mp4">Staff Response Run (/customer-run.mp4)</option>
-                            <option value="/vehicle-run.mp4">Performance Engine Dyno Run (/vehicle-run.mp4)</option>
-                            <option value="/roscoecooperfixcar.mp4">Cooper Fix Car Action (/roscoecooperfixcar.mp4)</option>
-                          </select>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                 {/* Sub-panel 1: Visual Media configs (Calm / Run local MP4 state selection) */}
+                 {botStyle === 'visual_media' && (
+                   <div className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-4 shadow-inner animate-fade-in">
+                     <span className="text-[9px] font-mono text-orange-600 uppercase font-bold tracking-widest block">
+                       🎥 Media Configuration Settings
+                     </span>
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                       <div>
+                         <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1">
+                           Media Representation Type
+                         </label>
+                         <select
+                           value={mediaType}
+                           onChange={(e) => setMediaType(e.target.value as any)}
+                           className="w-full bg-slate-50 border border-slate-200 rounded p-1.5 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-orange-500"
+                         >
+                           <option value="video">🎥 Multi-State Workshop MP4 Video</option>
+                           <option value="image">🖼️ Static Avatar Logo Image</option>
+                         </select>
+                       </div>
+                       <div>
+                         <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1">
+                           Static Profile Avatar Image
+                         </label>
+                         <select
+                           value={avatarImage}
+                           onChange={(e) => setAvatarImage(e.target.value)}
+                           className="w-full bg-slate-50 border border-slate-200 rounded p-1.5 text-[10px] text-slate-800 font-mono mb-2 focus:outline-none focus:border-orange-500"
+                         >
+                           <option value="/cooper-logo.png">Cooper Cat Logo (/cooper-logo.png)</option>
+                           <option value="/roscoe-logo.png">Roscoe Garage Logo (/roscoe-logo.png)</option>
+                           <option value="/gangstercats.png">Gangster Cats Artwork (/gangstercats.png)</option>
+                           <option value="/scarycats.png">Cyber Scout Cyberpunk Cat (/scarycats.png)</option>
+                           <option value="custom">Custom Uploaded Image...</option>
+                         </select>
+                         <MediaField
+                           value={avatarImage === 'custom' ? '' : avatarImage}
+                           onChange={(val) => setAvatarImage(val)}
+                           accept="image"
+                           placeholder="Or upload custom image..."
+                         />
+                       </div>
+                     </div>
+ 
+                     {mediaType === 'video' && (
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                         <div className="space-y-1.5">
+                           <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1">
+                             💤 Calm / Idle State Video Loop
+                           </label>
+                           <select
+                             value={calmVideo}
+                             onChange={(e) => setCalmVideo(e.target.value)}
+                             className="w-full bg-white border border-slate-200 rounded p-1 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-orange-500"
+                           >
+                             <option value="/garage-calm.mp4">Garage Calm (/garage-calm.mp4)</option>
+                             <option value="/jobs-calm.mp4">Staff Briefing Calm (/jobs-calm.mp4)</option>
+                             <option value="/customer-calm.mp4">Customer Support Room (/customer-calm.mp4)</option>
+                             <option value="/vehicle-calm.mp4">Under Hood Wiring (/vehicle-calm.mp4)</option>
+                           </select>
+                           <MediaField
+                             value={calmVideo}
+                             onChange={(val) => setCalmVideo(val)}
+                             accept="video"
+                             placeholder="Or upload custom video..."
+                           />
+                         </div>
+                         <div className="space-y-1.5">
+                           <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1">
+                             ⚡ Active / Speaking State Video Loop
+                           </label>
+                           <select
+                             value={activeVideo}
+                             onChange={(e) => setActiveVideo(e.target.value)}
+                             className="w-full bg-white border border-slate-200 rounded p-1 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-orange-500"
+                           >
+                             <option value="/garage-run.mp4">Power Tools Active (/garage-run.mp4)</option>
+                             <option value="/jobs-buff.mp4">Hydraulic Lift Dynamic (/jobs-buff.mp4)</option>
+                             <option value="/customer-run.mp4">Staff Response Run (/customer-run.mp4)</option>
+                             <option value="/vehicle-run.mp4">Performance Engine Dyno Run (/vehicle-run.mp4)</option>
+                             <option value="/roscoecooperfixcar.mp4">Cooper Fix Car Action (/roscoecooperfixcar.mp4)</option>
+                           </select>
+                           <MediaField
+                             value={activeVideo}
+                             onChange={(val) => setActiveVideo(val)}
+                             accept="video"
+                             placeholder="Or upload custom video..."
+                           />
+                         </div>
+                       </div>
+                     )}
+                   </div>
+                 )}
 
                 {/* Sub-panel 2: ThreeJS 3D configs */}
                 {botStyle === '3d_animated' && (
-                  <div className="p-3 bg-black/40 border border-white/5 rounded-lg space-y-3 animate-fade-in">
-                    <span className="text-[9px] font-mono text-teal-400 uppercase font-bold tracking-widest block">
+                  <div className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-4 shadow-inner animate-fade-in">
+                    <span className="text-[9px] font-mono text-teal-600 uppercase font-bold tracking-widest block">
                       🤖 Interactive 3D Model Configuration (Three.js WebGL Core)
                     </span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[8px] font-mono text-slate-400 uppercase tracking-wider mb-1">
+                        <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1">
                           Hologram 3D Preset Geometry
                         </label>
                         <select
                           value={threePreset}
                           onChange={(e) => setThreePreset(e.target.value as any)}
-                          className="w-full bg-black/40 border border-[#212330] rounded p-1 text-[10px] text-slate-200 font-mono cursor-pointer"
+                          className="w-full bg-slate-50 border border-slate-200 rounded p-1.5 text-[10px] text-slate-800 font-mono cursor-pointer focus:outline-none focus:border-teal-500"
                         >
                           <option value="neon_core">🎆 Glowing Torus Core (Neon Core)</option>
                           <option value="hologram">📡 Scanning Laser Ring (Hologram Assistant)</option>
@@ -1737,9 +1963,9 @@ export default function AiChatBotView() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[8px] font-mono text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                        <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center justify-between">
                           <span>3D Animation Speed</span>
-                          <span className="text-teal-400 font-bold font-mono">{threeSpeed}x</span>
+                          <span className="text-teal-600 font-bold font-mono">{threeSpeed}x</span>
                         </label>
                         <input
                           type="range"
@@ -1748,16 +1974,16 @@ export default function AiChatBotView() {
                           step="0.1"
                           value={threeSpeed}
                           onChange={(e) => setThreeSpeed(parseFloat(e.target.value))}
-                          className="w-full accent-teal-400"
+                          className="w-full accent-teal-600"
                         />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[8px] font-mono text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                        <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center justify-between">
                           <span>Quantum Particle Density</span>
-                          <span className="text-teal-400 font-bold font-mono">{threeParticles}pt</span>
+                          <span className="text-teal-600 font-bold font-mono">{threeParticles}pt</span>
                         </label>
                         <input
                           type="range"
@@ -1766,43 +1992,56 @@ export default function AiChatBotView() {
                           step="100"
                           value={threeParticles}
                           onChange={(e) => setThreeParticles(parseInt(e.target.value))}
-                          className="w-full accent-teal-400"
+                          className="w-full accent-teal-600"
                         />
                       </div>
-                      <div className="flex items-center gap-2 pt-3">
-                        <input
-                          type="checkbox"
-                          id="threeWireframe"
-                          checked={threeWireframe}
-                          onChange={(e) => setThreeWireframe(e.target.checked)}
-                          className="w-4 h-4 rounded border-slate-700 bg-transparent text-teal-500 focus:ring-0 cursor-pointer"
-                        />
-                        <label htmlFor="threeWireframe" className="text-[10px] font-mono text-slate-300 uppercase tracking-wider select-none cursor-pointer">
-                          Render Wireframe Skin Overlay
-                        </label>
+                      <div className="flex flex-col gap-1.5 justify-center">
+                        <div className="flex items-center gap-2">
+                          <input
+                             type="checkbox"
+                             id="threeWireframe"
+                             checked={threeWireframe}
+                             onChange={(e) => setThreeWireframe(e.target.checked)}
+                             className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-0 cursor-pointer"
+                           />
+                           <label htmlFor="threeWireframe" className="text-[10px] font-mono font-bold text-slate-600 uppercase tracking-wider select-none cursor-pointer">
+                             Render Wireframe Skin Overlay
+                           </label>
+                         </div>
                       </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-3">
+                       <MediaField
+                         value={threeFile}
+                         onChange={(val) => setThreeFile(val)}
+                         accept="both"
+                         label="📡 Custom Hologram 3D Model Asset (.glb / .vlm)"
+                         labelColorClass="text-teal-600 font-bold font-mono text-[8.5px]"
+                         placeholder="Upload custom 3D model..."
+                       />
                     </div>
                   </div>
                 )}
 
                 {/* Sub-panel 3: Bubble popup configs */}
                 {botStyle === 'bubble_popup' && (
-                  <div className="p-3 bg-black/40 border border-white/5 rounded-lg space-y-3 animate-fade-in">
-                    <span className="text-[9px] font-mono text-amber-500 uppercase font-bold tracking-widest block">
+                  <div className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-4 shadow-inner animate-fade-in">
+                    <span className="text-[9px] font-mono text-amber-600 uppercase font-bold tracking-widest block">
                       💬 Website Auto-Pop Bubbles Configuration
                     </span>
-                    <p className="text-[10px] text-slate-400 leading-normal">
+                    <p className="text-[10px] text-slate-500 leading-normal">
                       Specify a comma-separated list of phrases that will automatically trigger and pop up on your website to catch the customer's eye. The interactive simulator preview will randomly cycle these with micro-animations.
                     </p>
                     <div>
-                      <label className="block text-[8.5px] font-mono text-slate-300 uppercase tracking-wider mb-1">
+                      <label className="block text-[8.5px] font-mono font-bold text-slate-600 uppercase tracking-wider mb-1">
                         Random Popup Phrases (separated by commas)
                       </label>
                       <textarea
                         rows={3}
                         value={bubblePhrases}
                         onChange={(e) => setBubblePhrases(e.target.value)}
-                        className="w-full bg-[#0a0b0e] border border-[#212330] rounded p-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-amber-500 transition"
+                        className="w-full bg-slate-50 border border-indigo-300 rounded p-2 text-xs text-slate-800 font-mono focus:outline-none focus:border-indigo-500 focus:bg-white transition shadow-sm"
                         placeholder="e.g. Need an LS swap? I can quote you! 🐾, ATF Transmission Flush is only $110! ⚡"
                       />
                     </div>
@@ -1810,9 +2049,9 @@ export default function AiChatBotView() {
                 )}
 
                 {/* Shared Theme & Color Settings */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-white/5 pt-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-slate-200/80 pt-3">
                   <div>
-                    <label className="block text-[9px] font-mono text-slate-500 uppercase tracking-wider mb-1">
+                    <label className="block text-[9px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1">
                       Primary Theme
                     </label>
                     <div className="flex items-center gap-2">
@@ -1820,18 +2059,18 @@ export default function AiChatBotView() {
                         type="color"
                         value={primaryColor}
                         onChange={(e) => setPrimaryColor(e.target.value)}
-                        className="w-8 h-8 rounded border border-white/10 bg-transparent cursor-pointer p-0.5"
+                        className="w-8 h-8 rounded border border-indigo-300 bg-transparent cursor-pointer p-0.5 shadow-sm"
                       />
                       <input
                         type="text"
                         value={primaryColor}
                         onChange={(e) => setPrimaryColor(e.target.value)}
-                        className="w-full bg-black/40 border border-[#212330] rounded px-2 py-1 text-[10px] text-slate-355 font-mono"
+                        className="w-full bg-slate-50 border border-indigo-300 rounded px-2 py-1 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-indigo-500 focus:bg-white shadow-sm"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-[9px] font-mono text-slate-500 uppercase tracking-wider mb-1">
+                    <label className="block text-[9px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1">
                       Secondary Accent
                     </label>
                     <div className="flex items-center gap-2">
@@ -1839,24 +2078,24 @@ export default function AiChatBotView() {
                         type="color"
                         value={secondaryColor}
                         onChange={(e) => setSecondaryColor(e.target.value)}
-                        className="w-8 h-8 rounded border border-white/10 bg-transparent cursor-pointer p-0.5"
+                        className="w-8 h-8 rounded border border-indigo-300 bg-transparent cursor-pointer p-0.5 shadow-sm"
                       />
                       <input
                         type="text"
                         value={secondaryColor}
                         onChange={(e) => setSecondaryColor(e.target.value)}
-                        className="w-full bg-black/40 border border-[#212330] rounded px-2 py-1 text-[10px] text-slate-355 font-mono"
+                        className="w-full bg-slate-50 border border-indigo-300 rounded px-2 py-1 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-indigo-500 focus:bg-white shadow-sm"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-[9px] font-mono text-slate-500 uppercase tracking-wider mb-1">
+                    <label className="block text-[9px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1">
                       Typography Font Family
                     </label>
                     <select
                       value={fontFamily}
                       onChange={(e) => setFontFamily(e.target.value)}
-                      className="w-full bg-black/40 border border-[#212330] rounded px-2 py-1.5 text-[10px] text-slate-200 font-mono focus:outline-none cursor-pointer"
+                      className="w-full bg-slate-50 border border-indigo-300 rounded px-2 py-1.5 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-indigo-500 cursor-pointer shadow-sm"
                     >
                       <option value="monospace">monospace (Console)</option>
                       <option value="sans-serif">sans-serif (Modern)</option>
@@ -1866,7 +2105,7 @@ export default function AiChatBotView() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1.5">
+                  <label className="block text-[9px] font-mono font-bold text-indigo-600 uppercase tracking-widest mb-1.5">
                     Widget Welcome Opening Message
                   </label>
                   <input
@@ -1874,8 +2113,31 @@ export default function AiChatBotView() {
                     required
                     value={welcomeMessage}
                     onChange={(e) => setWelcomeMessage(e.target.value)}
-                    className="w-full bg-black/40 border border-[#212330] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-primary-theme transition"
+                    className="w-full bg-slate-50 border border-indigo-300 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition shadow-sm"
                     placeholder="Welcome opening line..."
+                  />
+                </div>
+
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[9px] font-mono font-bold text-indigo-600 uppercase tracking-widest">
+                      ✨ Bot Transparency / Translucency
+                    </label>
+                    <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200/60">
+                      {botOpacity}% Opacity
+                    </span>
+                  </div>
+                  <p className="text-[9px] text-slate-500 font-sans leading-normal">
+                    Control how translucent the live chat widget visual will appear on your webpage (0% is fully invisible, 100% is fully opaque).
+                  </p>
+                  <input
+                    type="range"
+                    min="10"
+                    max="100"
+                    step="5"
+                    value={botOpacity}
+                    onChange={(e) => setBotOpacity(parseInt(e.target.value))}
+                    className="w-full accent-indigo-600 cursor-pointer"
                   />
                 </div>
               </div>
@@ -1885,15 +2147,15 @@ export default function AiChatBotView() {
             <div className="flex flex-col sm:flex-row gap-2 pt-2">
               <button
                 type="submit"
-                className="flex-1 py-3 bg-gradient-to-r from-primary-theme to-amber-500 text-slate-950 font-black uppercase tracking-wider text-xs rounded-xl transition active:scale-98 cursor-pointer flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-amber-500 hover:from-indigo-500 hover:to-amber-400 text-white font-black uppercase tracking-wider text-xs rounded-xl shadow-md hover:shadow-lg transition active:scale-95 cursor-pointer flex items-center justify-center gap-2"
               >
-                <Sparkles className="w-4 h-4 text-slate-950" />
+                <Sparkles className="w-4 h-4 text-white" />
                 Compile & Deploy Bot Package
               </button>
               <button
                 type="button"
                 onClick={handleSaveBot}
-                className="px-6 py-3 bg-[#11131a] hover:bg-white/5 border border-white/5 hover:border-white/10 text-slate-300 font-mono uppercase tracking-wider text-xs rounded-xl transition active:scale-98 cursor-pointer"
+                className="px-6 py-3 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-mono uppercase tracking-wider text-xs rounded-xl transition active:scale-95 cursor-pointer"
               >
                 Save Changes
               </button>
@@ -2007,7 +2269,7 @@ export default function AiChatBotView() {
 
                 {/* RENDER TOP HALF INTERACTIVE MEDIA/3D IF STYLE CHOSEN */}
                 {botStyle === '3d_animated' && (
-                  <div className="h-[200px] border-b border-[#1a1b24] shrink-0 relative overflow-hidden">
+                  <div className="h-[200px] border-b border-slate-200 shrink-0 relative overflow-hidden" style={{ opacity: botOpacity / 100 }}>
                     <BotThreeCanvas
                       primaryColor={primaryColor}
                       secondaryColor={secondaryColor}
@@ -2021,7 +2283,7 @@ export default function AiChatBotView() {
                 )}
 
                 {botStyle === 'visual_media' && mediaType === 'video' && (
-                  <div className="h-[200px] border-b border-[#1a1b24] shrink-0 relative bg-black flex items-center justify-center overflow-hidden">
+                  <div className="h-[200px] border-b border-slate-200 shrink-0 relative bg-black flex items-center justify-center overflow-hidden" style={{ opacity: botOpacity / 100 }}>
                     {/* Multi-state interactive auto-switching video player */}
                     <video
                       key={isTyping ? activeVideo : calmVideo}
@@ -2039,10 +2301,10 @@ export default function AiChatBotView() {
                 )}
 
                 {botStyle === 'visual_media' && mediaType === 'image' && (
-                  <div className="h-[200px] border-b border-[#1a1b24] shrink-0 bg-gradient-to-b from-[#11131e] to-[#07080b] flex items-center justify-center relative overflow-hidden">
+                  <div className="h-[200px] border-b border-slate-200 shrink-0 bg-gradient-to-b from-slate-100 to-slate-200 flex items-center justify-center relative overflow-hidden" style={{ opacity: botOpacity / 100 }}>
                     <div className="relative">
                       <div className={`w-28 h-28 rounded-full border-2 overflow-hidden transition-all duration-500 ${
-                        isTyping ? 'border-amber-400 scale-105 animate-pulse' : 'border-slate-700'
+                        isTyping ? 'border-amber-400 scale-105 animate-pulse' : 'border-slate-300'
                       }`} style={{ borderColor: primaryColor }}>
                         <img
                           src={avatarImage || '/roscoe-logo.png'}
@@ -2061,37 +2323,37 @@ export default function AiChatBotView() {
                 )}
 
                 {botStyle === 'bubble_popup' && (
-                  <div className="h-[200px] border-b border-[#1a1b24] shrink-0 bg-gradient-to-br from-[#0c0d12] via-[#141620] to-[#08090d] flex flex-col justify-between p-3 relative overflow-hidden">
+                  <div className="h-[200px] border-b border-slate-200 shrink-0 bg-gradient-to-br from-indigo-50 via-slate-50 to-amber-50/50 flex flex-col justify-between p-3 relative overflow-hidden" style={{ opacity: botOpacity / 100 }}>
                     {/* Glowing background grid lines */}
-                    <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:14px_14px]" />
+                    <div className="absolute inset-0 bg-[linear-gradient(to_right,#6366f10a_1px,transparent_1px),linear-gradient(to_bottom,#6366f10a_1px,transparent_1px)] bg-[size:14px_14px]" />
                     
                     {/* Website Header Mock */}
-                    <div className="flex items-center justify-between border-b border-white/5 pb-1.5 z-10">
+                    <div className="flex items-center justify-between border-b border-slate-200/60 pb-1.5 z-10">
                       <div className="flex items-center gap-1.5">
-                        <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-                        <span className="text-[9px] font-mono text-slate-300 font-bold tracking-wider uppercase">
+                        <div className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
+                        <span className="text-[9px] font-mono text-indigo-700 font-bold tracking-wider uppercase">
                           Ragnarök Live Portal
                         </span>
                       </div>
                       <div className="flex gap-2">
-                        <span className="text-[7px] font-mono text-slate-500 uppercase">Products</span>
-                        <span className="text-[7px] font-mono text-slate-500 uppercase">Upgrade</span>
-                        <span className="text-[7px] font-mono text-slate-300 uppercase underline">Live Agent</span>
+                        <span className="text-[7px] font-mono text-slate-400 uppercase">Products</span>
+                        <span className="text-[7px] font-mono text-slate-400 uppercase">Upgrade</span>
+                        <span className="text-[7px] font-mono text-slate-600 uppercase underline">Live Agent</span>
                       </div>
                     </div>
 
                     {/* Web Content Slogan */}
                     <div className="my-auto z-10 space-y-1">
-                      <h4 className="text-[11px] font-bold tracking-tight text-white uppercase font-sans">
+                      <h4 className="text-[11px] font-bold tracking-tight text-slate-800 uppercase font-sans">
                         Corvette Tuning & LS Custom Swaps
                       </h4>
-                      <p className="text-[8px] text-slate-400 max-w-[80%] font-mono">
+                      <p className="text-[8px] text-slate-500 max-w-[80%] font-mono">
                         Deploy custom chatbots on your live funnels instantly. Try our live active popup triggers below.
                       </p>
                     </div>
 
                     {/* Bottom Info bar */}
-                    <div className="flex items-center justify-between text-[7.5px] font-mono text-slate-500 border-t border-white/5 pt-1.5 z-10">
+                    <div className="flex items-center justify-between text-[7.5px] font-mono text-slate-400 border-t border-slate-200/60 pt-1.5 z-10">
                       <span>LIFTS ACTIVE: 4/4</span>
                       <span>ACTIVE COLOR: <span style={{ color: primaryColor }}>{primaryColor}</span></span>
                     </div>
@@ -2100,20 +2362,20 @@ export default function AiChatBotView() {
                     <div className="absolute bottom-6 right-3 z-20 flex flex-col items-end gap-1.5">
                       {/* Floating Alert Speech Bubble */}
                       {bubblePopupVisible && activeBubblePopup && (
-                        <div className="max-w-[150px] bg-slate-900/95 border-2 border-amber-500 text-slate-100 p-2 rounded-xl rounded-br-none shadow-xl shadow-black/60 relative animate-bounce text-[9px] leading-snug transition-all duration-300 transform scale-100 select-none">
-                          <div className="text-[7px] text-amber-500 font-bold uppercase font-mono tracking-wider mb-0.5 flex items-center gap-1">
+                        <div className="max-w-[150px] bg-white border-2 border-indigo-600 text-slate-800 p-2 rounded-xl rounded-br-none shadow-xl shadow-indigo-500/10 relative animate-bounce text-[9px] leading-snug transition-all duration-300 transform scale-100 select-none">
+                          <div className="text-[7px] text-indigo-600 font-bold uppercase font-mono tracking-wider mb-0.5 flex items-center gap-1">
                             <span>⚡ Live Alert Popup</span>
                             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                           </div>
                           {activeBubblePopup}
-                          <div className="absolute top-1 right-1 cursor-pointer hover:text-amber-400" onClick={() => setBubblePopupVisible(false)}>
+                          <div className="absolute top-1 right-1 cursor-pointer hover:text-indigo-500 text-slate-400 font-bold" onClick={() => setBubblePopupVisible(false)}>
                             ×
                           </div>
                         </div>
                       )}
 
                       {/* Mini Live Launcher Widget Icon */}
-                      <div className="w-8 h-8 rounded-full bg-[#12141a] border border-amber-500 flex items-center justify-center shadow-lg shadow-amber-500/20 cursor-pointer animate-pulse">
+                      <div className="w-8 h-8 rounded-full bg-white border border-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/10 cursor-pointer animate-pulse">
                         <img
                           src={avatarImage || '/roscoe-logo.png'}
                           alt=""
@@ -2126,7 +2388,7 @@ export default function AiChatBotView() {
                 )}
 
                 {/* Messages Feed */}
-                <div className="flex-1 p-3 overflow-y-auto space-y-2.5 bg-[#0a0b0e]">
+                <div className="flex-1 p-3 overflow-y-auto space-y-2.5 bg-slate-50">
                   {chatMessages.map((msg, idx) => {
                     const isBot = msg.sender === 'bot';
                     return (
@@ -2135,7 +2397,7 @@ export default function AiChatBotView() {
                         className={`flex items-start gap-2 max-w-[85%] ${isBot ? 'mr-auto' : 'ml-auto flex-row-reverse'}`}
                       >
                         {isBot && (
-                          <div className="w-6 h-6 rounded-full border border-white/10 overflow-hidden shrink-0 mt-0.5">
+                          <div className="w-6 h-6 rounded-full border border-slate-200 overflow-hidden shrink-0 mt-0.5">
                             <img
                               src={avatarImage || '/roscoe-logo.png'}
                               alt=""
@@ -2148,14 +2410,14 @@ export default function AiChatBotView() {
                           <div
                             className={`p-2.5 rounded-xl text-[11px] leading-relaxed break-words ${
                               isBot 
-                                ? 'bg-[#12141a] text-slate-100 border border-white/5 rounded-tl-none' 
-                                : 'text-slate-950 font-semibold rounded-tr-none'
+                                ? 'bg-white text-slate-800 border border-slate-200 shadow-sm rounded-tl-none' 
+                                : 'text-white font-semibold rounded-tr-none'
                             }`}
                             style={!isBot ? { backgroundColor: primaryColor } : undefined}
                           >
                             {msg.text}
                           </div>
-                          <span className="text-[8px] text-slate-600 block px-1 text-right">
+                          <span className="text-[8px] text-slate-400 block px-1 text-right font-mono">
                             {msg.time}
                           </span>
                         </div>
@@ -2164,7 +2426,7 @@ export default function AiChatBotView() {
                   })}
                   {isTyping && (
                     <div className="flex items-start gap-2 mr-auto max-w-[80%] animate-pulse">
-                      <div className="w-6 h-6 rounded-full border border-white/10 overflow-hidden shrink-0 mt-0.5">
+                      <div className="w-6 h-6 rounded-full border border-slate-200 overflow-hidden shrink-0 mt-0.5">
                         <img
                           src={avatarImage || '/roscoe-logo.png'}
                           alt=""
@@ -2172,7 +2434,7 @@ export default function AiChatBotView() {
                           className="w-full h-full object-cover"
                         />
                       </div>
-                      <div className="bg-[#12141a] border border-white/5 text-slate-400 p-2.5 rounded-xl rounded-tl-none text-[10px] font-mono">
+                      <div className="bg-white border border-slate-200 text-slate-500 p-2.5 rounded-xl rounded-tl-none text-[10px] font-mono">
                         Typing coordinate logs...
                       </div>
                     </div>
@@ -2182,81 +2444,265 @@ export default function AiChatBotView() {
 
                 {/* Floating Launcher Widget Overlay inside Simulator if layout is floating_bubble */}
                 {layoutStyle === 'floating_bubble' && (
-                  <div className="absolute bottom-16 right-4 w-11 h-11 rounded-full border-2 border-amber-500 bg-[#0e0f14] flex items-center justify-center shadow-lg shadow-amber-500/20 cursor-pointer animate-pulse z-20">
-                    <Bot className="w-5 h-5 text-amber-500" />
+                  <div className="absolute bottom-16 right-4 w-11 h-11 rounded-full border-2 border-indigo-600 bg-white flex items-center justify-center shadow-lg shadow-indigo-500/20 cursor-pointer animate-pulse z-20" style={{ opacity: botOpacity / 100 }}>
+                    <Bot className="w-5 h-5 text-indigo-600" />
                   </div>
                 )}
 
                 {/* Input form */}
-                <form onSubmit={handleSendMessage} className="p-2 border-t border-[#1a1b24] bg-[#07080b] flex items-center gap-1.5 z-10">
+                <form onSubmit={handleSendMessage} className="p-2 border-t border-slate-200 bg-white flex items-center gap-1.5 z-10">
                   <input
                     type="text"
                     value={userInput}
                     onChange={(e) => setUserInput(e.target.value)}
-                    className="flex-1 bg-[#0d0e12] border border-[#212330] rounded-lg px-2.5 py-1.5 text-[10px] text-slate-200 focus:outline-none focus:border-slate-500"
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[10px] text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white"
                     placeholder="Type client inquiry..."
                   />
                   <button
                     type="submit"
-                    className="p-1.5 rounded-lg text-slate-950 transition hover:scale-105 cursor-pointer shrink-0"
+                    className="p-1.5 rounded-lg text-white transition hover:scale-105 cursor-pointer shrink-0"
                     style={{ backgroundColor: primaryColor }}
                   >
-                    <Send className="w-3.5 h-3.5" />
+                    <Send className="w-3.5 h-3.5 text-white" />
                   </button>
                 </form>
               </div>
             </div>
           )}
 
-          {/* Tab content 2: Deployment Code JSON & Embed Snippet */}
+          {/* Tab content 2: Developer Assets Hub */}
           {activeTab === 'json_code' && (
-            <div className="border border-[#1e202d] bg-surface-theme rounded-2xl p-4 shadow-xl flex flex-col h-[650px] space-y-4 overflow-hidden">
-              <div className="flex-1 flex flex-col space-y-3 overflow-hidden">
-                {/* Block 1: JSON Output */}
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  <div className="flex items-center justify-between pb-1.5">
-                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                      <FileText className="w-3.5 h-3.5 text-primary-theme" />
-                      JSON Deployment Package (Strict Format)
+            <div className="border border-[#1e202d] bg-surface-theme rounded-2xl p-4 shadow-xl flex flex-col h-[650px] space-y-4 overflow-hidden text-white">
+              {/* Header/Subtabs Navigation */}
+              <div className="flex flex-col space-y-2 pb-2 border-b border-[#212330]">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Code className="w-4 h-4 text-primary-theme" />
+                    <span className="text-xs font-mono font-bold tracking-wider uppercase">
+                      Developer Assets Hub
                     </span>
-                    <button
-                      onClick={handleCopyJson}
-                      className="p-1 text-slate-500 hover:text-slate-200 hover:bg-white/5 rounded-md transition flex items-center gap-1 text-[10px] cursor-pointer"
-                    >
-                      {copyJsonSuccess ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
-                      {copyJsonSuccess ? 'Copied' : 'Copy JSON'}
-                    </button>
                   </div>
-                  <pre className="flex-1 p-3 bg-black/40 border border-[#212330] rounded-lg overflow-auto text-[10px] font-mono text-amber-500/90 leading-relaxed scrollbar-none">
-                    {generatedJson}
-                  </pre>
+                  <span className="text-[9px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider">
+                    Ready to Deploy
+                  </span>
                 </div>
-
-                {/* Block 2: Embed script code */}
-                <div className="h-[200px] flex flex-col shrink-0">
-                  <div className="flex items-center justify-between pb-1.5">
-                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                      <Code className="w-3.5 h-3.5 text-primary-theme" />
-                      Copyable Embed Script
-                    </span>
-                    <button
-                      onClick={handleCopyCode}
-                      className="p-1 text-slate-500 hover:text-slate-200 hover:bg-white/5 rounded-md transition flex items-center gap-1 text-[10px] cursor-pointer"
-                    >
-                      {copyCodeSuccess ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
-                      {copyCodeSuccess ? 'Copied' : 'Copy Script'}
-                    </button>
-                  </div>
-                  <pre className="flex-1 p-3 bg-black/40 border border-[#212330] rounded-lg overflow-auto text-[10px] font-mono text-slate-355 scrollbar-none select-all">
-                    {embedCode}
-                  </pre>
+                
+                {/* Horizontal scrolling tabs list */}
+                <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+                  <button
+                    onClick={() => setActiveDevSubTab('embed')}
+                    className={`px-2.5 py-1.5 rounded-lg font-mono text-[9.5px] uppercase tracking-wider transition cursor-pointer shrink-0 border ${
+                      activeDevSubTab === 'embed'
+                        ? 'bg-primary-theme border-primary-theme text-white font-bold'
+                        : 'bg-[#161824] border-[#212330] text-slate-400 hover:text-white hover:border-slate-700'
+                    }`}
+                  >
+                    📡 Embed Code
+                  </button>
+                  <button
+                    onClick={() => setActiveDevSubTab('css')}
+                    className={`px-2.5 py-1.5 rounded-lg font-mono text-[9.5px] uppercase tracking-wider transition cursor-pointer shrink-0 border ${
+                      activeDevSubTab === 'css'
+                        ? 'bg-primary-theme border-primary-theme text-white font-bold'
+                        : 'bg-[#161824] border-[#212330] text-slate-400 hover:text-white hover:border-slate-700'
+                    }`}
+                  >
+                    🎨 CSS Styles
+                  </button>
+                  <button
+                    onClick={() => setActiveDevSubTab('html')}
+                    className={`px-2.5 py-1.5 rounded-lg font-mono text-[9.5px] uppercase tracking-wider transition cursor-pointer shrink-0 border ${
+                      activeDevSubTab === 'html'
+                        ? 'bg-primary-theme border-primary-theme text-white font-bold'
+                        : 'bg-[#161824] border-[#212330] text-slate-400 hover:text-white hover:border-slate-700'
+                    }`}
+                  >
+                    🗂️ Widget HTML
+                  </button>
+                  <button
+                    onClick={() => setActiveDevSubTab('api')}
+                    className={`px-2.5 py-1.5 rounded-lg font-mono text-[9.5px] uppercase tracking-wider transition cursor-pointer shrink-0 border ${
+                      activeDevSubTab === 'api'
+                        ? 'bg-primary-theme border-primary-theme text-white font-bold'
+                        : 'bg-[#161824] border-[#212330] text-slate-400 hover:text-white hover:border-slate-700'
+                    }`}
+                  >
+                    🔑 API Keys
+                  </button>
+                  <button
+                    onClick={() => setActiveDevSubTab('history')}
+                    className={`px-2.5 py-1.5 rounded-lg font-mono text-[9.5px] uppercase tracking-wider transition cursor-pointer shrink-0 border ${
+                      activeDevSubTab === 'history'
+                        ? 'bg-primary-theme border-primary-theme text-white font-bold'
+                        : 'bg-[#161824] border-[#212330] text-slate-400 hover:text-white hover:border-slate-700'
+                    }`}
+                  >
+                    💾 Chat History
+                  </button>
+                  <button
+                    onClick={() => setActiveDevSubTab('json')}
+                    className={`px-2.5 py-1.5 rounded-lg font-mono text-[9.5px] uppercase tracking-wider transition cursor-pointer shrink-0 border ${
+                      activeDevSubTab === 'json'
+                        ? 'bg-primary-theme border-primary-theme text-white font-bold'
+                        : 'bg-[#161824] border-[#212330] text-slate-400 hover:text-white hover:border-slate-700'
+                    }`}
+                  >
+                    ⚙️ Full JSON
+                  </button>
                 </div>
               </div>
 
-              {/* Mini Deployment Instructions */}
-              <div className="p-3 bg-white/5 border border-white/5 rounded-xl text-[10px] font-mono text-slate-400 leading-relaxed shrink-0">
-                <span className="text-white font-bold block mb-1">🔧 HOW TO DEPLOY WIDGET:</span>
-                Copy the script snippet above and place it immediately before the closing <code className="text-primary-theme">&lt;/body&gt;</code> tag of any landing page, custom-designed Website, or Funnel to run this specific chatbot configuration live.
+              {/* Dynamic Sub-tab content */}
+              <div className="flex-1 flex flex-col overflow-hidden space-y-3">
+                {activeDevSubTab === 'embed' && (
+                  <div className="flex-1 flex flex-col overflow-hidden space-y-2 animate-fade-in">
+                    <div className="flex items-center justify-between shrink-0">
+                      <div>
+                        <h5 className="text-[11px] font-bold text-slate-200">Copyable Embed Snippet</h5>
+                        <p className="text-[9px] text-slate-400 leading-normal">Load this fully-customized chatbot directly into your website's footer.</p>
+                      </div>
+                      <button
+                        onClick={handleCopyCode}
+                        className="px-2.5 py-1 bg-[#1e202d] hover:bg-[#2a2c3d] border border-[#313346] text-slate-300 hover:text-white rounded-md transition flex items-center gap-1.5 text-[10px] font-mono cursor-pointer"
+                      >
+                        {copyCodeSuccess ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copyCodeSuccess ? 'Copied!' : 'Copy Script'}
+                      </button>
+                    </div>
+                    <pre className="flex-1 p-3 bg-black/40 border border-[#212330] rounded-xl overflow-auto text-[10px] font-mono text-cyan-400 leading-relaxed scrollbar-none select-all">
+                      {embedCode}
+                    </pre>
+                    <div className="p-3 bg-white/5 border border-white/5 rounded-xl text-[10px] font-mono text-slate-400 leading-relaxed shrink-0">
+                      <span className="text-white font-bold block mb-1">🔧 HOW TO DEPLOY WIDGET:</span>
+                      Copy the script snippet above and place it immediately before the closing <code className="text-primary-theme">&lt;/body&gt;</code> tag of any landing page, custom-designed Website, or Funnel to run this specific chatbot configuration live.
+                    </div>
+                  </div>
+                )}
+
+                {activeDevSubTab === 'css' && (
+                  <div className="flex-1 flex flex-col overflow-hidden space-y-2 animate-fade-in">
+                    <div className="flex items-center justify-between shrink-0">
+                      <div>
+                        <h5 className="text-[11px] font-bold text-slate-200">Styling & Theme Overrides (CSS)</h5>
+                        <p className="text-[9px] text-slate-400 leading-normal">Custom styling values mapped from your primary theme ({primaryColor}) and layout settings.</p>
+                      </div>
+                      <button
+                        onClick={handleCopyCss}
+                        className="px-2.5 py-1 bg-[#1e202d] hover:bg-[#2a2c3d] border border-[#313346] text-slate-300 hover:text-white rounded-md transition flex items-center gap-1.5 text-[10px] font-mono cursor-pointer"
+                      >
+                        {copyCssSuccess ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copyCssSuccess ? 'Copied!' : 'Copy CSS'}
+                      </button>
+                    </div>
+                    <pre className="flex-1 p-3 bg-black/40 border border-[#212330] rounded-xl overflow-auto text-[10px] font-mono text-pink-400 leading-relaxed scrollbar-none">
+                      {customCss}
+                    </pre>
+                    <div className="p-3 bg-white/5 border border-white/5 rounded-xl text-[10px] font-mono text-slate-400 leading-relaxed shrink-0">
+                      <span className="text-white font-bold block mb-1">🎨 CUSTOM THEME ADVICE:</span>
+                      Include these custom CSS styles in your website's main stylesheet to fine-tune bubble rounding, layout heights, and the theme gradients.
+                    </div>
+                  </div>
+                )}
+
+                {activeDevSubTab === 'html' && (
+                  <div className="flex-1 flex flex-col overflow-hidden space-y-2 animate-fade-in">
+                    <div className="flex items-center justify-between shrink-0">
+                      <div>
+                        <h5 className="text-[11px] font-bold text-slate-200">Widget UI Structure (HTML Template)</h5>
+                        <p className="text-[9px] text-slate-400 leading-normal">The absolute raw skeleton representing the chat window, avatar, header and dynamic input field.</p>
+                      </div>
+                      <button
+                        onClick={handleCopyHtml}
+                        className="px-2.5 py-1 bg-[#1e202d] hover:bg-[#2a2c3d] border border-[#313346] text-slate-300 hover:text-white rounded-md transition flex items-center gap-1.5 text-[10px] font-mono cursor-pointer"
+                      >
+                        {copyHtmlSuccess ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copyHtmlSuccess ? 'Copied!' : 'Copy HTML'}
+                      </button>
+                    </div>
+                    <pre className="flex-1 p-3 bg-black/40 border border-[#212330] rounded-xl overflow-auto text-[10px] font-mono text-orange-300 leading-relaxed scrollbar-none">
+                      {widgetHtml}
+                    </pre>
+                    <div className="p-3 bg-white/5 border border-white/5 rounded-xl text-[10px] font-mono text-slate-400 leading-relaxed shrink-0">
+                      <span className="text-white font-bold block mb-1">🗂️ TEMPLATE INTEGRATION:</span>
+                      You can drop this markup straight into your static pages, or render it using template engines like React, Vue, or Handlebars.
+                    </div>
+                  </div>
+                )}
+
+                {activeDevSubTab === 'api' && (
+                  <div className="flex-1 flex flex-col overflow-hidden space-y-2 animate-fade-in">
+                    <div className="flex items-center justify-between shrink-0">
+                      <div>
+                        <h5 className="text-[11px] font-bold text-slate-200">Secure API Whitelists & Signature Keys</h5>
+                        <p className="text-[9px] text-slate-400 leading-normal">Secure server-side checking logic restricting cross-origin widget execution to your domain.</p>
+                      </div>
+                      <button
+                        onClick={handleCopyApi}
+                        className="px-2.5 py-1 bg-[#1e202d] hover:bg-[#2a2c3d] border border-[#313346] text-slate-300 hover:text-white rounded-md transition flex items-center gap-1.5 text-[10px] font-mono cursor-pointer"
+                      >
+                        {copyApiSuccess ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copyApiSuccess ? 'Copied!' : 'Copy Code'}
+                      </button>
+                    </div>
+                    <pre className="flex-1 p-3 bg-black/40 border border-[#212330] rounded-xl overflow-auto text-[10px] font-mono text-yellow-300 leading-relaxed scrollbar-none">
+                      {apiCode}
+                    </pre>
+                    <div className="p-3 bg-white/5 border border-white/5 rounded-xl text-[10px] font-mono text-slate-400 leading-relaxed shrink-0">
+                      <span className="text-white font-bold block mb-1">🔑 INTEGRITY & DOMAIN PROTECTION:</span>
+                      Never expose raw secret signature keys in the client bundle. Always authenticate requests through a proxy router to protect limits.
+                    </div>
+                  </div>
+                )}
+
+                {activeDevSubTab === 'history' && (
+                  <div className="flex-1 flex flex-col overflow-hidden space-y-2 animate-fade-in">
+                    <div className="flex items-center justify-between shrink-0">
+                      <div>
+                        <h5 className="text-[11px] font-bold text-slate-200">Chat Session History & Continuity</h5>
+                        <p className="text-[9px] text-slate-400 leading-normal">Seamlessly reload past conversations when the user navigates pages or refreshes the screen.</p>
+                      </div>
+                      <button
+                        onClick={handleCopyHistory}
+                        className="px-2.5 py-1 bg-[#1e202d] hover:bg-[#2a2c3d] border border-[#313346] text-slate-300 hover:text-white rounded-md transition flex items-center gap-1.5 text-[10px] font-mono cursor-pointer"
+                      >
+                        {copyHistorySuccess ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copyHistorySuccess ? 'Copied!' : 'Copy Code'}
+                      </button>
+                    </div>
+                    <pre className="flex-1 p-3 bg-black/40 border border-[#212330] rounded-xl overflow-auto text-[10px] font-mono text-purple-300 leading-relaxed scrollbar-none">
+                      {historyCode}
+                    </pre>
+                    <div className="p-3 bg-white/5 border border-white/5 rounded-xl text-[10px] font-mono text-slate-400 leading-relaxed shrink-0">
+                      <span className="text-white font-bold block mb-1">💾 PERSISTENCE & USER RETENTION:</span>
+                      This snippet utilizes local client-side storage linked with the specific chatbot ID: <code className="text-amber-400">{activeBotId}</code>.
+                    </div>
+                  </div>
+                )}
+
+                {activeDevSubTab === 'json' && (
+                  <div className="flex-1 flex flex-col overflow-hidden space-y-2 animate-fade-in">
+                    <div className="flex items-center justify-between shrink-0">
+                      <div>
+                        <h5 className="text-[11px] font-bold text-slate-200">JSON Package Structure</h5>
+                        <p className="text-[9px] text-slate-400 leading-normal">The complete strict-format JSON configuration tree containing all metadata, models, and assets.</p>
+                      </div>
+                      <button
+                        onClick={handleCopyJson}
+                        className="px-2.5 py-1 bg-[#1e202d] hover:bg-[#2a2c3d] border border-[#313346] text-slate-300 hover:text-white rounded-md transition flex items-center gap-1.5 text-[10px] font-mono cursor-pointer"
+                      >
+                        {copyJsonSuccess ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copyJsonSuccess ? 'Copied!' : 'Copy JSON'}
+                      </button>
+                    </div>
+                    <pre className="flex-1 p-3 bg-black/40 border border-[#212330] rounded-xl overflow-auto text-[10px] font-mono text-amber-500/90 leading-relaxed scrollbar-none">
+                      {generatedJson}
+                    </pre>
+                    <div className="p-3 bg-white/5 border border-white/5 rounded-xl text-[10px] font-mono text-slate-400 leading-relaxed shrink-0">
+                      <span className="text-white font-bold block mb-1">⚙️ STRICT FORMAT SCHEMAS:</span>
+                      This JSON file contains fully compiled details about the bot styling state, active videos, wireframe levels, and CTA urls.
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
