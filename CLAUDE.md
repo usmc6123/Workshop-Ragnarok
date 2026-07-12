@@ -91,15 +91,29 @@ larger "Reformat" input cap below).
 button for shrinking an oversized file (up to 300MB raw) down to something that
 fits the upload caps, then it uploads the result automatically. Images downscale
 client-side via canvas (pick a max dimension, 400-3000px) — no server involved.
-Video is re-encoded server-side via **ffmpeg**, which is now installed in
+Video is re-encoded server-side via **ffmpeg**, which is installed in
 `backend/Dockerfile`'s runtime stage (`apt-get install ffmpeg` — this file is on
-the protected list, so this was a mirror-first change). Backend route is `POST
-/api/uploads/compress-video` (right after `POST /api/uploads` in
-`backend/server.js`), targets 480p/720p/1080p via `-vf scale=-2:<height>` +
-libx264 `-crf 28 -preset veryfast`, runs through `child_process.execFile`
-(async, not `execSync` — a multi-minute transcode must not block the rest of the
-API). Frontend timeout for this call is 10 minutes (`api.compressVideo` in
-`src/lib/api.ts`).
+the protected list, so this was a mirror-first change).
+
+Upload/reformat transport was rewritten 2026-07-12 from base64-in-JSON to
+`multipart/form-data` (`multer` + `FormData`) after a browser "Out of Memory"
+crash — see bug log entry 7 above.
+
+The video reformat path was reworked again the same day into a **two-phase
+polling job** so the frontend can show a real percentage instead of just a
+spinner: `POST /api/uploads/compress-video` in `backend/server.js` now uploads
+the file, returns `{ jobId }` almost immediately, and keeps encoding in the
+background (`ffmpeg` run via `child_process.spawn`, not `execFile`, so its
+stdout can be read as a live stream); progress lives in an in-memory
+`compressJobs` Map keyed by jobId, cleaned up ~10 minutes after completion.
+`GET /api/uploads/compress-video/:jobId` is polled every ~1s from the frontend
+(`api.startVideoCompress` + `api.getVideoCompressStatus` in `src/lib/api.ts`)
+to drive an actual progress bar in `MediaField.tsx`. The real percentage comes
+from ffmpeg's own `-progress pipe:1 -nostats` output (`out_time_us` field)
+divided by the input's duration (read upfront via `ffprobe`, which ships
+alongside `ffmpeg` from the same apt package — no separate Dockerfile change
+needed). Targets 480p/720p/1080p via `-vf scale=-2:<height>` + libx264
+`-crf 28 -preset veryfast`.
 
 ## The two repos
 

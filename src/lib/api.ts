@@ -1265,19 +1265,31 @@ export const api = {
   },
 
   // Backs the "Reformat" tool's video path — re-encodes an oversized video down
-  // to the given target resolution via server-side ffmpeg and returns the result
-  // as a normal uploaded URL. Also multipart/form-data, for the same memory
-  // reason as uploadMedia above — critical here since Reformat's whole purpose
-  // is handling larger files. 10-minute timeout since transcoding a large video
-  // on a home server can genuinely take a few minutes.
-  async compressVideo(file: Blob, fileName: string, targetResolution: '480' | '720' | '1080'): Promise<{ url: string; size_bytes: number; file_type: string }> {
+  // to the given target resolution via server-side ffmpeg. This is a two-phase
+  // job rather than one long request: startVideoCompress uploads the file
+  // (multipart/form-data, same memory reasoning as uploadMedia above) and gets
+  // back a jobId almost immediately, while the actual multi-minute encode runs
+  // in the background on the server. getVideoCompressStatus is then polled
+  // every ~1s to drive a real progress bar instead of just a spinner.
+  async startVideoCompress(file: Blob, fileName: string, targetResolution: '480' | '720' | '1080'): Promise<{ jobId: string }> {
     const formData = new FormData();
     formData.append('file', file, fileName);
     formData.append('target_resolution', targetResolution);
     return await request<any>('/api/uploads/compress-video', {
       method: 'POST',
       body: formData,
-    }, 600000);
+    }, 300000); // covers the upload leg for a large file on a slow connection
+  },
+
+  async getVideoCompressStatus(jobId: string): Promise<{
+    status: 'probing' | 'processing' | 'done' | 'error';
+    percent: number;
+    url?: string;
+    size_bytes?: number;
+    file_type?: string;
+    error?: string;
+  }> {
+    return await request<any>(`/api/uploads/compress-video/${jobId}`, { method: 'GET' }, 15000);
   },
 
   // --- WORK ORDER INTEGRATION ---

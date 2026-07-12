@@ -11,7 +11,7 @@ const fetch = require('node-fetch');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const multer = require('multer');
 const jwt = require('jsonwebtoken');
 
@@ -1493,68 +1493,155 @@ const uploadForReformat = multer({
   },
 });
 
-app.post('/api/uploads/compress-video', (req, res) => {
-  uploadForReformat.single('file')(req, res, async (err) => {
-    let tempInputPath = null;
-    let tempOutputPath = null;
-    try {
-      if (err) {
-        const msg = err.code === 'LIMIT_FILE_SIZE'
-          ? `File is too large to reformat — max is ${(REFORMAT_MAX_RAW_INPUT_BYTES / 1024 / 1024).toFixed(0)}MB going in.`
-          : (err.message || 'Upload failed');
-        return res.status(400).json({ error: msg });
-      }
-      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-      tempInputPath = req.file.path;
+// Reformat is a two-phase job so the frontend can poll for real progress instead
+// of just showing a spinner for however many minutes the encode takes:
+//   1. POST /api/uploads/compress-video — uploads the file, returns { jobId } immediately,
+//      then probes+encodes in the background.
+//   2. GET  /api/uploads/compress-video/:jobId — polled every ~1s, returns
+//      { status, percent, url?, size_bytes?, error? }.
+// Progress state lives in this in-memory Map (fine for a single-process backend);
+// each job is deleted a few minutes after it finishes so this can't grow unbounded.
+const compressJobs = new Map();
 
-      const targetHeight = VIDEO_RESOLUTION_HEIGHTS[req.body.target_resolution];
-      if (!targetHeight) {
-        return res.status(400).json({ error: `Unsupported target_resolution: ${req.body.target_resolution}` });
-      }
+function scheduleJobCleanup(jobId, delayMs = 10 * 60 * 1000) {
+  setTimeout(() => compressJobs.delete(jobId), delayMs).unref();
+}
 
-      const tmpId = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
-      tempOutputPath = path.join(os.tmpdir(), `reformat_out_${tmpId}.mp4`);
-
-      await new Promise((resolve, reject) => {
-        execFile('ffmpeg', [
-          '-y',
-          '-i', tempInputPath,
-          '-vf', `scale=-2:${targetHeight}`,
-          '-c:v', 'libx264',
-          '-crf', '28',
-          '-preset', 'veryfast',
-          '-c:a', 'aac',
-          '-b:a', '128k',
-          '-movflags', '+faststart',
-          tempOutputPath,
-        ], { timeout: 15 * 60 * 1000 }, (error, stdout, stderr) => {
-          if (error) {
-            console.error('ffmpeg compression failed:', stderr || error.message);
-            return reject(new Error('Video compression failed — the file may be corrupted or in an unsupported format.'));
-          }
-          resolve();
-        });
-      });
-
-      const mediaDir = path.join(UPLOADS_ROOT, 'media');
-      if (!fs.existsSync(mediaDir)) {
-        fs.mkdirSync(mediaDir, { recursive: true });
-      }
-      const filename = `${safeFilenameBase(req.file.originalname)}_${tmpId}.mp4`;
-      const fullPath = path.join(mediaDir, filename);
-      fs.copyFileSync(tempOutputPath, fullPath);
-      const outSizeBytes = fs.statSync(fullPath).size;
-
-      res.json({ url: `/uploads/media/${filename}`, size_bytes: outSizeBytes, file_type: 'video/mp4' });
-    } catch (error) {
-      console.error('Error handling video compression:', error);
-      res.status(500).json({ error: error.message || 'Server error compressing video' });
-    } finally {
-      // Always clean up temp files, success or failure
-      try { if (tempInputPath && fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath); } catch (e) {}
-      try { if (tempOutputPath && fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath); } catch (e) {}
-    }
+function probeDurationSeconds(inputPath) {
+  return new Promise((resolve, reject) => {
+    execFile('ffprobe', [
+      '-v', 'error',
+      '-show_entries', 'format=duration',
+      '-of', 'default=noprint_wrappers=1:nokey=1',
+      inputPath,
+    ], (error, stdout) => {
+      if (error) return reject(error);
+      const seconds = parseFloat(stdout);
+      if (!seconds || Number.isNaN(seconds)) return reject(new Error('Could not read the video\'s duration.'));
+      resolve(seconds);
+    });
   });
+}
+
+app.post('/api/uploads/compress-video', (req, res) => {
+  uploadForReformat.single('file')(req, res, (err) => {
+    if (err) {
+      const msg = err.code === 'LIMIT_FILE_SIZE'
+        ? `File is too large to reformat — max is ${(REFORMAT_MAX_RAW_INPUT_BYTES / 1024 / 1024).toFixed(0)}MB going in.`
+        : (err.message || 'Upload failed');
+      return res.status(400).json({ error: msg });
+    }
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const targetHeight = VIDEO_RESOLUTION_HEIGHTS[req.body.target_resolution];
+    if (!targetHeight) {
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+      return res.status(400).json({ error: `Unsupported target_resolution: ${req.body.target_resolution}` });
+    }
+
+    const jobId = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+    const tempInputPath = req.file.path;
+    const tempOutputPath = path.join(os.tmpdir(), `reformat_out_${jobId}.mp4`);
+    const originalName = req.file.originalname;
+
+    compressJobs.set(jobId, { status: 'probing', percent: 0 });
+    res.json({ jobId }); // respond immediately — encode runs in the background below
+
+    (async () => {
+      try {
+        const durationSeconds = await probeDurationSeconds(tempInputPath);
+        const durationMs = durationSeconds * 1000;
+        compressJobs.set(jobId, { status: 'processing', percent: 0 });
+
+        await new Promise((resolve, reject) => {
+          const proc = spawn('ffmpeg', [
+            '-y',
+            '-i', tempInputPath,
+            '-vf', `scale=-2:${targetHeight}`,
+            '-c:v', 'libx264',
+            '-crf', '28',
+            '-preset', 'veryfast',
+            '-c:a', 'aac',
+            '-b:a', '128k',
+            '-movflags', '+faststart',
+            '-progress', 'pipe:1',
+            '-nostats',
+            tempOutputPath,
+          ]);
+
+          let stderrTail = '';
+          proc.stderr.on('data', (chunk) => {
+            stderrTail = (stderrTail + chunk.toString()).slice(-4000);
+          });
+
+          let buffer = '';
+          proc.stdout.on('data', (chunk) => {
+            buffer += chunk.toString();
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+              const eq = line.indexOf('=');
+              if (eq === -1) continue;
+              const key = line.slice(0, eq).trim();
+              const value = line.slice(eq + 1).trim();
+              if (key === 'out_time_us') {
+                const outMs = parseInt(value, 10) / 1000;
+                const percent = Math.max(0, Math.min(99, Math.round((outMs / durationMs) * 100)));
+                const job = compressJobs.get(jobId);
+                if (job) compressJobs.set(jobId, { ...job, percent });
+              }
+            }
+          });
+
+          const timeoutHandle = setTimeout(() => {
+            proc.kill('SIGKILL');
+            reject(new Error('Video compression timed out.'));
+          }, 15 * 60 * 1000);
+
+          proc.on('error', (error) => {
+            clearTimeout(timeoutHandle);
+            reject(error);
+          });
+          proc.on('close', (code) => {
+            clearTimeout(timeoutHandle);
+            if (code !== 0) {
+              console.error('ffmpeg compression failed:', stderrTail);
+              return reject(new Error('Video compression failed — the file may be corrupted or in an unsupported format.'));
+            }
+            resolve();
+          });
+        });
+
+        const mediaDir = path.join(UPLOADS_ROOT, 'media');
+        if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
+        const filename = `${safeFilenameBase(originalName)}_${jobId}.mp4`;
+        const fullPath = path.join(mediaDir, filename);
+        fs.copyFileSync(tempOutputPath, fullPath);
+        const outSizeBytes = fs.statSync(fullPath).size;
+
+        compressJobs.set(jobId, {
+          status: 'done',
+          percent: 100,
+          url: `/uploads/media/${filename}`,
+          size_bytes: outSizeBytes,
+          file_type: 'video/mp4',
+        });
+      } catch (error) {
+        console.error('Error handling video compression:', error);
+        compressJobs.set(jobId, { status: 'error', percent: 0, error: error.message || 'Server error compressing video' });
+      } finally {
+        try { if (fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath); } catch (e) {}
+        try { if (fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath); } catch (e) {}
+        scheduleJobCleanup(jobId);
+      }
+    })();
+  });
+});
+
+app.get('/api/uploads/compress-video/:jobId', (req, res) => {
+  const job = compressJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: 'Job not found — it may have expired.' });
+  res.json(job);
 });
 
 // --- AUTHENTICATION ENDPOINTS ---

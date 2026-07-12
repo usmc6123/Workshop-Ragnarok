@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Loader2, X, Shrink, ChevronDown } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -87,8 +87,14 @@ export default function MediaField({
   const [reformatMaxDim, setReformatMaxDim] = useState(1600);
   const [reformatResolution, setReformatResolution] = useState<'480' | '720' | '1080'>('720');
   const [reformatProcessing, setReformatProcessing] = useState(false);
+  const [reformatPhase, setReformatPhase] = useState<'uploading' | 'probing' | 'processing' | null>(null);
+  const [reformatPercent, setReformatPercent] = useState(0);
   const [reformatError, setReformatError] = useState<string | null>(null);
   const [reformatDoneNote, setReformatDoneNote] = useState<string | null>(null);
+  // Bumped on every new reformat run (and on unmount) so a stale poll loop from
+  // an earlier/abandoned run knows to stop instead of clobbering newer state.
+  const reformatRunIdRef = useRef(0);
+  useEffect(() => () => { reformatRunIdRef.current += 1; }, []);
 
   const acceptAttr = accept === 'image' ? 'image/*' : accept === 'video' ? 'video/*' : 'image/*,video/*';
 
@@ -145,9 +151,12 @@ export default function MediaField({
 
   const runReformat = async () => {
     if (!reformatFile || !reformatKind) return;
+    const runId = ++reformatRunIdRef.current;
     setReformatProcessing(true);
     setReformatError(null);
     setReformatDoneNote(null);
+    setReformatPercent(0);
+    setReformatPhase(reformatKind === 'video' ? 'uploading' : null);
     try {
       if (reformatKind === 'image') {
         const compressed = await compressImage(reformatFile, reformatMaxDim);
@@ -156,16 +165,40 @@ export default function MediaField({
         onChange(result.url);
         setReformatDoneNote(`Done — new size: ${(result.size_bytes / 1024 / 1024).toFixed(2)}MB.`);
       } else {
-        const result = await api.compressVideo(reformatFile, reformatFile.name, reformatResolution);
-        onChange(result.url);
-        setReformatDoneNote(`Done — shrunk from ${(reformatFile.size / 1024 / 1024).toFixed(0)}MB to ${(result.size_bytes / 1024 / 1024).toFixed(1)}MB.`);
+        const originalSizeMb = reformatFile.size / 1024 / 1024;
+        const { jobId } = await api.startVideoCompress(reformatFile, reformatFile.name, reformatResolution);
+        if (reformatRunIdRef.current !== runId) return; // a newer run (or unmount) superseded this one
+        setReformatPhase('probing');
+
+        // Poll every ~1s for real encode progress until the job finishes or errors.
+        while (true) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          if (reformatRunIdRef.current !== runId) return;
+          const status = await api.getVideoCompressStatus(jobId);
+          if (reformatRunIdRef.current !== runId) return;
+
+          if (status.status === 'error') {
+            throw new Error(status.error || 'Reformat failed — please try again.');
+          }
+          setReformatPhase(status.status === 'done' ? 'processing' : status.status);
+          setReformatPercent(status.percent);
+          if (status.status === 'done') {
+            onChange(status.url!);
+            setReformatDoneNote(`Done — shrunk from ${originalSizeMb.toFixed(0)}MB to ${(status.size_bytes! / 1024 / 1024).toFixed(1)}MB.`);
+            break;
+          }
+        }
       }
       setReformatFile(null);
       setReformatKind(null);
     } catch (err: any) {
       setReformatError(err?.message || 'Reformat failed — please try again.');
     } finally {
-      setReformatProcessing(false);
+      if (reformatRunIdRef.current === runId) {
+        setReformatProcessing(false);
+        setReformatPhase(null);
+        setReformatPercent(0);
+      }
     }
   };
 
@@ -269,15 +302,33 @@ export default function MediaField({
           )}
 
           {reformatFile && (
-            <button
-              type="button"
-              disabled={reformatProcessing}
-              onClick={runReformat}
-              className="w-full px-2.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-60 disabled:cursor-wait text-slate-950 font-bold text-[10px] uppercase tracking-wider cursor-pointer flex items-center justify-center gap-1.5"
-            >
-              {reformatProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Shrink className="w-3 h-3" />}
-              {reformatProcessing ? 'Processing…' : 'Shrink & Use'}
-            </button>
+            <div className="space-y-1">
+              <button
+                type="button"
+                disabled={reformatProcessing}
+                onClick={runReformat}
+                className="w-full px-2.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-60 disabled:cursor-wait text-slate-950 font-bold text-[10px] uppercase tracking-wider cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                {reformatProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Shrink className="w-3 h-3" />}
+                {reformatProcessing
+                  ? reformatKind === 'video'
+                    ? reformatPhase === 'uploading'
+                      ? 'Uploading…'
+                      : reformatPhase === 'probing'
+                        ? 'Reading video…'
+                        : `Encoding… ${reformatPercent}%`
+                    : 'Processing…'
+                  : 'Shrink & Use'}
+              </button>
+              {reformatProcessing && reformatKind === 'video' && (
+                <div className="h-1.5 w-full rounded-full bg-[#1e2028] overflow-hidden">
+                  <div
+                    className="h-full bg-amber-500 transition-all duration-300 ease-out"
+                    style={{ width: `${reformatPhase === 'processing' ? Math.max(4, reformatPercent) : 4}%` }}
+                  />
+                </div>
+              )}
+            </div>
           )}
 
           {reformatError && <p className="text-[10px] text-rose-400">{reformatError}</p>}
