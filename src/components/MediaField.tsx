@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Loader2, X, Shrink, ChevronDown } from 'lucide-react';
+import { Upload, Loader2, X, Shrink, ChevronDown, ExternalLink } from 'lucide-react';
 import { api } from '../lib/api';
 
 const MAX_IMAGE_UPLOAD_BYTES = 20 * 1024 * 1024;  // 20MB — matches backend/server.js POST /api/uploads
@@ -110,6 +110,10 @@ export default function MediaField({
     if (!localAccessUrl) return false;
     try { return new URL(localAccessUrl).origin === window.location.origin; } catch { return false; }
   })();
+  // Deep-links straight into the standalone quick-uploader (QuickReformatView)
+  // instead of dropping onto the Dashboard — see App.tsx's `?view=reformat-tool`
+  // handling for why this survives the page reload that happens right after login.
+  const quickUploadUrl = localAccessUrl ? `${localAccessUrl.replace(/\/+$/, '')}/?view=reformat-tool` : null;
 
   const acceptAttr = accept === 'image' ? 'image/*' : accept === 'video' ? 'video/*' : 'image/*,video/*';
 
@@ -287,14 +291,22 @@ export default function MediaField({
           </button>
 
           {reformatFile && reformatKind === 'video' && reformatFile.size > 100 * 1024 * 1024 && !isAlreadyOnLocalUrl && (
-            localAccessUrl ? (
-              <p className="text-[9px] text-amber-400 leading-relaxed bg-amber-950/20 border border-amber-900/40 rounded-lg px-2 py-1.5">
-                This file is in the 100-300MB range — it can fail over the public domain.{' '}
-                <a href={localAccessUrl} target="_blank" rel="noreferrer" className="underline font-bold hover:text-amber-300">
-                  Open this app locally
-                </a>{' '}
-                instead and try again from there (you'll need to log back in — it's the same data either way).
-              </p>
+            quickUploadUrl ? (
+              <div className="space-y-1.5 bg-amber-950/20 border border-amber-900/40 rounded-lg p-2">
+                <p className="text-[9px] text-amber-400 leading-relaxed">
+                  This file is in the 100-300MB range — it can fail over the public domain. It's the same data either way, so you can just do this part locally.
+                </p>
+                <a
+                  href={quickUploadUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full px-2.5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[10px] uppercase tracking-wider cursor-pointer flex items-center justify-center gap-1.5 transition"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Open Quick Uploader Locally
+                </a>
+                <p className="text-[9px] text-slate-600">Opens in a new tab — this one stays as-is. You'll need to log in there, then paste the resulting URL back here.</p>
+              </div>
             ) : (
               <p className="text-[9px] text-amber-400 leading-relaxed bg-amber-950/20 border border-amber-900/40 rounded-lg px-2 py-1.5">
                 This file is in the 100-300MB range — it can fail over the public domain. Add a "Local / Tailscale Access URL" in Settings to get a one-click link here for next time.

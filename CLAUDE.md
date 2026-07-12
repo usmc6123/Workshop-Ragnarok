@@ -396,14 +396,28 @@ reported by `docker exec` matched the real host files immediately after.
 **Workaround for the Cloudflare upload cap (added 2026-07-12):** Settings now
 has a "Local / Tailscale Access URL" field (`shop_settings.local_access_url`,
 `GET`/`PUT /api/shop-settings` in `backend/server.js`, `ShopSettings.local_access_url`
-in `src/types.ts`). When set, `MediaField.tsx`'s Reformat panel shows a one-click
-link to open the app there whenever a selected video is over 80MB — big enough to
-risk hitting Cloudflare's 100-200MB proxy cap — and hides the hint entirely if
-you're already on that origin. The owner has Tailscale running on the host
-(`100.88.5.11` as of this writing) and confirmed the LAN IP `192.168.50.223:4000`
-also works, since `workshop-backend` maps port 4000 straight through in
-`docker-compose.yml`. Switching origins means logging back in — `workshop_token`
-in `localStorage` is scoped per-origin and doesn't carry over.
+in `src/types.ts`). When set, `MediaField.tsx`'s Reformat panel shows a bright-blue
+"Open Quick Uploader Locally" button whenever a selected video is over 100MB —
+the point where it can start hitting Cloudflare's 100-200MB proxy cap — and hides
+the hint entirely if you're already on that origin. The owner has Tailscale
+running on the host (`100.88.5.11` as of this writing) and confirmed the LAN IP
+`192.168.50.223:4000` also works, since `workshop-backend` maps port 4000
+straight through in `docker-compose.yml`. Switching origins means logging back
+in — `workshop_token` in `localStorage` is scoped per-origin and doesn't carry
+over.
+
+The link doesn't just point at the bare local URL — it appends
+`?view=reformat-tool`, which `App.tsx` reads once at its initial `view` state to
+land on `QuickReformatView.tsx` (a bare-bones upload/reformat tool + "Copy URL"
+button) instead of the Dashboard. This works even when the user isn't already
+logged in on that origin: `ProtectedRoute.tsx` shows `LoginPage` first, and
+`LoginPage`'s `onSuccess` does a full `window.location.reload()` — which
+preserves the query string, so `App.tsx`'s initial-state read fires again on
+the reload and still lands on the tool. There's no cross-tab file/URL handoff
+beyond that — the user manually copies the resulting URL back into whatever
+field they were editing in the original (public-domain) tab. That's fine
+because the local URL and public domain are the exact same backend and SQLite
+database, just reached over a different network path — nothing needs to sync.
 
 **Diagnostic pattern worth reusing:** if any container ever looks like it "lost"
 its data again, compare three things before assuming real loss: (1) the file size

@@ -28,6 +28,7 @@ import FunnelsView from './components/FunnelsView';
 import SitePageView from './components/SitePageView';
 import SitesView from './components/SitesView';
 import YoutubeTrimmerView from './components/YoutubeTrimmerView';
+import QuickReformatView from './components/QuickReformatView';
 import { LOGO_URL, BACKGROUND_URL } from './constants/branding';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminPage from './pages/AdminPage';
@@ -39,11 +40,22 @@ import {
   Wifi, HelpCircle, CheckSquare, Settings, Car, ClipboardList, LayoutDashboard, Menu
 } from 'lucide-react';
 
-type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email' | 'texts' | 'automations' | 'payments' | 'funnels' | 'sites' | 'youtube-trimmer';
+type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email' | 'texts' | 'automations' | 'payments' | 'funnels' | 'sites' | 'youtube-trimmer' | 'reformat-tool';
 
 export default function App() {
   console.log('APP RENDERING');
-  const [view, setView] = useState<ViewType>('dashboard');
+  // Reads ?view=reformat-tool so the "Open this app locally" link in MediaField's
+  // Reformat panel can drop the user straight into the quick uploader instead of
+  // the Dashboard. Read once at initial state so it survives the full page
+  // reload ProtectedRoute/LoginPage does right after a fresh login (the query
+  // string stays in the URL across that reload).
+  const [view, setView] = useState<ViewType>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('view') === 'reformat-tool') return 'reformat-tool';
+    }
+    return 'dashboard';
+  });
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [initialSelectedVehicleId, setInitialSelectedVehicleId] = useState<number | null>(null);
   const [initialSelectedJobId, setInitialSelectedJobId] = useState<number | null>(null);
@@ -198,6 +210,7 @@ export default function App() {
       case 'automations': return 'Automations';
       case 'payments': return 'Payments';
       case 'login': return 'Terminal Auth';
+      case 'reformat-tool': return 'Quick Upload / Reformat';
       default: return 'Workshop Management';
     }
   };
@@ -477,6 +490,10 @@ export default function App() {
 
                 {view === 'youtube-trimmer' && (
                   <YoutubeTrimmerView />
+                )}
+
+                {view === 'reformat-tool' && (
+                  <QuickReformatView />
                 )}
 
                 {view === 'admin' && (
