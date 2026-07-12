@@ -70,6 +70,22 @@ repo's `data/` directory — this is exactly the directory the webhook's
 `git clean --exclude=data/` step preserves across every deploy, so the database
 survives resets. `backend/db.js` owns the connection/schema.
 
+**File uploads:** everything under `/uploads/*` (job note attachments, receipts,
+and general media uploads from `POST /api/uploads`) is written to `/data/uploads/`,
+NOT `backend/uploads/` — same `/data` bind mount as the database, for the same
+reason: it's the one directory that survives both `git clean` on deploy AND full
+container recreation (which now also happens automatically ~90s after every boot,
+via the webhook's self-heal — see "Host environment" below). This was fixed
+2026-07-12; before that, uploaded files lived in the container's own ephemeral
+writable layer and were silently wiped on every deploy/recreate — a real
+pre-existing bug that the self-heal fix made trigger far more often. `POST
+/api/uploads` (added 2026-07-12) is the generic upload endpoint backing every
+"Upload" button in the app (Sites block editor, Funnels editor, Settings shop
+logo) — shared frontend component is `src/components/MediaField.tsx`, shared
+backend logic lives right after the DB-init block in `backend/server.js`. Image
+uploads cap at 20MB, video at 100MB; the global `express.json()` body limit is
+150mb to accommodate base64-encoded video.
+
 ## The two repos
 
 1. **usmc6123/Workshop-Ragnarok** (this repo) — the actual app, frontend + backend.
@@ -397,6 +413,9 @@ owner before touching):
 
 ## Standing workflow rules
 
+- **Any command the owner is meant to run themselves (terminal, PowerShell, etc.)
+  must always be given in a copyable code block** — never as inline text. This
+  applies to every command, no matter how short.
 - Any edit to a protected-list file must be made in BOTH `Workshop-Ragnarok` and the
   `images` mirror repo — mirror pushed first, always.
 - Verify Docker fixes with `--no-cache --progress=plain`, never a normal cached

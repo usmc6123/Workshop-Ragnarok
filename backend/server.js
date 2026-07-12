@@ -29,12 +29,20 @@ if (!fs.existsSync(dbDir)) {
 // Enable CORS and JSON parsing with rawBody capture
 app.use(cors());
 app.use(express.json({
-  limit: '10mb',
+  // Raised from 10mb to comfortably fit base64-encoded video uploads (a 100MB
+  // video inflates to ~133MB as base64) — see POST /api/uploads.
+  limit: '150mb',
   verify: (req, res, buf) => {
     req.rawBody = buf;
   }
 }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Uploads are stored under /data/uploads (the bind-mounted, git-clean-excluded
+// directory that DB_PATH also lives under — /data/db/workshop.db) rather than
+// backend/uploads, since the latter lives in the container's own writable layer
+// and is wiped every time the container is recreated (every deploy, and every
+// startup self-heal reconcile).
+const UPLOADS_ROOT = path.join(path.dirname(dbDir), 'uploads');
+app.use('/uploads', express.static(UPLOADS_ROOT));
 
 // Inbound email webhook (Resend Svix) - placed before authMiddleware
 app.post('/api/webhooks/inbound-email', async (req, res) => {
@@ -1382,6 +1390,62 @@ try {
 } catch (err) {
   console.error('Failed to initialize SQLite database:', err);
 }
+
+// --- MEDIA UPLOADS ---
+// Generic, reusable upload endpoint backing every "Upload" button across the app
+// (Sites block editor, Funnels editor, Settings shop logo, etc.) — writes the file
+// to disk and returns a URL, rather than embedding it as base64 in a DB column.
+// Client sends { file_data (base64 or data URI), file_type (mime), file_name }.
+const ALLOWED_UPLOAD_MIME = {
+  image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
+  video: ['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg'],
+};
+const MAX_IMAGE_UPLOAD_BYTES = 20 * 1024 * 1024;  // 20MB
+const MAX_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB
+
+app.post('/api/uploads', (req, res) => {
+  try {
+    const { file_data, file_type, file_name } = req.body;
+    if (!file_data || !file_type) {
+      return res.status(400).json({ error: 'file_data and file_type are required' });
+    }
+
+    const isImage = ALLOWED_UPLOAD_MIME.image.includes(file_type);
+    const isVideo = ALLOWED_UPLOAD_MIME.video.includes(file_type);
+    if (!isImage && !isVideo) {
+      return res.status(400).json({ error: `Unsupported file type: ${file_type}` });
+    }
+
+    let rawBase64 = file_data;
+    if (file_data.includes(';base64,')) {
+      rawBase64 = file_data.split(';base64,')[1];
+    }
+
+    const sizeBytes = Buffer.byteLength(rawBase64, 'base64');
+    const maxBytes = isImage ? MAX_IMAGE_UPLOAD_BYTES : MAX_VIDEO_UPLOAD_BYTES;
+    if (sizeBytes > maxBytes) {
+      return res.status(413).json({
+        error: `File is too large (${(sizeBytes / 1024 / 1024).toFixed(1)}MB) — max is ${(maxBytes / 1024 / 1024).toFixed(0)}MB for ${isImage ? 'images' : 'video'}.`,
+      });
+    }
+
+    const mediaDir = path.join(UPLOADS_ROOT, 'media');
+    if (!fs.existsSync(mediaDir)) {
+      fs.mkdirSync(mediaDir, { recursive: true });
+    }
+
+    const ext = (file_type.split('/')[1] || 'bin').replace('quicktime', 'mov').replace('svg+xml', 'svg');
+    const safeBase = (file_name || 'upload').replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40) || 'upload';
+    const filename = `${safeBase}_${Date.now()}_${Math.floor(Math.random() * 1e6)}.${ext}`;
+    const fullPath = path.join(mediaDir, filename);
+    fs.writeFileSync(fullPath, Buffer.from(rawBase64, 'base64'));
+
+    res.json({ url: `/uploads/media/${filename}`, size_bytes: sizeBytes, file_type });
+  } catch (error) {
+    console.error('Error handling media upload:', error);
+    res.status(500).json({ error: 'Server error handling upload' });
+  }
+});
 
 // --- AUTHENTICATION ENDPOINTS ---
 app.post('/api/auth/login', (req, res) => {
@@ -3917,7 +3981,7 @@ app.post('/api/jobs/:jobId/notes/:noteId/attachments', (req, res) => {
     if (!note) return res.status(404).json({ error: 'Job note not found' });
 
     // Ensure uploads/job_notes folder exists
-    const notesDir = path.join(__dirname, 'uploads', 'job_notes');
+    const notesDir = path.join(UPLOADS_ROOT, 'job_notes');
     if (!fs.existsSync(notesDir)) {
       fs.mkdirSync(notesDir, { recursive: true });
     }
@@ -5130,7 +5194,7 @@ app.post('/api/receipts', (req, res) => {
     }
 
     // Ensure uploads/receipts folder exists
-    const receiptsDir = path.join(__dirname, 'uploads', 'receipts');
+    const receiptsDir = path.join(UPLOADS_ROOT, 'receipts');
     if (!fs.existsSync(receiptsDir)) {
       fs.mkdirSync(receiptsDir, { recursive: true });
     }

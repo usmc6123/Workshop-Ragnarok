@@ -13,11 +13,12 @@ import { GridPosition, defaultGridPosition, nextAvailableRow, positionFromStyle 
 import { SITE_ICON_NAMES } from '../constants/siteIcons';
 import SiteGridCanvas from './SiteGridCanvas';
 import TemplateThumbnail from './TemplateThumbnail';
+import MediaField from './MediaField';
 import {
   ArrowLeft, Plus, Trash2, Loader2,
   Save, X, Mailbox, ExternalLink,
   Palette, AlignLeft, AlignCenter, AlignRight, Paintbrush, Sparkles, LayoutGrid, LayoutTemplate,
-  Undo2, Redo2, Monitor, Tablet, Smartphone, Copy, Settings2, EyeOff, Upload, Download, FileJson, RefreshCw,
+  Undo2, Redo2, Monitor, Tablet, Smartphone, Copy, Settings2, EyeOff, Download, FileJson, RefreshCw,
 } from 'lucide-react';
 
 const DEFAULT_ACCENT = '#f59e0b';
@@ -73,79 +74,6 @@ function IconPickerSelect({ value, onChange, label }: { value: string | undefine
         <option value="">No icon</option>
         {SITE_ICON_NAMES.map(name => <option key={name} value={name}>{name}</option>)}
       </select>
-    </div>
-  );
-}
-
-function MediaUrlField({
-  label, value, onChange, opacityKey, mediaOpacity, onOpacityChange, placeholder, allowUpload = true, showOpacity = true,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  opacityKey: string;
-  mediaOpacity: Record<string, number>;
-  onOpacityChange: (key: string, value: number) => void;
-  placeholder?: string;
-  allowUpload?: boolean;
-  showOpacity?: boolean;
-}) {
-  const opacity = mediaOpacity[opacityKey] ?? 100;
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const MAX_UPLOAD_BYTES = 2 * 1024 * 1024; // 2MB — images are stored inline as base64 in the block's content JSON, so this keeps rows reasonable
-
-  const handleFile = (file: File | undefined) => {
-    if (!file) return;
-    setUploadError(null);
-    if (file.size > MAX_UPLOAD_BYTES) {
-      setUploadError(`Image is too large (${(file.size / 1024 / 1024).toFixed(1)}MB) — please use one under 2MB, or paste a hosted image URL instead.`);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => { if (typeof reader.result === 'string') onChange(reader.result); };
-    reader.onerror = () => setUploadError('Failed to read that file.');
-    reader.readAsDataURL(file);
-  };
-
-  return (
-    <div className={label ? 'rounded-lg border border-[#1e2028] bg-[#0c0d12]/60 p-3 space-y-2' : 'space-y-1.5'}>
-      {label && <FieldLabel>{label}</FieldLabel>}
-      <div className="flex gap-1.5">
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder || 'https://...'}
-          className="flex-1 min-w-0 rounded-lg bg-[#08090d] border border-[#1e2028] focus:border-slate-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
-        />
-        {allowUpload && (
-          <>
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
-            <button type="button" onClick={() => fileInputRef.current?.click()} title="Upload an image from your device" className="shrink-0 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider">
-              <Upload className="w-3 h-3" /> Upload
-            </button>
-          </>
-        )}
-      </div>
-      {uploadError && <p className="text-[10px] text-rose-400">{uploadError}</p>}
-      {showOpacity && value.trim() && (
-        <div className="pt-1.5 border-t border-[#1e2028]/80 space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Transparency</span>
-            <span className="text-[10px] font-mono text-slate-400">{opacity}% visible</span>
-          </div>
-          <input
-            type="range"
-            min={10}
-            max={100}
-            step={5}
-            value={opacity}
-            onChange={(e) => onOpacityChange(opacityKey, parseInt(e.target.value, 10))}
-            className="w-full cursor-pointer accent-amber-500"
-          />
-        </div>
-      )}
     </div>
   );
 }
@@ -404,8 +332,8 @@ function BlockContentEditor({
       return (
         <div className="space-y-3">
           <p className="text-[10px] text-slate-500 -mt-1">Headline, subheadline, and button text are edited directly on the canvas — click the text to type.</p>
-          <MediaUrlField label="Background Image URL" value={c.image_url || ''} onChange={(v) => set({ image_url: v })} opacityKey="image_url" mediaOpacity={mediaOpacity} onOpacityChange={onOpacityChange} />
-          <MediaUrlField label="Background Video URL" value={c.video_url || ''} onChange={(v) => set({ video_url: v })} opacityKey="video_url" mediaOpacity={mediaOpacity} onOpacityChange={onOpacityChange} allowUpload={false} />
+          <MediaField label="Background Image URL" value={c.image_url || ''} onChange={(v) => set({ image_url: v })} opacityKey="image_url" mediaOpacity={mediaOpacity} onOpacityChange={onOpacityChange} showOpacity accept="image" />
+          <MediaField label="Background Video URL" value={c.video_url || ''} onChange={(v) => set({ video_url: v })} opacityKey="video_url" mediaOpacity={mediaOpacity} onOpacityChange={onOpacityChange} showOpacity accept="video" />
           <div><FieldLabel>Button Link</FieldLabel><TextInput value={c.cta_link || ''} onChange={(v) => set({ cta_link: v })} placeholder="https:// or #contact" /></div>
           <div className="grid grid-cols-2 gap-3">
             <IconPickerSelect label="Button Icon" value={c.cta_icon} onChange={(v) => set({ cta_icon: v })} />
@@ -448,7 +376,7 @@ function BlockContentEditor({
                 <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Image {idx + 1}</span>
                 <button onClick={() => removeImage(idx)} className="text-rose-400 hover:text-rose-300 cursor-pointer"><Trash2 className="w-3 h-3" /></button>
               </div>
-              <MediaUrlField label="" value={img.url} onChange={(v) => updateImage(idx, { url: v })} opacityKey={`__unused_${idx}`} mediaOpacity={{}} onOpacityChange={() => {}} showOpacity={false} placeholder="https://..." />
+              <MediaField value={img.url} onChange={(v) => updateImage(idx, { url: v })} accept="image" placeholder="https://..." />
               <TextInput value={img.caption || ''} onChange={(v) => updateImage(idx, { caption: v })} placeholder="Caption (optional)" />
             </div>
           ))}
@@ -462,7 +390,7 @@ function BlockContentEditor({
       const c: VideoBlockContent = content;
       return (
         <div className="space-y-3">
-          <MediaUrlField label="Video URL (YouTube, Vimeo, or direct file)" value={c.video_url || ''} onChange={(v) => set({ video_url: v })} opacityKey="video_url" mediaOpacity={mediaOpacity} onOpacityChange={onOpacityChange} allowUpload={false} />
+          <MediaField label="Video URL (YouTube, Vimeo, or direct file)" value={c.video_url || ''} onChange={(v) => set({ video_url: v })} opacityKey="video_url" mediaOpacity={mediaOpacity} onOpacityChange={onOpacityChange} showOpacity accept="video" help="Upload a video file directly, or paste a YouTube/Vimeo link instead." />
           <div>
             <FieldLabel>Video Fit</FieldLabel>
             <PresetToggle options={[{ value: 'cover', label: 'Cover' }, { value: 'contain', label: 'Contain' }]} value={c.object_fit || 'cover'} onChange={(v) => set({ object_fit: v })} />
@@ -540,7 +468,7 @@ function BlockContentEditor({
       return (
         <div className="space-y-3">
           <p className="text-[10px] text-slate-500 -mt-1">Quote, author, and role are edited directly on the canvas.</p>
-          <MediaUrlField label="Photo URL (optional)" value={c.photo_url || ''} onChange={(v) => set({ photo_url: v })} opacityKey="photo_url" mediaOpacity={mediaOpacity} onOpacityChange={onOpacityChange} />
+          <MediaField label="Photo URL (optional)" value={c.photo_url || ''} onChange={(v) => set({ photo_url: v })} opacityKey="photo_url" mediaOpacity={mediaOpacity} onOpacityChange={onOpacityChange} showOpacity accept="image" />
         </div>
       );
     }

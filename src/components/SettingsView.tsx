@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DatabaseStats, ShopSettings } from '../types';
 import { api, getApiBase, setApiBase } from '../lib/api';
+import MediaField from './MediaField';
 import {
   Settings, Server, Sun, Database, RefreshCw, AlertTriangle, Info, ShieldCheck, Cpu, ChevronDown, Store,
   Users, Car, ClipboardList, Clock, Timer, Gauge, Package, CheckCircle2, DollarSign, TrendingUp, Megaphone
@@ -88,45 +89,6 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
     } catch (err) {
       console.error('Failed to load shop settings:', err);
     }
-  };
-
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-
-        // Max dimension is 300px (reasonable for a logo)
-        const MAX_DIM = 300;
-        if (width > MAX_DIM || height > MAX_DIM) {
-          if (width > height) {
-            height = Math.round((height * MAX_DIM) / width);
-            width = MAX_DIM;
-          } else {
-            width = Math.round((width * MAX_DIM) / height);
-            height = MAX_DIM;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          // Get base64 string
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.85);
-          setSettings(prev => ({ ...prev, shop_logo_url: compressedBase64 }));
-        }
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleSaveSettings = async (e: React.FormEvent) => {
@@ -616,48 +578,15 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
                 {/* Logo Upload & Preview */}
                 <div className="space-y-1">
                   <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Shop Logo</label>
-                  <div className="flex items-center gap-3 bg-bg-theme/50 border border-border-theme rounded-lg p-2.5">
-                    {settings.shop_logo_url ? (
-                      <div className="relative w-12 h-12 bg-slate-800 rounded border border-border-theme flex items-center justify-center overflow-hidden">
-                        <img 
-                          src={settings.shop_logo_url} 
-                          alt="Shop logo preview" 
-                          className="max-w-full max-h-full object-contain"
-                          referrerPolicy="no-referrer"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setSettings({ ...settings, shop_logo_url: '' })}
-                          className="absolute top-0 right-0 bg-red-600/80 hover:bg-red-700 text-white rounded-bl p-0.5 text-[8px]"
-                          title="Remove Logo"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="w-12 h-12 bg-slate-900 rounded border border-border-theme flex items-center justify-center text-slate-500 text-xs font-mono">
-                        N/A
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <label 
-                        htmlFor="shop-logo-file-input"
-                        className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[10px] font-bold px-2.5 py-1.5 rounded cursor-pointer uppercase block text-center"
-                      >
-                        Upload Logo
-                      </label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleLogoChange}
-                        className="hidden"
-                        id="shop-logo-file-input"
-                      />
-                      <p className="text-[8px] text-slate-500 mt-1 font-sans leading-none">
-                        Max 300x300px scale auto-enforced.
-                      </p>
-                    </div>
-                  </div>
+                  <MediaField
+                    value={settings.shop_logo_url}
+                    onChange={(v) => setSettings({ ...settings, shop_logo_url: v })}
+                    accept="image"
+                    maxImageDimension={300}
+                    showPreview
+                    placeholder="https://... or upload a file"
+                    help="Uploads are auto-scaled to 300x300px max, or paste a hosted image URL directly."
+                  />
                 </div>
 
               </div>

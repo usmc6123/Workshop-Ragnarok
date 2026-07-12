@@ -1247,6 +1247,18 @@ export const api = {
     }, 120000);
   },
 
+  // Generic media upload, backing every "Upload" button across the app (Sites,
+  // Funnels, Settings shop logo, etc). fileData is a data: URI (or raw base64) —
+  // server writes it to disk and hands back a URL. 3-minute timeout since video
+  // uploads over a home connection can take a while.
+  async uploadMedia(fileData: string, fileType: string, fileName: string): Promise<{ url: string; size_bytes: number; file_type: string }> {
+    return await request<any>('/api/uploads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_data: fileData, file_type: fileType, file_name: fileName })
+    }, 180000);
+  },
+
   // --- WORK ORDER INTEGRATION ---
   async getJobParts(jobId: number): Promise<any[]> {
     const raw = await request<any[]>(`/api/jobs/${jobId}/parts`);

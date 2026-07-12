@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../lib/api';
 import { Funnel, FunnelLead } from '../types';
+import MediaField from './MediaField';
 import {
   Megaphone, Plus, Pencil, Trash2, Copy, ExternalLink, Loader2, X,
   Users, CheckCircle2, Clock, Ban, RefreshCw, LayoutTemplate, Sparkles, ImageOff, Clapperboard, Code2, Check,
@@ -41,56 +42,6 @@ const EMPTY_FORM = {
 
 function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
-}
-
-// A media URL field paired with its own transparency slider — the slider only shows
-// up once a URL is actually entered, so empty/unused fields don't clutter the form
-// with a control that has nothing to act on yet.
-function MediaField({
-  label, labelColorClass, accentClass, value, onChange, opacityKey, mediaOpacity, onOpacityChange, placeholder, help,
-}: {
-  label: string;
-  labelColorClass: string;
-  accentClass: string;
-  value: string;
-  onChange: (v: string) => void;
-  opacityKey: string;
-  mediaOpacity: Record<string, number>;
-  onOpacityChange: (key: string, value: number) => void;
-  placeholder?: string;
-  help?: string;
-}) {
-  const opacity = mediaOpacity[opacityKey] ?? 100;
-  return (
-    <div className="rounded-lg border border-[#1e2028] bg-[#0c0d12]/60 p-3 space-y-2">
-      <label className={`block text-[10px] font-bold uppercase tracking-wider ${labelColorClass}`}>{label}</label>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder || 'https://...'}
-        className="w-full rounded-lg bg-[#08090d] border border-[#1e2028] focus:border-slate-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
-      />
-      {help && <p className="text-[9px] text-slate-600 leading-relaxed">{help}</p>}
-      {value.trim() && (
-        <div className="pt-1.5 border-t border-[#1e2028]/80 space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Transparency</span>
-            <span className="text-[10px] font-mono text-slate-400">{opacity}% visible</span>
-          </div>
-          <input
-            type="range"
-            min={10}
-            max={100}
-            step={5}
-            value={opacity}
-            onChange={(e) => onOpacityChange(opacityKey, parseInt(e.target.value, 10))}
-            className={`w-full cursor-pointer ${accentClass}`}
-          />
-        </div>
-      )}
-    </div>
-  );
 }
 
 export default function FunnelsView() {
@@ -656,6 +607,8 @@ export default function FunnelsView() {
                     opacityKey="image_url"
                     mediaOpacity={form.media_opacity}
                     onOpacityChange={updateOpacity}
+                    showOpacity
+                    accept="image"
                   />
                   <MediaField
                     label="Hero Video URL (optional)"
@@ -666,6 +619,8 @@ export default function FunnelsView() {
                     opacityKey="video_url"
                     mediaOpacity={form.media_opacity}
                     onOpacityChange={updateOpacity}
+                    showOpacity
+                    accept="video"
                   />
                 </div>
               </div>
@@ -684,6 +639,8 @@ export default function FunnelsView() {
                       opacityKey="headline_bg_image_url"
                       mediaOpacity={form.media_opacity}
                       onOpacityChange={updateOpacity}
+                      showOpacity
+                      accept="image"
                       help="Sits behind the headline/subheadline/body text, with a dark overlay so text stays readable. Ignored if a background video below is set."
                     />
                     <MediaField
@@ -695,6 +652,8 @@ export default function FunnelsView() {
                       opacityKey="headline_bg_video_url"
                       mediaOpacity={form.media_opacity}
                       onOpacityChange={updateOpacity}
+                      showOpacity
+                      accept="video"
                       placeholder="https://.../fr-1.mp4"
                       help="Plays behind the headline text, in place of the background image. Plays first if a Clip 2 is also set. This slider also controls Clip 2's brightness, since they share one loop."
                     />
@@ -707,6 +666,8 @@ export default function FunnelsView() {
                       opacityKey="headline_bg_video_url"
                       mediaOpacity={form.media_opacity}
                       onOpacityChange={updateOpacity}
+                      showOpacity
+                      accept="video"
                       placeholder="https://.../fr-2.mp4"
                       help="Plays right after Clip 1 finishes, then the pair loops back to Clip 1. Leave blank to just loop Clip 1 alone."
                     />
@@ -719,6 +680,8 @@ export default function FunnelsView() {
                       opacityKey="secondary_video_url"
                       mediaOpacity={form.media_opacity}
                       onOpacityChange={updateOpacity}
+                      showOpacity
+                      accept="video"
                       help="Loops behind the name/phone/email/vehicle quote form, with a dark overlay so it stays readable. Plays first if a Clip 2 is also set."
                     />
                     <MediaField
@@ -730,6 +693,8 @@ export default function FunnelsView() {
                       opacityKey="secondary_video_url"
                       mediaOpacity={form.media_opacity}
                       onOpacityChange={updateOpacity}
+                      showOpacity
+                      accept="video"
                       help="Plays right after Clip 1 finishes, then the pair loops back to Clip 1. Leave blank to just loop Clip 1 alone. Shares its transparency slider with Clip 1 above."
                     />
                   </div>
@@ -750,6 +715,8 @@ export default function FunnelsView() {
                       opacityKey="card_video_url"
                       mediaOpacity={form.media_opacity}
                       onOpacityChange={updateOpacity}
+                      showOpacity
+                      accept="video"
                       help="Loops behind the quote form's glass card — use a muted looping clip."
                     />
                   </div>
@@ -770,6 +737,8 @@ export default function FunnelsView() {
                       opacityKey="hero_video_url"
                       mediaOpacity={form.media_opacity}
                       onOpacityChange={updateOpacity}
+                      showOpacity
+                      accept="video"
                       help="Shown big, front and center, with real playback controls and full sound — visitors click play, watch/hear the pitch, then the quote form sits right underneath. Browsers won't autoplay audio, so this is click-to-play by design."
                     />
                     <MediaField
@@ -781,6 +750,8 @@ export default function FunnelsView() {
                       opacityKey="video_form_bg_image_url"
                       mediaOpacity={form.media_opacity}
                       onOpacityChange={updateOpacity}
+                      showOpacity
+                      accept="image"
                       help="Sits behind the name/phone/email/vehicle quote form, with a dark overlay so it stays readable."
                     />
                   </div>
