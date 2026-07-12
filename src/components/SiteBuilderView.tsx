@@ -384,6 +384,12 @@ function BlockContentEditor({
         <div className="space-y-3">
           <p className="text-[10px] text-slate-500 -mt-1">Headline, subheadline, and button text are edited directly on the canvas — click the text to type.</p>
           <MediaField label="Background Image URL" value={c.image_url || ''} onChange={(v) => set({ image_url: v })} opacityKey="image_url" mediaOpacity={mediaOpacity} onOpacityChange={onOpacityChange} showOpacity accept="image" />
+          {c.image_url && (
+            <div>
+              <FieldLabel>Image Alt Text</FieldLabel>
+              <TextInput value={c.image_alt || ''} onChange={(v) => set({ image_alt: v })} placeholder="Describes the image for screen readers & Google Images" />
+            </div>
+          )}
           <MediaField label="Background Video URL" value={c.video_url || ''} onChange={(v) => set({ video_url: v })} opacityKey="video_url" mediaOpacity={mediaOpacity} onOpacityChange={onOpacityChange} showOpacity accept="video" />
           <div><FieldLabel>Button Link</FieldLabel><TextInput value={c.cta_link || ''} onChange={(v) => set({ cta_link: v })} placeholder="https:// or #contact" /></div>
           <div className="grid grid-cols-2 gap-3">
@@ -428,7 +434,8 @@ function BlockContentEditor({
                 <button onClick={() => removeImage(idx)} className="text-rose-400 hover:text-rose-300 cursor-pointer"><Trash2 className="w-3 h-3" /></button>
               </div>
               <MediaField value={img.url} onChange={(v) => updateImage(idx, { url: v })} opacityKey={`gallery_${idx}`} mediaOpacity={mediaOpacity} onOpacityChange={onOpacityChange} showOpacity accept="image" placeholder="https://..." />
-              <TextInput value={img.caption || ''} onChange={(v) => updateImage(idx, { caption: v })} placeholder="Caption (optional)" />
+              <TextInput value={img.caption || ''} onChange={(v) => updateImage(idx, { caption: v })} placeholder="Caption (optional, shown on the page)" />
+              <TextInput value={img.alt || ''} onChange={(v) => updateImage(idx, { alt: v })} placeholder="Alt text (optional, for screen readers & Google Images — falls back to caption)" />
             </div>
           ))}
           <button onClick={addImage} className="w-full px-3 py-2 border border-dashed border-[#1e2028] hover:border-amber-500/40 rounded-lg text-[10px] uppercase tracking-wider font-bold text-slate-400 hover:text-amber-300 transition cursor-pointer flex items-center justify-center gap-1.5">

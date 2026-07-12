@@ -707,6 +707,72 @@ internal padding, same as the editor already assumed. HTML/PDF export were
 never affected since both capture the live page verbatim (they inherit this
 fix automatically, no separate change needed).
 
+**Sites SEO tier added (2026-07-12).** Owner pasted a long SEO/website-builder
+feature wishlist and asked for "the genuinely valuable tier" — deliberately
+scoped down from the full list (skipped CDN/code-splitting/critical-CSS/GSC-
+API-sync/AI-metadata-writer as disproportionate for a self-hosted single-
+tenant app; the single-page-per-site architecture also ruled out a few listed
+items, like a redirect manager, as not applicable).
+
+`src/types.ts` gained `SiteSeoConfig` (`schema_type: 'none' | 'LocalBusiness'
+| 'AutoRepair'`, `business_phone`, `business_address`,
+`og_title_override`/`og_description_override`) and a `seo_config: string |
+null` column on `Site`, plus `alt?: string` on gallery images and
+`image_alt?: string` on `HeroBlockContent`. Backend: `seo_config TEXT
+DEFAULT '{}'` migration on `sites` (same guarded pattern as `thumbnail_url`),
+persisted through `POST`/`PUT /api/sites`.
+
+**Server-side meta tag injection** (`buildSiteMetaHtml()` in
+`backend/server.js`, same pattern the pre-existing `/funnel/:slug` route
+already used) — necessary because crawlers/link-unfurlers (Facebook, Twitter,
+iMessage, Google) largely don't execute JS, so client-side `document.title`/
+meta changes are invisible to them; only a real server-rendered `<title>`/meta
+block works. Injects: canonical `<link>` (always the real
+`<subdomain>.homeslab.uk` URL, even when served from the internal
+`/site/:subdomain` preview path — fixes a real duplicate-content problem,
+since the same content was reachable at two URLs), meta description, OG/
+Twitter tags (title, description, `og:site_name`, image — falls back to the
+first Hero block's image if no custom thumbnail is set), `theme-color`
+(tinted to the site's own accent color), and `robots` (`noindex` on the
+preview path and on paused sites, `index` otherwise — a paused site is now
+told "don't index me" at three layers: the public API 404s it, the meta tag
+noindexes it, and `robots.txt` disallows it). New routes: `GET
+/robots.txt` and `GET /sitemap.xml`, both resolved by request **hostname**
+(`resolveSiteFromHost()`), not path — a deliberately single-URL sitemap,
+since each site here is one page with no multi-page routing. The existing
+catch-all `app.get('*', ...)` and the `/site/:subdomain` route both now call
+`buildSiteMetaHtml()` before sending `dist/index.html`.
+
+**JSON-LD structured data**: opt-in only (empty/`none` by default — partial-
+but-invalid schema is worse than none), `LocalBusiness` or the more specific
+`AutoRepair` subtype, editable via a new "Structured Data" section in
+`SitesView.tsx`'s Settings modal (business type dropdown + conditional phone/
+address fields).
+
+**Alt text**: added to the Hero block's background image and each Image
+Gallery photo (`SiteBuilderView.tsx`'s `BlockContentEditor`), separate from
+the existing visible caption field, wired into `SiteBlockRenderers.tsx`'s
+`<img>` tags — accessibility (screen readers) and Google Images SEO, falls
+back to the caption when alt is left blank.
+
+**SitesView.tsx** also gained a live character counter on the Meta
+Description field (color-coded green → amber near 155 chars → red past it,
+with a "Google will likely truncate this" hint over the limit).
+
+**Known loose end, not yet verified (bash/tsc unavailable this session):**
+`SitesView.tsx`'s `handleSave()` builds its save payload with `theme_config:
+{...} as ThemeConfig` and (now) `seo_config: {...} as SiteSeoConfig` — real
+nested objects — then passes it to `api.updateSite()`/`createSite()`, both
+typed `Partial<Site>`, where `theme_config`/`seo_config` are `string | null`
+(the shape the API actually *returns*, since both columns are stored as JSON
+text). This almost certainly type-checks as an error under `npm run lint`
+(`tsc --noEmit`) — but it's a pre-existing pattern from `theme_config`, not
+something introduced by adding `seo_config`, and works fine at runtime since
+`request()` just `JSON.stringify()`s the whole payload either way. Matched
+the existing pattern rather than unilaterally restructuring `Partial<Site>`'s
+dual use (received-shape vs. sent-shape) without being able to verify a fix
+compiles. Worth checking next `npm run lint` run.
+
 ## The two repos
 
 1. **usmc6123/Workshop-Ragnarok** (this repo) — the actual app, frontend + backend.

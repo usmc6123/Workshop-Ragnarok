@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../lib/api';
-import { Site, SiteBlock, ThemeConfig } from '../types';
+import { Site, SiteBlock, ThemeConfig, SiteSeoConfig } from '../types';
 import {
   Globe, Plus, Pencil, Trash2, Copy, ExternalLink, Loader2, X,
-  RefreshCw, Layers, Mail, Moon, Sun, CheckCircle2, Palette, Type, Search, Image as ImageIcon,
+  RefreshCw, Layers, Mail, Moon, Sun, CheckCircle2, Palette, Type, Search, Image as ImageIcon, Building2, Phone,
 } from 'lucide-react';
 import SiteBuilderView from './SiteBuilderView';
 import SiteThumbnail from './SiteThumbnail';
@@ -27,9 +27,22 @@ const EMPTY_FORM = {
   meta_description: '',
   favicon_url: '',
   thumbnail_url: '',
+  schema_type: 'none' as NonNullable<SiteSeoConfig['schema_type']>,
+  business_phone: '',
+  business_address: '',
 };
 
+// Google truncates a meta description around this many characters in search
+// results — the counter below turns amber/red as you approach/pass it so
+// it's obvious before saving, not after checking a search-result preview.
+const META_DESCRIPTION_SOFT_LIMIT = 155;
+
 function parseThemeConfig(raw: string | null | undefined): ThemeConfig {
+  if (!raw) return {};
+  try { return JSON.parse(raw); } catch { return {}; }
+}
+
+function parseSeoConfig(raw: string | null | undefined): SiteSeoConfig {
   if (!raw) return {};
   try { return JSON.parse(raw); } catch { return {}; }
 }
@@ -94,6 +107,7 @@ export default function SitesView() {
 
   const openEditForm = (site: Site) => {
     const themeConfig = parseThemeConfig(site.theme_config);
+    const seoConfig = parseSeoConfig(site.seo_config);
     setEditingId(site.id);
     setForm({
       name: site.name,
@@ -108,6 +122,9 @@ export default function SitesView() {
       meta_description: site.meta_description || '',
       favicon_url: site.favicon_url || '',
       thumbnail_url: site.thumbnail_url || '',
+      schema_type: seoConfig.schema_type || 'none',
+      business_phone: seoConfig.business_phone || '',
+      business_address: seoConfig.business_address || '',
     });
     setSubdomainTouched(true);
     setFormError(null);
@@ -132,7 +149,10 @@ export default function SitesView() {
     setSaving(true);
     setFormError(null);
     try {
-      const { accent_color, secondary_color, font_family, heading_font, meta_description, favicon_url, thumbnail_url, ...rest } = form;
+      const {
+        accent_color, secondary_color, font_family, heading_font, meta_description, favicon_url, thumbnail_url,
+        schema_type, business_phone, business_address, ...rest
+      } = form;
       const payload = {
         ...rest,
         subdomain: cleanSub,
@@ -140,6 +160,11 @@ export default function SitesView() {
         meta_description: meta_description || null,
         favicon_url: favicon_url || null,
         thumbnail_url: thumbnail_url || null,
+        seo_config: {
+          schema_type,
+          business_phone: business_phone || undefined,
+          business_address: business_address || undefined,
+        } as SiteSeoConfig,
       };
       if (editingId) {
         await api.updateSite(editingId, payload);
@@ -545,7 +570,21 @@ export default function SitesView() {
                   <Search className="w-3 h-3" /> SEO & Browser
                 </span>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Meta Description</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Meta Description</label>
+                    <span className={`text-[9px] font-mono ${
+                      form.meta_description.length === 0
+                        ? 'text-slate-600'
+                        : form.meta_description.length > META_DESCRIPTION_SOFT_LIMIT
+                          ? 'text-rose-400'
+                          : form.meta_description.length > META_DESCRIPTION_SOFT_LIMIT - 20
+                            ? 'text-amber-400'
+                            : 'text-slate-500'
+                    }`}>
+                      {form.meta_description.length}/{META_DESCRIPTION_SOFT_LIMIT}
+                      {form.meta_description.length > META_DESCRIPTION_SOFT_LIMIT ? ' — Google will likely truncate this' : ''}
+                    </span>
+                  </div>
                   <textarea
                     value={form.meta_description}
                     onChange={(e) => setForm(prev => ({ ...prev, meta_description: e.target.value }))}
@@ -566,6 +605,53 @@ export default function SitesView() {
                     className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
                   />
                 </div>
+              </div>
+
+              <div className="pt-2 border-t border-border-theme space-y-3">
+                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <Building2 className="w-3 h-3" /> Structured Data
+                </span>
+                <p className="text-[10px] text-slate-500 -mt-2 leading-relaxed">
+                  Lets Google show this business directly in search results — hours, phone, a map pin — instead of just a plain link. Leave set to "None" to skip this.
+                </p>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Business Type</label>
+                  <select
+                    value={form.schema_type}
+                    onChange={(e) => setForm(prev => ({ ...prev, schema_type: e.target.value as typeof prev.schema_type }))}
+                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white focus:outline-none"
+                  >
+                    <option value="none">None (no structured data)</option>
+                    <option value="AutoRepair">Auto Repair Shop</option>
+                    <option value="LocalBusiness">Local Business (generic)</option>
+                  </select>
+                </div>
+                {form.schema_type !== 'none' && (
+                  <>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        <Phone className="w-3 h-3" /> Phone
+                      </label>
+                      <input
+                        type="text"
+                        value={form.business_phone}
+                        onChange={(e) => setForm(prev => ({ ...prev, business_phone: e.target.value }))}
+                        placeholder="(555) 123-4567"
+                        className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Address</label>
+                      <input
+                        type="text"
+                        value={form.business_address}
+                        onChange={(e) => setForm(prev => ({ ...prev, business_address: e.target.value }))}
+                        placeholder="123 Main Street, Your City, ST 12345"
+                        className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer pt-1">

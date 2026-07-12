@@ -312,6 +312,53 @@ app.use('/api/funnels', funnelRouter);
 const siteRouter = require('./site-routes');
 app.use('/api/public-sites', siteRouter);
 
+// robots.txt / sitemap.xml, resolved by the REQUEST'S HOSTNAME rather than
+// any path — a visitor's browser never asks for "the dashboard's robots.txt"
+// vs. "cooper's robots.txt" any other way, since both live on the same
+// backend. `SITES_BASE_DOMAIN`/`RESERVED_SITE_SUBDOMAINS` are declared
+// further below in this file (near the authenticated Sites routes) — safe to
+// reference here anyway since these are closures that only run once a real
+// request comes in, by which point the whole module has finished loading.
+function resolveSiteFromHost(req) {
+  const hostname = String(req.hostname || '').toLowerCase();
+  const siteSuffix = `.${SITES_BASE_DOMAIN}`;
+  if (!hostname.endsWith(siteSuffix)) return null;
+  const label = hostname.slice(0, -siteSuffix.length);
+  if (!label || !/^[a-z0-9-]+$/.test(label) || RESERVED_SITE_SUBDOMAINS.has(label)) return null;
+  return db.prepare('SELECT * FROM sites WHERE subdomain = ?').get(label) || null;
+}
+
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain');
+  const site = resolveSiteFromHost(req);
+  if (site) {
+    // Paused sites already 404 at the public API and get noindex'd in their
+    // meta tags — Disallow here too, so a crawler is told the same thing at
+    // every layer instead of just relying on one.
+    if (site.active) {
+      res.send(`User-agent: *\nAllow: /\nSitemap: https://${site.subdomain}.${SITES_BASE_DOMAIN}/sitemap.xml\n`);
+    } else {
+      res.send('User-agent: *\nDisallow: /\n');
+    }
+  } else {
+    // The main dashboard (workshop.homeslab.uk) is an internal tool, not a
+    // page anyone should find via search — keep it out entirely.
+    res.send('User-agent: *\nDisallow: /\n');
+  }
+});
+
+app.get('/sitemap.xml', (req, res) => {
+  const site = resolveSiteFromHost(req);
+  if (!site || !site.active) return res.status(404).type('text/plain').send('Not found');
+  // Each site here is a single page, so this is deliberately a one-URL
+  // sitemap rather than something that tracks page adds/deletes — there's
+  // only ever the one URL to track.
+  const url = `https://${site.subdomain}.${SITES_BASE_DOMAIN}/`;
+  res.type('application/xml').send(
+    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${url}</loc></url>\n</urlset>\n`
+  );
+});
+
 // Public iCal subscribe feed (unauthenticated) - token-gated, same spirit as the
 // customer portal's per-job token. Lets a phone/desktop calendar app "subscribe"
 // to the shop's appointments as a live-refreshing feed instead of a one-time export.
@@ -1299,6 +1346,20 @@ try {
     }
   } catch (err) {
     console.error('Error migrating sites thumbnail_url column:', err);
+  }
+
+  // SEO settings blob (schema.org business type/phone/address, OG overrides)
+  // — same flexible-JSON pattern as theme_config, read server-side only when
+  // rendering the static HTML shell for social/search crawlers (see the
+  // site meta-tag injection near the production static-file serving block).
+  try {
+    const sitesCols4 = db.prepare('PRAGMA table_info(sites)').all();
+    if (!sitesCols4.some(c => c.name === 'seo_config')) {
+      db.exec(`ALTER TABLE sites ADD COLUMN seo_config TEXT DEFAULT '{}'`);
+      console.log('Successfully migrated sites to include seo_config column.');
+    }
+  } catch (err) {
+    console.error('Error migrating sites seo_config column:', err);
   }
 
   try {
@@ -4648,6 +4709,14 @@ function cleanSubdomain(value) {
 // RESERVED_SITE_SUBDOMAINS in src/constants/sites.ts.
 const RESERVED_SITE_SUBDOMAINS = new Set(['workshop', 'www']);
 
+// Same value as SITES_BASE_DOMAIN in src/constants/sites.ts — needed here too
+// (not just client-side) because the server-side meta-tag injection below has
+// to recognize "this request's Host header is a site subdomain" BEFORE the
+// React app ever loads, for the same reason social/search crawlers need
+// server-rendered tags in the first place. Keep in sync with the frontend
+// constant if this domain ever changes.
+const SITES_BASE_DOMAIN = 'homeslab.uk';
+
 app.get('/api/sites', (req, res) => {
   try {
     const sites = db.prepare(`
@@ -4666,7 +4735,7 @@ app.get('/api/sites', (req, res) => {
 
 app.post('/api/sites', (req, res) => {
   try {
-    const { name, subdomain, title, theme, active, theme_config, meta_description, favicon_url, thumbnail_url } = req.body;
+    const { name, subdomain, title, theme, active, theme_config, meta_description, favicon_url, thumbnail_url, seo_config } = req.body;
     if (!name || !subdomain) return res.status(400).json({ error: 'name and subdomain are required' });
 
     const cleanSub = cleanSubdomain(subdomain);
@@ -4677,9 +4746,9 @@ app.post('/api/sites', (req, res) => {
     if (existing) return res.status(409).json({ error: `Subdomain "${cleanSub}" is already in use` });
 
     const info = db.prepare(`
-      INSERT INTO sites (name, subdomain, title, theme, active, theme_config, meta_description, favicon_url, thumbnail_url, user_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, JSON.stringify(theme_config || {}), meta_description || null, favicon_url || null, thumbnail_url || null, req.user.id);
+      INSERT INTO sites (name, subdomain, title, theme, active, theme_config, meta_description, favicon_url, thumbnail_url, seo_config, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, JSON.stringify(theme_config || {}), meta_description || null, favicon_url || null, thumbnail_url || null, JSON.stringify(seo_config || {}), req.user.id);
 
     const inserted = db.prepare('SELECT * FROM sites WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
     res.json(inserted);
@@ -4692,7 +4761,7 @@ app.post('/api/sites', (req, res) => {
 app.put('/api/sites/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const { name, subdomain, title, theme, active, theme_config, meta_description, favicon_url, thumbnail_url } = req.body;
+    const { name, subdomain, title, theme, active, theme_config, meta_description, favicon_url, thumbnail_url, seo_config } = req.body;
     if (!name || !subdomain) return res.status(400).json({ error: 'name and subdomain are required' });
 
     const cleanSub = cleanSubdomain(subdomain);
@@ -4702,9 +4771,9 @@ app.put('/api/sites/:id', (req, res) => {
     if (conflict) return res.status(409).json({ error: `Subdomain "${cleanSub}" is already in use` });
 
     const info = db.prepare(`
-      UPDATE sites SET name = ?, subdomain = ?, title = ?, theme = ?, active = ?, theme_config = ?, meta_description = ?, favicon_url = ?, thumbnail_url = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE sites SET name = ?, subdomain = ?, title = ?, theme = ?, active = ?, theme_config = ?, meta_description = ?, favicon_url = ?, thumbnail_url = ?, seo_config = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
-    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, JSON.stringify(theme_config || {}), meta_description || null, favicon_url || null, thumbnail_url || null, id, req.user.id);
+    `).run(name, cleanSub, title || name, theme === 'light' ? 'light' : 'dark', active === false ? 0 : 1, JSON.stringify(theme_config || {}), meta_description || null, favicon_url || null, thumbnail_url || null, JSON.stringify(seo_config || {}), id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Site not found' });
 
     const updated = db.prepare('SELECT * FROM sites WHERE id = ? AND user_id = ?').get(id, req.user.id);
@@ -6863,9 +6932,144 @@ async function initServer() {
       }
     });
 
+    // Same server-side-injection reasoning as the funnel route above, applied
+    // to Sites — but Sites have TWO different visitor-facing URLs for the
+    // exact same content (the local preview path below, and the real flat
+    // subdomain handled in the catch-all further down), so this builds one
+    // shared tag block used by both, with a `isPreviewPath` flag that changes
+    // only the robots/canonical behavior (see buildSiteMetaHtml).
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function buildSiteMetaHtml(baseHtml, site, req, { isPreviewPath }) {
+      let seoConfig = {};
+      try { seoConfig = JSON.parse(site.seo_config || '{}'); } catch { /* default {} */ }
+      let themeConfig = {};
+      try { themeConfig = JSON.parse(site.theme_config || '{}'); } catch { /* default {} */ }
+
+      const canonicalUrl = `https://${site.subdomain}.${SITES_BASE_DOMAIN}`;
+      const pageUrl = isPreviewPath ? `${req.protocol}://${req.get('host')}${req.originalUrl}` : canonicalUrl;
+
+      const title = escapeHtml(seoConfig.og_title_override || site.title || site.name);
+      const description = escapeHtml(
+        seoConfig.og_description_override || site.meta_description || `${site.name} — built with Workshop: Ragnarök.`
+      );
+
+      // Prefer the site's own custom card thumbnail; if none was ever set,
+      // fall back to the first Hero block's background image so a preview
+      // link still shows something real instead of a blank card.
+      let image = site.thumbnail_url || '';
+      if (!image) {
+        try {
+          const heroBlock = db.prepare(`
+            SELECT content FROM site_blocks WHERE site_id = ? AND block_type = 'hero' ORDER BY position ASC LIMIT 1
+          `).get(site.id);
+          if (heroBlock) {
+            const heroContent = JSON.parse(heroBlock.content || '{}');
+            if (heroContent.image_url) image = heroContent.image_url;
+          }
+        } catch { /* no fallback image available — fine, just omit og:image */ }
+      }
+      if (image && !/^https?:\/\//i.test(image)) {
+        image = `${req.protocol}://${req.get('host')}${image.startsWith('/') ? '' : '/'}${image}`;
+      }
+      const safeImage = escapeHtml(image);
+      const safeCanonical = escapeHtml(canonicalUrl);
+      const safeUrl = escapeHtml(pageUrl);
+
+      // The preview path is a duplicate of the real subdomain's content and
+      // should never itself be indexed; a paused (active=0) site shouldn't be
+      // indexed at its real subdomain either. An active site at its own real
+      // subdomain is the only case that gets indexed normally.
+      const noindex = isPreviewPath || !site.active;
+      const robotsTag = `<meta name="robots" content="${noindex ? 'noindex, nofollow' : 'index, follow'}" />`;
+
+      const accentColor = themeConfig.accent_color || '#f59e0b';
+
+      const tags = [
+        robotsTag,
+        `<link rel="canonical" href="${safeCanonical}" />`,
+        `<meta name="description" content="${description}" />`,
+        // Tints the browser chrome (mobile Safari/Chrome address bar) to match
+        // the site's own accent color instead of the default app color —
+        // small polish, costs nothing.
+        `<meta name="theme-color" content="${accentColor}" />`,
+        '<meta property="og:type" content="website" />',
+        `<meta property="og:title" content="${title}" />`,
+        `<meta property="og:description" content="${description}" />`,
+        `<meta property="og:site_name" content="${escapeHtml(site.name)}" />`,
+        `<meta property="og:url" content="${safeUrl}" />`,
+        image ? `<meta property="og:image" content="${safeImage}" />` : '',
+        `<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}" />`,
+        `<meta name="twitter:title" content="${title}" />`,
+        `<meta name="twitter:description" content="${description}" />`,
+        image ? `<meta name="twitter:image" content="${safeImage}" />` : '',
+      ];
+
+      // Structured data — schema.org LocalBusiness or its more specific
+      // AutoRepair subtype (a natural fit given what this app is for). Only
+      // emitted when the owner has actually opted in and given it a name to
+      // work with; partial-but-invalid schema is worse than none.
+      if (seoConfig.schema_type && seoConfig.schema_type !== 'none') {
+        const schema = {
+          '@context': 'https://schema.org',
+          '@type': seoConfig.schema_type,
+          name: site.name,
+          url: canonicalUrl,
+        };
+        if (image) schema.image = image;
+        if (seoConfig.business_phone) schema.telephone = seoConfig.business_phone;
+        if (seoConfig.business_address) schema.address = seoConfig.business_address;
+        tags.push(`<script type="application/ld+json">${JSON.stringify(schema)}</script>`);
+      }
+
+      const tagBlock = tags.filter(Boolean).join('\n    ');
+      return baseHtml.replace(/<title>.*?<\/title>/i, `<title>${title}</title>\n    ${tagBlock}`);
+    }
+
+    // Local preview path (/site/:subdomain) — reached before any DNS/tunnel
+    // setup is even done, and always noindex'd since it's a duplicate of the
+    // real subdomain (see buildSiteMetaHtml).
+    app.get('/site/:subdomain', (req, res, next) => {
+      try {
+        const subdomain = String(req.params.subdomain || '').trim().toLowerCase();
+        const site = db.prepare('SELECT * FROM sites WHERE subdomain = ?').get(subdomain);
+        const indexPath = path.join(distPath, 'index.html');
+        let html = fs.readFileSync(indexPath, 'utf-8');
+        if (site) html = buildSiteMetaHtml(html, site, req, { isPreviewPath: true });
+        res.send(html);
+      } catch (err) {
+        console.error('Error injecting site OG tags (preview path):', err);
+        next();
+      }
+    });
+
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api/')) {
         return next();
+      }
+      // Flat one-level site subdomain (e.g. cooper.homeslab.uk) — same
+      // reserved-word exclusion the frontend's own hostname detection in
+      // App.tsx uses, so the main dashboard's own hostname is never mistaken
+      // for a site.
+      const hostname = String(req.hostname || '').toLowerCase();
+      const siteSuffix = `.${SITES_BASE_DOMAIN}`;
+      if (hostname.endsWith(siteSuffix)) {
+        const label = hostname.slice(0, -siteSuffix.length);
+        if (label && /^[a-z0-9-]+$/.test(label) && !RESERVED_SITE_SUBDOMAINS.has(label)) {
+          try {
+            const site = db.prepare('SELECT * FROM sites WHERE subdomain = ?').get(label);
+            const indexPath = path.join(distPath, 'index.html');
+            let html = fs.readFileSync(indexPath, 'utf-8');
+            if (site) html = buildSiteMetaHtml(html, site, req, { isPreviewPath: false });
+            return res.send(html);
+          } catch (err) {
+            console.error('Error injecting site OG tags (subdomain):', err);
+            // fall through to the plain sendFile below
+          }
+        }
       }
       res.sendFile(path.join(distPath, 'index.html'));
     });

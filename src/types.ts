@@ -302,6 +302,24 @@ export interface ThemeConfig {
   body_font?: string; // font used for body/paragraph text
 }
 
+// Structured-data / crawler-facing SEO settings — a flexible JSON blob (same
+// pattern as ThemeConfig) rather than fixed columns, since this list of
+// fields is likely to grow. `schema_type` drives whether/what JSON-LD gets
+// injected into the served HTML: 'none' emits nothing, 'LocalBusiness' and
+// 'AutoRepair' both emit a schema.org block using site.name as the business
+// name, business_phone/business_address if provided, and the site's
+// thumbnail (or first Hero image) as the business image — 'AutoRepair' is
+// schema.org's more specific subtype, a natural fit given what this app is
+// for. Both og_title/og_description overrides are optional — when unset,
+// Open Graph tags fall back to the site's title and meta_description.
+export interface SiteSeoConfig {
+  schema_type?: 'none' | 'LocalBusiness' | 'AutoRepair';
+  business_phone?: string;
+  business_address?: string;
+  og_title_override?: string;
+  og_description_override?: string;
+}
+
 export interface Site {
   id: number;
   name: string;
@@ -313,6 +331,7 @@ export interface Site {
   meta_description: string | null; // SEO <meta name="description">
   favicon_url: string | null;
   thumbnail_url: string | null; // custom override for the Sites list card preview (falls back to a live block-render if unset)
+  seo_config: string | null; // JSON string of SiteSeoConfig
   created_at?: string;
   updated_at?: string;
   user_id?: number;
@@ -444,6 +463,7 @@ export interface HeroBlockContent {
   headline_tag?: HeadingTag;
   subheadline?: string; // rich HTML
   image_url?: string;
+  image_alt?: string; // accessibility + SEO alt text for image_url, separate from the visible headline
   video_url?: string; // supports YouTube/Vimeo URLs (auto-embedded) or direct MP4
   object_fit?: 'cover' | 'contain';
   cta_text?: string;
@@ -458,7 +478,12 @@ export interface TextBlockContent {
   align?: 'left' | 'center';
 }
 export interface ImageBlockContent {
-  images?: { url: string; caption?: string }[];
+  // `alt` is accessibility/SEO text (read by screen readers, indexed by Google
+  // Images) — deliberately separate from `caption`, which is visible on-page
+  // text. Falls back to caption if left blank, but the two often want to say
+  // different things (a caption like "Our Team" vs. alt text describing what's
+  // actually in the photo).
+  images?: { url: string; caption?: string; alt?: string }[];
   layout?: 'grid' | 'carousel';
   object_fit?: 'cover' | 'contain';
   carousel_autoplay?: boolean;

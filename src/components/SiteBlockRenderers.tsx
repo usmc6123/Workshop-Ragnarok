@@ -273,7 +273,7 @@ function HeroView({ block, dark, accent, headingFont, editable, onContentChange,
         <img
           data-media-key="image_url"
           src={c.image_url}
-          alt=""
+          alt={c.image_alt || c.headline || ''}
           className="absolute inset-0 w-full h-full"
           style={{ objectFit: c.object_fit === 'contain' ? 'contain' : 'cover', opacity: getOpacity(block, 'image_url'), ...mediaTransformStyle(getMediaTransform(block, 'image_url')) }}
         />
@@ -342,7 +342,7 @@ function ImageView({ block, editable, onContentChange }: SiteBlockViewProps) {
             key={i}
             data-media-key={`gallery_${i}`}
             src={img.url}
-            alt={img.caption || ''}
+            alt={img.alt || img.caption || ''}
             className="absolute inset-0 w-full h-full transition-opacity duration-500"
             style={{ opacity: (i === idx ? 1 : 0) * getOpacity(block, `gallery_${i}`), objectFit: c.object_fit || 'cover', ...mediaTransformStyle(getMediaTransform(block, `gallery_${i}`)) }}
           />
@@ -369,7 +369,7 @@ function ImageView({ block, editable, onContentChange }: SiteBlockViewProps) {
               <img
                 data-media-key={`gallery_${i}`}
                 src={img.url}
-                alt={img.caption || ''}
+                alt={img.alt || img.caption || ''}
                 className="w-full h-full"
                 style={{ objectFit: c.object_fit || 'cover', opacity: getOpacity(block, `gallery_${i}`), ...mediaTransformStyle(getMediaTransform(block, `gallery_${i}`)) }}
               />
