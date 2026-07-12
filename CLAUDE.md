@@ -211,6 +211,41 @@ Layers panel did this; a plain canvas click only changed the selection
 outline and left the inspector showing stale content for whatever block was
 last opened.
 
+**The real, deeper cause of "my image goes away" (found 2026-07-12, after the
+debounce-timer fix above turned out to be a real but secondary bug).** A live
+site ("Cooper") went completely blank — solid black, no content at all.
+Diagnosed via the browser's Network tab (not guessing): `GET
+/api/public-sites/by-subdomain/cooper` returned `200 OK` with real block rows,
+but both blocks' `content` was literally `"{}"` — empty. `style` (grid
+position, `z_lock`) was intact. `ImageView`/`VideoView` in
+`SiteBlockRenderers.tsx` both `return null` when there's no image/video URL
+and `editable` is false — so an empty `content` on every block renders as
+nothing at all, leaving just the page's own dark background. That's the whole
+bug: not a rare race, a block that's been locked or dragged loses its content
+outright.
+
+Root cause: `PUT /api/sites/:id/blocks/:blockId` in `backend/server.js` did
+`UPDATE site_blocks SET content = ?, media_opacity = ?, style = ?` on every
+call, defaulting ANY omitted field to `{}` (`JSON.stringify(content || {})`).
+It was never a true partial-update endpoint despite the frontend TS type
+(`data: { content?; media_opacity?; style? }`) implying one. Several frontend
+callers legitimately only ever send `{ style }` — `handlePositionChange()`
+(fires on every drag/resize) and the Layers panel's `handleToggleLock()` /
+`handleRenameBlock()` added earlier this same day — and every one of those
+calls was silently wiping that block's real content to empty. This is why it
+looked intermittent: it only became visible once someone reloaded/previewed
+the site, by which point normal editing had already moved on.
+
+Fixed by making the route a genuine partial update: it now reads the existing
+row first and only overwrites a column if the caller's request body actually
+contained that key (`'content' in req.body`, not just a falsy check), keeping
+the existing DB value otherwise.
+
+**This bug means any site block that was ever dragged, resized, locked, or
+renamed without also having its content freshly saved in the same request may
+have had its content wiped at some point before this fix landed — worth
+spot-checking older Sites pages, not just Cooper, after this deploys.**
+
 **Image Gallery block was missing the opacity slider (fixed same day).**
 Hero/Video/Testimonial blocks all had a `showOpacity` slider on their
 `MediaField` already; the Image Gallery block's per-image `MediaField` in

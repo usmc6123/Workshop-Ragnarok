@@ -4787,12 +4787,27 @@ app.put('/api/sites/:id/blocks/:blockId', (req, res) => {
     const site = db.prepare('SELECT id FROM sites WHERE id = ? AND user_id = ?').get(id, req.user.id);
     if (!site) return res.status(404).json({ error: 'Site not found' });
 
-    const { content, media_opacity, style } = req.body;
-    const info = db.prepare(`
+    const existing = db.prepare('SELECT * FROM site_blocks WHERE id = ? AND site_id = ? AND user_id = ?').get(blockId, id, req.user.id);
+    if (!existing) return res.status(404).json({ error: 'Block not found' });
+
+    // Genuinely PARTIAL update — a column is only overwritten if the caller
+    // actually included that key in the request body; otherwise the existing
+    // DB value is kept as-is. This used to unconditionally overwrite all
+    // three JSON columns every time, defaulting any omitted field to `{}` —
+    // so patching JUST the style (dragging/resizing a block on the canvas,
+    // or the Layers panel's lock/rename actions, which only ever send
+    // `{ style }`) silently wiped that block's real content/media_opacity to
+    // empty on every single drag. That's a real, frequent data-loss bug, not
+    // a hypothetical one — confirmed via a live block whose content ended up
+    // as "{}" after being locked in the Layers panel.
+    const content = ('content' in req.body) ? JSON.stringify(req.body.content || {}) : existing.content;
+    const media_opacity = ('media_opacity' in req.body) ? JSON.stringify(req.body.media_opacity || {}) : existing.media_opacity;
+    const style = ('style' in req.body) ? JSON.stringify(req.body.style || {}) : existing.style;
+
+    db.prepare(`
       UPDATE site_blocks SET content = ?, media_opacity = ?, style = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND site_id = ? AND user_id = ?
-    `).run(JSON.stringify(content || {}), JSON.stringify(media_opacity || {}), JSON.stringify(style || {}), blockId, id, req.user.id);
-    if (info.changes === 0) return res.status(404).json({ error: 'Block not found' });
+    `).run(content, media_opacity, style, blockId, id, req.user.id);
 
     const updated = db.prepare('SELECT * FROM site_blocks WHERE id = ? AND user_id = ?').get(blockId, req.user.id);
     res.json(updated);
