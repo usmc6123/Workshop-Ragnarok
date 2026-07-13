@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Bot, Copy, Check, RotateCcw, Sparkles, Send, CheckCircle, Smartphone, 
   Code, FileText, Layout, Video, Image as ImageIcon, Volume2, Globe, Sliders, 
-  SlidersHorizontal, CheckSquare, Search, Filter, Cpu, Play, HelpCircle, Trash2
+  SlidersHorizontal, CheckSquare, Search, Filter, Cpu, Play, HelpCircle, Trash2, Lock
 } from 'lucide-react';
 import BotThreeCanvas from './BotThreeCanvas';
 import MediaField from './MediaField';
@@ -63,16 +63,20 @@ export interface ChatBotConfig {
 export const PERSONAS_20: ChatBotConfig[] = [
   {
     id: 'cooper-patrol-cat',
-    business_description: 'Ragnarök Auto Workshop - Special custom builds, Corvettes, and performance tuning.',
-    main_role: 'Lead-generation and booking scout specializing in performance upgrades.',
-    uploaded_docs: `SERVICES & PRICING:
-- Spark Plug Tune-up: $90 (Complete LS/LT swap)
-- ATF Transmission Flush & Filter: $110
-- Suspension Rebuild: $180 (Full alignment check)
-LOCATION & HOURS:
-- 123 Resistance Way, Pasadena, CA. Open Mon-Sat 8AM - 6PM.
-- Contact: usmc6123@gmail.com | 555-0199
-BOOKING LINK: https://ragnarok.work/book`,
+    business_description: '[YOUR BUSINESS NAME] - Performance workshop & tuning. Example: Ragnarök Auto Workshop - specializing in custom Corvette builds, high-speed gear tuning, and custom exhaust upgrades.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Cooper, the high-energy workshop patrol cat. Built to assist performance enthusiasts and drive bookings at: https://ragnarok.work/book',
+    uploaded_docs: `[SERVICE MENU & SPECIFIC PRICE SCHEDULES]
+- Spark Plug Performance Tune-up: $90 (Complete LT/LS spark plug swap & timing correction)
+- ATF Transmission Flush & Premium Filter: $110 (Synthetic heavy-duty fluid)
+- Advanced Suspension Rebuild: $180 (Full visual alignment check & custom shock installation)
+
+[PHYSICAL ADDRESS & HOURS OF OPERATION]
+- Address: 123 Resistance Way, Pasadena, CA.
+- Active Hours: Mon-Sat 8:00 AM - 6:00 PM. Sunday: Closed.
+- Emergency Line: 555-0199 | usmc6123@gmail.com
+
+[FREQUENTLY ASKED QUESTIONS]
+- Q: Do you do custom engine swaps? A: Yes! Swaps start at $1,500. Use booking link to coordinate custom intake diagnostics.`,
     character_theme: 'mascot_cat',
     primary_cta: 'https://ragnarok.work/book',
     interface_platform: 'Website Funnel Widget',
@@ -96,18 +100,29 @@ BOOKING LINK: https://ragnarok.work/book`,
       three_preset: 'neon_core',
       three_speed: 1.2,
       three_wireframe: false,
-      three_particles: 1000
+      three_particles: 1000,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   },
   {
     id: 'sarah-advisor-pro',
-    business_description: 'Ragnarök Auto Clinic - Family car service, engine diagnostics, and routine repairs.',
-    main_role: 'Professional Service Coordinator & appointment scheduler.',
-    uploaded_docs: `Standard Diagnostics: $49 (Waived with repair)
-Brake Pads Swap: $149 per axle
-Oil Change & Filters: $59.99
-Shop Policy: All work has a 12-month warranty. Same-day appointments available.`,
+    business_description: '[YOUR CLINIC NAME] - Traditional repair garage. Example: Ragnarök Auto Clinic - family sedans, safety inspections, brake pads, and clean diagnostics.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Sarah, a polite corporate automotive advisor. Dedicated to answering maintenance questions and securing scheduling details for https://ragnarok.work/book',
+    uploaded_docs: `[SERVICE RATE GUIDE]
+- Advanced Computer Diagnostics: $49 (Entirely waived if repairs are performed on-site)
+- Front/Rear Brake Pads Swap: $149 per axle
+- Full Synthetic Oil Change & Filter: $59.99
+
+[POLICIES & LOCATIONS]
+- Address: 123 Resistance Way, Pasadena, CA.
+- Shop Warranty: All repairs carry a 12-month parts & labor guarantee.
+- Same-day repairs: Available if vehicle is checked in before 10:00 AM.`,
     character_theme: 'professional',
     primary_cta: 'https://ragnarok.work/book',
     interface_platform: 'Web Side Drawer',
@@ -131,19 +146,28 @@ Shop Policy: All work has a 12-month warranty. Same-day appointments available.`
       three_preset: 'hologram',
       three_speed: 0.8,
       three_wireframe: true,
-      three_particles: 800
+      three_particles: 800,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 90
     },
     embed_code_snippet: ''
   },
   {
     id: 'rex-fitness-coach',
-    business_description: 'Ragnarök Fitness Center - High-intensity strength coaching, bodybuilding and athletic conditioning.',
-    main_role: 'High-Energy Personal Coach to motivate and capture trial members.',
-    uploaded_docs: `MEMBERSHIPS & PACKAGES:
-- Trial Session: Free (First time local residents)
-- Monthly Unlimited Gym Pass: $65
-- Personal Training 1-on-1 (10 Pack): $450
-- Address: 44 Iron Core Boulevard. Hours: 24/7 access.`,
+    business_description: '[YOUR GYM NAME] - Gym or training hub. Example: Ragnarök Strength Lab - offering powerlifting rigs, cardio circuits, body conditioning, and active nutritional coaching.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Coach Rex, an explosive athletic motivator. Built to get local residents excited to secure their first free trial session at https://ragnarok.work/fitness-book',
+    uploaded_docs: `[MEMBERSHIPS & PACKAGES]
+- Local Resident Trial Session: FREE (Photo ID showing local address required)
+- Unlimited Monthly Membership: $65/month (Includes full weight room, heavy bags, and cardio deck access)
+- Premium 1-on-1 Personal Training (10 Pack): $450 (Includes bespoke meal guidelines)
+
+[FACILITY DETAILS]
+- Gym Address: 44 Iron Core Boulevard. Open 24 hours a day, 7 days a week for active keyholders.
+- Parking: Free multi-level secure guest parking available.`,
     character_theme: 'mascot_cat',
     primary_cta: 'https://ragnarok.work/fitness-book',
     interface_platform: 'WhatsApp Agent',
@@ -167,19 +191,28 @@ Shop Policy: All work has a 12-month warranty. Same-day appointments available.`
       three_preset: 'quantum',
       three_speed: 2.0,
       three_wireframe: false,
-      three_particles: 2000
+      three_particles: 2000,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   },
   {
     id: 'maya-escapes-guide',
-    business_description: 'Ragnarök Luxury Escapes - Premium boutique lodge stays, desert glamping, and guided trails.',
-    main_role: 'Warm Hospitality Desk Agent coordinating lodging reservations.',
-    uploaded_docs: `LODGING RATES:
-- Desert Oasis Dome: $220/night (Includes private firepit)
-- Redwood Ridge Cabin: $350/night (Includes hot tub)
-- Check-in: 3 PM, Check-out: 11 AM.
-- Booking Coordination: Booking coordinate links required.`,
+    business_description: '[YOUR RETREAT NAME] - Outdoor lodge or glamping. Example: Ragnarök Luxury Escapes - boutique desert domes, redwood canopy cabins, and guided wilderness expeditions.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Maya, a peaceful hospitality concierge. Dedicated to introducing travel styles and capturing date reservations at: https://ragnarok.work/escapes',
+    uploaded_docs: `[IMMERSIVE STAY RATES]
+- Desert Oasis Geodesic Dome: $220/night (Features stargazing skylight, cozy private firepit)
+- Redwood Ridge Luxury Cabin: $350/night (Features outdoor hot tub, panoramic forest deck views)
+
+[STAY LOGISTICS]
+- Check-in Hour: 3:00 PM | Check-out Hour: 11:00 AM.
+- Pets policy: Well-behaved pets welcomed in the redwood cabins ($50 cleaning fee).
+- Booking: Reservation coordinator links are mandatory to hold seasonal slots.`,
     character_theme: 'professional',
     primary_cta: 'https://ragnarok.work/escapes',
     interface_platform: 'SMS Agent Widget',
@@ -203,19 +236,28 @@ Shop Policy: All work has a 12-month warranty. Same-day appointments available.`
       three_preset: 'quantum',
       three_speed: 0.6,
       three_wireframe: false,
-      three_particles: 1500
+      three_particles: 1500,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1510312305653-8ed496efae75?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1510312305653-8ed496efae75?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   },
   {
     id: 'aiden-fashion-stylist',
-    business_description: 'Retro Thread Co. - Upcycled vintage apparel, streetwear jackets, and custom denim.',
-    main_role: 'Sleek, trendy fashion guide directing buyers to curated collections.',
-    uploaded_docs: `STORE DETAILS & CODES:
-- Streetwear Denim Jacket: $120
-- Retro Cargo Pants: $80
-- Discount Code: RETRO15 (Get 15% off cart totals)
-- Shipping: Free on US orders over $100.`,
+    business_description: '[YOUR BRAND NAME] - Vintage or custom retail. Example: Retro Thread Co. - selling upcycled outerwear, reconstructed streetwear cargo pants, and hand-painted denim coats.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Aiden, a witty, trendy style navigator. Here to recommend specific apparel and direct buyers to use discount code RETRO15 at: https://ragnarok.work/shop-vintage',
+    uploaded_docs: `[THE RETRO CATALOG]
+- Upcycled Streetwear Denim Jacket: $120 (Handmade, limited quantities)
+- Multi-Pocket Retro Cargo Pants: $80 (Heavyweight wash, earth tones)
+- Curated Vintage Screenprint Tees: $45 (Single-stitch originals)
+
+[SHIPPING & EXCLUSIVE SAVINGS]
+- Code RETRO15: Grants 15% off cart totals at checkout.
+- Delivery: Free domestic ground shipping on all orders over $100.`,
     character_theme: 'minimalist_tech',
     primary_cta: 'https://ragnarok.work/shop-vintage',
     interface_platform: 'Shopify Agent',
@@ -239,18 +281,27 @@ Shop Policy: All work has a 12-month warranty. Same-day appointments available.`
       three_preset: 'cyber_sphere',
       three_speed: 1.0,
       three_wireframe: true,
-      three_particles: 900
+      three_particles: 900,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   },
   {
     id: 'zara-real-estate',
-    business_description: 'Prestige Estates Group - High-end penthouses, modern villas, and oceanfront land.',
-    main_role: 'Elite property advisor matching luxury buyers with listings.',
-    uploaded_docs: `LISTINGS INTRO:
-- Malibu Skyline Villa: $4.2M (5 Bed, Private Cove)
-- DTLA Glass Penthouse: $1.8M (Helipad Access)
-- Scheduling policy: VIP private tours require prior proof of funds or quick digital registration.`,
+    business_description: '[YOUR BROKERAGE NAME] - Real estate or rentals. Example: Prestige Estates Group - representing luxurious glass penthouses, modern desert villas, and oceanfront Malibu residences.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Zara, a sophisticated high-end property consultant. Dedicated to profiling client goals and scheduling private tours at: https://ragnarok.work/prestige-listings',
+    uploaded_docs: `[PRESTIGE PROPERTY PORTFOLIO]
+- Malibu Skyline Villa: $4.2M (5 Bedrooms, private rocky cove, negative-edge pool)
+- DTLA Glass Penthouse: $1.8M (Double-height ceilings, helipad privilege, concierge desk)
+- Architectural Desert Estate: $3.1M (Passive solar architecture, off-grid water system)
+
+[VIP TOUR REQUIREMENTS]
+- Booking private viewings is mandatory. Proof of liquid assets or pre-approval is verified prior to gate access.`,
     character_theme: 'professional',
     primary_cta: 'https://ragnarok.work/prestige-listings',
     interface_platform: 'Phone Agent Assistant',
@@ -274,18 +325,28 @@ Shop Policy: All work has a 12-month warranty. Same-day appointments available.`
       three_preset: 'hologram',
       three_speed: 0.5,
       three_wireframe: false,
-      three_particles: 1000
+      three_particles: 1000,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   },
   {
     id: 'marcus-wellness',
-    business_description: 'Ragnarök Integrative Clinic - Physical wellness, chiropractic care, and nutritional therapy.',
-    main_role: 'Compassionate care intake helper coordinating therapeutic diagnostics.',
-    uploaded_docs: `CLINIC SERVICES:
-- Initial Chiropractic Assessment: $85
-- Sports Therapy & Rehab Session: $120
-- Hours: Mon-Fri 9AM - 5PM. All consultations are entirely confidential.`,
+    business_description: '[YOUR HEALTH CLINIC] - Integrative care & rehab. Example: Ragnarök Integrative Clinic - holistic chiropractic assessments, sports therapy, and medical nutritional mapping.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Dr. Marcus, an empathetic wellness advisor. Built to support therapy intake and direct patients to book physical diagnostic slots at: https://ragnarok.work/care-intake',
+    uploaded_docs: `[CLINIC CLINICAL SERVICES]
+- Initial Chiropractic Intake & Assessment: $85 (Includes joint diagnostic mapping)
+- Physical Sports Therapy & Rehab Session: $120 (Targeted myofascial work)
+- Full Metabolic Nutritional Consultation: $95 (Blood marker guidance)
+
+[PRACTICE POLICIES]
+- Disclaimer: Intake chat offers physical guidance, not an official medical diagnostic code.
+- Confidentiality: All medical facts shared remain strictly HIPAA-compliant.`,
     character_theme: 'professional',
     primary_cta: 'https://ragnarok.work/care-intake',
     interface_platform: 'Kiosk Agent',
@@ -309,18 +370,28 @@ Shop Policy: All work has a 12-month warranty. Same-day appointments available.`
       three_preset: 'cyber_sphere',
       three_speed: 0.6,
       three_wireframe: false,
-      three_particles: 1000
+      three_particles: 1000,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   },
   {
     id: 'penny-rsvp-planner',
-    business_description: 'Ragnarök Galactic Galas - Mega events, corporate parties, and theme weddings.',
-    main_role: 'RSVP coordinator managing ticket allocation and food preferences.',
-    uploaded_docs: `GALA DETAILS:
-- Corporate VIP Tickets: $150 (Includes open bar)
-- Group Booking Discount: 10% off for tables of 8
-- Menu: Classic Steakhouse, Atlantic Salmon, or Vegan Truffle Gnocchi.`,
+    business_description: '[YOUR AGENCY] - Corporate events & weddings. Example: Ragnarök Galactic Galas - managing premium theme weddings, stellar anniversaries, and high-tech company banquets.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Penny, a vibrant event ticketing organizer. Built to capture attendee headcount, meal preferences, and sell gala entries at: https://ragnarok.work/galactic-tickets',
+    uploaded_docs: `[GALA TICKETING TIERS]
+- Corporate VIP Entry Pass: $150 (Includes front-row table, premium open-bar pass)
+- Table Booking Bundle (8 Seats): $1,000 (Saves $200, includes dedicated waiter service)
+
+[GOURMET PLATED OPTIONS]
+- Option A: Roasted Filet Mignon (Truffle demi-glace, gold leaf garnish)
+- Option B: Pan-Seared Atlantic Salmon (Saffron butter, asparagus)
+- Option C: Hand-Rolled Vegan Truffle Gnocchi (Forest mushroom reduction)`,
     character_theme: 'mascot_cat',
     primary_cta: 'https://ragnarok.work/galactic-tickets',
     interface_platform: 'Event Planner Widget',
@@ -344,18 +415,27 @@ Shop Policy: All work has a 12-month warranty. Same-day appointments available.`
       three_preset: 'neon_core',
       three_speed: 1.5,
       three_wireframe: false,
-      three_particles: 1400
+      three_particles: 1400,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   },
   {
     id: 'devon-tech-onboard',
-    business_description: 'Cyberdyne Sandbox API - Sandbox environments and developer orchestration tools.',
-    main_role: 'Technical API support and developer workspace coordinator.',
-    uploaded_docs: `API SANDBOX LOG:
-- Sandbox Environment Access: Free
-- Paid Enterprise Nodes: $99/mo
-- Version: v3.1.2. CLI command: \`npm install ragnarok-sdk\``,
+    business_description: '[YOUR API DESK] - Developer SDKs & SaaS. Example: Cyberdyne Sandbox API - offering sandboxed environments, orchestration endpoints, and localized container testing consoles.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Devon, a zero-fluff developer API companion. Aimed at helping engineers initialize their free sandbox node immediately at: https://ragnarok.work/sandbox-onboard',
+    uploaded_docs: `[TECHNICAL DEVELOPER MANIFEST]
+- Sandbox API Environment: Free (Supports up to 5 concurrent stream pipelines)
+- High-Throughput Production Node: $99/month (SLA guaranteed at 99.99% runtime)
+- SDK Core Installation Command: \`npm install ragnarok-sdk\`
+
+[API VERIFICATION CRITERIA]
+- Developers must supply their active git email in-chat to auto-generate sandbox client keys.`,
     character_theme: 'minimalist_tech',
     primary_cta: 'https://ragnarok.work/sandbox-onboard',
     interface_platform: 'Presentation Agent Console',
@@ -379,18 +459,26 @@ Shop Policy: All work has a 12-month warranty. Same-day appointments available.`
       three_preset: 'quantum',
       three_speed: 1.8,
       three_wireframe: true,
-      three_particles: 2500
+      three_particles: 2500,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   },
   {
     id: 'olivia-viral-marketer',
-    business_description: 'Ragnarök Digital Growth - Instagram viral scripts, TikTok editing, and lead magnets.',
-    main_role: 'Assertive, growth-focused social strategist capturing call appointments.',
-    uploaded_docs: `GROWTH OFFERS:
-- Viral Hooks Audit: Free (3-point landing assessment)
-- Full Social Video Pipeline: $400/mo (Includes 15 custom reels)
-- Result Policy: 100% money-back growth guarantee.`,
+    business_description: '[YOUR STUDIO NAME] - Social growth & marketing. Example: Ragnarök Digital Growth - providing viral Hooks auditing, Instagram video editing pipelines, and direct social funnel conversion maps.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Olivia, an aggressive social growth specialist. Designed to capture call schedules for organic hooks auditing at: https://ragnarok.work/growth-call',
+    uploaded_docs: `[GROWTH OPTIMIZER SERVICES]
+- Diagnostic Social Hooks Audit: FREE (3-point retention review of your recent reels)
+- Full Social Video Retainer: $400/month (Includes editing 15 highly stylized short video reels)
+
+[OUR REFUND GUARANTEE]
+- Guarantee: If your organic audience retention doesn't expand by 25% in 45 days, you receive a complete refund. No exceptions.`,
     character_theme: 'mascot_cat',
     primary_cta: 'https://ragnarok.work/growth-call',
     interface_platform: 'Instagram Direct Desk',
@@ -414,18 +502,28 @@ Shop Policy: All work has a 12-month warranty. Same-day appointments available.`
       three_preset: 'cyber_sphere',
       three_speed: 1.4,
       three_wireframe: false,
-      three_particles: 1200
+      three_particles: 1200,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   },
   {
     id: 'chloe-beauty-advisor',
-    business_description: 'Gloss & Glow Boutique - Vegan cosmetics, organic serums, and custom beauty kits.',
-    main_role: 'Cheerful makeup and skincare guide coordinating custom kit orders.',
-    uploaded_docs: `GLOW CATALOG:
-- Hydra-Glow Face Serum: $38
-- Custom Lip Gloss Kit: $29 (Pick 3 vegan shades)
-- Shipping: Free on orders $50+. Use coupon GLOW10 for 10% off.`,
+    business_description: '[YOUR BRAND NAME] - Vegan cosmetics & spa kits. Example: Gloss & Glow Boutique - offering clean botanical skin serums, custom mineral lip kits, and eco-certified facial clays.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Chloe, a bubbly beauty advisor. Built to suggest specific cosmetic pairings and send shoppers to buy with coupon GLOW10 at: https://ragnarok.work/shop-makeup',
+    uploaded_docs: `[THE GLOW RETAIL SELECTION]
+- Botanical Hydra-Glow Face Serum: $38 (Cold-pressed organic ingredients)
+- Customizable Vegan Lip Gloss Kit: $29 (Allows you to choose any 3 matte/satin shades)
+- Hydrating Rosewater Facial Spritz: $18 (Aromatherapeutic properties)
+
+[PROMOTION CODE]
+- Discount Code GLOW10: Enter at checkout to save an instant 10% on your cosmetic kit order.
+- Free Shipping: Automatically applied to all shopping carts totaling $50 or more.`,
     character_theme: 'mascot_cat',
     primary_cta: 'https://ragnarok.work/shop-makeup',
     interface_platform: 'Shopify Checkout Bot',
@@ -449,18 +547,27 @@ Shop Policy: All work has a 12-month warranty. Same-day appointments available.`
       three_preset: 'neon_core',
       three_speed: 1.0,
       three_wireframe: false,
-      three_particles: 1100
+      three_particles: 1100,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   },
   {
     id: 'dante-table-host',
-    business_description: 'Vesuvio Ristorante - High-end Italian cuisine, private chef sessions, and wine cellars.',
-    main_role: 'Polite reservation concierge validating dining slots.',
-    uploaded_docs: `VESUVIO SPECS:
-- Dinner Reservation: Require $25 holding deposit (Credited to bill)
-- Chef Specialty: Handmade Black Truffle Gnocchi ($34)
-- Wine Tasting Flight: $45 (5 reserve Tuscan vintages)`,
+    business_description: '[YOUR RESTAURANT] - High-end dining. Example: Vesuvio Ristorante - hosting handcrafted reserve pastas, candlelit wine cellars, and private Michelin-star chef events.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Dante, an elegant Maitre D. Dedicated to confirming dinner reservations and securing tables at: https://ragnarok.work/vesuvio-book',
+    uploaded_docs: `[RESERVATION POLICIES]
+- Dining Table Hold: Requires a $25 deposit per party (Fully credited back on your final bill)
+- Dress Code: Upscale casual. Jackets recommended for wine tasting events.
+
+[SIGNATURE HOUSE SPECIALS]
+- Handmade Wild Black Truffle Gnocchi: $34 (Served in imported Pecorino Romano wheel)
+- Reserve Tuscan Wine Tasting Flight: $45 (5 premium vintages, guided by in-house Sommelier)`,
     character_theme: 'professional',
     primary_cta: 'https://ragnarok.work/vesuvio-book',
     interface_platform: 'WhatsApp Table Desk',
@@ -484,18 +591,27 @@ Shop Policy: All work has a 12-month warranty. Same-day appointments available.`
       three_preset: 'hologram',
       three_speed: 0.6,
       three_wireframe: true,
-      three_particles: 700
+      three_particles: 700,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   },
   {
     id: 'nova-crypto-companion',
-    business_description: 'Zephyr Web3 Advisory - Automated token audits, blockchain scaling, and yield analyses.',
-    main_role: 'High-tech advisory bot securing custom consultation bookings.',
-    uploaded_docs: `BLOCKCHAIN MEMORY:
-- Fast Gas Optimizations: Free
-- Security Token Smart Audit: $1,200
-- Node Address: Zephyr Mainnet Core`,
+    business_description: '[YOUR PROTOCOL] - Web3, audits & scaling. Example: Zephyr Web3 Advisory - performing automated Solidity smart contract audits, gas cost tuning, and liquidity routing.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Nova, an advanced ledger companion. Built to handle client onboarding for fast Security Smart Audits at: https://ragnarok.work/crypto-advise',
+    uploaded_docs: `[ZEPHYR PROTOCOL TIERS]
+- Automated Smart Contract Audit: $1,200 (Full vulnerability report & re-entrancy scan)
+- Low-Gas Execution Diagnostic: Free (Analyzes loop optimizations & memory maps)
+
+[LEDGER DETAILS]
+- Node Address: zephyr-mainnet-core-v2
+- Whitelist Application: Wallet signature verified upon booking your consultation block.`,
     character_theme: 'minimalist_tech',
     primary_cta: 'https://ragnarok.work/crypto-advise',
     interface_platform: 'SMS Blockchain Feed',
@@ -519,18 +635,26 @@ Shop Policy: All work has a 12-month warranty. Same-day appointments available.`
       three_preset: 'quantum',
       three_speed: 1.6,
       three_wireframe: false,
-      three_particles: 1800
+      three_particles: 1800,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1642543492481-44e81e3914a7?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1642543492481-44e81e3914a7?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   },
   {
     id: 'bruce-legal-advisor',
-    business_description: 'Apex Injury Counsel - Personal injury, accident claims, and corporate legal services.',
-    main_role: 'Direct legal intake coordinator validating case merit.',
-    uploaded_docs: `APEX COUNSEL RULES:
-- Initial Legal Review: Free (No-win, no-fee structures available)
-- Working Hours: Mon-Fri 8AM - 8PM.
-- Disclaimer: Intake does not form official attorney-client relationship.`,
+    business_description: '[YOUR PRACTICE] - Personal injury & counsel. Example: Apex Injury Counsel - offering case assessments, accident claim representation, and corporate arbitration counsel.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Bruce, a reassuring and direct legal intake coordinator. Aimed at qualifying case details and scheduling attorney evaluations at: https://ragnarok.work/legal-case',
+    uploaded_docs: `[APEX LEGAL POLICIES]
+- Initial Diagnostic Case Assessment: FREE (No attorney-client fee unless we settle successfully)
+- Standard Operating Hours: Mon-Fri 8:00 AM - 8:00 PM.
+
+[INTAKE DISCLAIMER]
+- Disclaimer: This informational intake session does not form an official attorney-client relationship. All submitted accident details are entirely protected and confidential.`,
     character_theme: 'professional',
     primary_cta: 'https://ragnarok.work/legal-case',
     interface_platform: 'SMS Legal Intake',
@@ -551,106 +675,177 @@ Shop Policy: All work has a 12-month warranty. Same-day appointments available.`
       avatar_image: '/roscoe-logo.png',
       calm_video: '/customer-calm.mp4',
       active_video: '/customer-run.mp4',
-      three_preset: 'cyber_sphere',
-      three_speed: 0.7,
-      three_wireframe: true,
-      three_particles: 600
+      three_preset: 'hologram',
+      three_speed: 0.5,
+      three_wireframe: false,
+      three_particles: 1000,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   },
   {
     id: 'elena-lingua-coach',
-    business_description: 'Verba Academy - Custom Spanish, French, and Japanese conversational tutoring.',
-    main_role: 'Playful language tutor capturing schedule trial requests.',
-    uploaded_docs: `VERBA PLANS:
-- First Demo Session: Free (20 minutes live Zoom assessment)
-- Weekly Conversational Plan: $35/hr
-- Support: Lifetime workbook access included.`,
-    character_theme: 'mascot_cat',
-    primary_cta: 'https://ragnarok.work/speak-now',
-    interface_platform: 'SMS Learning Feed',
+    business_description: '[YOUR ACADEMY] - Language tutoring. Example: Global Lingua Academy - specialized Spanish fluency coaching, corporate business French, and conversational Mandarin.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Elena, a warm linguistic coach. Built to test user speaking levels and direct them to claim their first free speaking assessment at: https://ragnarok.work/lingua-trial',
+    uploaded_docs: `[GLOBAL ACADEMY SERVICES]
+- Speaking Assessment & level placement: FREE (15-minute diagnostic session with native speaker)
+- Small Group Conversational Workshop: $120/month (Includes 4 live weekend speaking panels)
+- 1-on-1 Accelerated Fluency Retainer: $250/month (Bespeak vocabulary curriculum)
+
+[HOURS OF TUTORING]
+- Online Portals: Active 24/7. Native coaches schedule live workshops between 6:00 AM and 10:00 PM EST.`,
+    character_theme: 'professional',
+    primary_cta: 'https://ragnarok.work/lingua-trial',
+    interface_platform: 'Website Floating Help',
     target_industry: 'Education & Tutoring',
     bot_profile: {
-      name: 'Elena - Lingua Guide',
-      avatar_url: '/cooper-logo.png',
-      system_instruction: 'You are Elena, a friendly and warm conversational language guide. Your tone is supportive, energetic, and playful. Offer the free demo Zoom assessment. Steer them to book at https://ragnarok.work/speak-now. NEVER reveal you are an AI. Max response: 2 cheering sentences.'
+      name: 'Elena - Lingua Coach',
+      avatar_url: '/scarycats.png',
+      system_instruction: 'You are Elena, a native language tutor. Your tone is warm, encouraging, educational, and polite. Pitch the Free Placement Session. Encourage booking at https://ragnarok.work/lingua-trial. NEVER mention AI. Answer limit: 2 warm sentences.'
     },
     ui_configuration: {
       layout_style: 'floating_bubble',
-      primary_color: '#f59e0b',
-      secondary_color: '#fef3c7',
+      primary_color: '#059669',
+      secondary_color: '#ecfdf5',
       font_family: 'sans-serif',
-      welcome_message: 'Salut! ¡Hola! 🌟 Elena here. Let\'s conquer a new language! Ready to book your free conversational live demo session?',
-      bot_style: 'visual_media',
-      media_type: 'video',
-      avatar_image: '/cooper-logo.png',
-      calm_video: '/jobs-calm.mp4',
-      active_video: '/jobs-buff.mp4',
+      welcome_message: '¡Hola! Elena here. 🌎 Ready to unlock confident conversational speaking? Let\'s book a free level assessment today!',
+      bot_style: '3d_animated',
+      media_type: 'image',
+      avatar_image: '/scarycats.png',
+      calm_video: '/customer-calm.mp4',
+      active_video: '/customer-run.mp4',
       three_preset: 'cyber_sphere',
-      three_speed: 1.1,
+      three_speed: 0.8,
       three_wireframe: false,
-      three_particles: 1000
+      three_particles: 900,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   },
   {
     id: 'jasper-hops-brewer',
-    business_description: 'Copper Pot Craft Brewery - IPA flights, seasonal craft lager, and weekly brewery tours.',
-    main_role: 'Friendly tavern mascot prompting tasting slot reservations.',
-    uploaded_docs: `POT BREWS:
-- Weekend Tavern Tour: $15 (Includes free pint)
-- Master Class IPA Flight: $20 (4 select vats)
-- Address: 808 Yeast Lane. Open Wed-Sun.`,
+    business_description: '[YOUR TAPROOM] - Brewery & tavern. Example: Ragnarök Crafted Brewing - premium organic double IPAs, copper-tank micro-brews, and reservation-only tasting cellars.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Jasper, an enthusiastic microbrewery representative. Dedicated to detailing our custom draft selections and driving tour booking at: https://ragnarok.work/brew-tour',
+    uploaded_docs: `[TAPROOM ROTATING DRAFTS]
+- Hazy Cosmic Double IPA: $7.50 / pint (Double-dry hopped with Galaxy)
+- Blackwood Nitro Stout: $8.00 / pint (Smooth dark roasted chocolate malt)
+- Imperial Seltzer (Wild Raspberry): $6.50 / glass
+
+[TASTING CELLAR TOURS]
+- Weekend Brewery Flight Experience: $35/person (Includes guided tour of copper fermentation tanks, 6 custom flight samples, and custom pint glass souvenir)
+- Reservation policy: Advance tour bookings required.`,
     character_theme: 'mascot_cat',
-    primary_cta: 'https://ragnarok.work/beer-tour',
-    interface_platform: 'Kiosk Agent Widget',
-    target_industry: 'Food & Beverage',
+    primary_cta: 'https://ragnarok.work/brew-tour',
+    interface_platform: 'Tavern Help Widget',
+    target_industry: 'Craft Brewing',
     bot_profile: {
-      name: 'Jasper - Brewmaster Mascot',
+      name: 'Jasper - Brew Scout',
       avatar_url: '/gangstercats.png',
-      system_instruction: 'You are Jasper, a rustic brewmaster mascot. Tone is warm, cheerful, and filled with old tavern puns. Weekend tour is $15, flights are $20. Direct clients to book brewery tours at https://ragnarok.work/beer-tour. NEVER mention AI. Answer length: 2 brief sentences max.'
+      system_instruction: 'You are Jasper, a rustic craft brew scout. Your tone is hearty, informal, and deeply passionate about IPAs and stouts. Pitch the $35 Tasting Flight. Urge booking a weekend tour slot at https://ragnarok.work/brew-tour. NEVER mention you are an AI. Answer limit: 2 brief lines.'
     },
     ui_configuration: {
-      layout_style: 'inline_card',
+      layout_style: 'floating_bubble',
       primary_color: '#d97706',
       secondary_color: '#fffbeb',
       font_family: 'monospace',
-      welcome_message: 'Cheers friend! 🍻 Jasper here! Ready to tour our fermentation copper pots and reserve a fresh, cold craft pint?',
+      welcome_message: 'Welcome to the taproom! Jasper here. 🍻 Ready to scan our active draft list or lock in a weekend copper tank tour flight?',
       bot_style: 'visual_media',
       media_type: 'video',
       avatar_image: '/gangstercats.png',
-      calm_video: '/garage-calm.mp4',
-      active_video: '/garage-run.mp4',
+      calm_video: '/jobs-calm.mp4',
+      active_video: '/jobs-buff.mp4',
       three_preset: 'neon_core',
       three_speed: 1.2,
       three_wireframe: false,
-      three_particles: 1200
+      three_particles: 1000,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1584225065152-4a1454aa3d4e?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1584225065152-4a1454aa3d4e?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   },
   {
     id: 'sienna-concierge-luxury',
-    business_description: 'Grand Ritz Bay Hotel - Five-star resort bookings, rooftop spas, and yacht charts.',
-    main_role: 'Elite, high-end concierge advisor arranging reservations.',
-    uploaded_docs: `RITZ OPTIONS:
-- Bay Penthouse Suite: $650/night
-- Rooftop Thermal Spa Session: $180
-- Yacht Cruise (Private Crew): $900 half-day`,
+    business_description: '[YOUR RESORT NAME] - Grand hotel & spa. Example: Zenith Sands Grand Resort - offering luxury oceanfront suites, marble-lined Turkish hammams, and private boat charters.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Sienna, an elite luxury resort concierge. Aimed at securing custom wellness appointments and booking suites at: https://ragnarok.work/zenith-suites',
+    uploaded_docs: `[ZENITH SELECTION TARIFF]
+- Oceanfront King Sanctuary: $550/night (Includes private sunset balcony & butler service)
+- Hammam Thermal Spa Session (90-Min): $180 (Full Turkish salt scrubs & massage)
+
+[CONCIERGE DESK HOURLY DETAILS]
+- Front lobby concierge is manned 24 hours. Yacht charters require 48 hours notice.
+- Booking: Reservation coordinator link mandatory to lock in premium spa times.`,
     character_theme: 'professional',
-    primary_cta: 'https://ragnarok.work/ritz-booking',
-    interface_platform: 'Web Side Panel',
-    target_industry: 'Resort Hospitality',
+    primary_cta: 'https://ragnarok.work/zenith-suites',
+    interface_platform: 'Lobby Kiosk Widget',
+    target_industry: 'Luxury Hotel Concierge',
     bot_profile: {
-      name: 'Sienna - Ritz Concierge',
+      name: 'Sienna - Luxury Concierge',
       avatar_url: '/roscoe-logo.png',
-      system_instruction: 'You are Sienna, the elite Ritz hotel concierge. Tone is highly formal, sophisticated, and polished. Penthouse is $650, spa is $180, Yacht is $900. Direct VIP guests to book stays or spas at https://ragnarok.work/ritz-booking. Request their premium contact coordinates. NEVER mention AI. Limit: 2 elegant sentences.'
+      system_instruction: 'You are Sienna, the elite hospitality assistant representing Zenith Sands. Your tone is prestigious, formal, refined, and helpful. Pitch the King Suite ($550/night) or Spa ($180). Direct guests to reserve slots at https://ragnarok.work/zenith-suites. NEVER mention AI. Answer limit: 2 polite sentences.'
     },
     ui_configuration: {
       layout_style: 'side_panel',
       primary_color: '#0f172a',
-      secondary_color: '#e2e8f0',
+      secondary_color: '#f8fafc',
       font_family: 'Georgia, serif',
-      welcome_message: 'Welcome to Grand Ritz Resort. I am Sienna, your dedicated concierge advisor. May I arrange a spa package or Penthouse reservation for your calendar today?',
+      welcome_message: 'Greetings from Zenith Sands Grand Resort. I am Sienna. May I assist with booking an oceanfront suite or a therapeutic thermal spa session today?',
+      bot_style: 'classic',
+      media_type: 'image',
+      avatar_image: '/roscoe-logo.png',
+      calm_video: '/customer-calm.mp4',
+      active_video: '/customer-run.mp4',
+      three_preset: 'hologram',
+      three_speed: 0.6,
+      three_wireframe: false,
+      three_particles: 1000,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
+    },
+    embed_code_snippet: ''
+  },
+  {
+    id: 'liam-loan-advisor',
+    business_description: '[YOUR FINANCE GROUP] - Mortgages & equity. Example: Apex Capital Partners - offering fixed-rate home mortgages, equity release counseling, and bridge lending structures.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Liam, an assertive commercial loan officer. Built to qualifying income bounds and schedule home evaluations at: https://ragnarok.work/apex-lend',
+    uploaded_docs: `[CAPITAL LENDING SCHEME]
+- Initial Equity & Loan Diagnostic: FREE (30-minute review of active financial assets)
+- Commercial Mortgage Rates: Floating (Dependent on credit scores and asset reserves)
+
+[COMPLIANCE DISCLOSURE]
+- Disclaimer: This pre-approval intake qualifies credit intent; it does not constitute an official underwriting contract. Financial data is held fully confidential.`,
+    character_theme: 'professional',
+    primary_cta: 'https://ragnarok.work/apex-lend',
+    interface_platform: 'SMS Lending Desk',
+    target_industry: 'Mortgage & Finance',
+    bot_profile: {
+      name: 'Liam - Capital Advisor',
+      avatar_url: '/roscoe-logo.png',
+      system_instruction: 'You are Liam, a direct finance and loan officer. Your tone is corporate, direct, and reassuring. Offer a Free Equity Diagnostic. Urge clients to secure their review slot at https://ragnarok.work/apex-lend. Request their credit bracket. NEVER declare you are an AI. Limit output to 2 sentences.'
+    },
+    ui_configuration: {
+      layout_style: 'side_panel',
+      primary_color: '#1e3a8a',
+      secondary_color: '#e2e8f0',
+      font_family: 'sans-serif',
+      welcome_message: 'Apex Capital Partners. Liam here. May I pre-qualify your credit coordinates and book a free equity diagnostic session today?',
       bot_style: 'classic',
       media_type: 'image',
       avatar_image: '/roscoe-logo.png',
@@ -659,94 +854,76 @@ Shop Policy: All work has a 12-month warranty. Same-day appointments available.`
       three_preset: 'hologram',
       three_speed: 0.5,
       three_wireframe: false,
-      three_particles: 1100
-    },
-    embed_code_snippet: ''
-  },
-  {
-    id: 'liam-loan-advisor',
-    business_description: 'Ragnarök Capital Home Mortgages - First-time home buyer, equity refinances, and rate locks.',
-    main_role: 'Structured mortgage officer matching client credit with appointment booking.',
-    uploaded_docs: `CAPITAL INFO:
-- Rates Assessment: Free (Includes fast pre-approval checks)
-- Requirements: Minimally 580 FICO score recommended
-- Rate Lock Guarantee: Secure current index up to 45 days.`,
-    character_theme: 'professional',
-    primary_cta: 'https://ragnarok.work/loan-lock',
-    interface_platform: 'SMS In-App Panel',
-    target_industry: 'Mortgage Finance',
-    bot_profile: {
-      name: 'Liam - Loan Officer',
-      avatar_url: '/roscoe-logo.png',
-      system_instruction: 'You are Liam, a structured mortgage loan officer. Your tone is reassuring, factual, clear, and highly professional. Guide clients to schedule a free rate lock check at https://ragnarok.work/loan-lock and gather FICO coordinates. NEVER mention AI. Limit responses to 2 sentences.'
-    },
-    ui_configuration: {
-      layout_style: 'inline_card',
-      primary_color: '#1e3a8a',
-      secondary_color: '#f8fafc',
-      font_family: 'sans-serif',
-      welcome_message: 'Hello. Secure Mortgages. Liam here. May I coordinate your pre-approval check or lock in your residential interest rate target?',
-      bot_style: 'classic',
-      media_type: 'image',
-      avatar_image: '/roscoe-logo.png',
-      calm_video: '/customer-calm.mp4',
-      active_video: '/customer-run.mp4',
-      three_preset: 'cyber_sphere',
-      three_speed: 0.8,
-      three_wireframe: true,
-      three_particles: 500
+      three_particles: 800,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   },
   {
     id: 'kira-presentation-pilot',
-    business_description: 'Ragnarök Webinar Series - Professional startup founders, slide templates, and speaking courses.',
-    main_role: 'Playful speaker assistant driving webinar registrations.',
-    uploaded_docs: `WEBINAR SCHEDULES:
-- Founder Pitch Deck Secrets: $45 (Live webinar session)
-- Full Startup Bootcamp Pass: $290 (Includes 8 lectures)
-- Ticket Policy: 100% money-back guarantee.`,
-    character_theme: 'mascot_cat',
-    primary_cta: 'https://ragnarok.work/webinar-pitch',
-    interface_platform: 'Presentation Agent Console',
-    target_industry: 'Webinar Education',
+    business_description: '[YOUR STUDIO NAME] - Pitch consulting & SaaS. Example: Stellar Slide Labs - designing venture capital pitch decks, startup narrative workshops, and interactive media styling.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Kira, a high-tech startup slide coach. Designed to capture presentation pain points and book strategy audits at: https://ragnarok.work/slide-audit',
+    uploaded_docs: `[PRESENTATION ADVISORY SERVICES]
+- Venture Capital Deck Audit: FREE (3-slide analytical review of your investor traction)
+- Complete Series A Slide Retainer: $1,500 (Includes fully customized typography, templates, and script support)
+
+[GUARANTEED RESPONSE TIMELINE]
+- Audit results are delivered to your registration email address within 24 business hours.`,
+    character_theme: 'minimalist_tech',
+    primary_cta: 'https://ragnarok.work/slide-audit',
+    interface_platform: 'SaaS Pitch Consultant',
+    target_industry: 'Pitch Deck Consulting',
     bot_profile: {
-      name: 'Kira - Webinar Assist',
-      avatar_url: '/cooper-logo.png',
-      system_instruction: 'You are Kira, a cheerful startup presentation pilot. Your tone is engaging, modern, and highly persuasive. Webinar is $45, bootcamp pass is $290. Drive guests to check out ticket reservation nodes at https://ragnarok.work/webinar-pitch. NEVER mention AI. Keep response under 3 sentences.'
+      name: 'Kira - Pitch Deck Pilot',
+      avatar_url: '/scarycats.png',
+      system_instruction: 'You are Kira, a modern, highly focused pitch deck consultant. Your tone is smart, ambitious, futuristic, and highly direct. Pitch the Free Deck Audit. Direct founders to register at https://ragnarok.work/slide-audit. NEVER mention AI. Answer limit: 2 concise lines max.'
     },
     ui_configuration: {
-      layout_style: 'floating_bubble',
-      primary_color: '#0ea5e9',
-      secondary_color: '#f0f9ff',
-      font_family: 'sans-serif',
-      welcome_message: 'Pitch perfect! 🌟 Kira here. Ready to secure your private startup deck secrets webinar ticket and launch your venture?',
-      bot_style: 'visual_media',
-      media_type: 'video',
-      avatar_image: '/cooper-logo.png',
-      calm_video: '/jobs-calm.mp4',
-      active_video: '/jobs-buff.mp4',
+      layout_style: 'inline_card',
+      primary_color: '#4f46e5',
+      secondary_color: '#1e1b4b',
+      font_family: 'monospace',
+      welcome_message: 'SaaS Pitch Hub. Kira online. Ready to evaluate your investor slide decks and claim a free VC design audit?',
+      bot_style: '3d_animated',
+      media_type: 'image',
+      avatar_image: '/scarycats.png',
+      calm_video: '/vehicle-calm.mp4',
+      active_video: '/vehicle-run.mp4',
       three_preset: 'quantum',
       three_speed: 1.4,
-      three_wireframe: false,
-      three_particles: 1300
+      three_wireframe: true,
+      three_particles: 1500,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1431540015161-0bf868a2d407?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1431540015161-0bf868a2d407?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   },
   {
     id: 'finn-vet-helper',
-    business_description: 'Paws & Whiskers Animal Clinic - General pet wellness, vaccination rounds, and urgent dental work.',
-    main_role: 'Friendly clinic coordinator matching pets with appointment schedules.',
-    uploaded_docs: `VET SCHEDULING:
-- First Kitten/Puppy Checkup: $49
-- Annual Core Rabies Vaccine: $35
-- Emergency policy: Call 911-PETS immediately if critical.`,
-    character_theme: 'mascot_cat',
+    business_description: '[YOUR CLINIC NAME] - Veterinarian & checkups. Example: Happy Tails Vet Hospital - specializing in gentle routine wellness exams, puppy vaccines, and general pet surgery diagnostics.',
+    main_role: '[BOT IDENTITY & CTA GOAL] Example: Finn, a warm, compassionate veterinary helper. Built to manage patient inquiries and drive checkup schedules at: https://ragnarok.work/pet-vet',
+    uploaded_docs: `[HOSPITAL CHECKUP FEES]
+- General Canine/Feline Wellness Exam: $49 (Includes ears, joints, and dental review)
+- Rabies & Core Canine Vaccine combo: $35 (Certified vet records supplied)
+- Microchip Registration & Placement: $25 (Lifetime online records database)
+
+[EMERGENCY MEDICAL CONTACTS]
+- Address: 100 Veterinary Avenue. Emergency room operates 24/7. Phone: 555-0211.`,
+    character_theme: 'professional',
     primary_cta: 'https://ragnarok.work/pet-vet',
-    interface_platform: 'Web Kiosk Agent',
-    target_industry: 'Veterinary Medicine',
+    interface_platform: 'Website Funnel Widget',
+    target_industry: 'Healthcare & Vet',
     bot_profile: {
-      name: 'Finn - Vet Assistant',
+      name: 'Finn - Clinic Mascot',
       avatar_url: '/cooper-logo.png',
       system_instruction: 'You are Finn, a friendly and compassionate pet clinic assistant. Tone is warm, animal-loving, and supportive. Checkups are $49, rabies vaccine is $35. Urge pet parents to book a care slot at https://ragnarok.work/pet-vet. Provide emergency notes. NEVER mention AI. Answer limit: 2 warm sentences.'
     },
@@ -764,7 +941,13 @@ Shop Policy: All work has a 12-month warranty. Same-day appointments available.`
       three_preset: 'cyber_sphere',
       three_speed: 1.0,
       three_wireframe: false,
-      three_particles: 1100
+      three_particles: 1100,
+      chat_bg_type: 'image',
+      chat_bg_val: 'https://images.unsplash.com/photo-1584132967334-10e028bd69f7?auto=format&fit=crop&w=600&q=80',
+      chat_bg_opacity: 20,
+      three_bg_type: 'image',
+      three_bg_val: 'https://images.unsplash.com/photo-1584132967334-10e028bd69f7?auto=format&fit=crop&w=600&q=80',
+      three_bg_opacity: 85
     },
     embed_code_snippet: ''
   }
@@ -774,7 +957,13 @@ export default function AiChatBotView() {
   const [savedBots, setSavedBots] = useState<ChatBotConfig[]>(() => {
     const saved = localStorage.getItem('ragnarok_custom_chat_bots');
     if (saved) {
-      try { return JSON.parse(saved); } catch {}
+      try {
+        const parsed = JSON.parse(saved) as ChatBotConfig[];
+        // Safely filter out old cached factory presets to display our new realistic templates
+        const customBots = parsed.filter(b => !PERSONAS_20.some(p => p.id === b.id));
+        // Merge the latest premium factory templates with any user-created templates
+        return [...PERSONAS_20, ...customBots];
+      } catch {}
     }
     return PERSONAS_20;
   });
@@ -1810,7 +1999,7 @@ function clearSession() {
                   </div>
                 </div>
 
-                {!PERSONAS_20.some(p => p.id === b.id) && (
+                {!PERSONAS_20.some(p => p.id === b.id) ? (
                   <button
                     type="button"
                     onClick={(e) => handleDeleteBot(b.id, e)}
@@ -1819,6 +2008,13 @@ function clearSession() {
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
+                ) : (
+                  <div 
+                    className="p-1 -mr-1 -mt-1 text-slate-300/80 hover:text-slate-400 transition" 
+                    title="Factory Preset Template (Non-Deletable)"
+                  >
+                    <Lock className="w-3 h-3" />
+                  </div>
                 )}
               </div>
               <div className="flex items-center justify-between text-[8px] font-mono text-slate-500 border-t border-slate-100 pt-1.5 mt-1.5">
