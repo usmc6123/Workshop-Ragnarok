@@ -67,6 +67,33 @@ export type UnknownPage = {
 export type ParsedPage = CategoryPage | ContentPage | UnknownPage;
 export type PageResponse = ParsedPage; // alias for client compatibility
 
+export interface Tag {
+  id: number;
+  user_id?: number;
+  name: string;
+  color: string;
+  created_at?: string;
+}
+
+export interface SegmentFilters {
+  tagIds: number[];
+  tagMatch: 'any' | 'all';
+  hasEmail?: boolean;
+  hasPhone?: boolean;
+  lastVisitBeforeDays?: number;
+  lastVisitAfterDays?: number;
+}
+
+export interface Segment {
+  id: number;
+  user_id?: number;
+  name: string;
+  filters_json: string;
+  filters?: SegmentFilters;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // --- AUTO TECHNICIAN CRM TYPES ---
 
 export interface Customer {
@@ -79,6 +106,7 @@ export interface Customer {
   created_at?: string;
   vehicle_count?: number;
   last_visit?: string;
+  tags?: Tag[];
 }
 
 export interface CustomerVehicle {

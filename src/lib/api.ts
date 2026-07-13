@@ -8,7 +8,7 @@ import {
   ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual, ShopSettings, JobPhoto,
   InventoryItem, WorkOrderPart, Service, JobService, Receipt, EmailTemplate, EmailSent, EmailReceived,
   JobNote, JobNoteAttachment, Funnel, PublicFunnel, FunnelLead, SmsMessage,
-  Site, PublicSite, SiteBlock, SiteMessage
+  Site, PublicSite, SiteBlock, SiteMessage, Tag, Segment, SegmentFilters
 } from '../types';
 
 import { 
@@ -539,6 +539,169 @@ export const api = {
         const appointments = getSimulatedAppointments();
         saveSimulatedAppointments(appointments.filter(a => a.customer_id !== id));
         return { success: true };
+      }
+      throw err;
+    }
+  },
+
+  // --- TAGS & SEGMENTS ---
+  async getTags(): Promise<Tag[]> {
+    try {
+      return await request<Tag[]>('/api/tags');
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return [];
+      }
+      throw err;
+    }
+  },
+
+  async addTag(tag: { name: string; color: string }): Promise<Tag> {
+    try {
+      return await request<Tag>('/api/tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tag)
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return { id: Date.now(), name: tag.name, color: tag.color };
+      }
+      throw err;
+    }
+  },
+
+  async updateTag(id: number, tag: Partial<Tag>): Promise<Tag> {
+    try {
+      return await request<Tag>(`/api/tags/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tag)
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return { id, name: tag.name || '', color: tag.color || '' };
+      }
+      throw err;
+    }
+  },
+
+  async deleteTag(id: number): Promise<{ success: boolean }> {
+    try {
+      return await request<{ success: boolean }>(`/api/tags/${id}`, {
+        method: 'DELETE'
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return { success: true };
+      }
+      throw err;
+    }
+  },
+
+  async addCustomerTag(customerId: number, tagId: number): Promise<{ success: boolean }> {
+    try {
+      return await request<{ success: boolean }>(`/api/customers/${customerId}/tags`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag_id: tagId })
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return { success: true };
+      }
+      throw err;
+    }
+  },
+
+  async deleteCustomerTag(customerId: number, tagId: number): Promise<{ success: boolean }> {
+    try {
+      return await request<{ success: boolean }>(`/api/customers/${customerId}/tags/${tagId}`, {
+        method: 'DELETE'
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return { success: true };
+      }
+      throw err;
+    }
+  },
+
+  async getSegments(): Promise<Segment[]> {
+    try {
+      return await request<Segment[]>('/api/segments');
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return [];
+      }
+      throw err;
+    }
+  },
+
+  async addSegment(segment: { name: string; filters: SegmentFilters }): Promise<Segment> {
+    try {
+      return await request<Segment>('/api/segments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(segment)
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return { id: Date.now(), name: segment.name, filters_json: JSON.stringify(segment.filters), filters: segment.filters };
+      }
+      throw err;
+    }
+  },
+
+  async updateSegment(id: number, segment: { name?: string; filters?: SegmentFilters }): Promise<Segment> {
+    try {
+      return await request<Segment>(`/api/segments/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(segment)
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return { id, name: segment.name || '', filters_json: JSON.stringify(segment.filters || {}), filters: segment.filters };
+      }
+      throw err;
+    }
+  },
+
+  async deleteSegment(id: number): Promise<{ success: boolean }> {
+    try {
+      return await request<{ success: boolean }>(`/api/segments/${id}`, {
+        method: 'DELETE'
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return { success: true };
+      }
+      throw err;
+    }
+  },
+
+  async getSegmentCustomers(id: number): Promise<Customer[]> {
+    try {
+      return await request<Customer[]>(`/api/segments/${id}/customers`);
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return [];
+      }
+      throw err;
+    }
+  },
+
+  async previewSegment(filters: SegmentFilters): Promise<{ count: number; customers: Customer[] }> {
+    try {
+      return await request<{ count: number; customers: Customer[] }>('/api/segments/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filters })
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return { count: 0, customers: [] };
       }
       throw err;
     }

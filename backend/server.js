@@ -14,6 +14,7 @@ const os = require('os');
 const { execFile, spawn } = require('child_process');
 const multer = require('multer');
 const jwt = require('jsonwebtoken');
+const { resolveSegmentCustomers } = require('./segments');
 
 // Load environment variables
 require('dotenv').config();
@@ -1277,6 +1278,52 @@ try {
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  // --- PHASE 1: CONTACT TAGS & SEGMENTS ---
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        color TEXT DEFAULT '#6366f1',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, name)
+      )
+    `);
+    console.log('Successfully initialized tags table.');
+  } catch (err) {
+    console.error('Error creating tags table:', err);
+  }
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS customer_tags (
+        customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+        tag_id INTEGER REFERENCES tags(id) ON DELETE CASCADE,
+        PRIMARY KEY (customer_id, tag_id)
+      )
+    `);
+    console.log('Successfully initialized customer_tags table.');
+  } catch (err) {
+    console.error('Error creating customer_tags table:', err);
+  }
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS segments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        filters_json TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('Successfully initialized segments table.');
+  } catch (err) {
+    console.error('Error creating segments table:', err);
+  }
 
   try {
     db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_sites_subdomain ON sites(subdomain)`);
@@ -3558,6 +3605,27 @@ app.get('/api/customers', (req, res) => {
       ORDER BY c.name ASC
     `);
     const rows = stmt.all(req.user.id, req.user.id, req.user.id);
+    
+    // Fetch tags for these customers
+    const allCustomerTags = db.prepare(`
+      SELECT ct.customer_id, t.id, t.name, t.color
+      FROM customer_tags ct
+      JOIN tags t ON ct.tag_id = t.id
+      WHERE t.user_id = ?
+    `).all(req.user.id);
+
+    const tagsMap = {};
+    allCustomerTags.forEach(ct => {
+      if (!tagsMap[ct.customer_id]) {
+        tagsMap[ct.customer_id] = [];
+      }
+      tagsMap[ct.customer_id].push({ id: ct.id, name: ct.name, color: ct.color });
+    });
+
+    rows.forEach(row => {
+      row.tags = tagsMap[row.id] || [];
+    });
+
     res.json(rows);
   } catch (error) {
     console.error('Error fetching customers:', error);
@@ -3572,6 +3640,9 @@ app.post('/api/customers', (req, res) => {
     const stmt = db.prepare('INSERT INTO customers (name, phone, email, address, notes, user_id) VALUES (?, ?, ?, ?, ?, ?)');
     const info = stmt.run(name, phone, email, address, notes, req.user.id);
     const inserted = db.prepare('SELECT * FROM customers WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
+    if (inserted) {
+      inserted.tags = [];
+    }
     res.json(inserted);
   } catch (error) {
     console.error('Error creating customer:', error);
@@ -3587,6 +3658,15 @@ app.put('/api/customers/:id', (req, res) => {
     const info = stmt.run(name, phone, email, address, notes, id, req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: 'Customer not found' });
     const updated = db.prepare('SELECT * FROM customers WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (updated) {
+      const customerTags = db.prepare(`
+        SELECT t.id, t.name, t.color
+        FROM customer_tags ct
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE ct.customer_id = ? AND t.user_id = ?
+      `).all(id, req.user.id);
+      updated.tags = customerTags;
+    }
     res.json(updated);
   } catch (error) {
     console.error('Error updating customer:', error);
@@ -3610,6 +3690,212 @@ app.delete('/api/customers/:id', (req, res) => {
   } catch (error) {
     console.error('Error deleting customer:', error);
     res.status(500).json({ error: 'Database error deleting customer' });
+  }
+});
+
+// --- CUSTOMER TAGS & SEGMENTS (PHASE 1) ---
+
+app.get('/api/tags', (req, res) => {
+  try {
+    const tags = db.prepare('SELECT * FROM tags WHERE user_id = ? ORDER BY name ASC').all(req.user.id);
+    res.json(tags);
+  } catch (error) {
+    console.error('Error fetching tags:', error);
+    res.status(500).json({ error: 'Database error fetching tags' });
+  }
+});
+
+app.post('/api/tags', (req, res) => {
+  try {
+    const { name, color } = req.body;
+    if (!name) return res.status(400).json({ error: 'Tag name is required' });
+    
+    const existing = db.prepare('SELECT * FROM tags WHERE user_id = ? AND name = ?').get(req.user.id, name.trim());
+    if (existing) {
+      return res.status(400).json({ error: 'A tag with this name already exists' });
+    }
+
+    const stmt = db.prepare('INSERT INTO tags (user_id, name, color) VALUES (?, ?, ?)');
+    const info = stmt.run(req.user.id, name.trim(), color || '#6366f1');
+    const inserted = db.prepare('SELECT * FROM tags WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
+    res.json(inserted);
+  } catch (error) {
+    console.error('Error creating tag:', error);
+    res.status(500).json({ error: 'Database error creating tag' });
+  }
+});
+
+app.put('/api/tags/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = db.prepare('SELECT * FROM tags WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!existing) return res.status(404).json({ error: 'Tag not found' });
+
+    const name = 'name' in req.body ? req.body.name : existing.name;
+    const color = 'color' in req.body ? req.body.color : existing.color;
+
+    if (!name) return res.status(400).json({ error: 'Tag name cannot be empty' });
+
+    if (name.trim() !== existing.name) {
+      const duplicate = db.prepare('SELECT * FROM tags WHERE user_id = ? AND name = ? AND id != ?').get(req.user.id, name.trim(), id);
+      if (duplicate) {
+        return res.status(400).json({ error: 'A tag with this name already exists' });
+      }
+    }
+
+    db.prepare('UPDATE tags SET name = ?, color = ? WHERE id = ? AND user_id = ?').run(name.trim(), color, id, req.user.id);
+    const updated = db.prepare('SELECT * FROM tags WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating tag:', error);
+    res.status(500).json({ error: 'Database error updating tag' });
+  }
+});
+
+app.delete('/api/tags/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = db.prepare('SELECT * FROM tags WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!existing) return res.status(404).json({ error: 'Tag not found' });
+
+    db.prepare('DELETE FROM customer_tags WHERE tag_id = ?').run(id);
+    db.prepare('DELETE FROM tags WHERE id = ? AND user_id = ?').run(id, req.user.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting tag:', error);
+    res.status(500).json({ error: 'Database error deleting tag' });
+  }
+});
+
+app.post('/api/customers/:id/tags', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { tag_id } = req.body;
+
+    if (!tag_id) return res.status(400).json({ error: 'tag_id is required' });
+
+    const customer = db.prepare('SELECT id FROM customers WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+
+    const tag = db.prepare('SELECT id FROM tags WHERE id = ? AND user_id = ?').get(tag_id, req.user.id);
+    if (!tag) return res.status(404).json({ error: 'Tag not found' });
+
+    db.prepare('INSERT OR IGNORE INTO customer_tags (customer_id, tag_id) VALUES (?, ?)').run(id, tag_id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error adding tag to customer:', error);
+    res.status(500).json({ error: 'Database error adding tag to customer' });
+  }
+});
+
+app.delete('/api/customers/:id/tags/:tagId', (req, res) => {
+  try {
+    const { id, tagId } = req.params;
+
+    const customer = db.prepare('SELECT id FROM customers WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+
+    db.prepare('DELETE FROM customer_tags WHERE customer_id = ? AND tag_id = ?').run(id, tagId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error removing tag from customer:', error);
+    res.status(500).json({ error: 'Database error removing tag from customer' });
+  }
+});
+
+app.get('/api/segments', (req, res) => {
+  try {
+    const segments = db.prepare('SELECT * FROM segments WHERE user_id = ? ORDER BY name ASC').all(req.user.id);
+    segments.forEach(seg => {
+      seg.filters = JSON.parse(seg.filters_json || '{}');
+    });
+    res.json(segments);
+  } catch (error) {
+    console.error('Error fetching segments:', error);
+    res.status(500).json({ error: 'Database error fetching segments' });
+  }
+});
+
+app.post('/api/segments', (req, res) => {
+  try {
+    const { name, filters } = req.body;
+    if (!name) return res.status(400).json({ error: 'Segment name is required' });
+
+    const filters_json = JSON.stringify(filters || {});
+    const stmt = db.prepare('INSERT INTO segments (user_id, name, filters_json) VALUES (?, ?, ?)');
+    const info = stmt.run(req.user.id, name.trim(), filters_json);
+
+    const inserted = db.prepare('SELECT * FROM segments WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
+    if (inserted) {
+      inserted.filters = JSON.parse(inserted.filters_json || '{}');
+    }
+    res.json(inserted);
+  } catch (error) {
+    console.error('Error creating segment:', error);
+    res.status(500).json({ error: 'Database error creating segment' });
+  }
+});
+
+app.put('/api/segments/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = db.prepare('SELECT * FROM segments WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!existing) return res.status(404).json({ error: 'Segment not found' });
+
+    const name = 'name' in req.body ? req.body.name : existing.name;
+    const filters_json = 'filters' in req.body ? JSON.stringify(req.body.filters) : existing.filters_json;
+
+    if (!name) return res.status(400).json({ error: 'Segment name cannot be empty' });
+
+    db.prepare('UPDATE segments SET name = ?, filters_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?')
+      .run(name.trim(), filters_json, id, req.user.id);
+
+    const updated = db.prepare('SELECT * FROM segments WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (updated) {
+      updated.filters = JSON.parse(updated.filters_json || '{}');
+    }
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating segment:', error);
+    res.status(500).json({ error: 'Database error updating segment' });
+  }
+});
+
+app.delete('/api/segments/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const info = db.prepare('DELETE FROM segments WHERE id = ? AND user_id = ?').run(id, req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Segment not found' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting segment:', error);
+    res.status(500).json({ error: 'Database error deleting segment' });
+  }
+});
+
+app.get('/api/segments/:id/customers', (req, res) => {
+  try {
+    const { id } = req.params;
+    const segment = db.prepare('SELECT * FROM segments WHERE id = ? AND user_id = ?').get(id, req.user.id);
+    if (!segment) return res.status(404).json({ error: 'Segment not found' });
+
+    const filters = JSON.parse(segment.filters_json || '{}');
+    const customers = resolveSegmentCustomers(req.user.id, filters);
+    res.json(customers);
+  } catch (error) {
+    console.error('Error resolving segment customers:', error);
+    res.status(500).json({ error: 'Database error resolving segment customers' });
+  }
+});
+
+app.post('/api/segments/preview', (req, res) => {
+  try {
+    const { filters } = req.body;
+    const customers = resolveSegmentCustomers(req.user.id, filters || {});
+    res.json({ count: customers.length, customers });
+  } catch (error) {
+    console.error('Error previewing segment:', error);
+    res.status(500).json({ error: 'Database error previewing segment' });
   }
 });
 
