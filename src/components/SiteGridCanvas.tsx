@@ -398,126 +398,184 @@ export default function SiteGridCanvas({
               );
             })}
           </div>
-        ) : blocks.map(block => {
-          const blockStyle = parseJson<BlockStyle>(block.style, {});
-          const isInvisible = blockStyle.invisible === true;
-          const isSelected = selectedId === block.id;
+        ) : (
+          <>
+            {blocks.map(block => {
+              const blockStyle = parseJson<BlockStyle>(block.style, {});
+              const isInvisible = blockStyle.invisible === true;
+              const isSelected = selectedId === block.id;
 
-          if (isInvisible && !isSelected) {
-            return null;
-          }
+              if (isInvisible && !isSelected) {
+                return null;
+              }
 
-          const pos = positions[block.id];
-          const isDragging = dragState.current?.blockId === block.id;
-          const nearTop = pos.grid_row * ROW_UNIT_PX < TOOLBAR_CLEARANCE_PX;
-          const handlePos = getHandlePos(nearTop);
-          // To ensure the user can always access and click the toolbar and resize handles,
-          // we elevate the z-index of the selected block to z-40 so it stays above other layers.
-          const zLock = blockStyle.z_lock;
-          const zIndexClass = isDragging
-            ? 'z-50'
-            : isSelected
-              ? 'z-40'
-              : zLock === 'front'
-                ? 'z-30'
-                : zLock === 'back'
-                  ? 'z-0'
-                  : 'z-10';
-          const borderClass = isSelected
-            ? isInvisible
-              ? 'border-dashed border-amber-500/80 shadow-[0_0_0_2px_rgba(245,158,11,0.35),0_8px_24px_rgba(0,0,0,0.4)] bg-amber-500/5'
-              : 'border-amber-400 shadow-[0_0_0_2px_rgba(245,158,11,0.35),0_8px_24px_rgba(0,0,0,0.4)]'
-            : 'border-transparent hover:border-white/20';
+              const pos = positions[block.id];
+              const isDragging = dragState.current?.blockId === block.id;
+              const nearTop = pos.grid_row * ROW_UNIT_PX < TOOLBAR_CLEARANCE_PX;
+              const handlePos = getHandlePos(nearTop);
+              // Keep the block in its natural layer position without being brought up to the top.
+              const zLock = blockStyle.z_lock;
+              const zIndexClass = isDragging
+                ? 'z-50'
+                : zLock === 'front'
+                  ? 'z-30'
+                  : zLock === 'back'
+                    ? 'z-0'
+                    : 'z-10';
+              const borderClass = isSelected
+                ? isInvisible
+                  ? 'border-dashed border-amber-500/80 shadow-[0_0_0_2px_rgba(245,158,11,0.35),0_8px_24px_rgba(0,0,0,0.4)] bg-amber-500/5'
+                  : 'border-amber-400 shadow-[0_0_0_2px_rgba(245,158,11,0.35),0_8px_24px_rgba(0,0,0,0.4)]'
+                : 'border-transparent hover:border-white/20';
 
-          const editingTransform = transformEditTarget?.blockId === block.id ? transformEditTarget : null;
+              const editingTransform = transformEditTarget?.blockId === block.id ? transformEditTarget : null;
 
-          return (
-            <div
-              key={block.id}
-              onPointerDown={(e) => { e.stopPropagation(); onSelect(block.id); }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onSelect(block.id);
-                onContextMenu(block, e.clientX, e.clientY, findMediaKey(e.target, e.currentTarget));
-              }}
-              className={`absolute rounded-xl border shadow-lg transition-shadow group ${borderClass} ${zIndexClass} ${isDragging ? 'cursor-grabbing' : ''}`}
-              style={{
-                left: `${(pos.grid_col / GRID_COLUMNS) * 100}%`,
-                width: `${(pos.grid_col_span / GRID_COLUMNS) * 100}%`,
-                top: pos.grid_row * ROW_UNIT_PX,
-                height: pos.grid_row_span * ROW_UNIT_PX,
-              }}
-            >
-              {/* Real, live-styled block content — click text to edit it directly */}
-              <div ref={(el) => { blockContentRefs.current[block.id] = el; }} className={`w-full h-full overflow-hidden rounded-xl ${isInvisible ? 'opacity-35' : ''}`}>
-                <SiteBlockView
-                  block={block}
-                  dark={dark}
-                  accent={accent}
-                  headingFont={theme.heading_font}
-                  bodyFont={theme.body_font}
-                  subdomain=""
-                  editable
-                  device="desktop"
-                  onContentChange={(content) => onContentChange(block.id, content)}
-                  onStyleChange={(style) => onStyleChange?.(block.id, style)}
-                />
-              </div>
-
-              {isInvisible && (
-                <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 bg-amber-500 text-[#0c0d12] text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1 shadow-lg pointer-events-none">
-                  <EyeOff className="w-3 h-3" />
-                  <span>Hidden Layer (Selected)</span>
-                </div>
-              )}
-
-              {editingTransform && blockContentRefs.current[block.id] && (
-                <TransformOverlay
-                  containerEl={blockContentRefs.current[block.id]!}
-                  mediaKey={editingTransform.mediaKey}
-                  transform={getMediaTransform(block, editingTransform.mediaKey)}
-                  onChange={(next) => onTransformChange(block.id, editingTransform.mediaKey, next)}
-                  onDone={onExitTransformEdit}
-                />
-              )}
-
-              {!editingTransform && (
-                <>
-                  {/* Slim floating toolbar — appears on hover/select, drag anywhere on it to move the block.
-                      Flips to just inside the block's top edge when there's no room above (block near
-                      the canvas top), instead of rendering off the top and getting clipped. */}
-                  <div
-                    onPointerDown={(e) => startDrag(e, block, 'move')}
-                    className={`absolute flex items-center gap-1 px-1.5 h-7 rounded-lg bg-[#1a1c24] border border-white/10 shadow-lg cursor-grab active:cursor-grabbing transition-opacity z-30 ${nearTop ? 'top-1 left-1' : '-top-[26px] left-0 after:absolute after:top-full after:left-0 after:right-0 after:h-[6px]'} ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                  >
-                    <Move className="w-3 h-3 text-slate-500 shrink-0 ml-0.5" />
-                    {zLock && <Lock className="w-2.5 h-2.5 text-amber-400 shrink-0" aria-label={zLock === 'front' ? 'Locked to front' : 'Locked to back'} />}
-                    <span className="text-[9px] font-bold text-slate-300 uppercase tracking-wide truncate max-w-[90px]">{parseJson<BlockStyle>(block.style, {}).custom_label || blockMeta(block.block_type).label}</span>
-                    <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onOpenInspector(block)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer" title="Style & settings">
-                      <Settings2 className="w-3 h-3" />
-                    </button>
-                    <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDuplicate(block)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer" title="Duplicate">
-                      <Copy className="w-3 h-3" />
-                    </button>
-                    <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDelete(block)} className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 cursor-pointer" title="Delete">
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+              return (
+                <div
+                  key={block.id}
+                  onPointerDown={(e) => { e.stopPropagation(); onSelect(block.id); }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onSelect(block.id);
+                    onContextMenu(block, e.clientX, e.clientY, findMediaKey(e.target, e.currentTarget));
+                  }}
+                  className={`absolute rounded-xl border shadow-lg transition-shadow group ${borderClass} ${zIndexClass} ${isDragging ? 'cursor-grabbing' : ''}`}
+                  style={{
+                    left: `${(pos.grid_col / GRID_COLUMNS) * 100}%`,
+                    width: `${(pos.grid_col_span / GRID_COLUMNS) * 100}%`,
+                    top: pos.grid_row * ROW_UNIT_PX,
+                    height: pos.grid_row_span * ROW_UNIT_PX,
+                  }}
+                >
+                  {/* Real, live-styled block content — click text to edit it directly */}
+                  <div ref={(el) => { blockContentRefs.current[block.id] = el; }} className={`w-full h-full overflow-hidden rounded-xl ${isInvisible ? 'opacity-35' : ''}`}>
+                    <SiteBlockView
+                      block={block}
+                      dark={dark}
+                      accent={accent}
+                      headingFont={theme.heading_font}
+                      bodyFont={theme.body_font}
+                      subdomain=""
+                      editable
+                      device="desktop"
+                      onContentChange={(content) => onContentChange(block.id, content)}
+                      onStyleChange={(style) => onStyleChange?.(block.id, style)}
+                    />
                   </div>
 
-                  {isSelected && HANDLES.map(h => (
-                    <div
-                      key={h}
-                      onPointerDown={(e) => startDrag(e, block, 'resize', h)}
-                      className="absolute w-2.5 h-2.5 rounded-[3px] bg-amber-400 border border-[#0a0b0f] shadow-sm z-30"
-                      style={{ ...handlePos[h], cursor: HANDLE_CURSOR[h] }}
+                  {isInvisible && (
+                    <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 bg-amber-500 text-[#0c0d12] text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1 shadow-lg pointer-events-none">
+                      <EyeOff className="w-3 h-3" />
+                      <span>Hidden Layer (Selected)</span>
+                    </div>
+                  )}
+
+                  {editingTransform && blockContentRefs.current[block.id] && (
+                    <TransformOverlay
+                      containerEl={blockContentRefs.current[block.id]!}
+                      mediaKey={editingTransform.mediaKey}
+                      transform={getMediaTransform(block, editingTransform.mediaKey)}
+                      onChange={(next) => onTransformChange(block.id, editingTransform.mediaKey, next)}
+                      onDone={onExitTransformEdit}
                     />
-                  ))}
-                </>
-              )}
-            </div>
-          );
-        })}
+                  )}
+
+                  {!editingTransform && (
+                    <>
+                      {/* Slim floating toolbar — appears on hover when NOT selected.
+                          If selected, it is rendered in a dedicated top-level z-50 overlay. */}
+                      {!isSelected && (
+                        <div
+                          onPointerDown={(e) => startDrag(e, block, 'move')}
+                          className={`absolute flex items-center gap-1 px-1.5 h-7 rounded-lg bg-[#1a1c24] border border-white/10 shadow-lg cursor-grab active:cursor-grabbing transition-opacity z-30 ${nearTop ? 'top-1 left-1' : '-top-[26px] left-0 after:absolute after:top-full after:left-0 after:right-0 after:h-[6px]'} opacity-0 group-hover:opacity-100`}
+                        >
+                          <Move className="w-3 h-3 text-slate-500 shrink-0 ml-0.5" />
+                          {zLock && <Lock className="w-2.5 h-2.5 text-amber-400 shrink-0" aria-label={zLock === 'front' ? 'Locked to front' : 'Locked to back'} />}
+                          <span className="text-[9px] font-bold text-slate-300 uppercase tracking-wide truncate max-w-[90px]">{blockStyle.custom_label || blockMeta(block.block_type).label}</span>
+                          <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onOpenInspector(block)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer" title="Style & settings">
+                            <Settings2 className="w-3 h-3" />
+                          </button>
+                          <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDuplicate(block)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer" title="Duplicate">
+                            <Copy className="w-3 h-3" />
+                          </button>
+                          <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDelete(block)} className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 cursor-pointer" title="Delete">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Top-level elevated overlay for selected block on desktop.
+                This allows the user to always see and click the toolbar and resize handles,
+                even if another block or layer has a higher z-index and sits visually above this block,
+                without requiring the block itself to change its z-index or stack order. */}
+            {selectedId && (() => {
+              const selectedBlock = blocks.find(b => b.id === selectedId);
+              if (!selectedBlock) return null;
+
+              const blockStyle = parseJson<BlockStyle>(selectedBlock.style, {});
+              const pos = positions[selectedBlock.id];
+              if (!pos) return null;
+
+              const nearTop = pos.grid_row * ROW_UNIT_PX < TOOLBAR_CLEARANCE_PX;
+              const handlePos = getHandlePos(nearTop);
+              const zLock = blockStyle.z_lock;
+              const editingTransform = transformEditTarget?.blockId === selectedBlock.id ? transformEditTarget : null;
+
+              return (
+                <div
+                  className="absolute pointer-events-none z-50"
+                  style={{
+                    left: `${(pos.grid_col / GRID_COLUMNS) * 100}%`,
+                    width: `${(pos.grid_col_span / GRID_COLUMNS) * 100}%`,
+                    top: pos.grid_row * ROW_UNIT_PX,
+                    height: pos.grid_row_span * ROW_UNIT_PX,
+                  }}
+                >
+                  {!editingTransform && (
+                    <>
+                      {/* Floating toolbar */}
+                      <div
+                        onPointerDown={(e) => startDrag(e, selectedBlock, 'move')}
+                        className={`absolute flex items-center gap-1 px-1.5 h-7 rounded-lg bg-[#1a1c24] border border-white/10 shadow-lg cursor-grab active:cursor-grabbing transition-opacity pointer-events-auto z-50 ${nearTop ? 'top-1 left-1' : '-top-[26px] left-0 after:absolute after:top-full after:left-0 after:right-0 after:h-[6px]'}`}
+                      >
+                        <Move className="w-3 h-3 text-slate-500 shrink-0 ml-0.5" />
+                        {zLock && <Lock className="w-2.5 h-2.5 text-amber-400 shrink-0" aria-label={zLock === 'front' ? 'Locked to front' : 'Locked to back'} />}
+                        <span className="text-[9px] font-bold text-slate-300 uppercase tracking-wide truncate max-w-[90px]">
+                          {blockStyle.custom_label || blockMeta(selectedBlock.block_type).label}
+                        </span>
+                        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onOpenInspector(selectedBlock)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer" title="Style & settings">
+                          <Settings2 className="w-3 h-3" />
+                        </button>
+                        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDuplicate(selectedBlock)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer" title="Duplicate">
+                          <Copy className="w-3 h-3" />
+                        </button>
+                        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDelete(selectedBlock)} className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 cursor-pointer" title="Delete">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      {/* Resize handles */}
+                      {HANDLES.map(h => (
+                        <div
+                          key={h}
+                          onPointerDown={(e) => startDrag(e, selectedBlock, 'resize', h)}
+                          className="absolute w-2.5 h-2.5 rounded-[3px] bg-amber-400 border border-[#0a0b0f] shadow-sm z-50 pointer-events-auto"
+                          style={{ ...handlePos[h], cursor: HANDLE_CURSOR[h] }}
+                        />
+                      ))}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+          </>
+        )}
           </div>
         </div>
       </div>
