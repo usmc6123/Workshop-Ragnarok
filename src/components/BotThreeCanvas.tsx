@@ -12,6 +12,9 @@ interface BotThreeCanvasProps {
   particleCount?: number;
   customModelUrl?: string;
   bgColor?: string;
+  bgType?: 'color' | 'image' | 'video';
+  bgVal?: string;
+  bgOpacity?: number;
 }
 
 export default function BotThreeCanvas({
@@ -24,28 +27,38 @@ export default function BotThreeCanvas({
   particleCount = 1200,
   customModelUrl = '',
   bgColor = '#07080b',
+  bgType = 'color',
+  bgVal = '#07080b',
+  bgOpacity = 100,
 }: BotThreeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const requestRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !canvasRef.current) return;
 
     const width = containerRef.current.clientWidth || 300;
     const height = containerRef.current.clientHeight || 250;
 
     // 1. Scene, Camera, Renderer
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(bgColor, 0.015);
+    
+    // Choose appropriate fog color based on background
+    const fogColor = bgType === 'color' ? bgVal : '#07080b';
+    scene.fog = new THREE.FogExp2(fogColor, 0.015);
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
     camera.position.z = 8;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setClearColor(0x000000, 0); // Transparent clear color for layering
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    containerRef.current.appendChild(renderer.domElement);
+    
+    // Append to canvas container to support HTML layer overlays behind it
+    canvasRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
     // Parse colors safely
@@ -368,21 +381,53 @@ export default function BotThreeCanvas({
         rendererRef.current.dispose();
       }
     };
-  }, [primaryColor, secondaryColor, preset, isTalking, speed, wireframe, particleCount, customModelUrl]);
+  }, [primaryColor, secondaryColor, preset, isTalking, speed, wireframe, particleCount, customModelUrl, bgColor, bgType, bgVal, bgOpacity]);
 
   return (
     <div 
       ref={containerRef} 
-      className="w-full h-full min-h-[220px] bg-gradient-to-b from-[#0a0b10] to-[#07080b] flex items-center justify-center relative overflow-hidden"
+      className="w-full h-full min-h-[220px] flex items-center justify-center relative overflow-hidden"
+      style={{ 
+        backgroundColor: bgType === 'color' ? bgVal : undefined
+      }}
     >
-      {/* Hologram scanlines effect */}
-      <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] opacity-40 z-10" />
+      {/* Background Layer 1: Optional Backdrop Image */}
+      {bgType === 'image' && bgVal && (
+        <img
+          src={bgVal}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none z-0 animate-fade-in"
+          style={{ opacity: bgOpacity / 100 }}
+        />
+      )}
+
+      {/* Background Layer 1: Optional Backdrop Video */}
+      {bgType === 'video' && bgVal && (
+        <video
+          src={bgVal}
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none z-0 animate-fade-in"
+          style={{ opacity: bgOpacity / 100 }}
+        />
+      )}
+
+      {/* Layer 2: Transparent Three.js WebGL Canvas viewport */}
+      <div 
+        ref={canvasRef} 
+        className="absolute inset-0 w-full h-full z-10 pointer-events-none" 
+      />
+
+      {/* Hologram scanlines effect overlaid on top */}
+      <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] opacity-40 z-20" />
       
       {/* Laser focus indicators */}
-      <div className="absolute top-2 left-2 font-mono text-[8px] text-slate-500 z-10 select-none">
+      <div className="absolute top-2 left-2 font-mono text-[8px] text-slate-500 z-20 select-none">
         SYS_3D_RENDER: OK
       </div>
-      <div className="absolute bottom-2 right-2 font-mono text-[8px] text-slate-500 z-10 select-none flex items-center gap-1">
+      <div className="absolute bottom-2 right-2 font-mono text-[8px] text-slate-500 z-20 select-none flex items-center gap-1">
         <span className={`w-1.5 h-1.5 rounded-full ${isTalking ? 'bg-green-400 animate-ping' : 'bg-amber-400'}`} />
         PRESET: {customModelUrl ? 'CUSTOM GLB' : preset.toUpperCase()}
       </div>

@@ -2308,7 +2308,7 @@ function clearSession() {
                       >
                         <option value="/cooper-logo.png">Cooper Engine Scan Logo (/cooper-logo.png)</option>
                         <option value="/roscoe-logo.png">Roscoe Spark Plugs Logo (/roscoe-logo.png)</option>
-                        <option value="/garage-calm-thumb.jpg">Garage Bay Static Thumb</option>
+                        <option value="/hiphopyoutubebackground.jpg">Garage Bay Static View (/hiphopyoutubebackground.jpg)</option>
                       </select>
                       <MediaField
                         value={avatarImage}
@@ -2332,7 +2332,17 @@ function clearSession() {
                           </label>
                           <select
                             value={threeBgType}
-                            onChange={(e) => setThreeBgType(e.target.value as any)}
+                            onChange={(e) => {
+                              const newType = e.target.value as any;
+                              setThreeBgType(newType);
+                              if (newType === 'color') {
+                                setThreeBgVal('#0a0b10');
+                              } else if (newType === 'image') {
+                                setThreeBgVal('/chat-background.png');
+                              } else if (newType === 'video') {
+                                setThreeBgVal('/garage-calm.mp4');
+                              }
+                            }}
                             className="w-full bg-white border border-teal-300 rounded-lg p-1.5 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-teal-500 shadow-sm"
                           >
                             <option value="color">🎨 Solid Background Color</option>
@@ -2374,8 +2384,8 @@ function clearSession() {
                               <option value="">-- Custom Upload/Input below --</option>
                               {threeBgType === 'image' ? (
                                 <>
-                                  <option value="/garage-blueprint.jpg">Cyber Blueprint Map</option>
-                                  <option value="/garage-calm-thumb.jpg">Garage Bay Idling View</option>
+                                  <option value="/chat-background.png">Cyber Blueprint Map</option>
+                                  <option value="/hiphopyoutubebackground.jpg">Garage Bay Idling View</option>
                                 </>
                               ) : (
                                 <>
@@ -2430,7 +2440,17 @@ function clearSession() {
                         </label>
                         <select
                           value={chatBgType}
-                          onChange={(e) => setChatBgType(e.target.value as any)}
+                          onChange={(e) => {
+                            const newType = e.target.value as any;
+                            setChatBgType(newType);
+                            if (newType === 'color') {
+                              setChatBgVal('#f8fafc');
+                            } else if (newType === 'image') {
+                              setChatBgVal('/chat-background.png');
+                            } else if (newType === 'video') {
+                              setChatBgVal('/garage-calm.mp4');
+                            }
+                          }}
                           className="w-full bg-white border border-blue-300 rounded-lg p-1.5 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-blue-500 shadow-sm"
                         >
                           <option value="color">🎨 Solid Background Color</option>
@@ -2472,8 +2492,8 @@ function clearSession() {
                               <option value="">-- Custom Upload/Input below --</option>
                               {chatBgType === 'image' ? (
                                 <>
-                                  <option value="/garage-blueprint.jpg">Cyber Blueprint Map</option>
-                                  <option value="/garage-calm-thumb.jpg">Garage Bay Idling View</option>
+                                  <option value="/chat-background.png">Cyber Blueprint Map</option>
+                                  <option value="/hiphopyoutubebackground.jpg">Garage Bay Idling View</option>
                                 </>
                               ) : (
                                 <>
@@ -2730,47 +2750,21 @@ function clearSession() {
 
                 {/* RENDER TOP HALF INTERACTIVE MEDIA/3D IF STYLE CHOSEN */}
                 {botStyle === '3d_animated' && (
-                  <div 
-                    className="h-[200px] border-b border-slate-200 shrink-0 relative overflow-hidden" 
-                    style={{ 
-                      opacity: botOpacity / 100,
-                      backgroundColor: threeBgType === 'color' ? threeBgVal : undefined
-                    }}
-                  >
-                    {/* Background image selection */}
-                    {threeBgType === 'image' && threeBgVal && (
-                      <img
-                        src={threeBgVal}
-                        alt=""
-                        className="absolute inset-0 w-full h-full object-cover pointer-events-none z-0 animate-fade-in"
-                        style={{ opacity: threeBgOpacity / 100 }}
-                      />
-                    )}
-                    {/* Background video selection */}
-                    {threeBgType === 'video' && threeBgVal && (
-                      <video
-                        src={threeBgVal}
-                        autoPlay
-                        loop
-                        muted
-                        playsInline
-                        className="absolute inset-0 w-full h-full object-cover pointer-events-none z-0 animate-fade-in"
-                        style={{ opacity: threeBgOpacity / 100 }}
-                      />
-                    )}
-                    <div className="relative z-10 w-full h-full">
-                      <BotThreeCanvas
-                        primaryColor={primaryColor}
-                        secondaryColor={secondaryColor}
-                        preset={threePreset}
-                        isTalking={isTyping}
-                        speed={threeSpeed}
-                        wireframe={threeWireframe}
-                        particleCount={threeParticles}
-                        customModelUrl={threeFile}
-                        bgColor={threeBgType === 'color' ? threeBgVal : '#07080b'}
-                      />
-                    </div>
+                  <div className="h-[200px] border-b border-slate-200 shrink-0 relative overflow-hidden" style={{ opacity: botOpacity / 100 }}>
+                    <BotThreeCanvas
+                      primaryColor={primaryColor}
+                      secondaryColor={secondaryColor}
+                      preset={threePreset}
+                      isTalking={isTyping}
+                      speed={threeSpeed}
+                      wireframe={threeWireframe}
+                      particleCount={threeParticles}
+                      customModelUrl={threeFile}
+                      bgColor={threeBgType === 'color' ? threeBgVal : '#07080b'}
+                      bgType={threeBgType}
+                      bgVal={threeBgVal}
+                      bgOpacity={threeBgOpacity}
+                    />
                   </div>
                 )}
 
