@@ -31,13 +31,23 @@ const APPT_TYPE_COLORS: Record<string, { bg: string; border: string; text: strin
   repair: { bg: 'bg-amber-950/40', border: 'border-amber-700/40', text: 'text-amber-400', dot: 'bg-amber-500', label: 'Repair' },
   pickup: { bg: 'bg-purple-950/40', border: 'border-purple-700/40', text: 'text-purple-400', dot: 'bg-purple-500', label: 'Pickup' },
   consultation: { bg: 'bg-cyan-950/40', border: 'border-cyan-700/40', text: 'text-cyan-400', dot: 'bg-cyan-500', label: 'Consultation' },
+  // Self-service bookings created via a public Funnel's booking layout
+  // (backend/funnel-routes.js POST /api/public/funnels/:slug/book) — kept visually
+  // distinct from the manually-created types above so it's obvious at a glance
+  // which appointments customers booked themselves online.
+  booking: { bg: 'bg-teal-950/40', border: 'border-teal-700/40', text: 'text-teal-400', dot: 'bg-teal-500', label: 'Online Booking' },
 };
 
 function getApptColor(appt: Appointment) {
   if (appt.job_id && appt.job_status && JOB_STATUS_COLORS[appt.job_status]) {
     return JOB_STATUS_COLORS[appt.job_status];
   }
-  return APPT_TYPE_COLORS[appt.appointment_type || 'general'];
+  // Fall back to the 'general' style for any appointment_type value that isn't in
+  // APPT_TYPE_COLORS (e.g. a type added on the backend before the frontend map was
+  // updated to match) instead of crashing the whole Calendar page on an undefined
+  // lookup — this exact class of bug already happened once with TextsView's
+  // TRIGGER_META, see CLAUDE.md bug log.
+  return APPT_TYPE_COLORS[appt.appointment_type || 'general'] || APPT_TYPE_COLORS.general;
 }
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7 AM - 8 PM

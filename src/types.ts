@@ -228,7 +228,7 @@ export interface JobNote {
   attachments: JobNoteAttachment[];
 }
 
-export type AppointmentType = 'general' | 'diagnostic' | 'repair' | 'pickup' | 'consultation';
+export type AppointmentType = 'general' | 'diagnostic' | 'repair' | 'pickup' | 'consultation' | 'booking';
 export type AppointmentRecurrence = 'none' | 'weekly' | 'monthly';
 
 export interface Appointment {
