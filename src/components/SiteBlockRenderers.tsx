@@ -402,7 +402,7 @@ function BlockChildWrapper({ block, childId, editable, onStyleChange, className 
       {children}
 
       {/* Mini floating controllers */}
-      <div className="absolute -top-7 left-1/2 -translate-x-1/2 hidden group-hover/child:flex items-center gap-1 bg-[#1a1c24] border border-white/10 rounded-md px-1.5 py-0.5 shadow-lg z-50 pointer-events-auto">
+      <div className="absolute -top-[23px] left-1/2 -translate-x-1/2 hidden group-hover/child:flex items-center gap-1 bg-[#1a1c24] border border-white/10 rounded-md px-1.5 py-0.5 shadow-lg z-50 pointer-events-auto after:absolute after:top-full after:left-0 after:right-0 after:h-[6px]">
         <div
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}

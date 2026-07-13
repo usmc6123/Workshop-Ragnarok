@@ -406,12 +406,18 @@ export default function SiteGridCanvas({
           const isDragging = dragState.current?.blockId === block.id;
           const nearTop = pos.grid_row * ROW_UNIT_PX < TOOLBAR_CLEARANCE_PX;
           const handlePos = getHandlePos(nearTop);
-          // A locked block's stacking is pinned regardless of selection — this
-          // is what actually fixes "clicking the background pushes the video
-          // behind it": without a lock, ANY selected block jumps to z-20,
-          // which can outrank a block that was previously brought to front.
+          // A locked block's stacking is pinned regardless of selection.
+          // To keep the visual layout completely accurate when selecting a block (e.g. clicking a background block),
+          // selection does not alter the stacking layer position (z-index). It remains at its natural layer,
+          // only getting a high z-index during active drag or resize operations.
           const zLock = blockStyle.z_lock;
-          const zIndexClass = isSelected ? 'z-40' : zLock === 'front' ? 'z-30' : zLock === 'back' ? 'z-0' : 'z-10';
+          const zIndexClass = isDragging
+            ? 'z-50'
+            : zLock === 'front'
+              ? 'z-30'
+              : zLock === 'back'
+                ? 'z-0'
+                : 'z-10';
           const borderClass = isSelected
             ? isInvisible
               ? 'border-dashed border-amber-500/80 shadow-[0_0_0_2px_rgba(245,158,11,0.35),0_8px_24px_rgba(0,0,0,0.4)] bg-amber-500/5'
@@ -478,7 +484,7 @@ export default function SiteGridCanvas({
                       the canvas top), instead of rendering off the top and getting clipped. */}
                   <div
                     onPointerDown={(e) => startDrag(e, block, 'move')}
-                    className={`absolute flex items-center gap-1 px-1.5 h-7 rounded-lg bg-[#1a1c24] border border-white/10 shadow-lg cursor-grab active:cursor-grabbing transition-opacity z-30 ${nearTop ? 'top-1 left-1' : '-top-8 left-0'} ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                    className={`absolute flex items-center gap-1 px-1.5 h-7 rounded-lg bg-[#1a1c24] border border-white/10 shadow-lg cursor-grab active:cursor-grabbing transition-opacity z-30 ${nearTop ? 'top-1 left-1' : '-top-[26px] left-0 after:absolute after:top-full after:left-0 after:right-0 after:h-[6px]'} ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                   >
                     <Move className="w-3 h-3 text-slate-500 shrink-0 ml-0.5" />
                     {zLock && <Lock className="w-2.5 h-2.5 text-amber-400 shrink-0" aria-label={zLock === 'front' ? 'Locked to front' : 'Locked to back'} />}

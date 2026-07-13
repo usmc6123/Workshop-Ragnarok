@@ -306,7 +306,11 @@ export default function MediaField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder || 'https://...'}
-          className="flex-1 min-w-0 rounded-lg bg-[#08090d] border border-slate-700/80 focus:border-slate-400 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition"
+          className={`flex-1 min-w-0 rounded-lg border px-3 py-2 text-xs placeholder-slate-500 focus:outline-none font-mono transition ${
+            value 
+              ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-100 focus:border-emerald-400' 
+              : 'bg-rose-950/40 border-rose-900/60 text-rose-100 focus:border-rose-400'
+          }`}
         />
         <input ref={fileInputRef} type="file" accept={acceptAttr} className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
         <button
