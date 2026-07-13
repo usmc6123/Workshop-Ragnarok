@@ -77,12 +77,12 @@ export default function RichTextEditor({
           style={{ top: toolbarPos.top, left: toolbarPos.left }}
           onMouseDown={(e) => e.preventDefault()} // keep the text selection alive when clicking a toolbar button
         >
-          <button onClick={() => exec('bold')} className="p-1.5 rounded hover:bg-white/10 text-slate-200 cursor-pointer"><Bold className="w-3.5 h-3.5" /></button>
-          <button onClick={() => exec('italic')} className="p-1.5 rounded hover:bg-white/10 text-slate-200 cursor-pointer"><Italic className="w-3.5 h-3.5" /></button>
-          <button onClick={() => exec('underline')} className="p-1.5 rounded hover:bg-white/10 text-slate-200 cursor-pointer"><Underline className="w-3.5 h-3.5" /></button>
-          <button onClick={() => exec('strikeThrough')} className="p-1.5 rounded hover:bg-white/10 text-slate-200 cursor-pointer"><Strikethrough className="w-3.5 h-3.5" /></button>
-          <button onClick={handleLink} className="p-1.5 rounded hover:bg-white/10 text-slate-200 cursor-pointer"><Link2 className="w-3.5 h-3.5" /></button>
-          <button onClick={() => exec('unlink')} className="p-1.5 rounded hover:bg-white/10 text-slate-200 cursor-pointer"><Unlink className="w-3.5 h-3.5" /></button>
+          <button onClick={() => exec('bold')} title="Bold" className="p-1.5 rounded hover:bg-white/10 text-slate-200 cursor-pointer"><Bold className="w-3.5 h-3.5" /></button>
+          <button onClick={() => exec('italic')} title="Italic" className="p-1.5 rounded hover:bg-white/10 text-slate-200 cursor-pointer"><Italic className="w-3.5 h-3.5" /></button>
+          <button onClick={() => exec('underline')} title="Underline" className="p-1.5 rounded hover:bg-white/10 text-slate-200 cursor-pointer"><Underline className="w-3.5 h-3.5" /></button>
+          <button onClick={() => exec('strikeThrough')} title="Strikethrough" className="p-1.5 rounded hover:bg-white/10 text-slate-200 cursor-pointer"><Strikethrough className="w-3.5 h-3.5" /></button>
+          <button onClick={handleLink} title="Turn selected text into a link" className="p-1.5 rounded hover:bg-white/10 text-slate-200 cursor-pointer"><Link2 className="w-3.5 h-3.5" /></button>
+          <button onClick={() => exec('unlink')} title="Remove link from selected text" className="p-1.5 rounded hover:bg-white/10 text-slate-200 cursor-pointer"><Unlink className="w-3.5 h-3.5" /></button>
         </div>
       )}
       <div
