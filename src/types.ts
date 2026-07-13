@@ -446,6 +446,19 @@ export interface MediaTransform {
   zoom: number;
   x: number;
   y: number;
+  rotate?: number;
+}
+
+export interface BlockOverlayItem {
+  id: string;
+  type: 'text' | 'image';
+  text?: string;
+  image_url?: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rotate?: number;
 }
 
 export type HeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'p';

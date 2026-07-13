@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
 import {
   SiteBlock, BlockStyle, HeadingTag, DeviceBreakpoint,
   HeroBlockContent, TextBlockContent, ImageBlockContent, VideoBlockContent, CtaBlockContent,
   ContactFormBlockContent, TestimonialBlockContent, PricingBlockContent, FaqBlockContent,
-  AiChatBotBlockContent, FunnelBlockContent, Funnel,
+  AiChatBotBlockContent, FunnelBlockContent, Funnel, BlockOverlayItem,
 } from '../types';
 import { getSiteIcon } from '../constants/siteIcons';
 import RichTextEditor from './RichTextEditor';
 import {
   Loader2, AlertTriangle, CheckCircle2, ArrowRight, Quote, Send, ChevronDown,
-  ChevronLeft, ChevronRight, Bot, Filter,
+  ChevronLeft, ChevronRight, Bot, Filter, X, RotateCw, Plus, Trash2,
 } from 'lucide-react';
 import BotThreeCanvas from './BotThreeCanvas';
 import { PERSONAS_20, ChatBotConfig } from './AiChatBotView';
@@ -136,24 +136,26 @@ export function getOpacity(block: SiteBlock, key: string, defaultPercent: number
 // Per-media "Zoom & Position" (right-click a block on the canvas). `zoom` is
 // clamped 1-4, `x`/`y` are percentage offsets — see MediaTransform in
 // types.ts for the full contract this reads.
-export function getMediaTransform(block: SiteBlock, key: string): { zoom: number; x: number; y: number } {
+export function getMediaTransform(block: SiteBlock, key: string): { zoom: number; x: number; y: number; rotate?: number } {
   try {
     const map = block.media_transform ? JSON.parse(block.media_transform) : {};
     const t = map?.[key];
     const zoom = typeof t?.zoom === 'number' ? Math.max(1, Math.min(4, t.zoom)) : 1;
     const x = typeof t?.x === 'number' ? t.x : 0;
     const y = typeof t?.y === 'number' ? t.y : 0;
-    return { zoom, x, y };
+    const rotate = typeof t?.rotate === 'number' ? t.rotate : 0;
+    return { zoom, x, y, rotate };
   } catch {
-    return { zoom: 1, x: 0, y: 0 };
+    return { zoom: 1, x: 0, y: 0, rotate: 0 };
   }
 }
 
 // CSS for the above — a no-op object when nothing's been adjusted, so this is
 // safe to spread onto any media element unconditionally.
-export function mediaTransformStyle(t: { zoom: number; x: number; y: number }): React.CSSProperties {
-  if (t.zoom === 1 && t.x === 0 && t.y === 0) return {};
-  return { transform: `translate(${t.x}%, ${t.y}%) scale(${t.zoom})` };
+export function mediaTransformStyle(t: { zoom: number; x: number; y: number; rotate?: number }): React.CSSProperties {
+  const rot = t.rotate || 0;
+  if (t.zoom === 1 && t.x === 0 && t.y === 0 && rot === 0) return {};
+  return { transform: `translate(${t.x}%, ${t.y}%) scale(${t.zoom}) rotate(${rot}deg)` };
 }
 
 export function getContrastText(hex: string | undefined): string {
@@ -1089,20 +1091,245 @@ function FunnelBlockView({ block, dark, accent, headingFont, editable, onContent
   );
 }
 
+interface InteractiveOverlayItemProps {
+  key?: string;
+  element: BlockOverlayItem;
+  editable: boolean;
+  onUpdate: (patch: Partial<BlockOverlayItem>) => void;
+  onDelete: () => void;
+  accent: string;
+}
+
+function InteractiveOverlayItem({ element, editable, onUpdate, onDelete, accent }: InteractiveOverlayItemProps) {
+  const [activeAction, setActiveAction] = useState<'move' | 'resize' | 'rotate' | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const startRef = useRef<{
+    clientX: number;
+    clientY: number;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    rotate: number;
+    parentWidth: number;
+    parentHeight: number;
+  } | null>(null);
+
+  const handlePointerDown = (e: React.PointerEvent, action: 'move' | 'resize' | 'rotate') => {
+    if (!editable) return;
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const parent = containerRef.current?.parentElement;
+    if (!parent) return;
+    const parentRect = parent.getBoundingClientRect();
+    
+    startRef.current = {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      x: element.x,
+      y: element.y,
+      w: element.w,
+      h: element.h,
+      rotate: element.rotate || 0,
+      parentWidth: parentRect.width,
+      parentHeight: parentRect.height,
+    };
+    setActiveAction(action);
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!activeAction || !startRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const start = startRef.current;
+    const dx = e.clientX - start.clientX;
+    const dy = e.clientY - start.clientY;
+
+    if (activeAction === 'move') {
+      const dxPercent = (dx / start.parentWidth) * 100;
+      const dyPercent = (dy / start.parentHeight) * 100;
+      onUpdate({
+        x: Math.max(0, Math.min(100 - start.w, start.x + dxPercent)),
+        y: Math.max(0, Math.min(100 - start.h, start.y + dyPercent)),
+      });
+    } else if (activeAction === 'resize') {
+      const dwPercent = (dx / start.parentWidth) * 100;
+      const dhPercent = (dy / start.parentHeight) * 100;
+      onUpdate({
+        w: Math.max(5, Math.min(100 - start.x, start.w + dwPercent)),
+        h: Math.max(5, Math.min(100 - start.y, start.h + dhPercent)),
+      });
+    } else if (activeAction === 'rotate') {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const currentAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
+        const startAngle = Math.atan2(start.clientY - centerY, start.clientX - centerX) * (180 / Math.PI);
+        let nextRotate = start.rotate + (currentAngle - startAngle);
+        if (nextRotate < 0) nextRotate += 360;
+        onUpdate({ rotate: Math.round(nextRotate % 360) });
+      }
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!activeAction) return;
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch (err) {}
+    setActiveAction(null);
+    startRef.current = null;
+  };
+
+  const itemStyle: React.CSSProperties = {
+    left: `${element.x}%`,
+    top: `${element.y}%`,
+    width: `${element.w}%`,
+    height: `${element.h}%`,
+    transform: `rotate(${element.rotate || 0}deg)`,
+    transformOrigin: 'center center',
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      style={itemStyle}
+      className={`absolute group pointer-events-auto select-none ${editable ? 'hover:ring-2 hover:ring-amber-500/50' : ''}`}
+    >
+      {/* Element content */}
+      <div className="w-full h-full relative overflow-hidden rounded">
+        {element.type === 'text' ? (
+          <div
+            className={`w-full h-full p-2 outline-none flex items-center justify-center text-center break-words leading-snug font-bold text-white text-sm bg-black/45 backdrop-blur-sm rounded ${
+              editable ? 'focus:ring-1 focus:ring-amber-500 cursor-text' : ''
+            }`}
+            contentEditable={editable}
+            suppressContentEditableWarning
+            onPointerDown={(e) => e.stopPropagation()}
+            onBlur={(e) => {
+              onUpdate({ text: e.currentTarget.textContent || '' });
+            }}
+          >
+            {element.text || ''}
+          </div>
+        ) : (
+          <img
+            src={element.image_url}
+            alt=""
+            className="w-full h-full object-cover pointer-events-none rounded"
+            referrerPolicy="no-referrer"
+          />
+        )}
+      </div>
+
+      {/* Editor overlay handles */}
+      {editable && (
+        <>
+          {/* Drag border/handle */}
+          <div
+            onPointerDown={(e) => handlePointerDown(e, 'move')}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            className="absolute inset-0 border border-dashed border-amber-500/40 cursor-move group-hover:border-amber-500 z-10"
+          />
+
+          {/* Delete button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="absolute -top-3 -right-3 w-5 h-5 rounded-full bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-md z-30 cursor-pointer"
+            title="Delete item"
+          >
+            <X className="w-3 h-3" />
+          </button>
+
+          {/* Resize handle (bottom-right) */}
+          <div
+            onPointerDown={(e) => handlePointerDown(e, 'resize')}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            className="absolute bottom-[-4px] right-[-4px] w-3 h-3 bg-amber-500 border border-black rounded-sm cursor-se-resize opacity-0 group-hover:opacity-100 transition z-35"
+            title="Drag to resize"
+          />
+
+          {/* Rotate handle (top-center, with a connector line) */}
+          <div className="absolute top-[-20px] left-1/2 -translate-x-1/2 flex flex-col items-center opacity-0 group-hover:opacity-100 transition z-35">
+            <div
+              onPointerDown={(e) => handlePointerDown(e, 'rotate')}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              className="w-4 h-4 rounded-full bg-emerald-500 hover:bg-emerald-400 border border-black cursor-grab active:cursor-grabbing flex items-center justify-center shadow-sm"
+              title="Drag to rotate"
+            >
+              <RotateCw className="w-2.5 h-2.5 text-white" />
+            </div>
+            <div className="w-0.5 h-1.5 bg-emerald-500" />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function SiteBlockView(props: SiteBlockViewProps) {
-  switch (props.block.block_type) {
-    case 'hero': return <HeroView {...props} />;
-    case 'text': return <TextView {...props} />;
-    case 'image': return <ImageView {...props} />;
-    case 'video': return <VideoView {...props} />;
-    case 'cta': return <CtaView {...props} />;
-    case 'contact_form': return <ContactFormView {...props} />;
-    case 'testimonial': return <TestimonialView {...props} />;
-    case 'pricing': return <PricingView {...props} />;
-    case 'faq': return <FaqView {...props} />;
-    case 'spacer': return <SpacerView {...props} />;
-    case 'ai_chat_bot': return <AiChatBotBlockView {...props} />;
-    case 'funnel': return <FunnelBlockView {...props} />;
-    default: return null;
-  }
+  const contentObj = parseJson<any>(props.block.content, {});
+  const customElements = contentObj.custom_elements || [];
+
+  const renderBlock = () => {
+    switch (props.block.block_type) {
+      case 'hero': return <HeroView {...props} />;
+      case 'text': return <TextView {...props} />;
+      case 'image': return <ImageView {...props} />;
+      case 'video': return <VideoView {...props} />;
+      case 'cta': return <CtaView {...props} />;
+      case 'contact_form': return <ContactFormView {...props} />;
+      case 'testimonial': return <TestimonialView {...props} />;
+      case 'pricing': return <PricingView {...props} />;
+      case 'faq': return <FaqView {...props} />;
+      case 'spacer': return <SpacerView {...props} />;
+      case 'ai_chat_bot': return <AiChatBotBlockView {...props} />;
+      case 'funnel': return <FunnelBlockView {...props} />;
+      default: return null;
+    }
+  };
+
+  const handleUpdateElement = (id: string, patch: Partial<BlockOverlayItem>) => {
+    const nextElements = customElements.map((el: any) => el.id === id ? { ...el, ...patch } : el);
+    props.onContentChange?.({ ...contentObj, custom_elements: nextElements });
+  };
+
+  const handleDeleteElement = (id: string) => {
+    const nextElements = customElements.filter((el: any) => el.id !== id);
+    props.onContentChange?.({ ...contentObj, custom_elements: nextElements });
+  };
+
+  return (
+    <div className="relative w-full h-full group/block">
+      {renderBlock()}
+      
+      {/* Custom Overlay Elements */}
+      {customElements.length > 0 && (
+        <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden rounded-2xl">
+          {customElements.map((el: BlockOverlayItem) => (
+            <InteractiveOverlayItem
+              key={el.id}
+              element={el}
+              editable={props.editable}
+              accent={props.accent}
+              onUpdate={(patch) => handleUpdateElement(el.id, patch)}
+              onDelete={() => handleDeleteElement(el.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }

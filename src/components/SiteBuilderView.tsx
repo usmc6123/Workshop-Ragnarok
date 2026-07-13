@@ -394,7 +394,8 @@ function BlockContentEditor({
     api.getFunnels().then(setFunnels).catch(err => console.error(err));
   }, []);
 
-  switch (blockType) {
+  const renderInner = () => {
+    switch (blockType) {
     case 'hero': {
       const c: HeroBlockContent = content;
       return (
@@ -680,6 +681,172 @@ function BlockContentEditor({
     default:
       return null;
   }
+  };
+
+  const inner = renderInner();
+
+  return (
+    <div className="space-y-4">
+      {inner}
+      
+      {/* Custom Overlays Section */}
+      <div className="pt-4 border-t border-white/10 mt-4 space-y-3">
+        <div>
+          <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+            <Sliders className="w-3.5 h-3.5 text-amber-400" /> Custom Overlays
+          </h3>
+          <p className="text-[10px] text-slate-500 mt-1">Add additional text boxes or images that you can position and rotate freely within this block.</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              const nextId = `overlay_${Date.now()}`;
+              const newElements = [
+                ...(content?.custom_elements || []),
+                { id: nextId, type: 'text', text: 'New Text Box', x: 30, y: 30, w: 40, h: 15, rotate: 0 }
+              ];
+              onContentChange({ ...content, custom_elements: newElements });
+            }}
+            className="flex-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition flex items-center justify-center gap-1 cursor-pointer"
+          >
+            <Plus className="w-3 h-3" /> Text Box
+          </button>
+          <button
+            onClick={() => {
+              const nextId = `overlay_${Date.now()}`;
+              const newElements = [
+                ...(content?.custom_elements || []),
+                { id: nextId, type: 'image', image_url: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=640', x: 35, y: 35, w: 30, h: 30, rotate: 0 }
+              ];
+              onContentChange({ ...content, custom_elements: newElements });
+            }}
+            className="flex-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition flex items-center justify-center gap-1 cursor-pointer"
+          >
+            <Plus className="w-3 h-3" /> Image
+          </button>
+        </div>
+
+        {content?.custom_elements && content.custom_elements.length > 0 && (
+          <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+            {content.custom_elements.map((el: any, idx: number) => (
+              <div key={el.id} className="rounded-lg border border-[#1e2028] bg-[#0c0d12]/40 p-2.5 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                    {el.type === 'text' ? 'Text Box' : 'Overlay Image'} #{idx + 1}
+                  </span>
+                  <button
+                    onClick={() => {
+                      const nextElements = content.custom_elements.filter((item: any) => item.id !== el.id);
+                      onContentChange({ ...content, custom_elements: nextElements });
+                    }}
+                    className="text-rose-400 hover:text-rose-300 p-1 rounded hover:bg-rose-500/10 transition cursor-pointer"
+                    title="Delete overlay item"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+                {el.type === 'text' ? (
+                  <TextInput
+                    value={el.text || ''}
+                    onChange={(val) => {
+                      const nextElements = content.custom_elements.map((item: any) => item.id === el.id ? { ...item, text: val } : item);
+                      onContentChange({ ...content, custom_elements: nextElements });
+                    }}
+                    placeholder="Overlay text content..."
+                  />
+                ) : (
+                  <MediaField
+                    value={el.image_url || ''}
+                    onChange={(val) => {
+                      const nextElements = content.custom_elements.map((item: any) => item.id === el.id ? { ...item, image_url: val } : item);
+                      onContentChange({ ...content, custom_elements: nextElements });
+                    }}
+                    opacityKey={`overlay_${el.id}`}
+                    mediaOpacity={mediaOpacity}
+                    onOpacityChange={onOpacityChange}
+                    accept="image"
+                    placeholder="Image URL..."
+                  />
+                )}
+                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                  <div>
+                    <label className="text-slate-500 block mb-0.5">X Position (%)</label>
+                    <input
+                      type="number"
+                      value={Math.round(el.x)}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        const nextElements = content.custom_elements.map((item: any) => item.id === el.id ? { ...item, x: val } : item);
+                        onContentChange({ ...content, custom_elements: nextElements });
+                      }}
+                      className="w-full rounded bg-[#0c0d12] border border-[#1e2028] px-2 py-1 text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-500 block mb-0.5">Y Position (%)</label>
+                    <input
+                      type="number"
+                      value={Math.round(el.y)}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        const nextElements = content.custom_elements.map((item: any) => item.id === el.id ? { ...item, y: val } : item);
+                        onContentChange({ ...content, custom_elements: nextElements });
+                      }}
+                      className="w-full rounded bg-[#0c0d12] border border-[#1e2028] px-2 py-1 text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-500 block mb-0.5">Width (%)</label>
+                    <input
+                      type="number"
+                      value={Math.round(el.w)}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        const nextElements = content.custom_elements.map((item: any) => item.id === el.id ? { ...item, w: val } : item);
+                        onContentChange({ ...content, custom_elements: nextElements });
+                      }}
+                      className="w-full rounded bg-[#0c0d12] border border-[#1e2028] px-2 py-1 text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-500 block mb-0.5">Height (%)</label>
+                    <input
+                      type="number"
+                      value={Math.round(el.h)}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        const nextElements = content.custom_elements.map((item: any) => item.id === el.id ? { ...item, h: val } : item);
+                        onContentChange({ ...content, custom_elements: nextElements });
+                      }}
+                      className="w-full rounded bg-[#0c0d12] border border-[#1e2028] px-2 py-1 text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-slate-500">Rotation (0-360°)</label>
+                      <span className="text-slate-400 font-mono text-[9px]">{el.rotate || 0}°</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="360"
+                      value={el.rotate || 0}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        const nextElements = content.custom_elements.map((item: any) => item.id === el.id ? { ...item, rotate: val } : item);
+                        onContentChange({ ...content, custom_elements: nextElements });
+                      }}
+                      className="w-full accent-amber-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // --- Main builder view --------------------------------------------------------

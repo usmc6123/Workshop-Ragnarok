@@ -6,7 +6,7 @@ import {
 } from '../constants/siteGrid';
 import { blockMeta } from '../constants/siteBlockTypes';
 import SiteBlockView, { parseJson, getMediaTransform } from './SiteBlockRenderers';
-import { Copy, Trash2, Settings2, Move, Lock, ZoomIn, ZoomOut, RotateCcw, Check } from 'lucide-react';
+import { Copy, Trash2, Settings2, Move, Lock, ZoomIn, ZoomOut, RotateCcw, RotateCw, Check } from 'lucide-react';
 
 type HandleDir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
@@ -162,7 +162,10 @@ function TransformOverlay({
         <button onClick={() => onChange({ ...transform, zoom: clampZoom(transform.zoom + 0.2) })} className="p-1 rounded hover:bg-white/10 text-slate-300 hover:text-white cursor-pointer" title="Zoom in">
           <ZoomIn className="w-3 h-3" />
         </button>
-        <button onClick={() => onChange({ zoom: 1, x: 0, y: 0 })} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer" title="Reset">
+        <button onClick={() => onChange({ ...transform, rotate: ((transform.rotate || 0) + 90) % 360 })} className="p-1 rounded hover:bg-white/10 text-slate-300 hover:text-white cursor-pointer" title="Rotate 90°">
+          <RotateCw className="w-3 h-3" />
+        </button>
+        <button onClick={() => onChange({ zoom: 1, x: 0, y: 0, rotate: 0 })} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer" title="Reset">
           <RotateCcw className="w-3 h-3" />
         </button>
         <button onClick={onDone} className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 cursor-pointer" title="Done">
