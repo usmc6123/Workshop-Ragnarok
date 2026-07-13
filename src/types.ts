@@ -286,7 +286,8 @@ export interface PublicFunnel {
 
 export type SiteBlockType =
   | 'hero' | 'text' | 'image' | 'video' | 'cta'
-  | 'contact_form' | 'testimonial' | 'pricing' | 'faq' | 'spacer';
+  | 'contact_form' | 'testimonial' | 'pricing' | 'faq' | 'spacer'
+  | 'ai_chat_bot' | 'funnel';
 
 // Site-wide look-and-feel — a flexible JSON blob (like block content/style)
 // rather than fixed columns, since the set of themeable properties keeps
@@ -548,6 +549,18 @@ export interface FaqBlockContent {
 }
 export interface SpacerBlockContent {
   size?: 'sm' | 'md' | 'lg';
+}
+export interface AiChatBotBlockContent {
+  headline?: string;
+  headline_tag?: HeadingTag;
+  subheadline?: string;
+  bot_id?: string;
+}
+export interface FunnelBlockContent {
+  headline?: string;
+  headline_tag?: HeadingTag;
+  subheadline?: string;
+  funnel_id?: number;
 }
 
 export interface SiteMessage {

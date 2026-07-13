@@ -1,8 +1,8 @@
-import { SiteBlockType, HeroBlockContent, TextBlockContent, ImageBlockContent, VideoBlockContent, CtaBlockContent, ContactFormBlockContent, TestimonialBlockContent, PricingBlockContent, FaqBlockContent, SpacerBlockContent } from '../types';
+import { SiteBlockType, HeroBlockContent, TextBlockContent, ImageBlockContent, VideoBlockContent, CtaBlockContent, ContactFormBlockContent, TestimonialBlockContent, PricingBlockContent, FaqBlockContent, SpacerBlockContent, AiChatBotBlockContent, FunnelBlockContent } from '../types';
 import type { LucideIcon } from 'lucide-react';
 import {
   LayoutTemplate, Type, Image as ImageIcon, Film, MousePointerClick, Mail,
-  Quote, Tag, HelpCircle, MoveVertical,
+  Quote, Tag, HelpCircle, MoveVertical, Bot, Filter,
 } from 'lucide-react';
 
 // Shared registry of the 10 block types — icon, label, and a fresh default
@@ -26,6 +26,8 @@ export const BLOCK_TYPES: BlockTypeMeta[] = [
   { type: 'pricing', label: 'Pricing', icon: Tag, defaultContent: () => ({ headline: 'Plans & Pricing', tiers: [{ name: 'Basic', price: '$0', features: [] }] } as PricingBlockContent) },
   { type: 'faq', label: 'FAQ', icon: HelpCircle, defaultContent: () => ({ headline: 'Frequently Asked Questions', items: [] } as FaqBlockContent) },
   { type: 'spacer', label: 'Spacer', icon: MoveVertical, defaultContent: () => ({ size: 'md' } as SpacerBlockContent) },
+  { type: 'ai_chat_bot', label: 'AI Chat Bot', icon: Bot, defaultContent: () => ({ headline: 'Chat with our AI Assistant', subheadline: 'Ask us anything or book your appointment right here!', bot_id: 'cooper-patrol-cat' } as AiChatBotBlockContent) },
+  { type: 'funnel', label: 'Lead Funnel', icon: Filter, defaultContent: () => ({ headline: 'Exclusive Service Offer', subheadline: 'Submit details below to lock in custom discounts and instant quotes.' } as FunnelBlockContent) },
 ];
 
 export function blockMeta(type: SiteBlockType): BlockTypeMeta {
@@ -46,6 +48,8 @@ export function blockSummary(blockType: SiteBlockType, content: any): string {
     case 'pricing': return `${(content.tiers || []).length} plan(s)`;
     case 'faq': return `${(content.items || []).length} question(s)`;
     case 'spacer': return `Size: ${content.size || 'md'}`;
+    case 'ai_chat_bot': return content.bot_id ? `AI Bot: ${content.bot_id}` : 'AI Bot';
+    case 'funnel': return content.funnel_id ? `Funnel ID: ${content.funnel_id}` : 'Lead Funnel';
     default: return '';
   }
 }

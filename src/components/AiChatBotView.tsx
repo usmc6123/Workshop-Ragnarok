@@ -44,7 +44,7 @@ interface UiConfiguration {
   chat_bg_opacity?: number;
 }
 
-interface ChatBotConfig {
+export interface ChatBotConfig {
   id: string;
   business_description: string;
   main_role: string;
@@ -60,7 +60,7 @@ interface ChatBotConfig {
 }
 
 // 20 DIVERSE PRE-CONFIGURED PERSONAS across various industries & platforms
-const PERSONAS_20: ChatBotConfig[] = [
+export const PERSONAS_20: ChatBotConfig[] = [
   {
     id: 'cooper-patrol-cat',
     business_description: 'Ragnarök Auto Workshop - Special custom builds, Corvettes, and performance tuning.',

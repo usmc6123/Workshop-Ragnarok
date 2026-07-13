@@ -4,8 +4,9 @@ import {
   Site, SiteBlock, SiteBlockType, SiteMessage, ThemeConfig, BlockStyle, DeviceBreakpoint, MediaTransform,
   HeroBlockContent, ImageBlockContent, VideoBlockContent, CtaBlockContent,
   ContactFormBlockContent, TestimonialBlockContent, PricingBlockContent, FaqBlockContent, SpacerBlockContent,
-  PricingTier, FaqItem, ContactFormField,
+  PricingTier, FaqItem, ContactFormField, AiChatBotBlockContent, FunnelBlockContent, Funnel,
 } from '../types';
+import { ChatBotConfig, PERSONAS_20 } from './AiChatBotView';
 import { SITE_FONT_OPTIONS, ensureGoogleFontsLoaded } from '../constants/siteFonts';
 import { SITE_TEMPLATES, SiteTemplate } from '../constants/siteTemplates';
 import { BLOCK_TYPES, blockMeta } from '../constants/siteBlockTypes';
@@ -377,6 +378,22 @@ function BlockContentEditor({
 }) {
   const set = (patch: object) => onContentChange({ ...content, ...patch });
 
+  const [customBots, setCustomBots] = useState<ChatBotConfig[]>([]);
+  const [funnels, setFunnels] = useState<Funnel[]>([]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('ragnarok_custom_chat_bots');
+      if (raw) setCustomBots(JSON.parse(raw));
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  useEffect(() => {
+    api.getFunnels().then(setFunnels).catch(err => console.error(err));
+  }, []);
+
   switch (blockType) {
     case 'hero': {
       const c: HeroBlockContent = content;
@@ -591,6 +608,71 @@ function BlockContentEditor({
                 {s}
               </button>
             ))}
+          </div>
+        </div>
+      );
+    }
+    case 'ai_chat_bot': {
+      const c: AiChatBotBlockContent = content;
+      return (
+        <div className="space-y-4">
+          <div>
+            <FieldLabel>Select AI Chat Bot</FieldLabel>
+            <select
+              value={c.bot_id || ''}
+              onChange={(e) => set({ bot_id: e.target.value })}
+              className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white focus:outline-none"
+            >
+              <option value="">-- Choose Bot --</option>
+              {customBots.length > 0 && (
+                <optgroup label="Custom Bots">
+                  {customBots.map(b => (
+                    <option key={b.id} value={b.id}>{b.bot_profile.name} ({b.interface_platform || 'Assistant'})</option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label="Premade Bots">
+                {PERSONAS_20.map(b => (
+                  <option key={b.id} value={b.id}>{b.bot_profile.name} ({b.interface_platform || 'Premade'})</option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
+          <div>
+            <FieldLabel>Headline Override</FieldLabel>
+            <TextInput value={c.headline || ''} onChange={(v) => set({ headline: v })} placeholder="e.g. Chat with Cooper" />
+          </div>
+          <div>
+            <FieldLabel>Subheadline Override</FieldLabel>
+            <TextInput value={c.subheadline || ''} onChange={(v) => set({ subheadline: v })} placeholder="e.g. Ask Cooper anything" />
+          </div>
+        </div>
+      );
+    }
+    case 'funnel': {
+      const c: FunnelBlockContent = content;
+      return (
+        <div className="space-y-4">
+          <div>
+            <FieldLabel>Select Funnel</FieldLabel>
+            <select
+              value={c.funnel_id || ''}
+              onChange={(e) => set({ funnel_id: e.target.value ? Number(e.target.value) : undefined })}
+              className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2 text-xs text-white focus:outline-none"
+            >
+              <option value="">-- Choose Funnel --</option>
+              {funnels.map(f => (
+                <option key={f.id} value={f.id}>{f.headline || `Funnel #${f.id}`} ({f.slug})</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <FieldLabel>Headline Override</FieldLabel>
+            <TextInput value={c.headline || ''} onChange={(v) => set({ headline: v })} placeholder="Leave blank to use Funnel's own headline" />
+          </div>
+          <div>
+            <FieldLabel>Subheadline Override</FieldLabel>
+            <TextInput value={c.subheadline || ''} onChange={(v) => set({ subheadline: v })} placeholder="Leave blank to use Funnel's own subheadline" />
           </div>
         </div>
       );

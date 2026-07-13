@@ -4,13 +4,112 @@ import {
   SiteBlock, BlockStyle, HeadingTag, DeviceBreakpoint,
   HeroBlockContent, TextBlockContent, ImageBlockContent, VideoBlockContent, CtaBlockContent,
   ContactFormBlockContent, TestimonialBlockContent, PricingBlockContent, FaqBlockContent,
+  AiChatBotBlockContent, FunnelBlockContent, Funnel,
 } from '../types';
 import { getSiteIcon } from '../constants/siteIcons';
 import RichTextEditor from './RichTextEditor';
 import {
   Loader2, AlertTriangle, CheckCircle2, ArrowRight, Quote, Send, ChevronDown,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Bot, Filter,
 } from 'lucide-react';
+import BotThreeCanvas from './BotThreeCanvas';
+import { PERSONAS_20, ChatBotConfig } from './AiChatBotView';
+
+function getBotConfig(botId?: string): ChatBotConfig {
+  const defaultBot = PERSONAS_20.find(p => p.id === 'cooper-patrol-cat') || PERSONAS_20[0];
+  if (!botId) return defaultBot;
+  try {
+    const saved = localStorage.getItem('ragnarok_custom_chat_bots');
+    const customList: ChatBotConfig[] = saved ? JSON.parse(saved) : [];
+    const found = customList.find(b => b.id === botId) || PERSONAS_20.find(p => p.id === botId);
+    return found || defaultBot;
+  } catch {
+    return PERSONAS_20.find(p => p.id === botId) || defaultBot;
+  }
+}
+
+function getSimulatedReply(userText: string, bot: ChatBotConfig): string {
+  const lower = userText.toLowerCase();
+  const docs = bot.uploaded_docs || '';
+  const theme = bot.character_theme || 'mascot_cat';
+  const primaryCta = bot.primary_cta || 'https://ragnarok.work/book';
+  
+  const hasPrice = lower.includes('price') || lower.includes('cost') || lower.includes('how much') || lower.includes('pricing') || lower.includes('fee') || lower.includes('rate');
+  const hasLocation = lower.includes('where') || lower.includes('location') || lower.includes('address') || lower.includes('hours') || lower.includes('open');
+  const hasBooking = lower.includes('book') || lower.includes('appointment') || lower.includes('schedule') || lower.includes('reserve') || lower.includes('slot') || lower.includes('tour') || lower.includes('ticket');
+  const hasAI = lower.includes('ai') || lower.includes('robot') || lower.includes('bot') || lower.includes('computer');
+
+  let docSnippet = '';
+  if (docs && docs.trim()) {
+    const lines = docs.split('\n');
+    const words = lower.split(/\s+/).filter(w => w.length > 3);
+    let bestLine = '';
+    let maxMatches = 0;
+    for (const l of lines) {
+      if (!l.trim()) continue;
+      let matches = 0;
+      for (const w of words) {
+        if (l.toLowerCase().includes(w)) {
+          matches++;
+        }
+      }
+      if (matches > maxMatches) {
+        maxMatches = matches;
+        bestLine = l;
+      }
+    }
+    if (maxMatches > 0) {
+      docSnippet = bestLine.trim();
+    }
+  }
+
+  if (docSnippet) {
+    if (theme === 'mascot_cat') {
+      return `Meow! 🐾 Found this in our files: "${docSnippet}"! Purr-fect! Let's get you set up at ${primaryCta}! ⚡`;
+    } else if (theme === 'professional') {
+      return `Regarding your inquiry, our record database indicates: "${docSnippet}". If you need further assistance, please visit ${primaryCta}.`;
+    } else if (theme === 'minimalist_tech') {
+      return `DATABASE HIT: "${docSnippet}". ROUTING PACKETS: Initialize schedule terminal at ${primaryCta}.`;
+    } else {
+      return `According to our uploaded knowledge base: "${docSnippet}". If you need details, go here: ${primaryCta}`;
+    }
+  } else if (theme === 'mascot_cat') {
+    if (hasAI) {
+      return `Meow! 🐾 I am Cooper's clone! I don't know what AI chips you're talking about, but my laser sensors are fully focused! ⚡`;
+    } else if (hasPrice) {
+      return `Vaporizing prices! 🐾 Tunings are $90, flushes are $110, and suspension rebuilds start at $180! Super cat-speed! ⚡`;
+    } else if (hasLocation) {
+      return `Find us patrolling at 123 Resistance Way, Pasadena! We're active Monday to Saturday from 8AM to 6PM! 🐾`;
+    } else if (hasBooking) {
+      return `Purr-fect! Let's lock in your coordinates. Click this link right now to claim your booking slot: ${primaryCta}! 🐾⚡`;
+    } else {
+      return `Meow! 🐾 That sounds awesome, but my laser pointers are targeting your next booking coordinates! Let's get you on the schedule! ⚡`;
+    }
+  } else if (theme === 'professional') {
+    if (hasPrice) {
+      return `Our pricing is structured transparently: tune-ups are $90, diagnostic services are $49, and complete services depend on your vehicle. Please see details at ${primaryCta}.`;
+    } else if (hasLocation) {
+      return `We are located at 123 Resistance Way, Pasadena, CA. Our operating hours are Monday through Saturday, 8:00 AM to 6:00 PM.`;
+    } else if (hasBooking) {
+      return `I would be pleased to secure an appointment for you. Please complete your registration via our system coordinate at ${primaryCta}.`;
+    } else {
+      return `I appreciate your inquiry. For detailed specifications or to schedule personal care, please consult our main interface at ${primaryCta}.`;
+    }
+  } else if (theme === 'minimalist_tech') {
+    if (hasPrice) {
+      return `PRICING METADATA: Standard diagnostics: $49. Base service package starts at $90. Check terminal at ${primaryCta} for details.`;
+    } else if (hasLocation) {
+      return `GEO COORDINATES: 123 Resistance Way, Pasadena, CA. UPTIME: Mon-Sat 0800-1800 PST.`;
+    } else if (hasBooking) {
+      return `PROPOSAL: Secure queue slot at: ${primaryCta}. Action recommended.`;
+    } else {
+      return `ACKNOWLEDGEMENT. Packet received. To execute actions or configure bookings, interface directly with ${primaryCta}.`;
+    }
+  } else {
+    // Custom theme rules or fallback
+    return `Hello! Thanks for reaching out. Please feel free to check out our booking page at ${primaryCta} for any appointments or pricing!`;
+  }
+}
 
 // This file is the single source of truth for what a block actually looks
 // like — both SitePageView (the real public site) and SiteGridCanvas (the
@@ -642,6 +741,354 @@ function ContactFormView({ block, dark, accent, headingFont, subdomain, editable
   );
 }
 
+function AiChatBotBlockView({ block, dark, accent, headingFont, editable, onContentChange, device }: SiteBlockViewProps) {
+  const c = useContent<AiChatBotBlockContent>(block);
+  const rawStyle = parseJson<BlockStyle>(block.style, {});
+  const style = resolveDeviceStyle(rawStyle, device || 'desktop');
+  const set = (patch: Partial<AiChatBotBlockContent>) => onContentChange?.({ ...c, ...patch });
+
+  const botConfig = React.useMemo(() => getBotConfig(c.bot_id), [c.bot_id]);
+  const ui = botConfig.ui_configuration;
+
+  const [chatMessages, setChatMessages] = useState<{ sender: 'bot' | 'user'; text: string; time: string }[]>([]);
+  const [userInput, setUserInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+
+  useEffect(() => {
+    setChatMessages([
+      {
+        sender: 'bot',
+        text: ui.welcome_message || 'Hello! How can I assist you today?',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ]);
+  }, [botConfig, ui.welcome_message]);
+
+  const handleSend = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userInput.trim() || isTyping) return;
+    const text = userInput.trim();
+    setUserInput('');
+    setChatMessages(prev => [...prev, {
+      sender: 'user',
+      text,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }]);
+    setIsTyping(true);
+
+    setTimeout(() => {
+      const reply = getSimulatedReply(text, botConfig);
+      setChatMessages(prev => [...prev, {
+        sender: 'bot',
+        text: reply,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }]);
+      setIsTyping(false);
+    }, 1000);
+  };
+
+  const is3D = ui.bot_style === '3d_animated';
+
+  const chatBgStyle: React.CSSProperties = {};
+  if (ui.chat_bg_type === 'color' && ui.chat_bg_val) {
+    chatBgStyle.backgroundColor = ui.chat_bg_val;
+  } else if (ui.chat_bg_type === 'image' && ui.chat_bg_val) {
+    chatBgStyle.backgroundImage = `url(${ui.chat_bg_val})`;
+    chatBgStyle.backgroundSize = 'cover';
+    chatBgStyle.backgroundPosition = 'center';
+  }
+
+  const backdropOpacity = (ui.chat_bg_opacity ?? 100) / 100;
+
+  return (
+    <section className={`w-full h-full rounded-2xl border flex flex-col overflow-hidden ${paddingClass(style.padding)} ${dark ? 'bg-[#13141a]/80 border-border-theme' : 'bg-white border-slate-200'}`} style={boxAppearanceStyle(style)}>
+      <div className="mb-4">
+        <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
+          <InlineText value={c.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Chat with our Assistant" />
+        </Heading>
+        <div className={`mt-1 text-xs opacity-75 ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
+          <RichTextEditor value={c.subheadline || ''} onChange={(v) => set({ subheadline: v })} editable={editable} placeholder="Select a customized or premade chatbot" />
+        </div>
+      </div>
+
+      <div className={`grid grid-cols-1 ${is3D ? 'lg:grid-cols-12' : ''} gap-4 flex-1 min-h-[350px]`}>
+        {is3D && (
+          <div className="lg:col-span-5 relative rounded-xl overflow-hidden min-h-[220px] bg-[#0c0d12] flex flex-col items-center justify-center">
+            {ui.three_bg_type === 'image' && ui.three_bg_val && (
+              <img src={ui.three_bg_val} className="absolute inset-0 w-full h-full object-cover" style={{ opacity: (ui.three_bg_opacity ?? 100) / 100 }} alt="Backdrop" />
+            )}
+            {ui.three_bg_type === 'video' && ui.three_bg_val && (
+              <video src={ui.three_bg_val} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover" style={{ opacity: (ui.three_bg_opacity ?? 100) / 100 }} />
+            )}
+            <div className="absolute inset-0 z-10 w-full h-full">
+              <BotThreeCanvas
+                primaryColor={ui.primary_color || '#a855f7'}
+                secondaryColor={ui.secondary_color || '#1e1b4b'}
+                preset={ui.three_preset || 'quantum'}
+                isTalking={isTyping}
+                speed={ui.three_speed}
+                wireframe={ui.three_wireframe}
+                particleCount={ui.three_particles}
+                customModelUrl={ui.three_file}
+                bgColor={ui.three_bg_type === 'color' ? ui.three_bg_val : undefined}
+                bgType={ui.three_bg_type}
+                bgVal={ui.three_bg_val}
+                bgOpacity={ui.three_bg_opacity}
+                modelScale={ui.three_model_scale}
+              />
+            </div>
+            <div className="absolute bottom-2 left-2 z-20 px-2 py-0.5 rounded text-[10px] bg-black/60 text-teal-400 font-mono flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
+              <span>3D MODEL COMPANION</span>
+            </div>
+          </div>
+        )}
+
+        <div className={`${is3D ? 'lg:col-span-7' : 'w-full'} flex flex-col bg-slate-900/40 rounded-xl overflow-hidden border border-slate-800/60`}>
+          <div className="bg-slate-950/80 p-3 border-b border-slate-800/80 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center overflow-hidden">
+                {ui.avatar_image ? (
+                  <img src={ui.avatar_image} alt={botConfig.bot_profile.name} className="w-full h-full object-cover" />
+                ) : (
+                  <Bot className="w-4 h-4 text-amber-500" />
+                )}
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-slate-100">{botConfig.bot_profile.name}</h4>
+                <p className="text-[9px] text-teal-400 font-mono tracking-wider">ONLINE // READY</p>
+              </div>
+            </div>
+            <span className="px-2 py-0.5 rounded text-[9px] bg-slate-900 text-slate-400 uppercase font-mono border border-slate-800">
+              {ui.bot_style === 'visual_media' ? 'Visual media' : ui.bot_style === 'classic' ? 'Classic' : ui.bot_style === 'bubble_popup' ? 'Bubble Popup' : '3D Companion'}
+            </span>
+          </div>
+
+          <div className="flex-1 p-3 overflow-y-auto space-y-2.5 max-h-[250px] relative" style={chatBgStyle}>
+            {ui.chat_bg_type === 'image' && ui.chat_bg_val && (
+              <div className="absolute inset-0 bg-slate-950" style={{ opacity: 1 - backdropOpacity, zIndex: 0 }} />
+            )}
+            <div className="relative z-10 space-y-2.5">
+              {chatMessages.map((msg, i) => {
+                const isBot = msg.sender === 'bot';
+                return (
+                  <div key={i} className={`flex ${isBot ? 'justify-start' : 'justify-end'} items-end gap-2`}>
+                    {isBot && (
+                      <div className="w-6 h-6 rounded-full bg-slate-800 shrink-0 overflow-hidden border border-slate-700">
+                        <img src={ui.avatar_image || '/cooper-logo.png'} className="w-full h-full object-cover" onError={(e) => { (e.target as any).src = '/cooper-logo.png' }} alt="" />
+                      </div>
+                    )}
+                    <div className={`max-w-[75%] p-2.5 rounded-xl text-xs leading-relaxed ${
+                      isBot 
+                        ? 'bg-slate-800/90 text-slate-100 rounded-bl-none border border-slate-700/50' 
+                        : 'bg-amber-500 text-slate-950 rounded-br-none font-bold'
+                    }`}>
+                      <p>{msg.text}</p>
+                      <span className={`block text-[8px] mt-1 text-right ${isBot ? 'text-slate-500' : 'text-slate-850'}`}>{msg.time}</span>
+                    </div>
+                  </div>
+                );
+              })}
+              {isTyping && (
+                <div className="flex justify-start items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-slate-800 shrink-0 overflow-hidden border border-slate-700">
+                    <img src={ui.avatar_image || '/cooper-logo.png'} className="w-full h-full object-cover" onError={(e) => { (e.target as any).src = '/cooper-logo.png' }} alt="" />
+                  </div>
+                  <div className="bg-slate-800/90 border border-slate-700/50 px-3 py-2 rounded-xl rounded-bl-none text-slate-400 text-xs flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <form onSubmit={handleSend} className="bg-slate-950/80 p-2 border-t border-slate-800/80 flex gap-2">
+            <input
+              type="text"
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              placeholder="Ask us anything..."
+              disabled={editable}
+              className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 disabled:opacity-50"
+            />
+            <button
+              type="submit"
+              disabled={editable || !userInput.trim() || isTyping}
+              className="px-3 py-1.5 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold transition hover:bg-amber-400 active:scale-95 disabled:opacity-50 flex items-center justify-center cursor-pointer"
+            >
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FunnelBlockView({ block, dark, accent, headingFont, editable, onContentChange, device }: SiteBlockViewProps) {
+  const c = useContent<FunnelBlockContent>(block);
+  const rawStyle = parseJson<BlockStyle>(block.style, {});
+  const style = resolveDeviceStyle(rawStyle, device || 'desktop');
+  const set = (patch: Partial<FunnelBlockContent>) => onContentChange?.({ ...c, ...patch });
+
+  const [funnels, setFunnels] = useState<Funnel[]>([]);
+  const [selectedFunnel, setSelectedFunnel] = useState<Funnel | null>(null);
+
+  const [formName, setFormName] = useState('');
+  const [formPhone, setFormPhone] = useState('');
+  const [formEmail, setFormEmail] = useState('');
+  const [formMessage, setFormMessage] = useState('');
+  const [formYear, setFormYear] = useState('');
+  const [formMake, setFormMake] = useState('');
+  const [formModel, setFormModel] = useState('');
+  const [honeypot, setHoneypot] = useState('');
+
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchFunnels = async () => {
+      try {
+        const list = await api.getFunnels();
+        setFunnels(list);
+        if (c.funnel_id) {
+          const found = list.find(f => f.id === c.funnel_id);
+          setSelectedFunnel(found || null);
+        } else if (list.length > 0) {
+          setSelectedFunnel(list[0]);
+        }
+      } catch (err) {
+        console.error('Error loading funnels for block:', err);
+      }
+    };
+    fetchFunnels();
+  }, [c.funnel_id]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editable) return;
+    if (!selectedFunnel) {
+      setError('No funnel is configured for this block.');
+      return;
+    }
+    if (!formName.trim() || !formPhone.trim() || !formEmail.trim()) {
+      setError('Please fill in Name, Phone, and Email.');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.submitFunnelLead(selectedFunnel.slug, {
+        name: formName,
+        phone: formPhone,
+        email: formEmail,
+        message: formMessage,
+        vehicle_year: formYear,
+        vehicle_make: formMake,
+        vehicle_model: formModel,
+        company_website: honeypot
+      });
+      setSubmitted(true);
+    } catch (err: any) {
+      console.error(err);
+      setError('Failed to submit. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const accentText = getContrastText(accent);
+
+  if (!selectedFunnel) {
+    return (
+      <div className="w-full p-8 text-center text-xs text-slate-500 border border-dashed border-slate-700/50 rounded-xl">
+        {editable ? 'No funnel configured yet — click here to select one in the block settings.' : 'Lead capture funnel coming soon!'}
+      </div>
+    );
+  }
+
+  const f = selectedFunnel;
+  const inputClass = dark
+    ? 'w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none'
+    : 'w-full rounded-lg bg-white border border-slate-300 focus:border-amber-500 px-3 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none';
+
+  return (
+    <section className={`rounded-2xl border w-full h-full flex flex-col justify-center overflow-hidden ${paddingClass(style.padding)} ${dark ? 'bg-[#13141a]/80 border-border-theme' : 'bg-white border-slate-200'}`} style={boxAppearanceStyle(style)}>
+      <div className={`space-y-4 ${alignClass(style.align, 'center')}`}>
+        <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black tracking-tight ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
+          <InlineText value={c.headline || f.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Funnel Title" />
+        </Heading>
+        <div className={`text-xs opacity-80 ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
+          <RichTextEditor value={c.subheadline || f.subheadline || ''} onChange={(v) => set({ subheadline: v })} editable={editable} placeholder="Short sub-headline" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6 items-center">
+        <div className="lg:col-span-5 space-y-4">
+          {(f.video_url || f.hero_video_url) ? (
+            <div className="rounded-xl overflow-hidden aspect-video bg-black/25 border border-slate-800">
+              <iframe src={f.video_url || f.hero_video_url || ''} className="w-full h-full" style={{ border: 0 }} allow="autoplay; fullscreen" allowFullScreen title="Funnel video" />
+            </div>
+          ) : f.image_url ? (
+            <div className="rounded-xl overflow-hidden aspect-video bg-black/25 border border-slate-800">
+              <img src={f.image_url} alt="Promo" className="w-full h-full object-cover" />
+            </div>
+          ) : (
+            <div className="rounded-xl aspect-video bg-slate-900/50 border border-slate-800 flex items-center justify-center p-4">
+              <Filter className="w-12 h-12 text-slate-600" />
+            </div>
+          )}
+
+          {f.body && (
+            <div className={`text-xs leading-relaxed opacity-75 ${dark ? 'text-slate-300' : 'text-slate-600'}`}>
+              <p>{f.body}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="lg:col-span-7 bg-slate-950/20 p-4 rounded-xl border border-slate-800/40">
+          {submitted ? (
+            <div className="py-8 text-center space-y-3">
+              <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
+              <h4 className={`text-sm font-black ${dark ? 'text-white' : 'text-slate-900'}`}>Your offer is locked in!</h4>
+              <p className="text-xs text-slate-400 max-w-xs mx-auto">Thanks! We have logged your request. Our service team will reach out to you shortly.</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <input type="text" placeholder="Your Name *" value={formName} onChange={e => setFormName(e.target.value)} className={inputClass} required disabled={editable} />
+                <input type="tel" placeholder="Phone Number *" value={formPhone} onChange={e => setFormPhone(e.target.value)} className={inputClass} required disabled={editable} />
+              </div>
+
+              <input type="email" placeholder="Email Address *" value={formEmail} onChange={e => setFormEmail(e.target.value)} className={inputClass} required disabled={editable} />
+
+              <div className="grid grid-cols-3 gap-2">
+                <input type="text" placeholder="Year" value={formYear} onChange={e => setFormYear(e.target.value)} className={inputClass} disabled={editable} />
+                <input type="text" placeholder="Make" value={formMake} onChange={e => setFormMake(e.target.value)} className={inputClass} disabled={editable} />
+                <input type="text" placeholder="Model" value={formModel} onChange={e => setFormModel(e.target.value)} className={inputClass} disabled={editable} />
+              </div>
+
+              <textarea placeholder="Describe service required or general questions..." value={formMessage} onChange={e => setFormMessage(e.target.value)} rows={2} className={inputClass} disabled={editable} />
+
+              <input type="text" value={honeypot} onChange={e => setHoneypot(e.target.value)} tabIndex={-1} autoComplete="off" aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 0, height: 0, opacity: 0 }} />
+
+              {error && <p className="text-xs text-rose-400 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> {error}</p>}
+
+              <button type="submit" disabled={submitting || editable} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-black uppercase tracking-wider text-xs transition hover:opacity-90 disabled:opacity-50" style={{ backgroundColor: accent, color: accentText }}>
+                {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                <span>{f.cta_text || 'Submit Lead'}</span>
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function SiteBlockView(props: SiteBlockViewProps) {
   switch (props.block.block_type) {
     case 'hero': return <HeroView {...props} />;
@@ -654,6 +1101,8 @@ export default function SiteBlockView(props: SiteBlockViewProps) {
     case 'pricing': return <PricingView {...props} />;
     case 'faq': return <FaqView {...props} />;
     case 'spacer': return <SpacerView {...props} />;
+    case 'ai_chat_bot': return <AiChatBotBlockView {...props} />;
+    case 'funnel': return <FunnelBlockView {...props} />;
     default: return null;
   }
 }
