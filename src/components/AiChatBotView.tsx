@@ -34,6 +34,13 @@ interface UiConfiguration {
   bot_opacity?: number;
   // bubble configuration
   bubble_phrases?: string;
+  // background customization
+  three_bg_type?: 'color' | 'image' | 'video';
+  three_bg_val?: string;
+  three_bg_opacity?: number;
+  chat_bg_type?: 'color' | 'image' | 'video';
+  chat_bg_val?: string;
+  chat_bg_opacity?: number;
 }
 
 interface ChatBotConfig {
@@ -822,6 +829,14 @@ export default function AiChatBotView() {
   const [threeFile, setThreeFile] = useState<string>('');
   const [botOpacity, setBotOpacity] = useState<number>(100);
 
+  // Background and opacity States
+  const [threeBgType, setThreeBgType] = useState<'color' | 'image' | 'video'>('color');
+  const [threeBgVal, setThreeBgVal] = useState<string>('#0a0b10');
+  const [threeBgOpacity, setThreeBgOpacity] = useState<number>(100);
+  const [chatBgType, setChatBgType] = useState<'color' | 'image' | 'video'>('color');
+  const [chatBgVal, setChatBgVal] = useState<string>('#f8fafc');
+  const [chatBgOpacity, setChatBgOpacity] = useState<number>(100);
+
   // Outputs (Generated)
   const [generatedJson, setGeneratedJson] = useState<string>('');
   const [generatedInstructions, setGeneratedInstructions] = useState<string>('');
@@ -967,6 +982,13 @@ export default function AiChatBotView() {
       setBotOpacity(target.ui_configuration.bot_opacity ?? 100);
       setBubblePhrases(target.ui_configuration.bubble_phrases || 'Need an LS swap? I can quote you in seconds! 🐾, ATF Transmission Flush is only $110! ⚡, Cooper on Laser Patrol! Ready to scan your engine! 📡, Book a custom build slot today! 🏎️');
       
+      setThreeBgType(target.ui_configuration.three_bg_type || 'color');
+      setThreeBgVal(target.ui_configuration.three_bg_val || '#0a0b10');
+      setThreeBgOpacity(target.ui_configuration.three_bg_opacity ?? 100);
+      setChatBgType(target.ui_configuration.chat_bg_type || 'color');
+      setChatBgVal(target.ui_configuration.chat_bg_val || '#f8fafc');
+      setChatBgOpacity(target.ui_configuration.chat_bg_opacity ?? 100);
+      
       // Auto compile instructions and JSON on load
       compileBot(target);
     }
@@ -1084,6 +1106,13 @@ export default function AiChatBotView() {
     const currentBotOpacity = overrideBot ? (overrideBot.ui_configuration.bot_opacity ?? 100) : botOpacity;
     const currentBubblePhrases = overrideBot ? (overrideBot.ui_configuration.bubble_phrases || '') : bubblePhrases;
 
+    const currentThreeBgType = overrideBot ? (overrideBot.ui_configuration.three_bg_type || 'color') : threeBgType;
+    const currentThreeBgVal = overrideBot ? (overrideBot.ui_configuration.three_bg_val || '#0a0b10') : threeBgVal;
+    const currentThreeBgOpacity = overrideBot ? (overrideBot.ui_configuration.three_bg_opacity ?? 100) : threeBgOpacity;
+    const currentChatBgType = overrideBot ? (overrideBot.ui_configuration.chat_bg_type || 'color') : chatBgType;
+    const currentChatBgVal = overrideBot ? (overrideBot.ui_configuration.chat_bg_val || '#f8fafc') : chatBgVal;
+    const currentChatBgOpacity = overrideBot ? (overrideBot.ui_configuration.chat_bg_opacity ?? 100) : chatBgOpacity;
+
     // 1. Build System Instructions (Rule 1: combine role and doc text, NEVER mention AI, < 3 sentences, steer to CTA)
     let systemInstruction = `You are ${currentName}, working as a custom bot assistant. `;
     systemInstruction += `ROLE: ${currentMainRole || 'Customer assistance'}. `;
@@ -1137,7 +1166,13 @@ export default function AiChatBotView() {
         three_particles: currentThreeParticles,
         three_file: currentThreeFile,
         bot_opacity: currentBotOpacity,
-        bubble_phrases: currentBubblePhrases
+        bubble_phrases: currentBubblePhrases,
+        three_bg_type: currentThreeBgType,
+        three_bg_val: currentThreeBgVal,
+        three_bg_opacity: currentThreeBgOpacity,
+        chat_bg_type: currentChatBgType,
+        chat_bg_val: currentChatBgVal,
+        chat_bg_opacity: currentChatBgOpacity
       },
       embed_code_snippet: `<!-- Ragnarök Custom Funnel AI Chat Bot Widget -->
 <script src="https://cdn.ragnarok.work/widget/bot-loader.js" async></script>
@@ -1167,7 +1202,13 @@ export default function AiChatBotView() {
         three_particles: ${currentThreeParticles},
         three_file: "${currentThreeFile}",
         bot_opacity: ${currentBotOpacity},
-        bubble_phrases: "${currentBubblePhrases.replace(/"/g, '\\"')}"
+        bubble_phrases: "${currentBubblePhrases.replace(/"/g, '\\"')}",
+        three_bg_type: "${currentThreeBgType}",
+        three_bg_val: "${currentThreeBgVal}",
+        three_bg_opacity: ${currentThreeBgOpacity},
+        chat_bg_type: "${currentChatBgType}",
+        chat_bg_val: "${currentChatBgVal}",
+        chat_bg_opacity: ${currentChatBgOpacity}
       }
     });
   });
@@ -1227,7 +1268,13 @@ export default function AiChatBotView() {
             three_particles: threeParticles,
             three_file: threeFile,
             bot_opacity: botOpacity,
-            bubble_phrases: bubblePhrases
+            bubble_phrases: bubblePhrases,
+            three_bg_type: threeBgType,
+            three_bg_val: threeBgVal,
+            three_bg_opacity: threeBgOpacity,
+            chat_bg_type: chatBgType,
+            chat_bg_val: chatBgVal,
+            chat_bg_opacity: chatBgOpacity
           },
           embed_code_snippet: embedCode
         };
@@ -1993,14 +2040,14 @@ function clearSession() {
                   </span>
                 </div>
                 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   <button
                     type="button"
                     onClick={() => setBotStyle('classic')}
-                    className={`p-2.5 rounded-lg border-2 font-mono text-[9px] uppercase tracking-wider text-center transition cursor-pointer ${
+                    className={`p-2.5 rounded-lg border-2 font-mono text-[9px] uppercase tracking-wider text-center transition-all duration-200 cursor-pointer ${
                       botStyle === 'classic' 
-                        ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold shadow-sm' 
-                        : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500 hover:text-slate-800 shadow-sm'
+                        ? 'border-blue-600 bg-blue-600 text-white font-black shadow-md scale-[1.03]' 
+                        : 'border-blue-200 bg-blue-50/75 text-blue-800 hover:bg-blue-100 hover:border-blue-300 shadow-sm'
                     }`}
                   >
                     Classic Text
@@ -2008,10 +2055,10 @@ function clearSession() {
                   <button
                     type="button"
                     onClick={() => setBotStyle('visual_media')}
-                    className={`p-2.5 rounded-lg border-2 font-mono text-[9px] uppercase tracking-wider text-center transition cursor-pointer ${
+                    className={`p-2.5 rounded-lg border-2 font-mono text-[9px] uppercase tracking-wider text-center transition-all duration-200 cursor-pointer ${
                       botStyle === 'visual_media' 
-                        ? 'border-orange-500 bg-orange-50 text-orange-700 font-bold shadow-sm' 
-                        : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500 hover:text-slate-800 shadow-sm'
+                        ? 'border-orange-600 bg-orange-600 text-white font-black shadow-md scale-[1.03]' 
+                        : 'border-orange-200 bg-orange-50/75 text-orange-800 hover:bg-orange-100 hover:border-orange-300 shadow-sm'
                     }`}
                   >
                     🎥 Media
@@ -2019,10 +2066,10 @@ function clearSession() {
                   <button
                     type="button"
                     onClick={() => setBotStyle('3d_animated')}
-                    className={`p-2.5 rounded-lg border-2 font-mono text-[9px] uppercase tracking-wider text-center transition cursor-pointer ${
+                    className={`p-2.5 rounded-lg border-2 font-mono text-[9px] uppercase tracking-wider text-center transition-all duration-200 cursor-pointer ${
                       botStyle === '3d_animated' 
-                        ? 'border-teal-500 bg-teal-50 text-teal-700 font-bold shadow-sm' 
-                        : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500 hover:text-slate-800 shadow-sm'
+                        ? 'border-teal-600 bg-teal-600 text-white font-black shadow-md scale-[1.03]' 
+                        : 'border-teal-200 bg-teal-50/75 text-teal-800 hover:bg-teal-100 hover:border-teal-300 shadow-sm'
                     }`}
                   >
                     🤖 3D Tech
@@ -2030,10 +2077,10 @@ function clearSession() {
                   <button
                     type="button"
                     onClick={() => setBotStyle('bubble_popup')}
-                    className={`p-2.5 rounded-lg border-2 font-mono text-[9px] uppercase tracking-wider text-center transition cursor-pointer ${
+                    className={`p-2.5 rounded-lg border-2 font-mono text-[9px] uppercase tracking-wider text-center transition-all duration-200 cursor-pointer ${
                       botStyle === 'bubble_popup' 
-                        ? 'border-amber-500 bg-amber-50 text-amber-700 font-bold shadow-sm' 
-                        : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500 hover:text-slate-800 shadow-sm'
+                        ? 'border-amber-600 bg-amber-600 text-white font-black shadow-md scale-[1.03]' 
+                        : 'border-amber-200 bg-amber-50/75 text-amber-800 hover:bg-amber-100 hover:border-amber-300 shadow-sm'
                     }`}
                   >
                     💬 Auto Bubble
@@ -2242,6 +2289,233 @@ function clearSession() {
                   </div>
                 )}
 
+                {/* Sub-panel 4: Custom Logo, Background & Transparency Customizations */}
+                <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-4 shadow-sm">
+                  <span className="text-[10px] font-mono text-indigo-600 uppercase font-bold tracking-widest block border-b border-slate-100 pb-1.5">
+                    🎨 Visual Backgrounds & Brand Customization
+                  </span>
+
+                  {/* Top Left Logo customization */}
+                  <div className="space-y-2">
+                    <label className="block text-[8.5px] font-mono font-bold text-slate-600 uppercase tracking-wider">
+                      🎯 Top-Left Brand Logo / Avatar
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <select
+                        value={avatarImage}
+                        onChange={(e) => setAvatarImage(e.target.value)}
+                        className="w-full bg-slate-50 border border-indigo-300 rounded-lg p-1.5 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-indigo-500 shadow-sm"
+                      >
+                        <option value="/cooper-logo.png">Cooper Engine Scan Logo (/cooper-logo.png)</option>
+                        <option value="/roscoe-logo.png">Roscoe Spark Plugs Logo (/roscoe-logo.png)</option>
+                        <option value="/garage-calm-thumb.jpg">Garage Bay Static Thumb</option>
+                      </select>
+                      <MediaField
+                        value={avatarImage}
+                        onChange={(val) => setAvatarImage(val)}
+                        accept="image"
+                        placeholder="Or upload custom brand logo..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* 3D Model Area Background Customization (Only if 3d_animated selected) */}
+                  {botStyle === '3d_animated' && (
+                    <div className="space-y-3 bg-teal-50/30 border border-teal-100/50 p-3 rounded-lg">
+                      <span className="text-[9px] font-mono text-teal-700 uppercase font-bold tracking-wider block">
+                        🤖 3D Model Area Backdrop
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            Backdrop Type
+                          </label>
+                          <select
+                            value={threeBgType}
+                            onChange={(e) => setThreeBgType(e.target.value as any)}
+                            className="w-full bg-white border border-teal-300 rounded-lg p-1.5 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-teal-500 shadow-sm"
+                          >
+                            <option value="color">🎨 Solid Background Color</option>
+                            <option value="image">🖼️ Static Background Image</option>
+                            <option value="video">🎥 Animated Background Video</option>
+                          </select>
+                        </div>
+
+                        {threeBgType === 'color' ? (
+                          <div>
+                            <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1">
+                              Solid Color Picker
+                            </label>
+                            <div className="flex gap-2">
+                              <input
+                                type="color"
+                                value={threeBgVal}
+                                onChange={(e) => setThreeBgVal(e.target.value)}
+                                className="w-8 h-8 rounded border-slate-300 cursor-pointer shrink-0"
+                              />
+                              <input
+                                type="text"
+                                value={threeBgVal}
+                                onChange={(e) => setThreeBgVal(e.target.value)}
+                                className="flex-1 min-w-0 bg-white border border-teal-300 rounded-lg p-1 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-teal-500"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1">
+                              {threeBgType === 'image' ? '🖼️ Backdrop Image' : '🎥 Backdrop Video'}
+                            </label>
+                            <select
+                              value={threeBgVal}
+                              onChange={(e) => setThreeBgVal(e.target.value)}
+                              className="w-full bg-white border border-teal-300 rounded-lg p-1.5 text-[10px] text-slate-800 font-mono focus:outline-none"
+                            >
+                              <option value="">-- Custom Upload/Input below --</option>
+                              {threeBgType === 'image' ? (
+                                <>
+                                  <option value="/garage-blueprint.jpg">Cyber Blueprint Map</option>
+                                  <option value="/garage-calm-thumb.jpg">Garage Bay Idling View</option>
+                                </>
+                              ) : (
+                                <>
+                                  <option value="/garage-calm.mp4">Garage Bay Low Ambient Video</option>
+                                  <option value="/garage-run.mp4">Engine Active Sparks Loop</option>
+                                  <option value="/roscoecooperfixcar.mp4">Staff Mechanic Service Loop</option>
+                                </>
+                              )}
+                            </select>
+                            <div className="mt-1.5">
+                              <MediaField
+                                value={threeBgVal}
+                                onChange={(val) => setThreeBgVal(val)}
+                                accept={threeBgType === 'image' ? 'image' : 'video'}
+                                placeholder={threeBgType === 'image' ? 'Or upload backdrop image...' : 'Or upload backdrop video...'}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Transparency controls for image/video backgrounds */}
+                      {(threeBgType === 'image' || threeBgType === 'video') && (
+                        <div className="pt-2 border-t border-teal-100/50">
+                          <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center justify-between">
+                            <span>Backdrop Transparency (Opacity)</span>
+                            <span className="text-teal-700 font-bold font-mono">{threeBgOpacity}%</span>
+                          </label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            step="5"
+                            value={threeBgOpacity}
+                            onChange={(e) => setThreeBgOpacity(parseInt(e.target.value))}
+                            className="w-full accent-teal-600"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Chat Message Box Area Background Customization */}
+                  <div className="space-y-3 bg-blue-50/30 border border-blue-100/50 p-3 rounded-lg">
+                    <span className="text-[9px] font-mono text-blue-700 uppercase font-bold tracking-wider block">
+                      💬 Chat Message Box Backdrop
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1">
+                          Backdrop Type
+                        </label>
+                        <select
+                          value={chatBgType}
+                          onChange={(e) => setChatBgType(e.target.value as any)}
+                          className="w-full bg-white border border-blue-300 rounded-lg p-1.5 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-blue-500 shadow-sm"
+                        >
+                          <option value="color">🎨 Solid Background Color</option>
+                          <option value="image">🖼️ Static Background Image</option>
+                          <option value="video">🎥 Animated Background Video</option>
+                        </select>
+                      </div>
+
+                      {chatBgType === 'color' ? (
+                        <div>
+                          <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            Solid Color Picker
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="color"
+                              value={chatBgVal}
+                              onChange={(e) => setChatBgVal(e.target.value)}
+                              className="w-8 h-8 rounded border-slate-300 cursor-pointer shrink-0"
+                            />
+                            <input
+                              type="text"
+                              value={chatBgVal}
+                              onChange={(e) => setChatBgVal(e.target.value)}
+                              className="flex-1 min-w-0 bg-white border border-blue-300 rounded-lg p-1 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-blue-500"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            {chatBgType === 'image' ? '🖼️ Backdrop Image' : '🎥 Backdrop Video'}
+                          </label>
+                          <select
+                              value={chatBgVal}
+                              onChange={(e) => setChatBgVal(e.target.value)}
+                              className="w-full bg-white border border-blue-300 rounded-lg p-1.5 text-[10px] text-slate-800 font-mono focus:outline-none"
+                            >
+                              <option value="">-- Custom Upload/Input below --</option>
+                              {chatBgType === 'image' ? (
+                                <>
+                                  <option value="/garage-blueprint.jpg">Cyber Blueprint Map</option>
+                                  <option value="/garage-calm-thumb.jpg">Garage Bay Idling View</option>
+                                </>
+                              ) : (
+                                <>
+                                  <option value="/garage-calm.mp4">Garage Bay Low Ambient Video</option>
+                                  <option value="/garage-run.mp4">Engine Active Sparks Loop</option>
+                                  <option value="/roscoecooperfixcar.mp4">Staff Mechanic Service Loop</option>
+                                </>
+                              )}
+                            </select>
+                          <div className="mt-1.5">
+                            <MediaField
+                              value={chatBgVal}
+                              onChange={(val) => setChatBgVal(val)}
+                              accept={chatBgType === 'image' ? 'image' : 'video'}
+                              placeholder={chatBgType === 'image' ? 'Or upload backdrop image...' : 'Or upload backdrop video...'}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Transparency controls for image/video backgrounds */}
+                    {(chatBgType === 'image' || chatBgType === 'video') && (
+                      <div className="pt-2 border-t border-blue-100/50">
+                        <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center justify-between">
+                          <span>Backdrop Transparency (Opacity)</span>
+                          <span className="text-blue-700 font-bold font-mono">{chatBgOpacity}%</span>
+                        </label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="5"
+                          value={chatBgOpacity}
+                          onChange={(e) => setChatBgOpacity(parseInt(e.target.value))}
+                          className="w-full accent-blue-600"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* Shared Theme & Color Settings */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-slate-200/80 pt-3">
                   <div>
@@ -2428,20 +2702,13 @@ function clearSession() {
                   style={theme !== 'mascot_cat' ? { backgroundColor: primaryColor } : undefined}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-full border border-white/20 overflow-hidden shrink-0 relative">
-                      {/* Avatar Media selection render */}
-                      {botStyle === '3d_animated' ? (
-                        <div className="w-full h-full bg-[#111] flex items-center justify-center text-[10px] text-teal-400 font-bold">
-                          3D
-                        </div>
-                      ) : (
-                        <img
-                          src={avatarImage || '/roscoe-logo.png'}
-                          alt=""
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover"
-                        />
-                      )}
+                    <div className="w-8 h-8 rounded-full border border-white/20 overflow-hidden shrink-0 relative bg-slate-900 flex items-center justify-center">
+                      <img
+                        src={avatarImage || '/roscoe-logo.png'}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                      />
                     </div>
                     <div className="min-w-0">
                       <h4 className="text-xs font-black uppercase tracking-wider text-white truncate leading-none">
@@ -2463,17 +2730,47 @@ function clearSession() {
 
                 {/* RENDER TOP HALF INTERACTIVE MEDIA/3D IF STYLE CHOSEN */}
                 {botStyle === '3d_animated' && (
-                  <div className="h-[200px] border-b border-slate-200 shrink-0 relative overflow-hidden" style={{ opacity: botOpacity / 100 }}>
-                    <BotThreeCanvas
-                      primaryColor={primaryColor}
-                      secondaryColor={secondaryColor}
-                      preset={threePreset}
-                      isTalking={isTyping}
-                      speed={threeSpeed}
-                      wireframe={threeWireframe}
-                      particleCount={threeParticles}
-                      customModelUrl={threeFile}
-                    />
+                  <div 
+                    className="h-[200px] border-b border-slate-200 shrink-0 relative overflow-hidden" 
+                    style={{ 
+                      opacity: botOpacity / 100,
+                      backgroundColor: threeBgType === 'color' ? threeBgVal : undefined
+                    }}
+                  >
+                    {/* Background image selection */}
+                    {threeBgType === 'image' && threeBgVal && (
+                      <img
+                        src={threeBgVal}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover pointer-events-none z-0 animate-fade-in"
+                        style={{ opacity: threeBgOpacity / 100 }}
+                      />
+                    )}
+                    {/* Background video selection */}
+                    {threeBgType === 'video' && threeBgVal && (
+                      <video
+                        src={threeBgVal}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="absolute inset-0 w-full h-full object-cover pointer-events-none z-0 animate-fade-in"
+                        style={{ opacity: threeBgOpacity / 100 }}
+                      />
+                    )}
+                    <div className="relative z-10 w-full h-full">
+                      <BotThreeCanvas
+                        primaryColor={primaryColor}
+                        secondaryColor={secondaryColor}
+                        preset={threePreset}
+                        isTalking={isTyping}
+                        speed={threeSpeed}
+                        wireframe={threeWireframe}
+                        particleCount={threeParticles}
+                        customModelUrl={threeFile}
+                        bgColor={threeBgType === 'color' ? threeBgVal : '#07080b'}
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -2582,59 +2879,87 @@ function clearSession() {
                   </div>
                 )}
 
-                {/* Messages Feed */}
-                <div className="flex-1 p-3 overflow-y-auto space-y-2.5 bg-slate-50">
-                  {chatMessages.map((msg, idx) => {
-                    const isBot = msg.sender === 'bot';
-                    return (
-                      <div
-                        key={idx}
-                        className={`flex items-start gap-2 max-w-[85%] ${isBot ? 'mr-auto' : 'ml-auto flex-row-reverse'}`}
-                      >
-                        {isBot && (
-                          <div className="w-6 h-6 rounded-full border border-slate-200 overflow-hidden shrink-0 mt-0.5">
-                            <img
-                              src={avatarImage || '/roscoe-logo.png'}
-                              alt=""
-                              referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover"
-                            />
+                {/* Messages Feed Container with Custom Background & Opacity */}
+                <div 
+                  className="flex-1 relative overflow-hidden" 
+                  style={chatBgType === 'color' ? { backgroundColor: chatBgVal } : undefined}
+                >
+                  {/* Optional Background Image */}
+                  {chatBgType === 'image' && chatBgVal && (
+                    <img
+                      src={chatBgVal}
+                      alt=""
+                      className="absolute inset-0 w-full h-full object-cover pointer-events-none z-0 animate-fade-in"
+                      style={{ opacity: chatBgOpacity / 100 }}
+                    />
+                  )}
+                  {/* Optional Background Video */}
+                  {chatBgType === 'video' && chatBgVal && (
+                    <video
+                      src={chatBgVal}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="absolute inset-0 w-full h-full object-cover pointer-events-none z-0 animate-fade-in"
+                      style={{ opacity: chatBgOpacity / 100 }}
+                    />
+                  )}
+
+                  {/* Scrollable messages list overlay */}
+                  <div className="absolute inset-0 p-3 overflow-y-auto space-y-2.5 z-10 bg-transparent">
+                    {chatMessages.map((msg, idx) => {
+                      const isBot = msg.sender === 'bot';
+                      return (
+                        <div
+                          key={idx}
+                          className={`flex items-start gap-2 max-w-[85%] ${isBot ? 'mr-auto' : 'ml-auto flex-row-reverse'}`}
+                        >
+                          {isBot && (
+                            <div className="w-6 h-6 rounded-full border border-slate-200 overflow-hidden shrink-0 mt-0.5 bg-white">
+                              <img
+                                src={avatarImage || '/roscoe-logo.png'}
+                                alt=""
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          )}
+                          <div className="space-y-0.5">
+                            <div
+                              className={`p-2.5 rounded-xl text-[11px] leading-relaxed break-words ${
+                                isBot 
+                                  ? 'bg-white text-slate-800 border border-slate-200 shadow-sm rounded-tl-none' 
+                                  : 'text-white font-semibold rounded-tr-none'
+                              }`}
+                              style={!isBot ? { backgroundColor: primaryColor } : undefined}
+                            >
+                              {msg.text}
+                            </div>
+                            <span className="text-[8px] text-slate-400 block px-1 text-right font-mono">
+                              {msg.time}
+                            </span>
                           </div>
-                        )}
-                        <div className="space-y-0.5">
-                          <div
-                            className={`p-2.5 rounded-xl text-[11px] leading-relaxed break-words ${
-                              isBot 
-                                ? 'bg-white text-slate-800 border border-slate-200 shadow-sm rounded-tl-none' 
-                                : 'text-white font-semibold rounded-tr-none'
-                            }`}
-                            style={!isBot ? { backgroundColor: primaryColor } : undefined}
-                          >
-                            {msg.text}
-                          </div>
-                          <span className="text-[8px] text-slate-400 block px-1 text-right font-mono">
-                            {msg.time}
-                          </span>
+                        </div>
+                      );
+                    })}
+                    {isTyping && (
+                      <div className="flex items-start gap-2 mr-auto max-w-[80%] animate-pulse">
+                        <div className="w-6 h-6 rounded-full border border-slate-200 overflow-hidden shrink-0 mt-0.5 bg-white">
+                          <img
+                            src={avatarImage || '/roscoe-logo.png'}
+                            alt=""
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="bg-white border border-slate-200 text-slate-500 p-2.5 rounded-xl rounded-tl-none text-[10px] font-mono">
+                          Typing coordinate logs...
                         </div>
                       </div>
-                    );
-                  })}
-                  {isTyping && (
-                    <div className="flex items-start gap-2 mr-auto max-w-[80%] animate-pulse">
-                      <div className="w-6 h-6 rounded-full border border-slate-200 overflow-hidden shrink-0 mt-0.5">
-                        <img
-                          src={avatarImage || '/roscoe-logo.png'}
-                          alt=""
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="bg-white border border-slate-200 text-slate-500 p-2.5 rounded-xl rounded-tl-none text-[10px] font-mono">
-                        Typing coordinate logs...
-                      </div>
-                    </div>
-                  )}
-                  <div ref={chatBottomRef} />
+                    )}
+                    <div ref={chatBottomRef} />
+                  </div>
                 </div>
 
                 {/* Floating Launcher Widget Overlay inside Simulator if layout is floating_bubble */}

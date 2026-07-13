@@ -11,6 +11,7 @@ interface BotThreeCanvasProps {
   wireframe?: boolean;
   particleCount?: number;
   customModelUrl?: string;
+  bgColor?: string;
 }
 
 export default function BotThreeCanvas({
@@ -22,6 +23,7 @@ export default function BotThreeCanvas({
   wireframe = false,
   particleCount = 1200,
   customModelUrl = '',
+  bgColor = '#07080b',
 }: BotThreeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -35,7 +37,7 @@ export default function BotThreeCanvas({
 
     // 1. Scene, Camera, Renderer
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2('#07080b', 0.015);
+    scene.fog = new THREE.FogExp2(bgColor, 0.015);
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
     camera.position.z = 8;
