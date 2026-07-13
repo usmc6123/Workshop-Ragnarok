@@ -838,6 +838,101 @@ export default function AiChatBotView() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
+  // PDF/TXT Document Knowledge Base states
+  const [isParsingPdf, setIsParsingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState('');
+
+  // Client-side PDF loading and text extraction
+  const loadPdfJs = (): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if ((window as any).pdfjsLib) {
+        resolve((window as any).pdfjsLib);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js';
+      script.onload = () => {
+        const pdfjsLib = (window as any).pdfjsLib;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        resolve(pdfjsLib);
+      };
+      script.onerror = () => {
+        reject(new Error('Failed to load PDF library from CDN.'));
+      };
+      document.head.appendChild(script);
+    });
+  };
+
+  const extractTextFromPdf = async (arrayBuffer: ArrayBuffer): Promise<string> => {
+    const pdfjsLib = await loadPdfJs();
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
+    const pdf = await loadingTask.promise;
+    let fullText = '';
+    
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
+      fullText += `[Page ${pageNum}]\n` + pageText + '\n\n';
+    }
+    return fullText.trim();
+  };
+
+  const appendDocumentToKnowledge = (fileName: string, text: string) => {
+    const cleanText = text.trim();
+    const divider = `\n\n--- DOCUMENT: ${fileName} ---\n${cleanText}\n--- END OF DOCUMENT ---\n`;
+    setUploadedDocs(prev => prev ? `${prev}${divider}` : cleanText);
+  };
+
+  const handleKnowledgeFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const fileType = file.name.split('.').pop()?.toLowerCase();
+    setPdfError('');
+    
+    if (fileType === 'txt') {
+      setIsParsingPdf(true);
+      try {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const text = event.target?.result as string;
+          appendDocumentToKnowledge(file.name, text);
+          setIsParsingPdf(false);
+        };
+        reader.onerror = () => {
+          setPdfError('Failed to read text file.');
+          setIsParsingPdf(false);
+        };
+        reader.readAsText(file);
+      } catch (err: any) {
+        setPdfError('Failed to read text file.');
+        setIsParsingPdf(false);
+      }
+    } else if (fileType === 'pdf') {
+      setIsParsingPdf(true);
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const text = await extractTextFromPdf(arrayBuffer);
+        if (!text.trim()) {
+          throw new Error('No readable text found in PDF file.');
+        }
+        appendDocumentToKnowledge(file.name, text);
+      } catch (err: any) {
+        console.error(err);
+        setPdfError(err.message || 'Failed to parse PDF file. Make sure it contains text rather than only scanned images.');
+      } finally {
+        setIsParsingPdf(false);
+      }
+    } else {
+      setPdfError('Please upload only .txt or .pdf files.');
+    }
+    // reset file input so the same file can be uploaded again if needed
+    e.target.value = '';
+  };
+
   // Load selected bot's config into form
   useEffect(() => {
     const target = savedBots.find(b => b.id === activeBotId);
@@ -1236,7 +1331,42 @@ export default function AiChatBotView() {
       const hasBooking = lower.includes('book') || lower.includes('appointment') || lower.includes('schedule') || lower.includes('reserve') || lower.includes('slot') || lower.includes('tour') || lower.includes('ticket');
       const hasAI = lower.includes('ai') || lower.includes('robot') || lower.includes('bot') || lower.includes('computer');
 
-      if (theme === 'mascot_cat') {
+      // Semantic knowledge base checker - scans uploaded document/handbook for matching lines
+      let docSnippet = '';
+      if (uploadedDocs && uploadedDocs.trim()) {
+        const lines = uploadedDocs.split('\n');
+        const words = lower.split(/\s+/).filter(w => w.length > 3);
+        let bestLine = '';
+        let maxMatches = 0;
+        for (const l of lines) {
+          if (!l.trim()) continue;
+          let matches = 0;
+          for (const w of words) {
+            if (l.toLowerCase().includes(w)) {
+              matches++;
+            }
+          }
+          if (matches > maxMatches) {
+            maxMatches = matches;
+            bestLine = l;
+          }
+        }
+        if (maxMatches > 0) {
+          docSnippet = bestLine.trim();
+        }
+      }
+
+      if (docSnippet) {
+        if (theme === 'mascot_cat') {
+          botResponse = `Meow! 🐾 Found this in our workshop files: "\${docSnippet}"! Purr-fect! Let's get you book-configured at \${primaryCta}! ⚡`;
+        } else if (theme === 'professional') {
+          botResponse = `Regarding your inquiry, our record database indicates: "\${docSnippet}". If you need further assistance, please visit \${primaryCta}.`;
+        } else if (theme === 'minimalist_tech') {
+          botResponse = `DATABASE HIT: "\${docSnippet}". ROUTING PACKETS: Initialize schedule terminal at \${primaryCta}.`;
+        } else {
+          botResponse = `According to our uploaded knowledge base: "\${docSnippet}". If you need details, go here: \${primaryCta}`;
+        }
+      } else if (theme === 'mascot_cat') {
         if (hasAI) {
           botResponse = `Meow! 🐾 I am Cooper, the lead shop patrol cat! I don't know what high-tech AI chips you're talking about, but my laser sensors are fully focused! ⚡`;
         } else if (hasPrice) {
@@ -1753,12 +1883,47 @@ function clearSession() {
                   <span className="text-[8px] bg-indigo-50 text-indigo-600 border border-indigo-200/60 px-1.5 py-0.5 rounded font-bold">INJECTED TEXT</span>
                 </label>
                 <textarea
-                  rows={3}
+                  rows={4}
                   value={uploadedDocs}
                   onChange={(e) => setUploadedDocs(e.target.value)}
-                  className="w-full bg-slate-50 border border-indigo-300 rounded-lg p-3 text-xs text-slate-800 font-mono focus:outline-none focus:border-indigo-500 focus:bg-white transition shadow-sm"
+                  className="w-full bg-slate-50 border border-indigo-300 rounded-lg p-3 text-xs text-slate-800 font-mono focus:outline-none focus:border-indigo-500 focus:bg-white transition shadow-sm mb-2"
                   placeholder="Paste pricing schedules, addresses, phone numbers, or rules here..."
                 />
+                
+                {/* PDF/TXT Upload Utility Bar */}
+                <div className="flex flex-col gap-2 p-2.5 bg-indigo-50/50 border border-indigo-100 rounded-lg">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                      <span className="text-[10px] font-semibold text-indigo-950">Add Document to Knowledge</span>
+                    </div>
+                    <label className="inline-flex items-center gap-1 px-2.5 py-1 text-[9px] font-mono font-bold uppercase tracking-wider bg-indigo-600 text-white rounded cursor-pointer hover:bg-indigo-700 transition shadow-sm">
+                      <span>Upload PDF / TXT</span>
+                      <input 
+                        type="file" 
+                        accept=".pdf,.txt" 
+                        onChange={handleKnowledgeFileUpload} 
+                        className="hidden" 
+                      />
+                    </label>
+                  </div>
+                  <p className="text-[8.5px] text-slate-500 leading-relaxed">
+                    Upload your company handbook, price sheets, or FAQ docs. We extract the text and integrate it into the chatbot's core facts context.
+                  </p>
+                  
+                  {isParsingPdf && (
+                    <div className="flex items-center gap-1.5 text-[9px] text-indigo-700 font-medium bg-white border border-indigo-100 px-2 py-1 rounded shadow-sm animate-pulse">
+                      <div className="w-2 h-2 rounded-full bg-indigo-600 animate-ping" />
+                      <span>Reading file and extracting document knowledge context...</span>
+                    </div>
+                  )}
+                  
+                  {pdfError && (
+                    <div className="text-[9px] text-red-600 font-semibold bg-red-50 border border-red-100 px-2 py-1 rounded">
+                      ⚠️ {pdfError}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1803,7 +1968,7 @@ function clearSession() {
                   <button
                     type="button"
                     onClick={() => setBotStyle('classic')}
-                    className={`p-2.5 rounded-lg border font-mono text-[9px] uppercase tracking-wider text-center transition cursor-pointer ${
+                    className={`p-2.5 rounded-lg border-2 font-mono text-[9px] uppercase tracking-wider text-center transition cursor-pointer ${
                       botStyle === 'classic' 
                         ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold shadow-sm' 
                         : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500 hover:text-slate-800 shadow-sm'
@@ -1814,7 +1979,7 @@ function clearSession() {
                   <button
                     type="button"
                     onClick={() => setBotStyle('visual_media')}
-                    className={`p-2.5 rounded-lg border font-mono text-[9px] uppercase tracking-wider text-center transition cursor-pointer ${
+                    className={`p-2.5 rounded-lg border-2 font-mono text-[9px] uppercase tracking-wider text-center transition cursor-pointer ${
                       botStyle === 'visual_media' 
                         ? 'border-orange-500 bg-orange-50 text-orange-700 font-bold shadow-sm' 
                         : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500 hover:text-slate-800 shadow-sm'
@@ -1825,7 +1990,7 @@ function clearSession() {
                   <button
                     type="button"
                     onClick={() => setBotStyle('3d_animated')}
-                    className={`p-2.5 rounded-lg border font-mono text-[9px] uppercase tracking-wider text-center transition cursor-pointer ${
+                    className={`p-2.5 rounded-lg border-2 font-mono text-[9px] uppercase tracking-wider text-center transition cursor-pointer ${
                       botStyle === '3d_animated' 
                         ? 'border-teal-500 bg-teal-50 text-teal-700 font-bold shadow-sm' 
                         : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500 hover:text-slate-800 shadow-sm'
@@ -1836,7 +2001,7 @@ function clearSession() {
                   <button
                     type="button"
                     onClick={() => setBotStyle('bubble_popup')}
-                    className={`p-2.5 rounded-lg border font-mono text-[9px] uppercase tracking-wider text-center transition cursor-pointer ${
+                    className={`p-2.5 rounded-lg border-2 font-mono text-[9px] uppercase tracking-wider text-center transition cursor-pointer ${
                       botStyle === 'bubble_popup' 
                         ? 'border-amber-500 bg-amber-50 text-amber-700 font-bold shadow-sm' 
                         : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500 hover:text-slate-800 shadow-sm'
@@ -1860,7 +2025,7 @@ function clearSession() {
                          <select
                            value={mediaType}
                            onChange={(e) => setMediaType(e.target.value as any)}
-                           className="w-full bg-slate-50 border border-slate-200 rounded p-1.5 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-orange-500"
+                           className="w-full bg-slate-50 border border-indigo-300 rounded-lg p-1.5 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-indigo-500 shadow-sm"
                          >
                            <option value="video">🎥 Multi-State Workshop MP4 Video</option>
                            <option value="image">🖼️ Static Avatar Logo Image</option>
@@ -1873,7 +2038,7 @@ function clearSession() {
                          <select
                            value={avatarImage}
                            onChange={(e) => setAvatarImage(e.target.value)}
-                           className="w-full bg-slate-50 border border-slate-200 rounded p-1.5 text-[10px] text-slate-800 font-mono mb-2 focus:outline-none focus:border-orange-500"
+                           className="w-full bg-slate-50 border border-indigo-300 rounded-lg p-1.5 text-[10px] text-slate-800 font-mono mb-2 focus:outline-none focus:border-indigo-500 shadow-sm"
                          >
                            <option value="/cooper-logo.png">Cooper Cat Logo (/cooper-logo.png)</option>
                            <option value="/roscoe-logo.png">Roscoe Garage Logo (/roscoe-logo.png)</option>
@@ -1899,7 +2064,7 @@ function clearSession() {
                            <select
                              value={calmVideo}
                              onChange={(e) => setCalmVideo(e.target.value)}
-                             className="w-full bg-white border border-slate-200 rounded p-1 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-orange-500"
+                             className="w-full bg-white border border-indigo-300 rounded-lg p-1.5 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-indigo-500 shadow-sm"
                            >
                              <option value="/garage-calm.mp4">Garage Calm (/garage-calm.mp4)</option>
                              <option value="/jobs-calm.mp4">Staff Briefing Calm (/jobs-calm.mp4)</option>
@@ -1920,7 +2085,7 @@ function clearSession() {
                            <select
                              value={activeVideo}
                              onChange={(e) => setActiveVideo(e.target.value)}
-                             className="w-full bg-white border border-slate-200 rounded p-1 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-orange-500"
+                             className="w-full bg-white border border-indigo-300 rounded-lg p-1.5 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-indigo-500 shadow-sm"
                            >
                              <option value="/garage-run.mp4">Power Tools Active (/garage-run.mp4)</option>
                              <option value="/jobs-buff.mp4">Hydraulic Lift Dynamic (/jobs-buff.mp4)</option>
@@ -1954,7 +2119,7 @@ function clearSession() {
                         <select
                           value={threePreset}
                           onChange={(e) => setThreePreset(e.target.value as any)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded p-1.5 text-[10px] text-slate-800 font-mono cursor-pointer focus:outline-none focus:border-teal-500"
+                          className="w-full bg-slate-50 border border-teal-300 rounded-lg p-1.5 text-[10px] text-slate-800 font-mono cursor-pointer focus:outline-none focus:border-teal-500 shadow-sm"
                         >
                           <option value="neon_core">🎆 Glowing Torus Core (Neon Core)</option>
                           <option value="hologram">📡 Scanning Laser Ring (Hologram Assistant)</option>
@@ -2012,14 +2177,14 @@ function clearSession() {
                     </div>
 
                     <div className="border-t border-slate-100 pt-3">
-                       <MediaField
-                         value={threeFile}
-                         onChange={(val) => setThreeFile(val)}
-                         accept="both"
-                         label="📡 Custom Hologram 3D Model Asset (.glb / .vlm)"
-                         labelColorClass="text-teal-600 font-bold font-mono text-[8.5px]"
-                         placeholder="Upload custom 3D model..."
-                       />
+                        <MediaField
+                          value={threeFile}
+                          onChange={(val) => setThreeFile(val)}
+                          accept="model"
+                          label="📡 Custom Hologram 3D Model Asset (.glb / .vlm)"
+                          labelColorClass="text-teal-600 font-bold font-mono text-[8.5px]"
+                          placeholder="Upload custom 3D model..."
+                        />
                     </div>
                   </div>
                 )}
@@ -2487,8 +2652,8 @@ function clearSession() {
                   </span>
                 </div>
                 
-                {/* Horizontal scrolling tabs list */}
-                <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+                {/* Subtabs Navigation Grid - flex-wrap ensures all buttons are 100% visible and accessible */}
+                <div className="flex flex-wrap items-center gap-1.5 pb-1.5">
                   <button
                     onClick={() => setActiveDevSubTab('embed')}
                     className={`px-2.5 py-1.5 rounded-lg font-mono text-[9.5px] uppercase tracking-wider transition cursor-pointer shrink-0 border ${

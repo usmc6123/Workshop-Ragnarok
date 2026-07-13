@@ -40,8 +40,12 @@ const EXTENSION_MIME_FALLBACK: Record<string, string> = {
   mkv: 'video/x-matroska', avi: 'video/x-msvideo', mov: 'video/quicktime',
   mp4: 'video/mp4', webm: 'video/webm', ogv: 'video/ogg',
 };
+const ALLOWED_MODEL_MIME = [
+  'model/gltf-binary', 'model/gltf+json', 'model/vlm',
+  'application/octet-stream', 'application/x-binary', 'application/binary'
+];
 
-function detectMediaType(file: File): { kind: 'image' | 'video' | null; mimeType: string } {
+function detectMediaType(file: File): { kind: 'image' | 'video' | 'model' | null; mimeType: string } {
   let mimeType = file.type;
   if (!mimeType) {
     const ext = file.name.split('.').pop()?.toLowerCase();
@@ -49,6 +53,16 @@ function detectMediaType(file: File): { kind: 'image' | 'video' | null; mimeType
   }
   if (ALLOWED_IMAGE_MIME.includes(mimeType)) return { kind: 'image', mimeType };
   if (ALLOWED_VIDEO_MIME.includes(mimeType)) return { kind: 'video', mimeType };
+  
+  // Also check for 3D model files (GLB, GLTF, VLM)
+  const ext = file.name.split('.').pop()?.toLowerCase();
+  if (ext && ['glb', 'gltf', 'vlm'].includes(ext)) {
+    return { kind: 'model', mimeType: mimeType || `model/${ext}` };
+  }
+  if (ALLOWED_MODEL_MIME.includes(mimeType)) {
+    return { kind: 'model', mimeType };
+  }
+  
   return { kind: null, mimeType };
 }
 
@@ -103,7 +117,7 @@ export default function MediaField({
   label?: string;
   value: string;
   onChange: (v: string) => void;
-  accept?: 'image' | 'video' | 'both';
+  accept?: 'image' | 'video' | 'model' | 'both';
   placeholder?: string;
   help?: string;
   showOpacity?: boolean;
@@ -123,7 +137,7 @@ export default function MediaField({
 
   const [showReformat, setShowReformat] = useState(false);
   const [reformatFile, setReformatFile] = useState<File | null>(null);
-  const [reformatKind, setReformatKind] = useState<'image' | 'video' | null>(null);
+  const [reformatKind, setReformatKind] = useState<'image' | 'video' | 'model' | null>(null);
   const [reformatMaxDim, setReformatMaxDim] = useState(1600);
   const [reformatResolution, setReformatResolution] = useState<'480' | '720' | '1080'>('720');
   const [reformatProcessing, setReformatProcessing] = useState(false);
@@ -155,7 +169,13 @@ export default function MediaField({
   // handling for why this survives the page reload that happens right after login.
   const quickUploadUrl = localAccessUrl ? `${localAccessUrl.replace(/\/+$/, '')}/?view=reformat-tool` : null;
 
-  const acceptAttr = accept === 'image' ? 'image/*' : accept === 'video' ? 'video/*' : 'image/*,video/*';
+  const acceptAttr = accept === 'image' 
+    ? 'image/*' 
+    : accept === 'video' 
+      ? 'video/*' 
+      : accept === 'model'
+        ? '.glb,.gltf,.vlm'
+        : 'image/*,video/*,.glb,.gltf,.vlm';
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
@@ -163,13 +183,13 @@ export default function MediaField({
 
     const { kind, mimeType } = detectMediaType(file);
     if (!kind) {
-      setUploadError(`Unsupported file type (${mimeType || 'unknown'}) — please choose a common image or video format.`);
+      setUploadError(`Unsupported file type (${mimeType || 'unknown'}) — please choose a common image, video, or 3D model file.`);
       return;
     }
     const isImage = kind === 'image';
     const maxBytes = isImage ? MAX_IMAGE_UPLOAD_BYTES : MAX_VIDEO_UPLOAD_BYTES;
     if (file.size > maxBytes) {
-      setUploadError(`File is too large (${formatSize(file.size)}) — max is ${formatSize(maxBytes)} for ${isImage ? 'images' : 'video'}. Use "Reformat" below to shrink it, or paste a hosted URL instead.`);
+      setUploadError(`File is too large (${formatSize(file.size)}) — max is ${formatSize(maxBytes)} for ${isImage ? 'images' : '3D models/video'}. Use "Reformat" below to shrink it, or paste a hosted URL instead.`);
       return;
     }
 
@@ -197,6 +217,10 @@ export default function MediaField({
     const { kind, mimeType } = detectMediaType(file);
     if (!kind) {
       setReformatError(`Unsupported file type (${mimeType || 'unknown'}) — please choose a common image or video format.`);
+      return;
+    }
+    if (kind === 'model') {
+      setReformatError("Reformatting/compression is only supported for images and videos. Please upload your .glb or .vlm file directly using the main Upload button.");
       return;
     }
     const isImage = kind === 'image';
@@ -282,7 +306,7 @@ export default function MediaField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder || 'https://...'}
-          className="flex-1 min-w-0 rounded-lg bg-[#08090d] border border-[#1e2028] focus:border-slate-500 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+          className="flex-1 min-w-0 rounded-lg bg-[#08090d] border border-slate-700/80 focus:border-slate-400 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition"
         />
         <input ref={fileInputRef} type="file" accept={acceptAttr} className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
         <button
@@ -290,21 +314,27 @@ export default function MediaField({
           disabled={uploading}
           onClick={() => fileInputRef.current?.click()}
           title="Upload from your device"
-          className="shrink-0 px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-60 disabled:cursor-wait text-slate-300 hover:text-white transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
+          className="shrink-0 px-2.5 py-2 rounded-lg border border-slate-700 bg-slate-800/90 hover:bg-slate-700 disabled:opacity-60 disabled:cursor-wait text-slate-300 hover:text-white transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider shadow-sm"
         >
           {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
           {uploading ? 'Uploading…' : 'Upload'}
         </button>
-        <button
-          type="button"
-          onClick={() => setShowReformat(v => !v)}
-          title="Shrink an oversized file to fit the upload limit"
-          className={`shrink-0 px-2.5 py-2 rounded-lg border transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${showReformat ? 'border-amber-400 bg-amber-950/20 text-amber-300' : 'border-transparent bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white'}`}
-        >
-          <Shrink className="w-3 h-3" />
-          Reformat
-          <ChevronDown className={`w-3 h-3 transition-transform ${showReformat ? 'rotate-180' : ''}`} />
-        </button>
+        {accept !== 'model' && (
+          <button
+            type="button"
+            onClick={() => setShowReformat(v => !v)}
+            title="Shrink an oversized file to fit the upload limit"
+            className={`shrink-0 px-2.5 py-2 rounded-lg border transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider shadow-sm ${
+              showReformat 
+                ? 'border-amber-400 bg-amber-950/20 text-amber-300' 
+                : 'border-slate-700 bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white'
+            }`}
+          >
+            <Shrink className="w-3 h-3" />
+            Reformat
+            <ChevronDown className={`w-3 h-3 transition-transform ${showReformat ? 'rotate-180' : ''}`} />
+          </button>
+        )}
       </div>
       {help && <p className="text-[9px] text-slate-600 leading-relaxed">{help}</p>}
       {uploadError && <p className="text-[10px] text-rose-400">{uploadError}</p>}

@@ -1515,6 +1515,14 @@ const ALLOWED_UPLOAD_MIME = {
   // MIME string depending on the OS's file-type registry. ffmpeg reads any of
   // these containers fine and always outputs .mp4 anyway either way.
   video: ['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg', 'video/x-matroska', 'video/matroska', 'video/x-msvideo', 'video/avi'],
+  model: [
+    'model/gltf-binary',
+    'model/gltf+json',
+    'application/octet-stream',
+    'model/vlm',
+    'application/x-binary',
+    'application/binary'
+  ],
 };
 const MAX_IMAGE_UPLOAD_BYTES = 20 * 1024 * 1024;  // 20MB
 const MAX_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB
@@ -1530,7 +1538,15 @@ const mediaUploadStorage = multer.diskStorage({
     cb(null, mediaDir);
   },
   filename: (req, file, cb) => {
-    const ext = (file.mimetype.split('/')[1] || 'bin').replace('quicktime', 'mov').replace('svg+xml', 'svg').replace('x-matroska', 'mkv').replace('matroska', 'mkv').replace('x-msvideo', 'avi');
+    const originalExt = file.originalname.split('.').pop()?.toLowerCase();
+    let ext = (file.mimetype.split('/')[1] || 'bin').replace('quicktime', 'mov').replace('svg+xml', 'svg').replace('x-matroska', 'mkv').replace('matroska', 'mkv').replace('x-msvideo', 'avi');
+    if (originalExt && ['glb', 'gltf', 'vlm', 'bin'].includes(originalExt)) {
+      ext = originalExt;
+    } else if (file.mimetype === 'model/gltf-binary') {
+      ext = 'glb';
+    } else if (file.mimetype === 'model/gltf+json') {
+      ext = 'gltf';
+    }
     cb(null, `${safeFilenameBase(file.originalname)}_${Date.now()}_${Math.floor(Math.random() * 1e6)}.${ext}`);
   },
 });
@@ -1543,7 +1559,9 @@ const uploadMedia = multer({
   fileFilter: (req, file, cb) => {
     const isImage = ALLOWED_UPLOAD_MIME.image.includes(file.mimetype);
     const isVideo = ALLOWED_UPLOAD_MIME.video.includes(file.mimetype);
-    if (!isImage && !isVideo) return cb(new Error(`Unsupported file type: ${file.mimetype}`));
+    const isModel = ALLOWED_UPLOAD_MIME.model.includes(file.mimetype) ||
+                    ['glb', 'gltf', 'vlm'].includes(file.originalname.split('.').pop()?.toLowerCase());
+    if (!isImage && !isVideo && !isModel) return cb(new Error(`Unsupported file type: ${file.mimetype}`));
     cb(null, true);
   },
 });
