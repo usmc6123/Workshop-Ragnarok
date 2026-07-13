@@ -176,6 +176,7 @@ export default function SitePageView({ subdomain }: SitePageViewProps) {
         >
           {blocks.map((block, idx) => {
             const style = parseBlockStyle(block.style);
+            if (style.invisible) return null;
             const pos = positionFromStyle(style, idx * 12);
             // hide_on is applied with real Tailwind breakpoint classes (not
             // the JS device hook) so it works even with SSR/no-JS and stays

@@ -301,6 +301,48 @@ function BlockStyleEditor({ blockType, style, onChange, device }: { blockType: S
           ) : (
             <ColorField label="Background Color" value={style.bg_color} onChange={(v) => set({ bg_color: v })} />
           )}
+
+          <div className="pt-2 border-t border-[#1e2028]/50 space-y-3">
+            <FieldLabel>Background Image</FieldLabel>
+            <MediaField
+              value={style.bg_image_url || ''}
+              onChange={(url) => set({ bg_image_url: url || undefined })}
+              accept="image"
+              placeholder="Background image URL or upload"
+              showPreview
+            />
+            {style.bg_image_url && (
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <div>
+                  <FieldLabel>Image Fit</FieldLabel>
+                  <select
+                    value={style.bg_image_size || 'cover'}
+                    onChange={(e) => set({ bg_image_size: e.target.value as any })}
+                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-2 py-1.5 text-[10px] text-white focus:outline-none"
+                  >
+                    <option value="cover">Cover (Fill)</option>
+                    <option value="contain">Contain (Fit)</option>
+                    <option value="auto">Auto</option>
+                  </select>
+                </div>
+                <div>
+                  <FieldLabel>Position</FieldLabel>
+                  <select
+                    value={style.bg_image_position || 'center'}
+                    onChange={(e) => set({ bg_image_position: e.target.value })}
+                    className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-2 py-1.5 text-[10px] text-white focus:outline-none"
+                  >
+                    <option value="center">Center</option>
+                    <option value="top">Top</option>
+                    <option value="bottom">Bottom</option>
+                    <option value="left">Left</option>
+                    <option value="right">Right</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
           <ColorField label="Text Color" value={style.text_color} onChange={(v) => set({ text_color: v })} />
           <div className="grid grid-cols-2 gap-2">
             <ColorField label="Hover Background" value={style.hover_bg_color} onChange={(v) => set({ hover_bg_color: v })} />
@@ -646,6 +688,16 @@ function BlockContentEditor({
           <div>
             <FieldLabel>Subheadline Override</FieldLabel>
             <TextInput value={c.subheadline || ''} onChange={(v) => set({ subheadline: v })} placeholder="e.g. Ask Cooper anything" />
+          </div>
+          <div>
+            <FieldLabel>Bot Logo / Avatar Image</FieldLabel>
+            <MediaField
+              value={c.custom_avatar_image || ''}
+              onChange={(v) => set({ custom_avatar_image: v })}
+              accept="image"
+              placeholder="Custom bot logo URL or upload"
+              showPreview
+            />
           </div>
         </div>
       );
@@ -1300,6 +1352,31 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
     }
   };
 
+  const handleToggleVisibility = async (blockId: number) => {
+    const block = blocks.find(b => b.id === blockId);
+    if (!block) return;
+    const currentStyle = parseJson<BlockStyle>(block.style, {});
+    const nextStyle: BlockStyle = { ...currentStyle, invisible: !currentStyle.invisible };
+    const label = nextStyle.invisible ? 'Hidden' : 'Visible';
+    pushHistory(`${label}: ${blockMeta(block.block_type).label} block`);
+
+    setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, style: JSON.stringify(nextStyle) } : b));
+    if (inspectorBlock?.id === blockId) setDraftStyle(nextStyle);
+    try {
+      const updated = await api.updateSiteBlock(site.id, blockId, { style: nextStyle });
+      setBlocks(prev => prev.map(b => b.id === blockId ? updated : b));
+    } catch (err) {
+      console.error(err);
+      loadBlocks();
+    }
+  };
+
+  const handleStyleChange = async (blockId: number, nextStyle: BlockStyle) => {
+    setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, style: JSON.stringify(nextStyle) } : b));
+    if (inspectorBlock?.id === blockId) setDraftStyle(nextStyle);
+    scheduleInspectorSave(blockId, { style: nextStyle }, 'Adjusted internal element positioning');
+  };
+
   // Inline content edits made directly on the canvas — update local state
   // immediately for a snappy feel, debounce the actual server save, and only
   // record ONE undo step per burst of typing rather than one per keystroke.
@@ -1772,6 +1849,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
               onRename={handleRenameBlock}
               onReorder={handleDragReorderBlocks}
               onDelete={handleDeleteBlock}
+              onToggleVisibility={handleToggleVisibility}
             />
           )}
 
@@ -1861,6 +1939,7 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
                     accent={accent}
                     onSelect={handleCanvasSelect}
                     onContentChange={handleCanvasContentChange}
+                    onStyleChange={handleStyleChange}
                     onDuplicate={handleDuplicateBlock}
                     onDelete={handleDeleteBlock}
                     onPositionChange={handlePositionChange}

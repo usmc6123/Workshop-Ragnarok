@@ -382,6 +382,10 @@ export interface BlockStyle {
   bg_gradient_from?: string;
   bg_gradient_to?: string;
   bg_gradient_direction?: 'to-r' | 'to-l' | 'to-b' | 'to-t' | 'to-br' | 'to-bl';
+  bg_image_url?: string;
+  bg_image_size?: 'cover' | 'contain' | 'auto';
+  bg_image_position?: string;
+  bg_image_opacity?: number;
 
   // Border
   border_width?: 0 | 1 | 2 | 4;
@@ -420,6 +424,11 @@ export interface BlockStyle {
   // block-type label (e.g. "Hero Video" instead of just "Video"), purely
   // cosmetic — falls back to the block type's default label when unset.
   custom_label?: string;
+
+  // Custom child layer layout features (visibility and nudge translation)
+  invisible?: boolean;
+  deleted_children?: string[];
+  child_offsets?: Record<string, { x: number; y: number }>;
 }
 
 export interface SiteBlock {
@@ -568,6 +577,7 @@ export interface AiChatBotBlockContent {
   headline_tag?: HeadingTag;
   subheadline?: string;
   bot_id?: string;
+  custom_avatar_image?: string;
 }
 export interface FunnelBlockContent {
   headline?: string;

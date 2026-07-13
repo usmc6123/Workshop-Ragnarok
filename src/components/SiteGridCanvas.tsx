@@ -6,7 +6,7 @@ import {
 } from '../constants/siteGrid';
 import { blockMeta } from '../constants/siteBlockTypes';
 import SiteBlockView, { parseJson, getMediaTransform } from './SiteBlockRenderers';
-import { Copy, Trash2, Settings2, Move, Lock, ZoomIn, ZoomOut, RotateCcw, RotateCw, Check } from 'lucide-react';
+import { Copy, Trash2, Settings2, Move, Lock, ZoomIn, ZoomOut, RotateCcw, RotateCw, Check, Eye, EyeOff } from 'lucide-react';
 
 type HandleDir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
@@ -201,7 +201,7 @@ interface DragState {
 
 export default function SiteGridCanvas({
   blocks, selectedId, device, theme, dark, accent,
-  onSelect, onContentChange, onDuplicate, onDelete, onPositionChange, onContextMenu, onOpenInspector,
+  onSelect, onContentChange, onStyleChange, onDuplicate, onDelete, onPositionChange, onContextMenu, onOpenInspector,
   transformEditTarget, onTransformChange, onExitTransformEdit,
 }: {
   blocks: SiteBlock[];
@@ -212,6 +212,7 @@ export default function SiteGridCanvas({
   accent: string;
   onSelect: (id: number | null) => void;
   onContentChange: (blockId: number, content: any) => void;
+  onStyleChange?: (blockId: number, style: BlockStyle) => void;
   onDuplicate: (block: SiteBlock) => void;
   onDelete: (block: SiteBlock) => void;
   onPositionChange: (blockId: number, position: GridPosition) => void;
@@ -382,15 +383,26 @@ export default function SiteGridCanvas({
 
         {isMobilePreview ? (
           <div className="flex flex-col gap-4 p-4">
-            {orderedForMobile.map(block => (
-              <div key={block.id} className="rounded-xl overflow-hidden" style={{ minHeight: positions[block.id].grid_row_span * ROW_UNIT_PX * 0.6 }}>
-                <SiteBlockView block={block} dark={dark} accent={accent} headingFont={theme.heading_font} bodyFont={theme.body_font} subdomain="" editable={false} device="mobile" />
-              </div>
-            ))}
+            {orderedForMobile.map(block => {
+              const blockStyle = parseJson<BlockStyle>(block.style, {});
+              if (blockStyle.invisible) return null;
+              return (
+                <div key={block.id} className="rounded-xl overflow-hidden" style={{ minHeight: positions[block.id].grid_row_span * ROW_UNIT_PX * 0.6 }}>
+                  <SiteBlockView block={block} dark={dark} accent={accent} headingFont={theme.heading_font} bodyFont={theme.body_font} subdomain="" editable={false} device="mobile" />
+                </div>
+              );
+            })}
           </div>
         ) : blocks.map(block => {
-          const pos = positions[block.id];
+          const blockStyle = parseJson<BlockStyle>(block.style, {});
+          const isInvisible = blockStyle.invisible === true;
           const isSelected = selectedId === block.id;
+
+          if (isInvisible && !isSelected) {
+            return null;
+          }
+
+          const pos = positions[block.id];
           const isDragging = dragState.current?.blockId === block.id;
           const nearTop = pos.grid_row * ROW_UNIT_PX < TOOLBAR_CLEARANCE_PX;
           const handlePos = getHandlePos(nearTop);
@@ -398,10 +410,12 @@ export default function SiteGridCanvas({
           // is what actually fixes "clicking the background pushes the video
           // behind it": without a lock, ANY selected block jumps to z-20,
           // which can outrank a block that was previously brought to front.
-          const zLock = parseJson<BlockStyle>(block.style, {}).z_lock;
+          const zLock = blockStyle.z_lock;
           const zIndexClass = isSelected ? 'z-40' : zLock === 'front' ? 'z-30' : zLock === 'back' ? 'z-0' : 'z-10';
           const borderClass = isSelected
-            ? 'border-amber-400 shadow-[0_0_0_2px_rgba(245,158,11,0.35),0_8px_24px_rgba(0,0,0,0.4)]'
+            ? isInvisible
+              ? 'border-dashed border-amber-500/80 shadow-[0_0_0_2px_rgba(245,158,11,0.35),0_8px_24px_rgba(0,0,0,0.4)] bg-amber-500/5'
+              : 'border-amber-400 shadow-[0_0_0_2px_rgba(245,158,11,0.35),0_8px_24px_rgba(0,0,0,0.4)]'
             : 'border-transparent hover:border-white/20';
 
           const editingTransform = transformEditTarget?.blockId === block.id ? transformEditTarget : null;
@@ -425,7 +439,7 @@ export default function SiteGridCanvas({
               }}
             >
               {/* Real, live-styled block content — click text to edit it directly */}
-              <div ref={(el) => { blockContentRefs.current[block.id] = el; }} className="w-full h-full overflow-hidden rounded-xl">
+              <div ref={(el) => { blockContentRefs.current[block.id] = el; }} className={`w-full h-full overflow-hidden rounded-xl ${isInvisible ? 'opacity-35' : ''}`}>
                 <SiteBlockView
                   block={block}
                   dark={dark}
@@ -436,8 +450,16 @@ export default function SiteGridCanvas({
                   editable
                   device="desktop"
                   onContentChange={(content) => onContentChange(block.id, content)}
+                  onStyleChange={(style) => onStyleChange?.(block.id, style)}
                 />
               </div>
+
+              {isInvisible && (
+                <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 bg-amber-500 text-[#0c0d12] text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1 shadow-lg pointer-events-none">
+                  <EyeOff className="w-3 h-3" />
+                  <span>Hidden Layer (Selected)</span>
+                </div>
+              )}
 
               {editingTransform && blockContentRefs.current[block.id] && (
                 <TransformOverlay

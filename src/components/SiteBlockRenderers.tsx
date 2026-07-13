@@ -10,7 +10,7 @@ import { getSiteIcon } from '../constants/siteIcons';
 import RichTextEditor from './RichTextEditor';
 import {
   Loader2, AlertTriangle, CheckCircle2, ArrowRight, Quote, Send, ChevronDown,
-  ChevronLeft, ChevronRight, Bot, Filter, X, RotateCw, Plus, Trash2,
+  ChevronLeft, ChevronRight, Bot, Filter, X, RotateCw, Plus, Trash2, GripVertical,
 } from 'lucide-react';
 import BotThreeCanvas from './BotThreeCanvas';
 import { PERSONAS_20, ChatBotConfig } from './AiChatBotView';
@@ -192,7 +192,19 @@ export function resolveDeviceStyle(style: BlockStyle, device: DeviceBreakpoint):
 
 export function boxAppearanceStyle(style: BlockStyle): React.CSSProperties {
   const s: React.CSSProperties = {};
-  if (style.bg_type === 'gradient' && style.bg_gradient_from && style.bg_gradient_to) {
+  if (style.bg_image_url) {
+    s.backgroundImage = `url(${style.bg_image_url})`;
+    s.backgroundSize = style.bg_image_size || 'cover';
+    s.backgroundPosition = style.bg_image_position || 'center';
+    s.backgroundRepeat = 'no-repeat';
+    if (style.bg_type === 'gradient' && style.bg_gradient_from && style.bg_gradient_to) {
+      s.backgroundImage = `linear-gradient(${GRADIENT_DIR_MAP[style.bg_gradient_direction || 'to-br']}, ${style.bg_gradient_from}, ${style.bg_gradient_to}), url(${style.bg_image_url})`;
+      s.backgroundBlendMode = 'overlay';
+    } else if (style.bg_color) {
+      s.backgroundColor = style.bg_color;
+      s.backgroundBlendMode = 'overlay';
+    }
+  } else if (style.bg_type === 'gradient' && style.bg_gradient_from && style.bg_gradient_to) {
     s.background = `linear-gradient(${GRADIENT_DIR_MAP[style.bg_gradient_direction || 'to-br']}, ${style.bg_gradient_from}, ${style.bg_gradient_to})`;
   } else if (style.bg_color) {
     s.backgroundColor = style.bg_color;
@@ -292,6 +304,127 @@ function VideoBackground({ url, opacity, transform, mediaKey }: { url: string; o
   );
 }
 
+// --- Child repositioning and deletion wrapper ---
+interface BlockChildWrapperProps {
+  block: SiteBlock;
+  childId: string;
+  editable: boolean;
+  onStyleChange?: (style: BlockStyle) => void;
+  className?: string;
+  children: React.ReactNode;
+  key?: React.Key;
+}
+
+function BlockChildWrapper({ block, childId, editable, onStyleChange, className = '', children }: BlockChildWrapperProps) {
+  const startRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number } | null>(null);
+
+  const styleObj = parseJson<BlockStyle>(block.style, {});
+  const deletedChildren = styleObj.deleted_children || [];
+  const childOffsets = styleObj.child_offsets || {};
+
+  if (deletedChildren.includes(childId)) {
+    return null;
+  }
+
+  const offset = childOffsets[childId] || { x: 0, y: 0 };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!editable) return;
+    e.preventDefault();
+    e.stopPropagation();
+    startRef.current = {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      startX: offset.x,
+      startY: offset.y,
+    };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!startRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const dx = e.clientX - startRef.current.clientX;
+    const dy = e.clientY - startRef.current.clientY;
+    const nextX = Math.round(startRef.current.startX + dx);
+    const nextY = Math.round(startRef.current.startY + dy);
+
+    const nextOffsets = {
+      ...childOffsets,
+      [childId]: { x: nextX, y: nextY },
+    };
+    onStyleChange?.({
+      ...styleObj,
+      child_offsets: nextOffsets,
+    });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!startRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
+    startRef.current = null;
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const nextDeleted = [...deletedChildren, childId];
+    onStyleChange?.({
+      ...styleObj,
+      deleted_children: nextDeleted,
+    });
+  };
+
+  const dragStyle: React.CSSProperties = {
+    transform: `translate(${offset.x}px, ${offset.y}px)`,
+    position: 'relative',
+    display: 'inline-block',
+  };
+
+  if (!editable) {
+    return (
+      <div style={dragStyle} className={className}>
+        {children}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={dragStyle}
+      className={`relative group/child inline-block select-none ${className} hover:ring-1 hover:ring-amber-500/40 rounded px-1 -mx-1`}
+    >
+      {children}
+
+      {/* Mini floating controllers */}
+      <div className="absolute -top-7 left-1/2 -translate-x-1/2 hidden group-hover/child:flex items-center gap-1 bg-[#1a1c24] border border-white/10 rounded-md px-1.5 py-0.5 shadow-lg z-50 pointer-events-auto">
+        <div
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white cursor-grab active:cursor-grabbing transition"
+          title="Drag to nudge position"
+        >
+          <GripVertical className="w-3 h-3" />
+        </div>
+        <button
+          type="button"
+          onClick={handleDelete}
+          className="p-1 hover:bg-rose-500/10 rounded text-slate-400 hover:text-rose-400 cursor-pointer transition"
+          title="Delete element"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // --- Inline-editable primitives ------------------------------------------------
 
 // Short, single-line, plain-text fields (headline, button labels, prices...).
@@ -352,6 +485,7 @@ export interface SiteBlockViewProps {
   editable: boolean;
   device?: DeviceBreakpoint;
   onContentChange?: (content: any) => void;
+  onStyleChange?: (style: any) => void;
 }
 
 function useContent<T>(block: SiteBlock): T {
@@ -360,7 +494,7 @@ function useContent<T>(block: SiteBlock): T {
 
 // --- Individual block views -----------------------------------------------------
 
-function HeroView({ block, dark, accent, headingFont, editable, onContentChange, device }: SiteBlockViewProps) {
+function HeroView({ block, dark, accent, headingFont, editable, onContentChange, onStyleChange, device }: SiteBlockViewProps) {
   const c = useContent<HeroBlockContent>(block);
   const rawStyle = parseJson<BlockStyle>(block.style, {});
   const style = resolveDeviceStyle(rawStyle, device || 'desktop');
@@ -381,26 +515,32 @@ function HeroView({ block, dark, accent, headingFont, editable, onContentChange,
       )}
       <div className={`absolute inset-0 ${dark ? 'bg-gradient-to-b from-black/60 via-black/50 to-black/70' : 'bg-gradient-to-b from-white/50 via-white/40 to-white/60'}`} />
       <div className={`relative z-10 w-full space-y-4 ${alignClass(style.align, 'center')}`}>
-        <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black tracking-tight ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
-          <InlineText value={c.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Your Big Headline" tag="span" />
-        </Heading>
-        <div className={`${BODY_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : 'opacity-80'}`}>
-          <RichTextEditor value={c.subheadline || ''} onChange={(v) => set({ subheadline: v })} editable={editable} placeholder="A short supporting line" />
-        </div>
+        <BlockChildWrapper block={block} childId="headline" editable={editable} onStyleChange={onStyleChange} className="block w-full">
+          <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black tracking-tight ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
+            <InlineText value={c.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Your Big Headline" tag="span" />
+          </Heading>
+        </BlockChildWrapper>
+        <BlockChildWrapper block={block} childId="subheadline" editable={editable} onStyleChange={onStyleChange} className="block w-full">
+          <div className={`${BODY_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : 'opacity-80'}`}>
+            <RichTextEditor value={c.subheadline || ''} onChange={(v) => set({ subheadline: v })} editable={editable} placeholder="A short supporting line" />
+          </div>
+        </BlockChildWrapper>
         {(c.cta_text || editable) && (
-          <a href={c.cta_link || '#'} onClick={(e) => editable && e.preventDefault()} className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-black uppercase tracking-wider text-sm transition hover:opacity-90" style={{ backgroundColor: accent, color: accentText }}>
-            {(!c.cta_icon_position || c.cta_icon_position === 'left') && <ButtonIcon name={c.cta_icon} />}
-            <InlineText value={c.cta_text || ''} onCommit={(v) => set({ cta_text: v })} editable={editable} placeholder="Get Started" />
-            {c.cta_icon_position === 'right' && <ButtonIcon name={c.cta_icon} />}
-            {!c.cta_icon && !editable && <ArrowRight className="w-4 h-4" />}
-          </a>
+          <BlockChildWrapper block={block} childId="cta" editable={editable} onStyleChange={onStyleChange}>
+            <a href={c.cta_link || '#'} onClick={(e) => editable && e.preventDefault()} className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-black uppercase tracking-wider text-sm transition hover:opacity-90" style={{ backgroundColor: accent, color: accentText }}>
+              {(!c.cta_icon_position || c.cta_icon_position === 'left') && <ButtonIcon name={c.cta_icon} />}
+              <InlineText value={c.cta_text || ''} onCommit={(v) => set({ cta_text: v })} editable={editable} placeholder="Get Started" />
+              {c.cta_icon_position === 'right' && <ButtonIcon name={c.cta_icon} />}
+              {!c.cta_icon && !editable && <ArrowRight className="w-4 h-4" />}
+            </a>
+          </BlockChildWrapper>
         )}
       </div>
     </section>
   );
 }
 
-function TextView({ block, dark, headingFont, editable, onContentChange, device }: SiteBlockViewProps) {
+function TextView({ block, dark, headingFont, editable, onContentChange, onStyleChange, device }: SiteBlockViewProps) {
   const c = useContent<TextBlockContent>(block);
   const rawStyle = parseJson<BlockStyle>(block.style, {});
   const style = resolveDeviceStyle(rawStyle, device || 'desktop');
@@ -408,12 +548,16 @@ function TextView({ block, dark, headingFont, editable, onContentChange, device 
   return (
     <section className={`w-full h-full ${paddingClass(style.padding)}`} style={boxAppearanceStyle(style)}>
       <div className={alignClass(style.align, 'left')}>
-        <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black mb-3 ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
-          <InlineText value={c.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Headline (optional)" />
-        </Heading>
-        <div className={`leading-relaxed ${BODY_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
-          <RichTextEditor value={c.body || ''} onChange={(v) => set({ body: v })} editable={editable} placeholder="Write something here..." />
-        </div>
+        <BlockChildWrapper block={block} childId="headline" editable={editable} onStyleChange={onStyleChange} className="block w-full">
+          <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black mb-3 ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
+            <InlineText value={c.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Headline (optional)" />
+          </Heading>
+        </BlockChildWrapper>
+        <BlockChildWrapper block={block} childId="body" editable={editable} onStyleChange={onStyleChange} className="block w-full">
+          <div className={`leading-relaxed ${BODY_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
+            <RichTextEditor value={c.body || ''} onChange={(v) => set({ body: v })} editable={editable} placeholder="Write something here..." />
+          </div>
+        </BlockChildWrapper>
       </div>
     </section>
   );
@@ -493,7 +637,7 @@ function VideoView({ block }: SiteBlockViewProps) {
   );
 }
 
-function CtaView({ block, dark, accent, headingFont, editable, onContentChange, device }: SiteBlockViewProps) {
+function CtaView({ block, dark, accent, headingFont, editable, onContentChange, onStyleChange, device }: SiteBlockViewProps) {
   const c = useContent<CtaBlockContent>(block);
   const rawStyle = parseJson<BlockStyle>(block.style, {});
   const style = resolveDeviceStyle(rawStyle, device || 'desktop');
@@ -504,22 +648,28 @@ function CtaView({ block, dark, accent, headingFont, editable, onContentChange, 
       className={`rounded-2xl space-y-3 border w-full h-full flex flex-col justify-center ${paddingClass(style.padding)} ${alignClass(style.align, 'center')}`}
       style={{ borderColor: `${accent}33`, ...boxAppearanceStyle(style), backgroundColor: style.bg_type === 'gradient' ? undefined : (style.bg_color || `${accent}1a`) }}
     >
-      <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
-        <InlineText value={c.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Ready to get started?" />
-      </Heading>
-      <div className={`${BODY_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
-        <RichTextEditor value={c.subheadline || ''} onChange={(v) => set({ subheadline: v })} editable={editable} placeholder="Optional supporting line" />
-      </div>
-      <a href={c.button_link || '#'} onClick={(e) => editable && e.preventDefault()} className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-black uppercase tracking-wider text-sm transition hover:opacity-90 self-center" style={{ backgroundColor: accent, color: accentText }}>
-        {(!c.button_icon_position || c.button_icon_position === 'left') && <ButtonIcon name={c.button_icon} />}
-        <InlineText value={c.button_text || ''} onCommit={(v) => set({ button_text: v })} editable={editable} placeholder="Contact Us" />
-        {c.button_icon_position === 'right' && <ButtonIcon name={c.button_icon} />}
-      </a>
+      <BlockChildWrapper block={block} childId="headline" editable={editable} onStyleChange={onStyleChange} className="block w-full">
+        <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
+          <InlineText value={c.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Ready to get started?" />
+        </Heading>
+      </BlockChildWrapper>
+      <BlockChildWrapper block={block} childId="subheadline" editable={editable} onStyleChange={onStyleChange} className="block w-full">
+        <div className={`${BODY_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
+          <RichTextEditor value={c.subheadline || ''} onChange={(v) => set({ subheadline: v })} editable={editable} placeholder="Optional supporting line" />
+        </div>
+      </BlockChildWrapper>
+      <BlockChildWrapper block={block} childId="button" editable={editable} onStyleChange={onStyleChange} className="self-center">
+        <a href={c.button_link || '#'} onClick={(e) => editable && e.preventDefault()} className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-black uppercase tracking-wider text-sm transition hover:opacity-90" style={{ backgroundColor: accent, color: accentText }}>
+          {(!c.button_icon_position || c.button_icon_position === 'left') && <ButtonIcon name={c.button_icon} />}
+          <InlineText value={c.button_text || ''} onCommit={(v) => set({ button_text: v })} editable={editable} placeholder="Contact Us" />
+          {c.button_icon_position === 'right' && <ButtonIcon name={c.button_icon} />}
+        </a>
+      </BlockChildWrapper>
     </section>
   );
 }
 
-function TestimonialView({ block, dark, accent, editable, onContentChange, device }: SiteBlockViewProps) {
+function TestimonialView({ block, dark, accent, editable, onContentChange, onStyleChange, device }: SiteBlockViewProps) {
   const c = useContent<TestimonialBlockContent>(block);
   const rawStyle = parseJson<BlockStyle>(block.style, {});
   const style = resolveDeviceStyle(rawStyle, device || 'desktop');
@@ -530,9 +680,11 @@ function TestimonialView({ block, dark, accent, editable, onContentChange, devic
       style={boxAppearanceStyle(style)}
     >
       <Quote className="w-6 h-6" style={{ color: accent }} />
-      <div className={`italic leading-relaxed text-sm ${!style.text_color ? (dark ? 'text-slate-200' : 'text-slate-700') : ''}`}>
-        <RichTextEditor value={c.quote || ''} onChange={(v) => set({ quote: v })} editable={editable} placeholder="Write the testimonial..." />
-      </div>
+      <BlockChildWrapper block={block} childId="quote" editable={editable} onStyleChange={onStyleChange} className="block w-full">
+        <div className={`italic leading-relaxed text-sm ${!style.text_color ? (dark ? 'text-slate-200' : 'text-slate-700') : ''}`}>
+          <RichTextEditor value={c.quote || ''} onChange={(v) => set({ quote: v })} editable={editable} placeholder="Write the testimonial..." />
+        </div>
+      </BlockChildWrapper>
       <div className="flex items-center gap-3">
         {c.photo_url && (
           <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
@@ -546,19 +698,23 @@ function TestimonialView({ block, dark, accent, editable, onContentChange, devic
           </div>
         )}
         <div>
-          <div className={`text-sm font-bold ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
-            <InlineText value={c.author || ''} onCommit={(v) => set({ author: v })} editable={editable} placeholder="Author name" />
-          </div>
-          <div className="text-xs text-slate-500">
-            <InlineText value={c.role || ''} onCommit={(v) => set({ role: v })} editable={editable} placeholder="Role / Company" />
-          </div>
+          <BlockChildWrapper block={block} childId="author" editable={editable} onStyleChange={onStyleChange} className="block">
+            <div className={`text-sm font-bold ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
+              <InlineText value={c.author || ''} onCommit={(v) => set({ author: v })} editable={editable} placeholder="Author name" />
+            </div>
+          </BlockChildWrapper>
+          <BlockChildWrapper block={block} childId="role" editable={editable} onStyleChange={onStyleChange} className="block">
+            <div className="text-xs text-slate-500">
+              <InlineText value={c.role || ''} onCommit={(v) => set({ role: v })} editable={editable} placeholder="Role / Company" />
+            </div>
+          </BlockChildWrapper>
         </div>
       </div>
     </section>
   );
 }
 
-function PricingView({ block, dark, accent, headingFont, editable, onContentChange, device }: SiteBlockViewProps) {
+function PricingView({ block, dark, accent, headingFont, editable, onContentChange, onStyleChange, device }: SiteBlockViewProps) {
   const c = useContent<PricingBlockContent>(block);
   const rawStyle = parseJson<BlockStyle>(block.style, {});
   const style = resolveDeviceStyle(rawStyle, device || 'desktop');
@@ -568,26 +724,34 @@ function PricingView({ block, dark, accent, headingFont, editable, onContentChan
   if (tiers.length === 0 && !editable) return null;
   return (
     <section className={`space-y-5 w-full h-full ${paddingClass(style.padding)}`} style={boxAppearanceStyle(style)}>
-      <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black text-center ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
-        <InlineText value={c.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Plans & Pricing" />
-      </Heading>
+      <BlockChildWrapper block={block} childId="headline" editable={editable} onStyleChange={onStyleChange} className="block w-full">
+        <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black text-center ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
+          <InlineText value={c.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Plans & Pricing" />
+        </Heading>
+      </BlockChildWrapper>
       <div className={`grid gap-4 ${tiers.length === 1 ? 'grid-cols-1 max-w-sm mx-auto' : tiers.length === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'}`}>
         {tiers.map((tier, i) => (
           <div key={i} className={`rounded-2xl p-6 space-y-4 border-2 ${!tier.highlighted ? (dark ? 'border-border-theme bg-[#13141a]/60' : 'border-slate-200 bg-white') : ''}`} style={tier.highlighted ? { borderColor: accent, backgroundColor: `${accent}1a` } : undefined}>
             <div>
-              <div className={`text-sm font-bold uppercase tracking-wider ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
-                <InlineText value={tier.name || ''} onCommit={(v) => updateTier(i, { name: v })} editable={editable} placeholder="Plan name" />
-              </div>
-              <div className={`text-3xl font-black mt-1 ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
-                <InlineText value={tier.price || ''} onCommit={(v) => updateTier(i, { price: v })} editable={editable} placeholder="$0" />
-              </div>
+              <BlockChildWrapper block={block} childId={`tier_${i}_name`} editable={editable} onStyleChange={onStyleChange} className="block w-full">
+                <div className={`text-sm font-bold uppercase tracking-wider ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
+                  <InlineText value={tier.name || ''} onCommit={(v) => updateTier(i, { name: v })} editable={editable} placeholder="Plan name" />
+                </div>
+              </BlockChildWrapper>
+              <BlockChildWrapper block={block} childId={`tier_${i}_price`} editable={editable} onStyleChange={onStyleChange} className="block w-full">
+                <div className={`text-3xl font-black mt-1 ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
+                  <InlineText value={tier.price || ''} onCommit={(v) => updateTier(i, { price: v })} editable={editable} placeholder="$0" />
+                </div>
+              </BlockChildWrapper>
             </div>
             {(tier.features || []).length > 0 && (
               <ul className="space-y-1.5">
                 {tier.features!.map((f, fi) => (
-                  <li key={fi} className={`flex items-start gap-2 text-xs ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
-                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: accent }} /> {f}
-                  </li>
+                  <BlockChildWrapper key={fi} block={block} childId={`tier_${i}_feature_${fi}`} editable={editable} onStyleChange={onStyleChange} className="block w-full">
+                    <li className={`flex items-start gap-2 text-xs ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: accent }} /> {f}
+                    </li>
+                  </BlockChildWrapper>
                 ))}
               </ul>
             )}
@@ -598,7 +762,7 @@ function PricingView({ block, dark, accent, headingFont, editable, onContentChan
   );
 }
 
-function FaqView({ block, dark, accent, headingFont, editable, onContentChange, device }: SiteBlockViewProps) {
+function FaqView({ block, dark, accent, headingFont, editable, onContentChange, onStyleChange, device }: SiteBlockViewProps) {
   const c = useContent<FaqBlockContent>(block);
   const rawStyle = parseJson<BlockStyle>(block.style, {});
   const style = resolveDeviceStyle(rawStyle, device || 'desktop');
@@ -609,24 +773,30 @@ function FaqView({ block, dark, accent, headingFont, editable, onContentChange, 
   if (items.length === 0 && !editable) return null;
   return (
     <section className={`space-y-3 w-full h-full ${paddingClass(style.padding)}`} style={boxAppearanceStyle(style)}>
-      <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black text-center mb-2 ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
-        <InlineText value={c.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Frequently Asked Questions" />
-      </Heading>
+      <BlockChildWrapper block={block} childId="headline" editable={editable} onStyleChange={onStyleChange} className="block w-full">
+        <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black text-center mb-2 ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
+          <InlineText value={c.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Frequently Asked Questions" />
+        </Heading>
+      </BlockChildWrapper>
       <div className="space-y-2">
         {items.map((item, i) => {
           const isOpen = openIdx === i;
           return (
             <div key={i} className={`rounded-xl border overflow-hidden ${dark ? 'border-border-theme bg-[#13141a]/60' : 'border-slate-200 bg-white'}`}>
               <button onClick={() => setOpenIdx(isOpen ? null : i)} className="w-full flex items-center justify-between gap-3 p-4 text-left cursor-pointer">
-                <div className={`text-sm font-bold ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
-                  <InlineText value={item.question || ''} onCommit={(v) => updateItem(i, { question: v })} editable={editable} placeholder="Question" />
-                </div>
+                <BlockChildWrapper block={block} childId={`faq_${i}_q`} editable={editable} onStyleChange={onStyleChange} className="block w-full">
+                  <div className={`text-sm font-bold ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
+                    <InlineText value={item.question || ''} onCommit={(v) => updateItem(i, { question: v })} editable={editable} placeholder="Question" />
+                  </div>
+                </BlockChildWrapper>
                 <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} style={{ color: isOpen ? accent : undefined }} />
               </button>
               {isOpen && (
-                <div className={`px-4 pb-4 text-sm leading-relaxed ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
-                  <RichTextEditor value={item.answer || ''} onChange={(v) => updateItem(i, { answer: v })} editable={editable} placeholder="Answer" />
-                </div>
+                <BlockChildWrapper block={block} childId={`faq_${i}_a`} editable={editable} onStyleChange={onStyleChange} className="block w-full px-4 pb-4">
+                  <div className={`text-sm leading-relaxed ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
+                    <RichTextEditor value={item.answer || ''} onChange={(v) => updateItem(i, { answer: v })} editable={editable} placeholder="Answer" />
+                  </div>
+                </BlockChildWrapper>
               )}
             </div>
           );
@@ -642,7 +812,7 @@ function SpacerView() {
 
 const EMPTY_MSG_FORM: Record<string, any> = { name: '', email: '', message: '', company_website: '' };
 
-function ContactFormView({ block, dark, accent, headingFont, subdomain, editable, onContentChange, device }: SiteBlockViewProps) {
+function ContactFormView({ block, dark, accent, headingFont, subdomain, editable, onContentChange, onStyleChange, device }: SiteBlockViewProps) {
   const c = useContent<ContactFormBlockContent>(block);
   const rawStyle = parseJson<BlockStyle>(block.style, {});
   const style = resolveDeviceStyle(rawStyle, device || 'desktop');
@@ -698,12 +868,16 @@ function ContactFormView({ block, dark, accent, headingFont, subdomain, editable
 
   return (
     <section className={`rounded-2xl space-y-3 border w-full h-full ${paddingClass(style.padding)} ${dark ? 'bg-[#13141a]/80 border-border-theme' : 'bg-white border-slate-200'}`} style={boxAppearanceStyle(style)}>
-      <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black text-center ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
-        <InlineText value={c.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Get In Touch" />
-      </Heading>
-      <div className={`text-center ${BODY_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
-        <RichTextEditor value={c.subheadline || ''} onChange={(v) => set({ subheadline: v })} editable={editable} placeholder="Optional supporting line" />
-      </div>
+      <BlockChildWrapper block={block} childId="headline" editable={editable} onStyleChange={onStyleChange} className="block w-full">
+        <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black text-center ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
+          <InlineText value={c.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Get In Touch" />
+        </Heading>
+      </BlockChildWrapper>
+      <BlockChildWrapper block={block} childId="subheadline" editable={editable} onStyleChange={onStyleChange} className="block w-full">
+        <div className={`text-center ${BODY_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
+          <RichTextEditor value={c.subheadline || ''} onChange={(v) => set({ subheadline: v })} editable={editable} placeholder="Optional supporting line" />
+        </div>
+      </BlockChildWrapper>
       <form onSubmit={handleSubmit} className="space-y-3">
         {customFields.length > 0 ? (
           customFields.map(f => (
@@ -734,16 +908,18 @@ function ContactFormView({ block, dark, accent, headingFont, subdomain, editable
         )}
         <input type="text" value={form.company_website} onChange={(e) => setForm(p => ({ ...p, company_website: e.target.value }))} tabIndex={-1} autoComplete="off" aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 0, height: 0, opacity: 0 }} />
         {error && <p className="text-xs text-rose-400 flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" /> {error}</p>}
-        <button type="submit" disabled={submitting || editable} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-black uppercase tracking-wider text-sm transition hover:opacity-90 disabled:opacity-50" style={{ backgroundColor: accent, color: accentText }}>
-          {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          <InlineText value={c.button_text || ''} onCommit={(v) => set({ button_text: v })} editable={editable} placeholder="Send Message" />
-        </button>
+        <BlockChildWrapper block={block} childId="button" editable={editable} onStyleChange={onStyleChange} className="block w-full">
+          <button type="submit" disabled={submitting || editable} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-black uppercase tracking-wider text-sm transition hover:opacity-90 disabled:opacity-50" style={{ backgroundColor: accent, color: accentText }}>
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            <InlineText value={c.button_text || ''} onCommit={(v) => set({ button_text: v })} editable={editable} placeholder="Send Message" />
+          </button>
+        </BlockChildWrapper>
       </form>
     </section>
   );
 }
 
-function AiChatBotBlockView({ block, dark, accent, headingFont, editable, onContentChange, device }: SiteBlockViewProps) {
+function AiChatBotBlockView({ block, dark, accent, headingFont, editable, onContentChange, onStyleChange, device }: SiteBlockViewProps) {
   const c = useContent<AiChatBotBlockContent>(block);
   const rawStyle = parseJson<BlockStyle>(block.style, {});
   const style = resolveDeviceStyle(rawStyle, device || 'desktop');
@@ -751,6 +927,7 @@ function AiChatBotBlockView({ block, dark, accent, headingFont, editable, onCont
 
   const botConfig = React.useMemo(() => getBotConfig(c.bot_id), [c.bot_id]);
   const ui = botConfig.ui_configuration;
+  const avatarUrl = c.custom_avatar_image || ui.avatar_image;
 
   const [chatMessages, setChatMessages] = useState<{ sender: 'bot' | 'user'; text: string; time: string }[]>([]);
   const [userInput, setUserInput] = useState('');
@@ -798,12 +975,16 @@ function AiChatBotBlockView({ block, dark, accent, headingFont, editable, onCont
   return (
     <section className={`w-full h-full rounded-2xl border flex flex-col overflow-hidden ${paddingClass(style.padding)} ${dark ? 'bg-[#13141a]/80 border-border-theme' : 'bg-white border-slate-200'}`} style={boxAppearanceStyle(style)}>
       <div className="mb-4">
-        <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
-          <InlineText value={c.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Chat with our Assistant" />
-        </Heading>
-        <div className={`mt-1 text-xs opacity-75 ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
-          <RichTextEditor value={c.subheadline || ''} onChange={(v) => set({ subheadline: v })} editable={editable} placeholder="Select a customized or premade chatbot" />
-        </div>
+        <BlockChildWrapper block={block} childId="headline" editable={editable} onStyleChange={onStyleChange} className="block w-full">
+          <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
+            <InlineText value={c.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Chat with our Assistant" />
+          </Heading>
+        </BlockChildWrapper>
+        <BlockChildWrapper block={block} childId="subheadline" editable={editable} onStyleChange={onStyleChange} className="block w-full mt-1">
+          <div className={`text-xs opacity-75 ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
+            <RichTextEditor value={c.subheadline || ''} onChange={(v) => set({ subheadline: v })} editable={editable} placeholder="Select a customized or premade chatbot" />
+          </div>
+        </BlockChildWrapper>
       </div>
 
       <div className={`grid grid-cols-1 ${is3D ? 'lg:grid-cols-12' : ''} gap-4 flex-1 min-h-[350px]`}>
@@ -843,8 +1024,8 @@ function AiChatBotBlockView({ block, dark, accent, headingFont, editable, onCont
           <div className="bg-slate-950/80 p-3 border-b border-slate-800/80 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center overflow-hidden">
-                {ui.avatar_image ? (
-                  <img src={ui.avatar_image} alt={botConfig.bot_profile.name} className="w-full h-full object-cover" />
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={botConfig.bot_profile.name} className="w-full h-full object-cover" />
                 ) : (
                   <Bot className="w-4 h-4 text-amber-500" />
                 )}
@@ -895,7 +1076,7 @@ function AiChatBotBlockView({ block, dark, accent, headingFont, editable, onCont
                   <div key={i} className={`flex ${isBot ? 'justify-start' : 'justify-end'} items-end gap-2`}>
                     {isBot && (
                       <div className="w-6 h-6 rounded-full bg-slate-800 shrink-0 overflow-hidden border border-slate-700">
-                        <img src={ui.avatar_image || '/cooper-logo.png'} className="w-full h-full object-cover" onError={(e) => { (e.target as any).src = '/cooper-logo.png' }} alt="" />
+                        <img src={avatarUrl || '/cooper-logo.png'} className="w-full h-full object-cover" onError={(e) => { (e.target as any).src = '/cooper-logo.png' }} alt="" />
                       </div>
                     )}
                     <div className={`max-w-[75%] p-2.5 rounded-xl text-xs leading-relaxed ${
@@ -912,7 +1093,7 @@ function AiChatBotBlockView({ block, dark, accent, headingFont, editable, onCont
               {isTyping && (
                 <div className="flex justify-start items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-slate-800 shrink-0 overflow-hidden border border-slate-700">
-                    <img src={ui.avatar_image || '/cooper-logo.png'} className="w-full h-full object-cover" onError={(e) => { (e.target as any).src = '/cooper-logo.png' }} alt="" />
+                    <img src={avatarUrl || '/cooper-logo.png'} className="w-full h-full object-cover" onError={(e) => { (e.target as any).src = '/cooper-logo.png' }} alt="" />
                   </div>
                   <div className="bg-slate-800/90 border border-slate-700/50 px-3 py-2 rounded-xl rounded-bl-none text-slate-400 text-xs flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -947,7 +1128,7 @@ function AiChatBotBlockView({ block, dark, accent, headingFont, editable, onCont
   );
 }
 
-function FunnelBlockView({ block, dark, accent, headingFont, editable, onContentChange, device }: SiteBlockViewProps) {
+function FunnelBlockView({ block, dark, accent, headingFont, editable, onContentChange, onStyleChange, device }: SiteBlockViewProps) {
   const c = useContent<FunnelBlockContent>(block);
   const rawStyle = parseJson<BlockStyle>(block.style, {});
   const style = resolveDeviceStyle(rawStyle, device || 'desktop');
@@ -1038,12 +1219,16 @@ function FunnelBlockView({ block, dark, accent, headingFont, editable, onContent
   return (
     <section className={`rounded-2xl border w-full h-full flex flex-col justify-center overflow-hidden ${paddingClass(style.padding)} ${dark ? 'bg-[#13141a]/80 border-border-theme' : 'bg-white border-slate-200'}`} style={boxAppearanceStyle(style)}>
       <div className={`space-y-4 ${alignClass(style.align, 'center')}`}>
-        <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black tracking-tight ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
-          <InlineText value={c.headline || f.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Funnel Title" />
-        </Heading>
-        <div className={`text-xs opacity-80 ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
-          <RichTextEditor value={c.subheadline || f.subheadline || ''} onChange={(v) => set({ subheadline: v })} editable={editable} placeholder="Short sub-headline" />
-        </div>
+        <BlockChildWrapper block={block} childId="headline" editable={editable} onStyleChange={onStyleChange} className="block w-full">
+          <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black tracking-tight ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
+            <InlineText value={c.headline || f.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Funnel Title" />
+          </Heading>
+        </BlockChildWrapper>
+        <BlockChildWrapper block={block} childId="subheadline" editable={editable} onStyleChange={onStyleChange} className="block w-full">
+          <div className={`text-xs opacity-80 ${!style.text_color ? (dark ? 'text-slate-300' : 'text-slate-600') : ''}`}>
+            <RichTextEditor value={c.subheadline || f.subheadline || ''} onChange={(v) => set({ subheadline: v })} editable={editable} placeholder="Short sub-headline" />
+          </div>
+        </BlockChildWrapper>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6 items-center">

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Layers, ArrowUpToLine, ArrowDownToLine, Pencil, Check, X, GripVertical, Lock, Trash2 } from 'lucide-react';
+import { Layers, ArrowUpToLine, ArrowDownToLine, Pencil, Check, X, GripVertical, Lock, Trash2, Eye, EyeOff } from 'lucide-react';
 import { SiteBlock, BlockStyle } from '../types';
 import { blockMeta, blockSummary } from '../constants/siteBlockTypes';
 
@@ -51,7 +51,7 @@ type WithStyle = { block: SiteBlock; style: BlockStyle };
  * before you let go.
  */
 export default function SiteLayersPanel({
-  blocks, selectedId, onSelect, onToggleLock, onRename, onReorder, onDelete,
+  blocks, selectedId, onSelect, onToggleLock, onRename, onReorder, onDelete, onToggleVisibility,
 }: {
   blocks: SiteBlock[];
   selectedId: number | null;
@@ -60,6 +60,7 @@ export default function SiteLayersPanel({
   onRename: (blockId: number, name: string) => void;
   onReorder: (orderedIds: number[]) => void;
   onDelete: (block: SiteBlock) => void;
+  onToggleVisibility: (blockId: number) => void;
 }) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [draftName, setDraftName] = useState('');
@@ -206,7 +207,7 @@ export default function SiteLayersPanel({
               </div>
             ) : (
               <div className="flex items-center gap-1 group/name">
-                <div className={`text-[10px] font-bold truncate ${isSelected ? 'text-amber-200' : 'text-slate-200'}`}>{label}</div>
+                <div className={`text-[10px] font-bold truncate ${style.invisible ? 'text-slate-500 italic line-through' : isSelected ? 'text-amber-200' : 'text-slate-200'}`}>{label}</div>
                 <button
                   onClick={(e) => { e.stopPropagation(); startEditing(block, style); }}
                   className="shrink-0 p-0.5 rounded text-slate-600 hover:text-slate-300 opacity-0 group-hover/name:opacity-100 focus:opacity-100 transition-opacity cursor-pointer"
@@ -216,7 +217,9 @@ export default function SiteLayersPanel({
                 </button>
               </div>
             )}
-            <div className="text-[9px] text-slate-500 truncate">{summary}</div>
+            <div className="text-[9px] text-slate-500 truncate">
+              {style.invisible ? <span className="text-amber-500 font-bold mr-1">[HIDDEN]</span> : ''}{summary}
+            </div>
           </div>
         </div>
 
@@ -235,6 +238,18 @@ export default function SiteLayersPanel({
           >
             <ArrowDownToLine className="w-3 h-3" />
           </LockButton>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggleVisibility(block.id); }}
+            title={style.invisible ? "Show block" : "Hide block"}
+            className={`shrink-0 flex items-center justify-center p-1.5 rounded border cursor-pointer transition ${
+              style.invisible
+                ? 'border-amber-500 bg-amber-500/10 text-amber-400'
+                : 'border-[#1e2028] text-slate-500 hover:text-white hover:border-slate-500'
+            }`}
+          >
+            {style.invisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+          </button>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onDelete(block); }}
