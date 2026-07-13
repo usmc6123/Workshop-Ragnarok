@@ -18,13 +18,14 @@ import SiteGridCanvas, { TransformEditTarget } from './SiteGridCanvas';
 import SiteLayersPanel from './SiteLayersPanel';
 import TemplateThumbnail from './TemplateThumbnail';
 import MediaField from './MediaField';
+import { getMediaTransform } from './SiteBlockRenderers';
 import {
   ArrowLeft, Plus, Trash2, Loader2,
   Save, X, Mailbox, ExternalLink,
   Palette, AlignLeft, AlignCenter, AlignRight, Paintbrush, Sparkles, LayoutGrid, LayoutTemplate,
   Undo2, Redo2, Monitor, Tablet, Smartphone, Copy, Settings2, EyeOff, Download, FileJson, RefreshCw,
   ArrowUpToLine, ArrowDownToLine, ZoomIn, FileCode, Printer, History, ChevronDown,
-  Check, Sliders,
+  Check, Sliders, RotateCw,
 } from 'lucide-react';
 
 const DEFAULT_ACCENT = '#f59e0b';
@@ -2133,12 +2134,27 @@ export default function SiteBuilderView({ site, onBack }: { site: Site; onBack: 
             <Settings2 className="w-3.5 h-3.5" /> Style & Settings
           </button>
           {contextMenu.mediaKey && (
-            <button
-              onClick={() => { setTransformEditTarget({ blockId: contextMenu.block.id, mediaKey: contextMenu.mediaKey! }); setContextMenu(null); }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-amber-300 hover:bg-amber-500/10 cursor-pointer"
-            >
-              <ZoomIn className="w-3.5 h-3.5" /> Zoom & Position
-            </button>
+            <>
+              <button
+                onClick={() => { setTransformEditTarget({ blockId: contextMenu.block.id, mediaKey: contextMenu.mediaKey! }); setContextMenu(null); }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-amber-300 hover:bg-amber-500/10 cursor-pointer"
+              >
+                <ZoomIn className="w-3.5 h-3.5" /> Zoom & Position
+              </button>
+              <button
+                onClick={() => {
+                  const b = contextMenu.block;
+                  const key = contextMenu.mediaKey!;
+                  const transform = getMediaTransform(b, key);
+                  const nextRotate = ((transform.rotate || 0) + 90) % 360;
+                  handleTransformChange(b.id, key, { ...transform, rotate: nextRotate });
+                  setContextMenu(null);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-emerald-300 hover:bg-emerald-500/10 cursor-pointer"
+              >
+                <RotateCw className="w-3.5 h-3.5" /> Rotate 90°
+              </button>
+            </>
           )}
           <button onClick={() => { handleDuplicateBlock(contextMenu.block); setContextMenu(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 cursor-pointer">
             <Copy className="w-3.5 h-3.5" /> Duplicate
