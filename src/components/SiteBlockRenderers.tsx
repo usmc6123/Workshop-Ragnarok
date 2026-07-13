@@ -5,7 +5,7 @@ import {
   SiteBlock, BlockStyle, HeadingTag, DeviceBreakpoint,
   HeroBlockContent, TextBlockContent, ImageBlockContent, VideoBlockContent, CtaBlockContent,
   ContactFormBlockContent, TestimonialBlockContent, PricingBlockContent, FaqBlockContent,
-  AiChatBotBlockContent, FunnelBlockContent, Funnel, BlockOverlayItem,
+  AiChatBotBlockContent, FunnelBlockContent, Funnel, BlockOverlayItem, LinkButtonBlockContent,
 } from '../types';
 import { getSiteIcon } from '../constants/siteIcons';
 import RichTextEditor from './RichTextEditor';
@@ -663,6 +663,69 @@ function CtaView({ block, dark, accent, headingFont, editable, onContentChange, 
         <a href={c.button_link || '#'} onClick={(e) => editable && e.preventDefault()} className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-black uppercase tracking-wider text-sm transition hover:opacity-90" style={{ backgroundColor: accent, color: accentText }}>
           {(!c.button_icon_position || c.button_icon_position === 'left') && <ButtonIcon name={c.button_icon} />}
           <InlineText value={c.button_text || ''} onCommit={(v) => set({ button_text: v })} editable={editable} placeholder="Contact Us" />
+          {c.button_icon_position === 'right' && <ButtonIcon name={c.button_icon} />}
+        </a>
+      </BlockChildWrapper>
+    </section>
+  );
+}
+
+// Turns a LinkButtonBlockContent's raw { link_type, target } pair into a real,
+// correctly-formed href — so a user typing "instagram.com/foo" without "https://",
+// or a bare phone number for a tel: link, still ends up with a working link
+// instead of a broken relative path. Kept separate from LinkButtonView so it's
+// unit-testable / reusable if another block ever needs the same link-resolution
+// logic (e.g. a future social-links block).
+function resolveLinkHref(content: LinkButtonBlockContent): { href: string; target?: '_blank' } {
+  const linkType = content.link_type || 'url';
+  const raw = (content.target || '').trim();
+  if (!raw) return { href: '#' };
+
+  if (linkType === 'phone') {
+    return { href: `tel:${raw.replace(/[^\d+]/g, '')}` };
+  }
+  if (linkType === 'email') {
+    return { href: `mailto:${raw}` };
+  }
+  if (linkType === 'page') {
+    return { href: raw, target: content.open_new_tab ? '_blank' : undefined };
+  }
+  // 'url' — auto-prepend https:// unless it already looks like a URL, in-page
+  // anchor, or absolute path, so leaving off the scheme never produces a broken
+  // relative link (this is the one thing the existing CTA block's plain text
+  // link_link field doesn't handle).
+  const looksAbsolute = /^(https?:\/\/|#|\/)/i.test(raw);
+  const href = looksAbsolute ? raw : `https://${raw}`;
+  return { href, target: content.open_new_tab ? '_blank' : undefined };
+}
+
+function LinkButtonView({ block, dark, accent, editable, onContentChange, onStyleChange, device }: SiteBlockViewProps) {
+  const c = useContent<LinkButtonBlockContent>(block);
+  const rawStyle = parseJson<BlockStyle>(block.style, {});
+  const style = resolveDeviceStyle(rawStyle, device || 'desktop');
+  const accentText = getContrastText(accent);
+  const set = (patch: Partial<LinkButtonBlockContent>) => onContentChange?.({ ...c, ...patch });
+  const { href, target } = resolveLinkHref(c);
+  const isButton = (c.style_variant || 'button') !== 'text_link';
+
+  return (
+    <section
+      className={`w-full h-full flex items-center ${paddingClass(style.padding)} ${alignClass(style.align, 'center')}`}
+      style={boxAppearanceStyle(style)}
+    >
+      <BlockChildWrapper block={block} childId="link" editable={editable} onStyleChange={onStyleChange}>
+        <a
+          href={href}
+          target={target}
+          rel={target === '_blank' ? 'noopener noreferrer' : undefined}
+          onClick={(e) => editable && e.preventDefault()}
+          className={isButton
+            ? 'inline-flex items-center gap-2 px-6 py-3 rounded-lg font-black uppercase tracking-wider text-sm transition hover:opacity-90'
+            : `inline-flex items-center gap-1.5 font-bold text-sm underline underline-offset-4 transition hover:opacity-80 ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}
+          style={isButton ? { backgroundColor: accent, color: accentText } : { color: style.text_color || accent }}
+        >
+          {(!c.button_icon_position || c.button_icon_position === 'left') && <ButtonIcon name={c.button_icon} />}
+          <InlineText value={c.label || ''} onCommit={(v) => set({ label: v })} editable={editable} placeholder="Learn More" />
           {c.button_icon_position === 'right' && <ButtonIcon name={c.button_icon} />}
         </a>
       </BlockChildWrapper>
@@ -1502,6 +1565,7 @@ export default function SiteBlockView(props: SiteBlockViewProps) {
       case 'image': return <ImageView {...props} />;
       case 'video': return <VideoView {...props} />;
       case 'cta': return <CtaView {...props} />;
+      case 'link_button': return <LinkButtonView {...props} />;
       case 'contact_form': return <ContactFormView {...props} />;
       case 'testimonial': return <TestimonialView {...props} />;
       case 'pricing': return <PricingView {...props} />;

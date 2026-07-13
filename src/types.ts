@@ -315,7 +315,7 @@ export interface PublicFunnel {
 export type SiteBlockType =
   | 'hero' | 'text' | 'image' | 'video' | 'cta'
   | 'contact_form' | 'testimonial' | 'pricing' | 'faq' | 'spacer'
-  | 'ai_chat_bot' | 'funnel';
+  | 'ai_chat_bot' | 'funnel' | 'link_button';
 
 // Site-wide look-and-feel — a flexible JSON blob (like block content/style)
 // rather than fixed columns, since the set of themeable properties keeps
@@ -553,6 +553,21 @@ export interface CtaBlockContent {
   button_link?: string;
   button_icon?: IconName;
   button_icon_position?: 'left' | 'right';
+}
+// A standalone link/button block — drop it anywhere on a Site or Funnel page to
+// point at an external URL, a phone number, an email address, or a section on the
+// same page. Unlike the CTA block's plain `button_link` text field, this stores a
+// `link_type` alongside the raw `target` so the renderer can build the correct
+// href scheme (tel:/mailto:/https://) instead of trusting the user to type it
+// exactly right — see resolveLinkHref() in SiteBlockRenderers.tsx.
+export interface LinkButtonBlockContent {
+  label?: string;
+  link_type?: 'url' | 'phone' | 'email' | 'page';
+  target?: string; // raw user input — meaning depends on link_type
+  open_new_tab?: boolean;
+  button_icon?: IconName;
+  button_icon_position?: 'left' | 'right';
+  style_variant?: 'button' | 'text_link';
 }
 export interface ContactFormField {
   id: string;

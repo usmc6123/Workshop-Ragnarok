@@ -5,6 +5,7 @@ import {
   HeroBlockContent, ImageBlockContent, VideoBlockContent, CtaBlockContent,
   ContactFormBlockContent, TestimonialBlockContent, PricingBlockContent, FaqBlockContent, SpacerBlockContent,
   PricingTier, FaqItem, ContactFormField, AiChatBotBlockContent, FunnelBlockContent, Funnel,
+  LinkButtonBlockContent,
 } from '../types';
 import { ChatBotConfig, PERSONAS_20 } from './AiChatBotView';
 import { SITE_FONT_OPTIONS, ensureGoogleFontsLoaded } from '../constants/siteFonts';
@@ -535,6 +536,57 @@ function BlockContentEditor({
           <div><FieldLabel>Button Link</FieldLabel><TextInput value={c.button_link || ''} onChange={(v) => set({ button_link: v })} /></div>
           <div className="grid grid-cols-2 gap-3">
             <IconPickerSelect label="Button Icon" value={c.button_icon} onChange={(v) => set({ button_icon: v })} />
+            <div>
+              <FieldLabel>Icon Position</FieldLabel>
+              <PresetToggle options={[{ value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }]} value={c.button_icon_position || 'left'} onChange={(v) => set({ button_icon_position: v })} />
+            </div>
+          </div>
+        </div>
+      );
+    }
+    case 'link_button': {
+      const c: LinkButtonBlockContent = content;
+      const linkType = c.link_type || 'url';
+      const targetPlaceholder =
+        linkType === 'phone' ? '(555) 123-4567' :
+        linkType === 'email' ? 'you@example.com' :
+        linkType === 'page' ? '#contact or /site/subdomain' :
+        'https://instagram.com/yourshop';
+      return (
+        <div className="space-y-3">
+          <div><FieldLabel>Button Label</FieldLabel><TextInput value={c.label || ''} onChange={(v) => set({ label: v })} placeholder="Learn More" /></div>
+          <div>
+            <FieldLabel>Link Type</FieldLabel>
+            <PresetToggle
+              options={[
+                { value: 'url', label: 'Website URL' },
+                { value: 'phone', label: 'Phone' },
+                { value: 'email', label: 'Email' },
+                { value: 'page', label: 'Page Section' },
+              ]}
+              value={linkType}
+              onChange={(v) => set({ link_type: v })}
+            />
+          </div>
+          <div>
+            <FieldLabel>{linkType === 'phone' ? 'Phone Number' : linkType === 'email' ? 'Email Address' : linkType === 'page' ? 'Section / Page' : 'Destination URL'}</FieldLabel>
+            <TextInput value={c.target || ''} onChange={(v) => set({ target: v })} placeholder={targetPlaceholder} />
+            {linkType === 'url' && (
+              <p className="text-[9px] text-slate-500 mt-1">No need to type "https://" — it's added automatically if you leave it off.</p>
+            )}
+          </div>
+          {(linkType === 'url' || linkType === 'page') && (
+            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+              <input type="checkbox" checked={!!c.open_new_tab} onChange={(e) => set({ open_new_tab: e.target.checked })} className="w-4 h-4" />
+              <span>Open in a new tab</span>
+            </label>
+          )}
+          <div>
+            <FieldLabel>Style</FieldLabel>
+            <PresetToggle options={[{ value: 'button', label: 'Solid Button' }, { value: 'text_link', label: 'Text Link' }]} value={c.style_variant || 'button'} onChange={(v) => set({ style_variant: v })} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <IconPickerSelect label="Icon" value={c.button_icon} onChange={(v) => set({ button_icon: v })} />
             <div>
               <FieldLabel>Icon Position</FieldLabel>
               <PresetToggle options={[{ value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }]} value={c.button_icon_position || 'left'} onChange={(v) => set({ button_icon_position: v })} />

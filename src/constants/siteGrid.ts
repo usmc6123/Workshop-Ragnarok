@@ -34,6 +34,7 @@ export const DEFAULT_ROW_SPAN: Record<SiteBlockType, number> = {
   spacer: 3,
   ai_chat_bot: 24,
   funnel: 22,
+  link_button: 6,
 };
 
 export interface GridPosition {

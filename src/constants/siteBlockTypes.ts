@@ -1,8 +1,8 @@
-import { SiteBlockType, HeroBlockContent, TextBlockContent, ImageBlockContent, VideoBlockContent, CtaBlockContent, ContactFormBlockContent, TestimonialBlockContent, PricingBlockContent, FaqBlockContent, SpacerBlockContent, AiChatBotBlockContent, FunnelBlockContent } from '../types';
+import { SiteBlockType, HeroBlockContent, TextBlockContent, ImageBlockContent, VideoBlockContent, CtaBlockContent, ContactFormBlockContent, TestimonialBlockContent, PricingBlockContent, FaqBlockContent, SpacerBlockContent, AiChatBotBlockContent, FunnelBlockContent, LinkButtonBlockContent } from '../types';
 import type { LucideIcon } from 'lucide-react';
 import {
   LayoutTemplate, Type, Image as ImageIcon, Film, MousePointerClick, Mail,
-  Quote, Tag, HelpCircle, MoveVertical, Bot, Filter,
+  Quote, Tag, HelpCircle, MoveVertical, Bot, Filter, Link,
 } from 'lucide-react';
 
 // Shared registry of the 10 block types — icon, label, and a fresh default
@@ -28,6 +28,7 @@ export const BLOCK_TYPES: BlockTypeMeta[] = [
   { type: 'spacer', label: 'Spacer', icon: MoveVertical, defaultContent: () => ({ size: 'md' } as SpacerBlockContent) },
   { type: 'ai_chat_bot', label: 'AI Chat Bot', icon: Bot, defaultContent: () => ({ headline: 'Chat with our AI Assistant', subheadline: 'Ask us anything or book your appointment right here!', bot_id: 'cooper-patrol-cat' } as AiChatBotBlockContent) },
   { type: 'funnel', label: 'Lead Funnel', icon: Filter, defaultContent: () => ({ headline: 'Exclusive Service Offer', subheadline: 'Submit details below to lock in custom discounts and instant quotes.' } as FunnelBlockContent) },
+  { type: 'link_button', label: 'Link Button', icon: Link, defaultContent: () => ({ label: 'Learn More', link_type: 'url', target: '', open_new_tab: false, style_variant: 'button' } as LinkButtonBlockContent) },
 ];
 
 export function blockMeta(type: SiteBlockType): BlockTypeMeta {
@@ -50,6 +51,7 @@ export function blockSummary(blockType: SiteBlockType, content: any): string {
     case 'spacer': return `Size: ${content.size || 'md'}`;
     case 'ai_chat_bot': return content.bot_id ? `AI Bot: ${content.bot_id}` : 'AI Bot';
     case 'funnel': return content.funnel_id ? `Funnel ID: ${content.funnel_id}` : 'Lead Funnel';
+    case 'link_button': return content.label ? `"${content.label}" → ${content.target || '(no target set)'}` : 'Untitled link button';
     default: return '';
   }
 }
