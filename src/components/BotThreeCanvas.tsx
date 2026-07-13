@@ -15,6 +15,7 @@ interface BotThreeCanvasProps {
   bgType?: 'color' | 'image' | 'video';
   bgVal?: string;
   bgOpacity?: number;
+  modelScale?: number;
 }
 
 export default function BotThreeCanvas({
@@ -30,11 +31,17 @@ export default function BotThreeCanvas({
   bgType = 'color',
   bgVal = '#07080b',
   bgOpacity = 100,
+  modelScale = 100,
 }: BotThreeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const requestRef = useRef<number | null>(null);
+
+  const modelScaleRef = useRef(modelScale);
+  useEffect(() => {
+    modelScaleRef.current = modelScale;
+  }, [modelScale]);
 
   useEffect(() => {
     if (!containerRef.current || !canvasRef.current) return;
@@ -311,27 +318,39 @@ export default function BotThreeCanvas({
         botObject.rotation.y += baseSpeed;
         botObject.rotation.x += baseSpeed * 0.5;
 
+        const scaleMultiplier = (modelScaleRef.current ?? 100) / 100;
+
         // Custom animations per preset
         if (isCustom) {
           // General dynamic hover/pulse effect for custom GLB models
           if (isTalking) {
-            botObject.scale.set(pulse * baseScale.x, pulse * baseScale.y, pulse * baseScale.z);
+            botObject.scale.set(pulse * baseScale.x * scaleMultiplier, pulse * baseScale.y * scaleMultiplier, pulse * baseScale.z * scaleMultiplier);
           } else {
-            botObject.scale.set(baseScale.x, baseScale.y, baseScale.z);
+            botObject.scale.set(baseScale.x * scaleMultiplier, baseScale.y * scaleMultiplier, baseScale.z * scaleMultiplier);
           }
         } else if (preset === 'cyber_sphere') {
           if (isTalking) {
-            botObject.scale.set(pulse, pulse, pulse);
+            botObject.scale.set(pulse * scaleMultiplier, pulse * scaleMultiplier, pulse * scaleMultiplier);
           } else {
-            botObject.scale.set(1, 1, 1);
+            botObject.scale.set(scaleMultiplier, scaleMultiplier, scaleMultiplier);
           }
         } else if (preset === 'neon_core') {
+          if (isTalking) {
+            botObject.scale.set(pulse * scaleMultiplier, pulse * scaleMultiplier, pulse * scaleMultiplier);
+          } else {
+            botObject.scale.set(scaleMultiplier, scaleMultiplier, scaleMultiplier);
+          }
           const core = botObject.getObjectByName('core');
           if (core) {
             const corePulse = (Math.sin(elapsedTime * 8) * 0.2 + 0.9) * (isTalking ? 1.4 : 1.0);
             core.scale.set(corePulse, corePulse, corePulse);
           }
         } else if (preset === 'quantum') {
+          if (isTalking) {
+            botObject.scale.set(pulse * scaleMultiplier, pulse * scaleMultiplier, pulse * scaleMultiplier);
+          } else {
+            botObject.scale.set(scaleMultiplier, scaleMultiplier, scaleMultiplier);
+          }
           // Wave movement for quantum cloud
           const pointsObj = botObject as any;
           const positions = pointsObj.geometry.attributes.position.array as Float32Array;
@@ -344,6 +363,11 @@ export default function BotThreeCanvas({
           }
           pointsObj.geometry.attributes.position.needsUpdate = true;
         } else if (preset === 'hologram') {
+          if (isTalking) {
+            botObject.scale.set(pulse * scaleMultiplier, pulse * scaleMultiplier, pulse * scaleMultiplier);
+          } else {
+            botObject.scale.set(scaleMultiplier, scaleMultiplier, scaleMultiplier);
+          }
           const ring = botObject.getObjectByName('scan_ring');
           if (ring) {
             // Laser scanning up and down

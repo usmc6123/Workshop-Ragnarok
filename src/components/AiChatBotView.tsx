@@ -38,6 +38,7 @@ interface UiConfiguration {
   three_bg_type?: 'color' | 'image' | 'video';
   three_bg_val?: string;
   three_bg_opacity?: number;
+  three_model_scale?: number;
   chat_bg_type?: 'color' | 'image' | 'video';
   chat_bg_val?: string;
   chat_bg_opacity?: number;
@@ -833,6 +834,7 @@ export default function AiChatBotView() {
   const [threeBgType, setThreeBgType] = useState<'color' | 'image' | 'video'>('color');
   const [threeBgVal, setThreeBgVal] = useState<string>('#0a0b10');
   const [threeBgOpacity, setThreeBgOpacity] = useState<number>(100);
+  const [threeModelScale, setThreeModelScale] = useState<number>(100);
   const [chatBgType, setChatBgType] = useState<'color' | 'image' | 'video'>('color');
   const [chatBgVal, setChatBgVal] = useState<string>('#f8fafc');
   const [chatBgOpacity, setChatBgOpacity] = useState<number>(100);
@@ -985,6 +987,7 @@ export default function AiChatBotView() {
       setThreeBgType(target.ui_configuration.three_bg_type || 'color');
       setThreeBgVal(target.ui_configuration.three_bg_val || '#0a0b10');
       setThreeBgOpacity(target.ui_configuration.three_bg_opacity ?? 100);
+      setThreeModelScale(target.ui_configuration.three_model_scale ?? 100);
       setChatBgType(target.ui_configuration.chat_bg_type || 'color');
       setChatBgVal(target.ui_configuration.chat_bg_val || '#f8fafc');
       setChatBgOpacity(target.ui_configuration.chat_bg_opacity ?? 100);
@@ -1109,6 +1112,7 @@ export default function AiChatBotView() {
     const currentThreeBgType = overrideBot ? (overrideBot.ui_configuration.three_bg_type || 'color') : threeBgType;
     const currentThreeBgVal = overrideBot ? (overrideBot.ui_configuration.three_bg_val || '#0a0b10') : threeBgVal;
     const currentThreeBgOpacity = overrideBot ? (overrideBot.ui_configuration.three_bg_opacity ?? 100) : threeBgOpacity;
+    const currentThreeModelScale = overrideBot ? (overrideBot.ui_configuration.three_model_scale ?? 100) : threeModelScale;
     const currentChatBgType = overrideBot ? (overrideBot.ui_configuration.chat_bg_type || 'color') : chatBgType;
     const currentChatBgVal = overrideBot ? (overrideBot.ui_configuration.chat_bg_val || '#f8fafc') : chatBgVal;
     const currentChatBgOpacity = overrideBot ? (overrideBot.ui_configuration.chat_bg_opacity ?? 100) : chatBgOpacity;
@@ -1170,6 +1174,7 @@ export default function AiChatBotView() {
         three_bg_type: currentThreeBgType,
         three_bg_val: currentThreeBgVal,
         three_bg_opacity: currentThreeBgOpacity,
+        three_model_scale: currentThreeModelScale,
         chat_bg_type: currentChatBgType,
         chat_bg_val: currentChatBgVal,
         chat_bg_opacity: currentChatBgOpacity
@@ -1206,6 +1211,7 @@ export default function AiChatBotView() {
         three_bg_type: "${currentThreeBgType}",
         three_bg_val: "${currentThreeBgVal}",
         three_bg_opacity: ${currentThreeBgOpacity},
+        three_model_scale: ${currentThreeModelScale},
         chat_bg_type: "${currentChatBgType}",
         chat_bg_val: "${currentChatBgVal}",
         chat_bg_opacity: ${currentChatBgOpacity}
@@ -1272,6 +1278,7 @@ export default function AiChatBotView() {
             three_bg_type: threeBgType,
             three_bg_val: threeBgVal,
             three_bg_opacity: threeBgOpacity,
+            three_model_scale: threeModelScale,
             chat_bg_type: chatBgType,
             chat_bg_val: chatBgVal,
             chat_bg_opacity: chatBgOpacity
@@ -1322,6 +1329,7 @@ export default function AiChatBotView() {
         three_particles: 1000,
         three_file: '',
         bot_opacity: 100,
+        three_model_scale: 100,
         bubble_phrases: 'Need an LS swap? I can quote you in seconds! 🐾, ATF Transmission Flush is only $110! ⚡, Cooper on Laser Patrol! Ready to scan your engine! 📡, Book a custom build slot today! 🏎️'
       },
       embed_code_snippet: ''
@@ -2223,6 +2231,21 @@ function clearSession() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center justify-between">
+                          <span>3D Model Size (Scale)</span>
+                          <span className="text-teal-600 font-bold font-mono">{threeModelScale}%</span>
+                        </label>
+                        <input
+                          type="range"
+                          min="30"
+                          max="250"
+                          step="5"
+                          value={threeModelScale}
+                          onChange={(e) => setThreeModelScale(parseInt(e.target.value))}
+                          className="w-full accent-teal-600 cursor-pointer"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center justify-between">
                           <span>Quantum Particle Density</span>
                           <span className="text-teal-600 font-bold font-mono">{threeParticles}pt</span>
                         </label>
@@ -2233,23 +2256,22 @@ function clearSession() {
                           step="100"
                           value={threeParticles}
                           onChange={(e) => setThreeParticles(parseInt(e.target.value))}
-                          className="w-full accent-teal-600"
+                          className="w-full accent-teal-600 cursor-pointer"
                         />
                       </div>
-                      <div className="flex flex-col gap-1.5 justify-center">
-                        <div className="flex items-center gap-2">
-                          <input
-                             type="checkbox"
-                             id="threeWireframe"
-                             checked={threeWireframe}
-                             onChange={(e) => setThreeWireframe(e.target.checked)}
-                             className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-0 cursor-pointer"
-                           />
-                           <label htmlFor="threeWireframe" className="text-[10px] font-mono font-bold text-slate-600 uppercase tracking-wider select-none cursor-pointer">
-                             Render Wireframe Skin Overlay
-                           </label>
-                         </div>
-                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                         type="checkbox"
+                         id="threeWireframe"
+                         checked={threeWireframe}
+                         onChange={(e) => setThreeWireframe(e.target.checked)}
+                         className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-0 cursor-pointer"
+                       />
+                       <label htmlFor="threeWireframe" className="text-[10px] font-mono font-bold text-slate-600 uppercase tracking-wider select-none cursor-pointer">
+                         Render Wireframe Skin Overlay
+                       </label>
                     </div>
 
                     <div className="border-t border-slate-100 pt-3">
@@ -2764,6 +2786,7 @@ function clearSession() {
                       bgType={threeBgType}
                       bgVal={threeBgVal}
                       bgOpacity={threeBgOpacity}
+                      modelScale={threeModelScale}
                     />
                   </div>
                 )}
