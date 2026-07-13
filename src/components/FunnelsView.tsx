@@ -642,35 +642,37 @@ export default function FunnelsView() {
               </div>
 
               {/* --- Hero Media (used across every layout) --- */}
-              <div className="space-y-3">
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-border-theme pb-2">Hero Media</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <MediaField
-                    label="Hero Image URL"
-                    labelColorClass="text-slate-400"
-                    accentClass="accent-amber-500"
-                    value={form.image_url}
-                    onChange={(v) => setForm(prev => ({ ...prev, image_url: v }))}
-                    opacityKey="image_url"
-                    mediaOpacity={form.media_opacity}
-                    onOpacityChange={updateOpacity}
-                    showOpacity
-                    accept="image"
-                  />
-                  <MediaField
-                    label="Hero Video URL (optional)"
-                    labelColorClass="text-slate-400"
-                    accentClass="accent-amber-500"
-                    value={form.video_url}
-                    onChange={(v) => setForm(prev => ({ ...prev, video_url: v }))}
-                    opacityKey="video_url"
-                    mediaOpacity={form.media_opacity}
-                    onOpacityChange={updateOpacity}
-                    showOpacity
-                    accept="video"
-                  />
+              {form.layout !== 'booking' && (
+                <div className="space-y-3">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-border-theme pb-2">Hero Media</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <MediaField
+                      label="Hero Image URL"
+                      labelColorClass="text-slate-400"
+                      accentClass="accent-amber-500"
+                      value={form.image_url}
+                      onChange={(v) => setForm(prev => ({ ...prev, image_url: v }))}
+                      opacityKey="image_url"
+                      mediaOpacity={form.media_opacity}
+                      onOpacityChange={updateOpacity}
+                      showOpacity
+                      accept="image"
+                    />
+                    <MediaField
+                      label="Hero Video URL (optional)"
+                      labelColorClass="text-slate-400"
+                      accentClass="accent-amber-500"
+                      value={form.video_url}
+                      onChange={(v) => setForm(prev => ({ ...prev, video_url: v }))}
+                      opacityKey="video_url"
+                      mediaOpacity={form.media_opacity}
+                      onOpacityChange={updateOpacity}
+                      showOpacity
+                      accept="video"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* --- Classic Layout Media --- */}
               {form.layout === 'classic' && (
@@ -801,6 +803,107 @@ export default function FunnelsView() {
                       accept="image"
                       help="Sits behind the name/phone/email/vehicle quote form, with a dark overlay so it stays readable."
                     />
+                  </div>
+                </div>
+              )}
+
+              {/* --- Booking Layout Media --- */}
+              {form.layout === 'booking' && (
+                <div className="space-y-5">
+                  <div className="space-y-3">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-emerald-400 border-b border-emerald-500/20 pb-2">Box 1 (Top Copy Box) Background Media</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <MediaField
+                        label="Top Box Background Image"
+                        labelColorClass="text-emerald-400"
+                        accentClass="accent-emerald-500"
+                        value={form.headline_bg_image_url}
+                        onChange={(v) => setForm(prev => ({ ...prev, headline_bg_image_url: v }))}
+                        opacityKey="headline_bg_image_url"
+                        mediaOpacity={form.media_opacity}
+                        onOpacityChange={updateOpacity}
+                        showOpacity
+                        accept="image"
+                        help="Sits behind the headline/subheadline/body text in the top box, with a dark overlay."
+                      />
+                      <MediaField
+                        label="Top Box Background Video"
+                        labelColorClass="text-emerald-400"
+                        accentClass="accent-emerald-500"
+                        value={form.headline_bg_video_url}
+                        onChange={(v) => setForm(prev => ({ ...prev, headline_bg_video_url: v }))}
+                        opacityKey="headline_bg_video_url"
+                        mediaOpacity={form.media_opacity}
+                        onOpacityChange={updateOpacity}
+                        showOpacity
+                        accept="video"
+                        help="Plays behind the top box headline text instead of the background image."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-emerald-400 border-b border-emerald-500/20 pb-2">Box 2 (Middle Appointment Box) Background Media</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <MediaField
+                        label="Middle Box Background Image"
+                        labelColorClass="text-emerald-400"
+                        accentClass="accent-emerald-500"
+                        value={form.image_url}
+                        onChange={(v) => setForm(prev => ({ ...prev, image_url: v }))}
+                        opacityKey="image_url"
+                        mediaOpacity={form.media_opacity}
+                        onOpacityChange={updateOpacity}
+                        showOpacity
+                        accept="image"
+                        help="Sits behind the date & time selection calendar in the middle box, with a dark overlay."
+                      />
+                      <MediaField
+                        label="Middle Box Background Video"
+                        labelColorClass="text-emerald-400"
+                        accentClass="accent-emerald-500"
+                        value={form.video_url}
+                        onChange={(v) => setForm(prev => ({ ...prev, video_url: v }))}
+                        opacityKey="video_url"
+                        mediaOpacity={form.media_opacity}
+                        onOpacityChange={updateOpacity}
+                        showOpacity
+                        accept="video"
+                        help="Plays behind the date & time selection calendar in the middle box instead of the background image."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-emerald-400 border-b border-emerald-500/20 pb-2">Box 3 (Bottom Details Box) Background Media</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <MediaField
+                        label="Bottom Box Background Image"
+                        labelColorClass="text-emerald-400"
+                        accentClass="accent-emerald-500"
+                        value={form.video_form_bg_image_url}
+                        onChange={(v) => setForm(prev => ({ ...prev, video_form_bg_image_url: v }))}
+                        opacityKey="video_form_bg_image_url"
+                        mediaOpacity={form.media_opacity}
+                        onOpacityChange={updateOpacity}
+                        showOpacity
+                        accept="image"
+                        help="Sits behind the customer/vehicle detail inputs in the bottom box, with a dark overlay."
+                      />
+                      <MediaField
+                        label="Bottom Box Background Video"
+                        labelColorClass="text-emerald-400"
+                        accentClass="accent-emerald-500"
+                        value={form.secondary_video_url}
+                        onChange={(v) => setForm(prev => ({ ...prev, secondary_video_url: v }))}
+                        opacityKey="secondary_video_url"
+                        mediaOpacity={form.media_opacity}
+                        onOpacityChange={updateOpacity}
+                        showOpacity
+                        accept="video"
+                        help="Plays behind the customer/vehicle detail inputs in the bottom box instead of the background image."
+                      />
+                    </div>
                   </div>
                 </div>
               )}
