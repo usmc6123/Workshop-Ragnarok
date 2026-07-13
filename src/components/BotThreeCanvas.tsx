@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 interface BotThreeCanvasProps {
   primaryColor: string;
@@ -9,6 +10,7 @@ interface BotThreeCanvasProps {
   speed?: number;
   wireframe?: boolean;
   particleCount?: number;
+  customModelUrl?: string;
 }
 
 export default function BotThreeCanvas({
@@ -19,6 +21,7 @@ export default function BotThreeCanvas({
   speed = 1,
   wireframe = false,
   particleCount = 1200,
+  customModelUrl = '',
 }: BotThreeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -61,8 +64,93 @@ export default function BotThreeCanvas({
 
     // 3. Create Geometries based on selected Preset
     let botObject: THREE.Object3D;
+    let baseScale = new THREE.Vector3(1, 1, 1);
+    let isCustom = false;
 
-    if (preset === 'cyber_sphere') {
+    if (customModelUrl && customModelUrl.trim() !== '') {
+      isCustom = true;
+      const group = new THREE.Group();
+      botObject = group;
+
+      // Loading spinner/placeholder while GLTF loads
+      const loaderGeom = new THREE.TorusKnotGeometry(0.8, 0.25, 64, 8);
+      const loaderMat = new THREE.MeshBasicMaterial({
+        color: colorPrim,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.4,
+      });
+      const loaderMesh = new THREE.Mesh(loaderGeom, loaderMat);
+      loaderMesh.name = 'loading_spinner';
+      group.add(loaderMesh);
+
+      // Ring
+      const ringGeom = new THREE.RingGeometry(1.2, 1.3, 32);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: colorSec,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.6,
+      });
+      const ring = new THREE.Mesh(ringGeom, ringMat);
+      ring.rotation.x = Math.PI / 2;
+      ring.name = 'loading_ring';
+      group.add(ring);
+
+      const loader = new GLTFLoader();
+      loader.load(
+        customModelUrl,
+        (gltf) => {
+          // Remove spinner on successful load
+          group.remove(loaderMesh);
+          group.remove(ring);
+
+          const model = gltf.scene;
+
+          // Compute bounds
+          const box = new THREE.Box3().setFromObject(model);
+          const size = box.getSize(new THREE.Vector3());
+          const center = box.getCenter(new THREE.Vector3());
+
+          // Center the model relative to the group
+          model.position.x = -center.x;
+          model.position.y = -center.y;
+          model.position.z = -center.z;
+
+          // Scale model to fit in a 3.0 cube
+          const maxDim = Math.max(size.x, size.y, size.z);
+          if (maxDim > 0) {
+            const scale = 3.0 / maxDim;
+            group.scale.set(scale, scale, scale);
+            baseScale.set(scale, scale, scale);
+          }
+
+          // Traverse and color child meshes with primaryColor
+          model.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+              // Apply material with custom glowing style or wireframe
+              child.material = new THREE.MeshStandardMaterial({
+                color: colorPrim,
+                roughness: 0.1,
+                metalness: 0.8,
+                wireframe: wireframe,
+                transparent: true,
+                opacity: 0.85,
+              });
+            }
+          });
+
+          group.add(model);
+          console.log('Custom 3D model loaded successfully:', customModelUrl);
+        },
+        undefined,
+        (err) => {
+          console.error('Error loading custom GLTF:', err);
+          // Fall back to showing the wireframe knot in red to alert user
+          loaderMesh.material.color.setHex(0xef4444);
+        }
+      );
+    } else if (preset === 'cyber_sphere') {
       // Sleek wireframe sphere or point sphere
       const geometry = new THREE.SphereGeometry(2, 32, 32);
       if (wireframe) {
@@ -198,7 +286,14 @@ export default function BotThreeCanvas({
         botObject.rotation.x += baseSpeed * 0.5;
 
         // Custom animations per preset
-        if (preset === 'cyber_sphere') {
+        if (isCustom) {
+          // General dynamic hover/pulse effect for custom GLB models
+          if (isTalking) {
+            botObject.scale.set(pulse * baseScale.x, pulse * baseScale.y, pulse * baseScale.z);
+          } else {
+            botObject.scale.set(baseScale.x, baseScale.y, baseScale.z);
+          }
+        } else if (preset === 'cyber_sphere') {
           if (isTalking) {
             botObject.scale.set(pulse, pulse, pulse);
           } else {
@@ -260,7 +355,7 @@ export default function BotThreeCanvas({
         rendererRef.current.dispose();
       }
     };
-  }, [primaryColor, secondaryColor, preset, isTalking, speed, wireframe, particleCount]);
+  }, [primaryColor, secondaryColor, preset, isTalking, speed, wireframe, particleCount, customModelUrl]);
 
   return (
     <div 
@@ -276,7 +371,7 @@ export default function BotThreeCanvas({
       </div>
       <div className="absolute bottom-2 right-2 font-mono text-[8px] text-slate-500 z-10 select-none flex items-center gap-1">
         <span className={`w-1.5 h-1.5 rounded-full ${isTalking ? 'bg-green-400 animate-ping' : 'bg-amber-400'}`} />
-        PRESET: {preset.toUpperCase()}
+        PRESET: {customModelUrl ? 'CUSTOM GLB' : preset.toUpperCase()}
       </div>
     </div>
   );

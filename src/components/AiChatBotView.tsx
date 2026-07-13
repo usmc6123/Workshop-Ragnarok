@@ -2443,6 +2443,7 @@ function clearSession() {
                       speed={threeSpeed}
                       wireframe={threeWireframe}
                       particleCount={threeParticles}
+                      customModelUrl={threeFile}
                     />
                   </div>
                 )}
