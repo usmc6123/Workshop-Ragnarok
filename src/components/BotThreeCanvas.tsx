@@ -51,8 +51,15 @@ export default function BotThreeCanvas({
     const colorSec = new THREE.Color(secondaryColor || '#eab308');
 
     // 2. Light sources
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambientLight);
+
+    const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+    scene.add(hemisphereLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    dirLight.position.set(5, 10, 7);
+    scene.add(dirLight);
 
     const pointLight = new THREE.PointLight(colorPrim, 2, 50);
     pointLight.position.set(5, 5, 5);
@@ -125,18 +132,22 @@ export default function BotThreeCanvas({
             baseScale.set(scale, scale, scale);
           }
 
-          // Traverse and color child meshes with primaryColor
+          // Traverse and color child meshes with primaryColor if wireframe is active, or preserve original materials
           model.traverse((child) => {
             if (child instanceof THREE.Mesh) {
-              // Apply material with custom glowing style or wireframe
-              child.material = new THREE.MeshStandardMaterial({
-                color: colorPrim,
-                roughness: 0.1,
-                metalness: 0.8,
-                wireframe: wireframe,
-                transparent: true,
-                opacity: 0.85,
-              });
+              if (wireframe) {
+                child.material = new THREE.MeshStandardMaterial({
+                  color: colorPrim,
+                  roughness: 0.1,
+                  metalness: 0.8,
+                  wireframe: true,
+                  transparent: true,
+                  opacity: 0.85,
+                });
+              } else if (child.material) {
+                // Ensure the material can be rendered double-sided
+                child.material.side = THREE.DoubleSide;
+              }
             }
           });
 
