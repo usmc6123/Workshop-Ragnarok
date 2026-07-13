@@ -399,7 +399,7 @@ export default function SiteGridCanvas({
           // behind it": without a lock, ANY selected block jumps to z-20,
           // which can outrank a block that was previously brought to front.
           const zLock = parseJson<BlockStyle>(block.style, {}).z_lock;
-          const zIndexClass = zLock === 'front' ? 'z-30' : zLock === 'back' ? 'z-0' : isSelected ? 'z-20' : 'z-10';
+          const zIndexClass = isSelected ? 'z-40' : zLock === 'front' ? 'z-30' : zLock === 'back' ? 'z-0' : 'z-10';
           const borderClass = isSelected
             ? 'border-amber-400 shadow-[0_0_0_2px_rgba(245,158,11,0.35),0_8px_24px_rgba(0,0,0,0.4)]'
             : 'border-transparent hover:border-white/20';
