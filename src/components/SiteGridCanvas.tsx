@@ -411,18 +411,18 @@ export default function SiteGridCanvas({
           const isDragging = dragState.current?.blockId === block.id;
           const nearTop = pos.grid_row * ROW_UNIT_PX < TOOLBAR_CLEARANCE_PX;
           const handlePos = getHandlePos(nearTop);
-          // A locked block's stacking is pinned regardless of selection.
-          // To keep the visual layout completely accurate when selecting a block (e.g. clicking a background block),
-          // selection does not alter the stacking layer position (z-index). It remains at its natural layer,
-          // only getting a high z-index during active drag or resize operations.
+          // To ensure the user can always access and click the toolbar and resize handles,
+          // we elevate the z-index of the selected block to z-40 so it stays above other layers.
           const zLock = blockStyle.z_lock;
           const zIndexClass = isDragging
             ? 'z-50'
-            : zLock === 'front'
-              ? 'z-30'
-              : zLock === 'back'
-                ? 'z-0'
-                : 'z-10';
+            : isSelected
+              ? 'z-40'
+              : zLock === 'front'
+                ? 'z-30'
+                : zLock === 'back'
+                  ? 'z-0'
+                  : 'z-10';
           const borderClass = isSelected
             ? isInvisible
               ? 'border-dashed border-amber-500/80 shadow-[0_0_0_2px_rgba(245,158,11,0.35),0_8px_24px_rgba(0,0,0,0.4)] bg-amber-500/5'

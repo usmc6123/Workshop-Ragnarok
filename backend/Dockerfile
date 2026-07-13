@@ -37,7 +37,6 @@ COPY backend/stripe.js ./
 COPY backend/portal-routes.js ./
 COPY backend/funnel-routes.js ./
 COPY backend/site-routes.js ./
-COPY backend/segments.js ./
 COPY backend/middleware ./middleware
 
 # Copy compiled frontend from Stage 1 into backend's public folder
