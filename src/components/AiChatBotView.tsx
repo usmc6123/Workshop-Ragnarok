@@ -42,6 +42,8 @@ interface UiConfiguration {
   chat_bg_type?: 'color' | 'image' | 'video';
   chat_bg_val?: string;
   chat_bg_opacity?: number;
+  card_bg_type?: 'color' | 'image';
+  card_bg_val?: string;
 }
 
 export interface ChatBotConfig {
@@ -959,10 +961,14 @@ export default function AiChatBotView() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as ChatBotConfig[];
-        // Safely filter out old cached factory presets to display our new realistic templates
+        // Map PERSONAS_20, using the stored/edited version if it exists
+        const mergedFactory = PERSONAS_20.map(factoryBot => {
+          const edited = parsed.find(b => b.id === factoryBot.id);
+          return edited ? { ...factoryBot, ...edited } : factoryBot;
+        });
+        // Filter out non-factory custom bots
         const customBots = parsed.filter(b => !PERSONAS_20.some(p => p.id === b.id));
-        // Merge the latest premium factory templates with any user-created templates
-        return [...PERSONAS_20, ...customBots];
+        return [...mergedFactory, ...customBots];
       } catch {}
     }
     return PERSONAS_20;
@@ -1027,6 +1033,8 @@ export default function AiChatBotView() {
   const [chatBgType, setChatBgType] = useState<'color' | 'image' | 'video'>('color');
   const [chatBgVal, setChatBgVal] = useState<string>('#f8fafc');
   const [chatBgOpacity, setChatBgOpacity] = useState<number>(100);
+  const [cardBgType, setCardBgType] = useState<'color' | 'image'>('color');
+  const [cardBgVal, setCardBgVal] = useState<string>('#ffffff');
 
   // Outputs (Generated)
   const [generatedJson, setGeneratedJson] = useState<string>('');
@@ -1180,6 +1188,8 @@ export default function AiChatBotView() {
       setChatBgType(target.ui_configuration.chat_bg_type || 'color');
       setChatBgVal(target.ui_configuration.chat_bg_val || '#f8fafc');
       setChatBgOpacity(target.ui_configuration.chat_bg_opacity ?? 100);
+      setCardBgType(target.ui_configuration.card_bg_type || 'color');
+      setCardBgVal(target.ui_configuration.card_bg_val || '#ffffff');
       
       // Auto compile instructions and JSON on load
       compileBot(target);
@@ -1305,6 +1315,8 @@ export default function AiChatBotView() {
     const currentChatBgType = overrideBot ? (overrideBot.ui_configuration.chat_bg_type || 'color') : chatBgType;
     const currentChatBgVal = overrideBot ? (overrideBot.ui_configuration.chat_bg_val || '#f8fafc') : chatBgVal;
     const currentChatBgOpacity = overrideBot ? (overrideBot.ui_configuration.chat_bg_opacity ?? 100) : chatBgOpacity;
+    const currentCardBgType = overrideBot ? (overrideBot.ui_configuration.card_bg_type || 'color') : cardBgType;
+    const currentCardBgVal = overrideBot ? (overrideBot.ui_configuration.card_bg_val || '#ffffff') : cardBgVal;
 
     // 1. Build System Instructions (Rule 1: combine role and doc text, NEVER mention AI, < 3 sentences, steer to CTA)
     let systemInstruction = `You are ${currentName}, working as a custom bot assistant. `;
@@ -1366,7 +1378,9 @@ export default function AiChatBotView() {
         three_model_scale: currentThreeModelScale,
         chat_bg_type: currentChatBgType,
         chat_bg_val: currentChatBgVal,
-        chat_bg_opacity: currentChatBgOpacity
+        chat_bg_opacity: currentChatBgOpacity,
+        card_bg_type: currentCardBgType,
+        card_bg_val: currentCardBgVal
       },
       embed_code_snippet: `<!-- Ragnarök Custom Funnel AI Chat Bot Widget -->
 <script src="https://cdn.ragnarok.work/widget/bot-loader.js" async></script>
@@ -1403,7 +1417,9 @@ export default function AiChatBotView() {
         three_model_scale: ${currentThreeModelScale},
         chat_bg_type: "${currentChatBgType}",
         chat_bg_val: "${currentChatBgVal}",
-        chat_bg_opacity: ${currentChatBgOpacity}
+        chat_bg_opacity: ${currentChatBgOpacity},
+        card_bg_type: "${currentCardBgType}",
+        card_bg_val: "${currentCardBgVal}"
       }
     });
   });
@@ -1470,7 +1486,9 @@ export default function AiChatBotView() {
             three_model_scale: threeModelScale,
             chat_bg_type: chatBgType,
             chat_bg_val: chatBgVal,
-            chat_bg_opacity: chatBgOpacity
+            chat_bg_opacity: chatBgOpacity,
+            card_bg_type: cardBgType,
+            card_bg_val: cardBgVal
           },
           embed_code_snippet: embedCode
         };
@@ -1962,13 +1980,26 @@ function clearSession() {
                   : 'border-purple-500 bg-purple-500/10 shadow-[0_0_15px_rgba(168,85,247,0.15)]';
           }
 
+          const customCardStyle: React.CSSProperties = {};
+          if (b.ui_configuration.card_bg_type === 'image' && b.ui_configuration.card_bg_val) {
+            customCardStyle.backgroundImage = `url(${b.ui_configuration.card_bg_val})`;
+            customCardStyle.backgroundSize = 'cover';
+            customCardStyle.backgroundPosition = 'center';
+          } else if (b.ui_configuration.card_bg_type === 'color' && b.ui_configuration.card_bg_val) {
+            customCardStyle.backgroundColor = b.ui_configuration.card_bg_val;
+          }
+
           return (
             <div
               key={b.id}
               onClick={() => setActiveBotId(b.id)}
-              className={`p-3.5 rounded-xl border transition-all duration-200 cursor-pointer flex flex-col justify-between h-[96px] relative group ${cardColor}`}
+              className={`p-3.5 rounded-xl border transition-all duration-200 cursor-pointer flex flex-col justify-between h-[96px] relative group overflow-hidden ${cardColor}`}
+              style={customCardStyle}
             >
-              <div className="flex items-start gap-2.5 min-w-0 justify-between">
+              {b.ui_configuration.card_bg_type === 'image' && b.ui_configuration.card_bg_val && (
+                <div className="absolute inset-0 bg-white/75 backdrop-blur-[1px] group-hover:bg-white/65 transition z-0" />
+              )}
+              <div className="flex items-start gap-2.5 min-w-0 justify-between relative z-10">
                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
                   <div className="relative shrink-0">
                     <img
@@ -2017,7 +2048,7 @@ function clearSession() {
                   </div>
                 )}
               </div>
-              <div className="flex items-center justify-between text-[8px] font-mono text-slate-500 border-t border-slate-100 pt-1.5 mt-1.5">
+              <div className="flex items-center justify-between text-[8px] font-mono text-slate-500 border-t border-slate-100/50 pt-1.5 mt-1.5 relative z-10">
                 <span className="truncate max-w-[60%] uppercase font-bold text-indigo-600">{b.target_industry || 'General'}</span>
                 <span className="bg-slate-100 border border-slate-200/60 px-1.5 py-0.5 rounded font-bold uppercase text-[7px] text-slate-600">
                   {b.ui_configuration.bot_style === 'visual_media' ? 'VISUAL_MEDIA' : b.ui_configuration.bot_style === '3d_animated' ? '3D_ANIMATED' : b.ui_configuration.bot_style === 'bubble_popup' ? 'BUBBLE_POPUP' : 'CLASSIC'}
@@ -2526,6 +2557,8 @@ function clearSession() {
                       >
                         <option value="/cooper-logo.png">Cooper Engine Scan Logo (/cooper-logo.png)</option>
                         <option value="/roscoe-logo.png">Roscoe Spark Plugs Logo (/roscoe-logo.png)</option>
+                        <option value="/gangstercats.png">Coach Rex Logo (/gangstercats.png)</option>
+                        <option value="/scarycats.png">Scary Cats Logo (/scarycats.png)</option>
                         <option value="/hiphopyoutubebackground.jpg">Garage Bay Static View (/hiphopyoutubebackground.jpg)</option>
                       </select>
                       <MediaField
@@ -2534,6 +2567,75 @@ function clearSession() {
                         accept="image"
                         placeholder="Or upload custom brand logo..."
                       />
+                    </div>
+                  </div>
+
+                  {/* Card Tab Background Customization */}
+                  <div className="space-y-3 bg-purple-50/30 border border-purple-100/50 p-3 rounded-lg">
+                    <span className="text-[9px] font-mono text-purple-700 uppercase font-bold tracking-wider block">
+                      🎫 Bot Selector Tab Card Background
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1">
+                          Tab Background Type
+                        </label>
+                        <select
+                          value={cardBgType}
+                          onChange={(e) => {
+                            const newType = e.target.value as 'color' | 'image';
+                            setCardBgType(newType);
+                            if (newType === 'color') {
+                              setCardBgVal('#ffffff');
+                            } else {
+                              setCardBgVal('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80');
+                            }
+                          }}
+                          className="w-full bg-white border border-purple-300 rounded-lg p-1.5 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-purple-500 shadow-sm"
+                        >
+                          <option value="color">🎨 Solid Color / Glass</option>
+                          <option value="image">🖼️ Backdrop Image</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1">
+                          {cardBgType === 'color' ? 'Background Color' : 'Backdrop Image URL'}
+                        </label>
+                        {cardBgType === 'color' ? (
+                          <div className="flex gap-1.5 items-center">
+                            <input
+                              type="color"
+                              value={cardBgVal.startsWith('#') && cardBgVal.length === 7 ? cardBgVal : '#ffffff'}
+                              onChange={(e) => setCardBgVal(e.target.value)}
+                              className="w-8 h-7 bg-transparent border-0 cursor-pointer p-0 shrink-0"
+                            />
+                            <input
+                              type="text"
+                              value={cardBgVal}
+                              onChange={(e) => setCardBgVal(e.target.value)}
+                              className="flex-1 bg-white border border-slate-200 rounded p-1 text-[10px] font-mono text-slate-800"
+                              placeholder="#ffffff"
+                            />
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <input
+                              type="text"
+                              value={cardBgVal}
+                              onChange={(e) => setCardBgVal(e.target.value)}
+                              className="w-full bg-white border border-slate-200 rounded p-1 text-[10px] font-mono text-slate-800"
+                              placeholder="Image URL..."
+                            />
+                            <MediaField
+                              value={cardBgVal}
+                              onChange={(val) => setCardBgVal(val)}
+                              accept="image"
+                              placeholder="Or upload backdrop..."
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -3092,11 +3194,15 @@ function clearSession() {
                   </div>
                 )}
 
-                {/* Messages Feed Container with Custom Background & Opacity */}
-                <div 
-                  className="flex-1 relative overflow-hidden" 
-                  style={chatBgType === 'color' ? { backgroundColor: chatBgVal } : undefined}
-                >
+                 {/* Messages Feed Container with Custom Background & Opacity */}
+                <div className="flex-1 relative overflow-hidden bg-slate-950/45">
+                  {/* Backdrop Color Layer with True Transparency */}
+                  {chatBgType === 'color' && chatBgVal && (
+                    <div 
+                      className="absolute inset-0 z-0 pointer-events-none" 
+                      style={{ backgroundColor: chatBgVal, opacity: chatBgOpacity / 100 }}
+                    />
+                  )}
                   {/* Optional Background Image */}
                   {chatBgType === 'image' && chatBgVal && (
                     <img

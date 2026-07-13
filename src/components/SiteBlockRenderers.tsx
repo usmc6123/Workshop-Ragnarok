@@ -792,13 +792,6 @@ function AiChatBotBlockView({ block, dark, accent, headingFont, editable, onCont
   const is3D = ui.bot_style === '3d_animated';
 
   const chatBgStyle: React.CSSProperties = {};
-  if (ui.chat_bg_type === 'color' && ui.chat_bg_val) {
-    chatBgStyle.backgroundColor = ui.chat_bg_val;
-  } else if (ui.chat_bg_type === 'image' && ui.chat_bg_val) {
-    chatBgStyle.backgroundImage = `url(${ui.chat_bg_val})`;
-    chatBgStyle.backgroundSize = 'cover';
-    chatBgStyle.backgroundPosition = 'center';
-  }
 
   const backdropOpacity = (ui.chat_bg_opacity ?? 100) / 100;
 
@@ -866,9 +859,34 @@ function AiChatBotBlockView({ block, dark, accent, headingFont, editable, onCont
             </span>
           </div>
 
-          <div className="flex-1 p-3 overflow-y-auto space-y-2.5 max-h-[250px] relative" style={chatBgStyle}>
+          <div className="flex-1 p-3 overflow-y-auto space-y-2.5 max-h-[250px] relative">
+            {/* Backdrop Color Layer with True Transparency */}
+            {ui.chat_bg_type === 'color' && ui.chat_bg_val && (
+              <div 
+                className="absolute inset-0 z-0 pointer-events-none" 
+                style={{ backgroundColor: ui.chat_bg_val, opacity: backdropOpacity }}
+              />
+            )}
+            {/* Backdrop Image Layer with True Transparency */}
             {ui.chat_bg_type === 'image' && ui.chat_bg_val && (
-              <div className="absolute inset-0 bg-slate-950" style={{ opacity: 1 - backdropOpacity, zIndex: 0 }} />
+              <img
+                src={ui.chat_bg_val}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover pointer-events-none z-0"
+                style={{ opacity: backdropOpacity }}
+              />
+            )}
+            {/* Backdrop Video Layer with True Transparency */}
+            {ui.chat_bg_type === 'video' && ui.chat_bg_val && (
+              <video
+                src={ui.chat_bg_val}
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="absolute inset-0 w-full h-full object-cover pointer-events-none z-0"
+                style={{ opacity: backdropOpacity }}
+              />
             )}
             <div className="relative z-10 space-y-2.5">
               {chatMessages.map((msg, i) => {
