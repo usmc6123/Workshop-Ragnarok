@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Bot, Copy, Check, RotateCcw, Sparkles, Send, CheckCircle, Smartphone, 
   Code, FileText, Layout, Video, Image as ImageIcon, Volume2, Globe, Sliders, 
-  SlidersHorizontal, CheckSquare, Search, Filter, Cpu, Play, HelpCircle
+  SlidersHorizontal, CheckSquare, Search, Filter, Cpu, Play, HelpCircle, Trash2
 } from 'lucide-react';
 import BotThreeCanvas from './BotThreeCanvas';
 import MediaField from './MediaField';
@@ -1294,6 +1294,22 @@ export default function AiChatBotView() {
     }
   };
 
+  const handleDeleteBot = (idToDelete: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (PERSONAS_20.some(p => p.id === idToDelete)) {
+      window.alert('Template bots cannot be deleted!');
+      return;
+    }
+    if (window.confirm('Are you sure you want to delete this custom chat bot?')) {
+      const updated = savedBots.filter(b => b.id !== idToDelete);
+      setSavedBots(updated);
+      localStorage.setItem('ragnarok_custom_chat_bots', JSON.stringify(updated));
+      if (activeBotId === idToDelete) {
+        setActiveBotId('cooper-patrol-cat');
+      }
+    }
+  };
+
   const handleCopyJson = () => {
     navigator.clipboard.writeText(generatedJson);
     setCopyJsonSuccess(true);
@@ -1706,36 +1722,49 @@ function clearSession() {
             <div
               key={b.id}
               onClick={() => setActiveBotId(b.id)}
-              className={`p-3.5 rounded-xl border transition-all duration-200 cursor-pointer flex flex-col justify-between h-[96px] ${cardColor}`}
+              className={`p-3.5 rounded-xl border transition-all duration-200 cursor-pointer flex flex-col justify-between h-[96px] relative group ${cardColor}`}
             >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="relative shrink-0">
-                  <img
-                    src={b.ui_configuration.avatar_image || '/roscoe-logo.png'}
-                    alt=""
-                    referrerPolicy="no-referrer"
-                    className="w-9 h-9 rounded-full border border-slate-200/80 object-cover bg-slate-50"
-                  />
-                  <div className="absolute -bottom-0.5 -right-0.5 bg-white border border-slate-200 p-0.5 rounded-full shadow-sm">
-                    {b.ui_configuration.bot_style === '3d_animated' ? (
-                      <Cpu className="w-2.5 h-2.5 text-teal-600" />
-                    ) : b.ui_configuration.bot_style === 'visual_media' ? (
-                      <Video className="w-2.5 h-2.5 text-orange-600" />
-                    ) : b.ui_configuration.bot_style === 'bubble_popup' ? (
-                      <Sparkles className="w-2.5 h-2.5 text-indigo-600" />
-                    ) : (
-                      <FileText className="w-2.5 h-2.5 text-blue-600" />
-                    )}
+              <div className="flex items-start gap-2.5 min-w-0 justify-between">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className="relative shrink-0">
+                    <img
+                      src={b.ui_configuration.avatar_image || '/roscoe-logo.png'}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                      className="w-9 h-9 rounded-full border border-slate-200/80 object-cover bg-slate-50"
+                    />
+                    <div className="absolute -bottom-0.5 -right-0.5 bg-white border border-slate-200 p-0.5 rounded-full shadow-sm">
+                      {b.ui_configuration.bot_style === '3d_animated' ? (
+                        <Cpu className="w-2.5 h-2.5 text-teal-600" />
+                      ) : b.ui_configuration.bot_style === 'visual_media' ? (
+                        <Video className="w-2.5 h-2.5 text-orange-600" />
+                      ) : b.ui_configuration.bot_style === 'bubble_popup' ? (
+                        <Sparkles className="w-2.5 h-2.5 text-indigo-600" />
+                      ) : (
+                        <FileText className="w-2.5 h-2.5 text-blue-600" />
+                      )}
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className={`text-xs font-black truncate uppercase leading-tight ${isActive ? 'text-slate-900 font-extrabold' : 'text-slate-700'}`}>
+                      {b.bot_profile.name}
+                    </h3>
+                    <span className="text-[8px] font-mono font-bold text-slate-400 uppercase block mt-0.5 truncate">
+                      {b.interface_platform || 'Web widget'}
+                    </span>
                   </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className={`text-xs font-black truncate uppercase leading-tight ${isActive ? 'text-slate-900 font-extrabold' : 'text-slate-700'}`}>
-                    {b.bot_profile.name}
-                  </h3>
-                  <span className="text-[8px] font-mono font-bold text-slate-400 uppercase block mt-0.5 truncate">
-                    {b.interface_platform || 'Web widget'}
-                  </span>
-                </div>
+
+                {!PERSONAS_20.some(p => p.id === b.id) && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteBot(b.id, e)}
+                    className="p-1 -mr-1 -mt-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition shrink-0 opacity-80 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"
+                    title="Delete Custom Bot"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
               <div className="flex items-center justify-between text-[8px] font-mono text-slate-500 border-t border-slate-100 pt-1.5 mt-1.5">
                 <span className="truncate max-w-[60%] uppercase font-bold text-indigo-600">{b.target_industry || 'General'}</span>
