@@ -42,10 +42,18 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
     default_parts_markup: 0,
     admin_notification_email: '',
     google_review_url: '',
-    local_access_url: ''
+    local_access_url: '',
+    booking_open_time: '08:00',
+    booking_close_time: '17:00',
+    booking_slot_minutes: 60,
+    booking_days_closed: '["Saturday", "Sunday"]',
+    booking_min_notice_hours: 24,
+    booking_max_concurrent: 1
   });
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'failed'>('idle');
   const [saveError, setSaveError] = useState('');
+  const [bookingSaveStatus, setBookingSaveStatus] = useState<'idle' | 'saving' | 'success' | 'failed'>('idle');
+  const [bookingSaveError, setBookingSaveError] = useState('');
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -92,6 +100,26 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
     }
   };
 
+  const getDaysClosedArray = (): string[] => {
+    try {
+      if (!settings.booking_days_closed) return [];
+      const parsed = JSON.parse(settings.booking_days_closed);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+    return [];
+  };
+
+  const handleToggleDayClosed = (day: string) => {
+    const currentDays = getDaysClosedArray();
+    let nextDays: string[];
+    if (currentDays.includes(day)) {
+      nextDays = currentDays.filter(d => d !== day);
+    } else {
+      nextDays = [...currentDays, day];
+    }
+    setSettings({ ...settings, booking_days_closed: JSON.stringify(nextDays) });
+  };
+
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaveStatus('saving');
@@ -103,6 +131,20 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
     } catch (err: any) {
       setSaveStatus('failed');
       setSaveError(err.message || 'Failed to save shop settings.');
+    }
+  };
+
+  const handleSaveBookingSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBookingSaveStatus('saving');
+    setBookingSaveError('');
+    try {
+      await api.updateShopSettings(settings);
+      setBookingSaveStatus('success');
+      setTimeout(() => setBookingSaveStatus('idle'), 3000);
+    } catch (err: any) {
+      setBookingSaveStatus('failed');
+      setBookingSaveError(err.message || 'Failed to save booking settings.');
     }
   };
 
@@ -631,6 +673,141 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
                   id="save-shop-profile-button"
                 >
                   {saveStatus === 'saving' ? 'Saving...' : 'Save Profile'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Booking Settings Card */}
+          <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl text-left" id="shop-booking-card">
+            <h2 className="text-sm font-bold text-slate-200 uppercase flex items-center gap-2">
+              <Clock className="w-4 h-4 text-primary-theme" />
+              Self-Service Booking Availability
+            </h2>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Configure your shop's booking times, slot durations, closed days, and notice periods. These values will govern slot generation and validations for public customer booking funnels.
+            </p>
+
+            <form onSubmit={handleSaveBookingSettings} className="space-y-4" id="shop-booking-form">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* Booking Open Time */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Daily Open Time</label>
+                  <input
+                    type="time"
+                    value={settings.booking_open_time || '08:00'}
+                    onChange={(e) => setSettings({ ...settings, booking_open_time: e.target.value })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none font-mono"
+                    id="booking-open-time-input"
+                  />
+                </div>
+
+                {/* Booking Close Time */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Daily Close Time</label>
+                  <input
+                    type="time"
+                    value={settings.booking_close_time || '17:00'}
+                    onChange={(e) => setSettings({ ...settings, booking_close_time: e.target.value })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none font-mono"
+                    id="booking-close-time-input"
+                  />
+                </div>
+
+                {/* Booking Slot Duration */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Slot Duration (Minutes)</label>
+                  <input
+                    type="number"
+                    min="15"
+                    step="5"
+                    placeholder="e.g. 60"
+                    value={settings.booking_slot_minutes || 60}
+                    onChange={(e) => setSettings({ ...settings, booking_slot_minutes: parseInt(e.target.value) || 60 })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:border-primary-theme focus:outline-none"
+                    id="booking-slot-minutes-input"
+                  />
+                </div>
+
+                {/* Minimum Notice Period */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Minimum Notice Period (Hours)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 24"
+                    value={settings.booking_min_notice_hours === undefined ? 24 : settings.booking_min_notice_hours}
+                    onChange={(e) => setSettings({ ...settings, booking_min_notice_hours: parseInt(e.target.value) || 0 })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:border-primary-theme focus:outline-none"
+                    id="booking-min-notice-input"
+                  />
+                </div>
+
+                {/* Max Concurrent Bookings */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Max Bookings Per Slot</label>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="e.g. 1"
+                    value={settings.booking_max_concurrent || 1}
+                    onChange={(e) => setSettings({ ...settings, booking_max_concurrent: parseInt(e.target.value) || 1 })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:border-primary-theme focus:outline-none"
+                    id="booking-max-concurrent-input"
+                  />
+                </div>
+
+                {/* Days Closed */}
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block mb-1">Weekly Closed Days (Off Days)</label>
+                  <div className="flex flex-wrap gap-2">
+                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => {
+                      const isClosed = getDaysClosedArray().includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => handleToggleDayClosed(day)}
+                          className={`px-3 py-1.5 text-xs font-bold rounded-lg uppercase tracking-wider border cursor-pointer transition-all ${
+                            isClosed
+                              ? 'bg-red-950/40 border-red-500/50 text-red-400 hover:bg-red-950/60'
+                              : 'bg-[#181922] border-slate-700/50 text-slate-300 hover:border-slate-500'
+                          }`}
+                        >
+                          {day.substring(0, 3)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[9px] text-slate-500 mt-1">
+                    Toggle days your shop is closed. Customers will not be allowed to book appointments on closed days.
+                  </p>
+                </div>
+
+              </div>
+
+              {/* Status and Actions */}
+              <div className="flex items-center justify-between pt-2 border-t border-[#1e2028]">
+                <div>
+                  {bookingSaveStatus === 'success' && (
+                    <span className="text-xs text-green-400 font-bold block animate-pulse">
+                      ✓ Booking Settings Saved!
+                    </span>
+                  )}
+                  {bookingSaveStatus === 'failed' && (
+                    <span className="text-xs text-red-400 font-bold block">
+                      ⚠ {bookingSaveError}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="submit"
+                  disabled={bookingSaveStatus === 'saving'}
+                  className="bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-black rounded-lg px-6 py-2 text-xs uppercase tracking-wider transition-all cursor-pointer"
+                  id="save-booking-settings-button"
+                >
+                  {bookingSaveStatus === 'saving' ? 'Saving...' : 'Save Booking Settings'}
                 </button>
               </div>
             </form>

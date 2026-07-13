@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
 import { PublicFunnel } from '../types';
+import BookingFunnelLayout from './BookingFunnelLayout';
 import {
   Wrench, Car, Phone, Mail, User, MessageSquare, AlertTriangle,
   CheckCircle, ArrowRight, Loader2, CheckCircle2, Zap, Clapperboard, Volume2
@@ -142,6 +143,7 @@ export default function FunnelPageView({ slug }: FunnelPageViewProps) {
 
   const layoutProps: LayoutProps = { funnel, form, updateField, handleSubmit, submitting, submitError, submitted };
 
+  if (funnel.layout === 'booking') return <BookingFunnelLayout funnel={funnel} />;
   if (funnel.layout === 'modern') return <ModernFunnelLayout {...layoutProps} />;
   if (funnel.layout === 'video') return <VideoFunnelLayout {...layoutProps} />;
   return <ClassicFunnelLayout {...layoutProps} />;

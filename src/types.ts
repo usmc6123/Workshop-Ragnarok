@@ -704,6 +704,12 @@ export interface ShopSettings {
   ical_token?: string;
   google_review_url?: string;
   local_access_url?: string;
+  booking_open_time?: string;
+  booking_close_time?: string;
+  booking_slot_minutes?: number;
+  booking_days_closed?: string;
+  booking_min_notice_hours?: number;
+  booking_max_concurrent?: number;
 }
 
 export interface InventoryItem {
@@ -824,7 +830,7 @@ export interface EmailReceived {
   customer_name?: string | null;
 }
 
-export type SmsTriggerType = 'manual' | 'appointment_reminder' | 'job_complete' | 'funnel_confirmation' | 'funnel_admin_alert' | 'stale_lead_followup' | 'unpaid_reminder' | 'winback' | 'review_request';
+export type SmsTriggerType = 'manual' | 'appointment_reminder' | 'job_complete' | 'funnel_confirmation' | 'funnel_admin_alert' | 'stale_lead_followup' | 'unpaid_reminder' | 'winback' | 'review_request' | 'booking_confirmation';
 export type SmsStatus = 'sent' | 'failed' | 'not_configured';
 
 export interface SmsMessage {

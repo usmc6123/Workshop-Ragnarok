@@ -22,6 +22,7 @@ const TRIGGER_META: Record<SmsTriggerType, { label: string; icon: any; color: st
   unpaid_reminder: { label: 'Unpaid Reminder', icon: DollarSign, color: 'text-rose-400' },
   winback: { label: 'Win-back', icon: RotateCcw, color: 'text-cyan-400' },
   review_request: { label: 'Review Request', icon: Star, color: 'text-yellow-400' },
+  booking_confirmation: { label: 'Booking Confirmed', icon: Clock, color: 'text-emerald-400' },
 };
 
 const STATUS_META: Record<SmsStatus, { label: string; icon: any; color: string }> = {

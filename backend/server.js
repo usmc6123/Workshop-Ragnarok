@@ -304,6 +304,7 @@ app.use('/api/portal', portalRouter);
 // collide with this public router.
 const funnelRouter = require('./funnel-routes');
 app.use('/api/funnels', funnelRouter);
+app.use('/api/public/funnels', funnelRouter);
 
 // Public Sites routes (unauthenticated) — resolve-by-subdomain + contact form
 // submit for the general-purpose block-based website builder. Mounted at a
@@ -670,7 +671,13 @@ try {
       default_labor_rate REAL DEFAULT 0,
       zip_code TEXT,
       default_parts_markup REAL DEFAULT 0,
-      admin_notification_email TEXT
+      admin_notification_email TEXT,
+      booking_open_time TEXT DEFAULT '08:00',
+      booking_close_time TEXT DEFAULT '17:00',
+      booking_slot_minutes INTEGER DEFAULT 60,
+      booking_days_closed TEXT DEFAULT '[0]',
+      booking_min_notice_hours INTEGER DEFAULT 2,
+      booking_max_concurrent INTEGER DEFAULT 1
     )
   `);
 
@@ -921,7 +928,13 @@ try {
     // caps uploads around 100-200MB, so going through the public domain fails
     // for anything bigger, but the same request works fine hitting the backend
     // directly over a local/Tailscale network.
-    { name: 'local_access_url', type: 'TEXT' }
+    { name: 'local_access_url', type: 'TEXT' },
+    { name: 'booking_open_time', type: "TEXT DEFAULT '08:00'" },
+    { name: 'booking_close_time', type: "TEXT DEFAULT '17:00'" },
+    { name: 'booking_slot_minutes', type: "INTEGER DEFAULT 60" },
+    { name: 'booking_days_closed', type: "TEXT DEFAULT '[0]'" },
+    { name: 'booking_min_notice_hours', type: "INTEGER DEFAULT 2" },
+    { name: 'booking_max_concurrent', type: "INTEGER DEFAULT 1" }
   ];
   try {
     const columns = db.prepare('PRAGMA table_info(shop_settings)').all();
@@ -1223,6 +1236,36 @@ try {
     }
   } catch (err) {
     console.error('Error migrating sms_messages trigger_type CHECK constraint:', err);
+  }
+
+  // Migrate sms_messages.trigger_type check constraint for booking_confirmation
+  try {
+    const smsTableInfo = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='sms_messages'`).get();
+    if (smsTableInfo && smsTableInfo.sql && !smsTableInfo.sql.includes('booking_confirmation')) {
+      db.exec(`
+        ALTER TABLE sms_messages RENAME TO sms_messages_pre_booking_migration;
+        CREATE TABLE sms_messages (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+          phone TEXT NOT NULL,
+          body TEXT NOT NULL,
+          direction TEXT CHECK (direction IN ('outbound', 'inbound')) DEFAULT 'outbound',
+          status TEXT CHECK (status IN ('sent', 'failed', 'not_configured')) DEFAULT 'not_configured',
+          error_message TEXT,
+          trigger_type TEXT CHECK (trigger_type IN ('manual', 'appointment_reminder', 'job_complete', 'funnel_confirmation', 'funnel_admin_alert', 'stale_lead_followup', 'unpaid_reminder', 'winback', 'review_request', 'booking_confirmation')) DEFAULT 'manual',
+          related_job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+          related_appointment_id INTEGER REFERENCES appointments(id) ON DELETE SET NULL,
+          related_funnel_id INTEGER REFERENCES funnels(id) ON DELETE SET NULL,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+        );
+        INSERT INTO sms_messages SELECT * FROM sms_messages_pre_booking_migration;
+        DROP TABLE sms_messages_pre_booking_migration;
+      `);
+      console.log('Successfully migrated sms_messages.trigger_type to include booking_confirmation.');
+    }
+  } catch (err) {
+    console.error('Error migrating sms_messages trigger_type for booking_confirmation:', err);
   }
 
   // --- SITES: a general-purpose, block-based website builder ---
@@ -3567,25 +3610,67 @@ app.get('/api/shop-settings', (req, res) => {
 
 app.put('/api/shop-settings', (req, res) => {
   try {
-    const { shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup, admin_notification_email, daily_capacity_hours, google_review_url, local_access_url } = req.body;
+    const userId = req.user.id;
+    let settings = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(userId);
+    
+    const defaults = {
+      shop_name: '',
+      shop_address: '',
+      shop_city: '',
+      shop_state: '',
+      shop_phone: '',
+      shop_logo_url: '',
+      tax_rate: 0,
+      default_labor_rate: 0,
+      zip_code: '',
+      default_parts_markup: 0,
+      admin_notification_email: '',
+      daily_capacity_hours: 8,
+      google_review_url: '',
+      local_access_url: '',
+      booking_open_time: '08:00',
+      booking_close_time: '17:00',
+      booking_slot_minutes: 60,
+      booking_days_closed: '[0]',
+      booking_min_notice_hours: 2,
+      booking_max_concurrent: 1
+    };
 
-    const settings = db.prepare('SELECT id FROM shop_settings WHERE user_id = ?').get(req.user.id);
     if (!settings) {
-      const stmt = db.prepare(`
-        INSERT INTO shop_settings (user_id, shop_name, shop_address, shop_city, shop_state, shop_phone, shop_logo_url, tax_rate, default_labor_rate, zip_code, default_parts_markup, admin_notification_email, daily_capacity_hours, google_review_url, local_access_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      stmt.run(req.user.id, shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, admin_notification_email || '', daily_capacity_hours || 8, google_review_url || '', local_access_url || '');
-    } else {
-      const stmt = db.prepare(`
-        UPDATE shop_settings
-        SET shop_name = ?, shop_address = ?, shop_city = ?, shop_state = ?, shop_phone = ?, shop_logo_url = ?, tax_rate = ?, default_labor_rate = ?, zip_code = ?, default_parts_markup = ?, admin_notification_email = ?, daily_capacity_hours = ?, google_review_url = ?, local_access_url = ?
-        WHERE user_id = ?
-      `);
-      stmt.run(shop_name || '', shop_address || '', shop_city || '', shop_state || '', shop_phone || '', shop_logo_url || '', tax_rate || 0, default_labor_rate || 0, zip_code || '', default_parts_markup || 0, admin_notification_email || '', daily_capacity_hours || 8, google_review_url || '', local_access_url || '', req.user.id);
+      db.prepare('INSERT INTO shop_settings (user_id) VALUES (?)').run(userId);
+      settings = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(userId);
     }
 
-    const updated = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(req.user.id);
+    const updatedData = {};
+    const allKeys = Object.keys(defaults);
+    for (const key of allKeys) {
+      if (key in req.body) {
+        updatedData[key] = req.body[key];
+      } else {
+        updatedData[key] = settings[key] !== null && settings[key] !== undefined ? settings[key] : defaults[key];
+      }
+    }
+
+    const stmt = db.prepare(`
+      UPDATE shop_settings
+      SET shop_name = ?, shop_address = ?, shop_city = ?, shop_state = ?, shop_phone = ?, shop_logo_url = ?, 
+          tax_rate = ?, default_labor_rate = ?, zip_code = ?, default_parts_markup = ?, admin_notification_email = ?, 
+          daily_capacity_hours = ?, google_review_url = ?, local_access_url = ?,
+          booking_open_time = ?, booking_close_time = ?, booking_slot_minutes = ?, booking_days_closed = ?,
+          booking_min_notice_hours = ?, booking_max_concurrent = ?
+      WHERE user_id = ?
+    `);
+
+    stmt.run(
+      updatedData.shop_name, updatedData.shop_address, updatedData.shop_city, updatedData.shop_state, updatedData.shop_phone, updatedData.shop_logo_url,
+      updatedData.tax_rate, updatedData.default_labor_rate, updatedData.zip_code, updatedData.default_parts_markup, updatedData.admin_notification_email,
+      updatedData.daily_capacity_hours, updatedData.google_review_url, updatedData.local_access_url,
+      updatedData.booking_open_time, updatedData.booking_close_time, updatedData.booking_slot_minutes, updatedData.booking_days_closed,
+      updatedData.booking_min_notice_hours, updatedData.booking_max_concurrent,
+      userId
+    );
+
+    const updated = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(userId);
     res.json(updated);
   } catch (error) {
     console.error('Error updating shop settings:', error);

@@ -295,4 +295,315 @@ router.post('/:slug/submit', async (req, res) => {
   }
 });
 
+// Compute availability for a date
+function getAvailability(funnel, dateStr) {
+  const userId = funnel.user_id;
+
+  // 1. Get shop settings
+  const shopSettings = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(userId) || {};
+  const openTime = shopSettings.booking_open_time || '08:00';
+  const closeTime = shopSettings.booking_close_time || '17:00';
+  const slotMinutes = shopSettings.booking_slot_minutes || 60;
+  const minNoticeHours = shopSettings.booking_min_notice_hours !== undefined ? shopSettings.booking_min_notice_hours : 2;
+  const maxConcurrent = shopSettings.booking_max_concurrent !== undefined ? shopSettings.booking_max_concurrent : 1;
+
+  let closedDays = [0]; // Sunday default
+  try {
+    if (shopSettings.booking_days_closed) {
+      closedDays = JSON.parse(shopSettings.booking_days_closed);
+    }
+  } catch (err) {
+    console.error('Error parsing booking_days_closed:', err);
+  }
+
+  // 2. Check if date is in closed days or past
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return [];
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1; // 0-based
+  const day = parseInt(parts[2], 10);
+  const dateObj = new Date(year, month, day);
+  const weekday = dateObj.getDay(); // 0 = Sunday, 1 = Monday, etc.
+
+  if (closedDays.includes(weekday)) {
+    return [];
+  }
+
+  // 3. Parse open/close times to minutes
+  const parseTimeToMin = (tStr) => {
+    const [h, m] = (tStr || '00:00').split(':').map(Number);
+    return h * 60 + (m || 0);
+  };
+  const openMin = parseTimeToMin(openTime);
+  const closeMin = parseTimeToMin(closeTime);
+
+  if (openMin >= closeMin || slotMinutes <= 0) return [];
+
+  // 4. Generate potential slots
+  const potentialSlots = [];
+  for (let min = openMin; min + slotMinutes <= closeMin; min += slotMinutes) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    potentialSlots.push({ startMin: min, endMin: min + slotMinutes, time: timeStr });
+  }
+
+  // 5. Get existing appointments for this date & user
+  const appointments = db.prepare('SELECT time, duration_minutes FROM appointments WHERE user_id = ? AND date = ?').all(userId, dateStr);
+
+  const parsedApps = appointments.map(app => {
+    const startMin = parseTimeToMin(app.time);
+    const dur = app.duration_minutes || 60;
+    return { startMin, endMin: startMin + dur };
+  });
+
+  // 6. Filter slots by overlap and notice period
+  const now = Date.now();
+  const noticeMs = minNoticeHours * 60 * 60 * 1000;
+
+  const availableSlots = potentialSlots.filter(slot => {
+    // Check notice period
+    const slotDate = new Date(year, month, day, Math.floor(slot.startMin / 60), slot.startMin % 60);
+    if (slotDate.getTime() < now + noticeMs) {
+      return false;
+    }
+
+    // Count overlaps
+    let overlapCount = 0;
+    for (const app of parsedApps) {
+      // Overlap condition: app.start < slot.end && slot.start < app.end
+      if (app.startMin < slot.endMin && slot.startMin < app.endMin) {
+        overlapCount++;
+      }
+    }
+
+    return overlapCount < maxConcurrent;
+  });
+
+  return availableSlots.map(s => s.time);
+}
+
+// GET /api/funnels/:slug/availability - public check of available time slots for a date
+router.get('/:slug/availability', (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { date } = req.query;
+
+    if (!date) {
+      return res.status(400).json({ error: 'date query parameter (YYYY-MM-DD) is required' });
+    }
+
+    const funnel = db.prepare('SELECT * FROM funnels WHERE slug = ? AND active = 1').get(slug);
+    if (!funnel) {
+      return res.status(404).json({ error: 'Funnel not found' });
+    }
+
+    const slots = getAvailability(funnel, date);
+    res.json({ slots });
+  } catch (error) {
+    console.error('Error fetching availability:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/funnels/:slug/book - public appointment booking
+router.post('/:slug/book', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const funnel = db.prepare('SELECT * FROM funnels WHERE slug = ? AND active = 1').get(slug);
+    if (!funnel) return res.status(404).json({ error: 'Funnel not found' });
+
+    const {
+      name, phone, email, vehicle_year, vehicle_make, vehicle_model,
+      date, time, notes,
+      company_website, // Honeypot
+    } = req.body || {};
+
+    const ip = getClientIp(req);
+
+    // Silently swallow bot submissions
+    if (company_website && String(company_website).trim() !== '') {
+      db.prepare(`
+        INSERT INTO funnel_leads (funnel_id, name, phone, email, vehicle_year, vehicle_make, vehicle_model, message, status, ip_address, user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'spam', ?, ?)
+      `).run(funnel.id, name || null, phone || null, email || null, vehicle_year || null, vehicle_make || null, vehicle_model || null, notes || null, ip, funnel.user_id);
+      return res.json({ success: true });
+    }
+
+    if (isRateLimited(ip)) {
+      return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+    }
+
+    // Validate inputs
+    if (!name || !phone || !email || !date || !time) {
+      return res.status(400).json({ error: 'name, phone, email, date, and time are required' });
+    }
+    if (!vehicle_year || !vehicle_make || !vehicle_model) {
+      return res.status(400).json({ error: 'vehicle_year, vehicle_make, and vehicle_model are required' });
+    }
+
+    // Re-check the requested slot is still available (race-condition guard)
+    const availableSlots = getAvailability(funnel, date);
+    if (!availableSlots.includes(time)) {
+      return res.status(409).json({ error: 'The requested time slot is no longer available. Please select another time.' });
+    }
+
+    // Find or create customer
+    const existingCustomer = findExistingCustomer(funnel.user_id, email, phone);
+    let customerId;
+    let isNewCustomer;
+    if (existingCustomer) {
+      customerId = existingCustomer.id;
+      isNewCustomer = false;
+    } else {
+      const customerInfo = db.prepare(`
+        INSERT INTO customers (name, phone, email, address, notes, user_id)
+        VALUES (?, ?, ?, NULL, ?, ?)
+      `).run(name, phone, email, `Auto-created from "${funnel.headline}" booking funnel`, funnel.user_id);
+      customerId = customerInfo.lastInsertRowid;
+      isNewCustomer = true;
+    }
+
+    // Find or create vehicle
+    let vehicleId = null;
+    if (vehicle_year || vehicle_make || vehicle_model) {
+      const normalize = (v) => String(v || '').trim().toLowerCase();
+      const existingVehicle = db.prepare('SELECT id, year, make, model FROM customer_vehicles WHERE customer_id = ?')
+        .all(customerId)
+        .find(v =>
+          normalize(v.year) === normalize(vehicle_year) &&
+          normalize(v.make) === normalize(vehicle_make) &&
+          normalize(v.model) === normalize(vehicle_model)
+        );
+
+      if (existingVehicle) {
+        vehicleId = existingVehicle.id;
+      } else {
+        const vehicleInfo = db.prepare(`
+          INSERT INTO customer_vehicles (customer_id, year, make, model, notes, user_id)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(customerId, vehicle_year, vehicle_make, vehicle_model, 'Auto-created from booking funnel', funnel.user_id);
+        vehicleId = vehicleInfo.lastInsertRowid;
+      }
+    }
+
+    const shopSettings = db.prepare('SELECT * FROM shop_settings WHERE user_id = ?').get(funnel.user_id) || {};
+    const bookingSlotMinutes = shopSettings.booking_slot_minutes || 60;
+
+    // Create appointment
+    const appInfo = db.prepare(`
+      INSERT INTO appointments (title, customer_id, vehicle_id, appointment_type, date, time, duration_minutes, notes, user_id)
+      VALUES (?, ?, ?, 'booking', ?, ?, ?, ?, ?)
+    `).run(
+      `Booking: ${funnel.service_type || funnel.headline}`,
+      customerId,
+      vehicleId,
+      date,
+      time,
+      bookingSlotMinutes,
+      notes || null,
+      funnel.user_id
+    );
+    const appointmentId = appInfo.lastInsertRowid;
+
+    // Record in funnel_leads for analytics and lead list
+    const leadMessage = `Booked appointment for ${date} at ${time}. ${notes ? `Notes: ${notes}` : ''}`;
+    db.prepare(`
+      INSERT INTO funnel_leads (funnel_id, name, phone, email, vehicle_year, vehicle_make, vehicle_model, message, status, ip_address, user_id, customer_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'converted', ?, ?, ?)
+    `).run(
+      funnel.id, name, phone, email,
+      vehicle_year, vehicle_make, vehicle_model,
+      leadMessage, ip, funnel.user_id, customerId
+    );
+
+    // Confirmation Email/SMS (best-effort)
+    const shopName = shopSettings.shop_name || 'Workshop: Ragnarök';
+
+    try {
+      const shopPhone = shopSettings.shop_phone ? `<p>You can also reach us at ${shopSettings.shop_phone}.</p>` : '';
+      await sendEmail({
+        to: email,
+        subject: `Your Appointment is Confirmed — ${shopName}`,
+        html: `
+          <p>Hi ${name},</p>
+          <p>Your appointment has been successfully booked at <strong>${shopName}</strong>!</p>
+          <p><strong>Appointment Details:</strong><br/>
+          📅 <strong>Date:</strong> ${date}<br/>
+          ⏰ <strong>Time:</strong> ${time}<br/>
+          🚗 <strong>Vehicle:</strong> ${vehicle_year} ${vehicle_make} ${vehicle_model}</p>
+          ${notes ? `<p><strong>Notes:</strong><br/>${notes}</p>` : ''}
+          ${shopPhone}
+          <p>We look forward to seeing you!</p>
+          <p>— ${shopName}</p>
+        `,
+      });
+    } catch (emailErr) {
+      console.error('[Booking] Confirmation email failed to send:', emailErr);
+    }
+
+    try {
+      await sendSms({
+        to: phone,
+        body: `${shopName}: Your appointment is confirmed for ${date} at ${time}. We look forward to seeing you!`,
+      }, {
+        userId: funnel.user_id,
+        customerId,
+        triggerType: 'booking_confirmation',
+        appointmentId,
+        funnelId: funnel.id,
+      });
+    } catch (smsErr) {
+      console.error('[Booking] Confirmation SMS failed to send:', smsErr);
+    }
+
+    // Admin Notification (best-effort)
+    if (shopSettings.admin_notification_email) {
+      try {
+        const vehicleLine = `${vehicle_year} ${vehicle_make} ${vehicle_model}`.trim();
+        await sendEmail({
+          to: shopSettings.admin_notification_email,
+          subject: `New Booking: ${name} — ${funnel.headline}`,
+          html: `
+            <p>A new booking has been confirmed via your <strong>${funnel.headline}</strong> funnel (${funnel.slug}).</p>
+            <p><strong>Customer:</strong> ${name}</p>
+            <p><strong>Phone:</strong> ${phone}<br/><strong>Email:</strong> ${email}</p>
+            <p><strong>Vehicle:</strong> ${vehicleLine}</p>
+            <p><strong>Appointment Details:</strong><br/>
+            📅 <strong>Date:</strong> ${date}<br/>
+            ⏰ <strong>Time:</strong> ${time}</p>
+            ${notes ? `<p><strong>Notes:</strong><br/>${notes}</p>` : ''}
+            <p>This appointment is now visible on your calendar.</p>
+          `,
+        });
+      } catch (adminEmailErr) {
+        console.error('[Booking] Admin email failed to send:', adminEmailErr);
+      }
+    }
+
+    if (shopSettings.shop_phone) {
+      try {
+        const vehicleLine = `${vehicle_year} ${vehicle_make} ${vehicle_model}`.trim();
+        await sendSms({
+          to: shopSettings.shop_phone,
+          body: `New Booking! ${name} booked on ${date} at ${time} for ${vehicleLine}.${notes ? ` Notes: ${notes}` : ''}`,
+        }, {
+          userId: funnel.user_id,
+          customerId,
+          triggerType: 'funnel_admin_alert',
+          appointmentId,
+          funnelId: funnel.id,
+        });
+      } catch (adminSmsErr) {
+        console.error('[Booking] Admin SMS failed to send:', adminSmsErr);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error processing booking:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

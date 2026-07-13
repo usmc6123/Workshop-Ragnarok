@@ -1892,5 +1892,28 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
+  },
+
+  async getFunnelAvailability(slug: string, date: string): Promise<{ slots: string[] }> {
+    return await request<{ slots: string[] }>(`/api/public/funnels/${slug}/availability?date=${encodeURIComponent(date)}`);
+  },
+
+  async bookFunnelAppointment(slug: string, data: {
+    name: string;
+    phone: string;
+    email: string;
+    vehicle_year: string;
+    vehicle_make: string;
+    vehicle_model: string;
+    date: string;
+    time: string;
+    notes?: string;
+    company_website?: string; // honeypot
+  }): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/public/funnels/${slug}/book`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
   }
 };

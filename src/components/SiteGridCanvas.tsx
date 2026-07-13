@@ -20,12 +20,17 @@ export interface TransformEditTarget {
 // WHICH image in a multi-image block (e.g. one photo out of an Image Gallery)
 // they meant, without SiteGridCanvas needing to know each block type's
 // internal layout.
-function findMediaKey(target: EventTarget | null): string | null {
+function findMediaKey(target: EventTarget | null, blockEl?: HTMLElement | null): string | null {
   let el = target as HTMLElement | null;
   while (el) {
     const key = el.dataset?.mediaKey;
     if (key) return key;
+    if (blockEl && el === blockEl) break;
     el = el.parentElement;
+  }
+  if (blockEl) {
+    const childWithKey = blockEl.querySelector<HTMLElement>('[data-media-key]');
+    if (childWithKey) return childWithKey.dataset.mediaKey || null;
   }
   return null;
 }
@@ -434,7 +439,7 @@ export default function SiteGridCanvas({
                 e.preventDefault();
                 e.stopPropagation();
                 onSelect(block.id);
-                onContextMenu(block, e.clientX, e.clientY, findMediaKey(e.target));
+                onContextMenu(block, e.clientX, e.clientY, findMediaKey(e.target, e.currentTarget));
               }}
               className={`absolute rounded-xl border shadow-lg transition-shadow group ${borderClass} ${zIndexClass} ${isDragging ? 'cursor-grabbing' : ''}`}
               style={{

@@ -308,8 +308,8 @@ export default function MediaField({
           placeholder={placeholder || 'https://...'}
           className={`flex-1 min-w-0 rounded-lg border px-3 py-2 text-xs placeholder-slate-500 focus:outline-none font-mono transition ${
             value 
-              ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-100 focus:border-emerald-400' 
-              : 'bg-rose-950/40 border-rose-900/60 text-rose-100 focus:border-rose-400'
+              ? 'bg-emerald-100 text-emerald-950 border-emerald-400 placeholder-emerald-600 focus:border-emerald-600' 
+              : 'bg-rose-100 text-rose-950 border-rose-400 placeholder-rose-600 focus:border-rose-600'
           }`}
         />
         <input ref={fileInputRef} type="file" accept={acceptAttr} className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />

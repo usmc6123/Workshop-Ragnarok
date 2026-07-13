@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
+import BookingFunnelLayout from './BookingFunnelLayout';
 import {
   SiteBlock, BlockStyle, HeadingTag, DeviceBreakpoint,
   HeroBlockContent, TextBlockContent, ImageBlockContent, VideoBlockContent, CtaBlockContent,
@@ -1212,6 +1213,14 @@ function FunnelBlockView({ block, dark, accent, headingFont, editable, onContent
   }
 
   const f = selectedFunnel;
+  if (f.layout === 'booking') {
+    return (
+      <section className={`rounded-2xl border w-full h-full overflow-hidden ${dark ? 'bg-[#13141a]/80 border-border-theme' : 'bg-white border-slate-200'}`} style={boxAppearanceStyle(style)}>
+        <BookingFunnelLayout funnel={f as any} embedded={true} />
+      </section>
+    );
+  }
+
   const inputClass = dark
     ? 'w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none'
     : 'w-full rounded-lg bg-white border border-slate-300 focus:border-amber-500 px-3 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none';

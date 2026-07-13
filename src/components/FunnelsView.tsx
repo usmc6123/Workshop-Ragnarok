@@ -17,6 +17,7 @@ const DEFAULT_EMBED_HEIGHT: Record<string, number> = {
   classic: 1500,
   modern: 1550,
   video: 1750,
+  booking: 1600,
 };
 
 const EMPTY_FORM = {
@@ -38,7 +39,7 @@ const EMPTY_FORM = {
   video_form_bg_image_url: '',
   media_opacity: {} as Record<string, number>,
   active: true,
-  layout: 'classic' as 'classic' | 'modern' | 'video',
+  layout: 'classic' as 'classic' | 'modern' | 'video' | 'booking',
   thumbnail_url: '',
 };
 
@@ -359,12 +360,14 @@ export default function FunnelsView() {
                     <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border flex items-center gap-1 ${
                       funnel.layout === 'modern' ? 'bg-cyan-950/50 text-cyan-400 border-cyan-500/20'
                       : funnel.layout === 'video' ? 'bg-rose-950/50 text-rose-400 border-rose-500/20'
+                      : funnel.layout === 'booking' ? 'bg-emerald-950/50 text-emerald-400 border-emerald-500/20'
                       : 'bg-amber-950/50 text-amber-400 border-amber-500/20'
                     }`}>
                       {funnel.layout === 'modern' ? <Sparkles className="w-2.5 h-2.5" />
                         : funnel.layout === 'video' ? <Clapperboard className="w-2.5 h-2.5" />
+                        : funnel.layout === 'booking' ? <Clock className="w-2.5 h-2.5" />
                         : <LayoutTemplate className="w-2.5 h-2.5" />}
-                      {funnel.layout === 'modern' ? 'Modern' : funnel.layout === 'video' ? 'Video' : 'Classic'}
+                      {funnel.layout === 'modern' ? 'Modern' : funnel.layout === 'video' ? 'Video' : funnel.layout === 'booking' ? 'Booking' : 'Classic'}
                     </span>
                   </div>
                   {funnel.subheadline && (
@@ -578,7 +581,7 @@ export default function FunnelsView() {
               {/* --- Page Layout (moved up so the media section below makes contextual sense) --- */}
               <div className="space-y-3">
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-border-theme pb-2">Page Layout</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <button
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, layout: 'classic' }))}
@@ -619,7 +622,21 @@ export default function FunnelsView() {
                       <span className="text-xs font-bold text-white">Video</span>
                       {form.layout === 'video' && <CheckCircle2 className="w-3.5 h-3.5 text-rose-400" />}
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-0.5">Cinematic — a big click-to-play video with sound leads the page.</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Cinematic — a big dialogue video leads the page.</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, layout: 'booking' }))}
+                    className={`text-left rounded-xl p-3 border-2 transition cursor-pointer ${form.layout === 'booking' ? 'border-emerald-500 bg-emerald-950/20' : 'border-[#1e2028] bg-[#0c0d12] hover:border-slate-600'}`}
+                  >
+                    <div className="w-full h-14 rounded-lg bg-gradient-to-br from-slate-900 via-emerald-950/40 to-black border border-emerald-500/40 flex items-center justify-center mb-2 shadow-[0_0_12px_rgba(16,185,129,0.25)]">
+                      <Clock className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-white">Booking</span>
+                      {form.layout === 'booking' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Self-Service appointment booking schedule.</p>
                   </button>
                 </div>
               </div>
