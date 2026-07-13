@@ -4988,7 +4988,7 @@ app.post('/api/funnels', (req, res) => {
     const existing = db.prepare('SELECT id FROM funnels WHERE slug = ?').get(cleanSlug);
     if (existing) return res.status(409).json({ error: `Slug "${cleanSlug}" is already in use` });
 
-    const cleanLayout = ['modern', 'video'].includes(layout) ? layout : 'classic';
+    const cleanLayout = ['modern', 'video', 'booking'].includes(layout) ? layout : 'classic';
     // media_opacity arrives as a JSON string from the admin form already — fall back
     // to '{}' for older clients/API callers that don't send it at all.
     const cleanMediaOpacity = typeof media_opacity === 'string' ? media_opacity : JSON.stringify(media_opacity || {});
@@ -5022,7 +5022,7 @@ app.put('/api/funnels/:id', (req, res) => {
     const conflict = db.prepare('SELECT id FROM funnels WHERE slug = ? AND id != ?').get(cleanSlug, id);
     if (conflict) return res.status(409).json({ error: `Slug "${cleanSlug}" is already in use` });
 
-    const cleanLayout = ['modern', 'video'].includes(layout) ? layout : 'classic';
+    const cleanLayout = ['modern', 'video', 'booking'].includes(layout) ? layout : 'classic';
     const cleanMediaOpacity = typeof media_opacity === 'string' ? media_opacity : JSON.stringify(media_opacity || {});
 
     const stmt = db.prepare(`
