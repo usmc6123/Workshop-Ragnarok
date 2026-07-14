@@ -61,7 +61,18 @@ export default function RichTextEditor({
 
   const handleLink = () => {
     const url = prompt('Link URL:');
-    if (url) exec('createLink', url);
+    if (!url) return;
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    // Auto-prepend https:// unless it already looks like a real URL, in-page
+    // anchor, absolute path, or a mailto:/tel: link — otherwise a plain
+    // "google.com" gets saved as a RELATIVE link and resolves against this
+    // site's own path (e.g. workshop.homeslab.uk/site/google.com, a 404)
+    // instead of the real external site. Same fix as resolveLinkHref() in
+    // SiteBlockRenderers.tsx for the Link Button block — kept in sync.
+    const looksAbsolute = /^(https?:\/\/|mailto:|tel:|#|\/)/i.test(trimmed);
+    const finalUrl = looksAbsolute ? trimmed : `https://${trimmed}`;
+    exec('createLink', finalUrl);
   };
 
   if (!editable) {
