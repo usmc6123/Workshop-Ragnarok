@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-  Plus, Trash2, Play, Pause, Save, Download, Loader2, Volume2, Music, 
+  Plus, Trash2, Play, Pause, Save, Download, Loader2, Volume2, VolumeX, Music, 
   Type, Image as ImageIcon, Video, Layers, Settings, ArrowUp, ArrowDown, 
-  Check, X, Film, Upload, Clapperboard, RefreshCw, Scissors, ChevronLeft
+  Check, X, Film, Upload, Clapperboard, RefreshCw, Scissors, ChevronLeft,
+  ZoomIn, ZoomOut, Move
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { VideoProject, VideoTimeline, VideoClip, VideoOverlay } from '../types';
@@ -24,11 +25,15 @@ export default function VideoEditorView() {
   const [bgMusic, setBgMusic] = useState<{ source_url: string | null; volume: number }>({ source_url: null, volume: 40 });
   const [outputPreset, setOutputPreset] = useState<'480p' | '720p' | '1080p'>('720p');
 
-  // Preview playhead
+  // Preview playhead and master settings
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
+  const [masterVolume, setMasterVolume] = useState<number>(100);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [timelineZoom, setTimelineZoom] = useState<number>(1.5);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
 
   // Active render jobs
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -44,6 +49,116 @@ export default function VideoEditorView() {
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const animationFrameId = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
+  
+  const isScrubbing = useRef<boolean>(false);
+  const previewContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Refs to allow high-performance frame playhead loop without closure problems
+  const clipsRef = useRef(clips);
+  const currentTimeRef = useRef(currentTime);
+  const isPlayingRef = useRef(isPlaying);
+  const masterVolumeRef = useRef(masterVolume);
+
+  useEffect(() => { clipsRef.current = clips; }, [clips]);
+  useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+  useEffect(() => { masterVolumeRef.current = masterVolume; }, [masterVolume]);
+
+  // Drag & drop handlers for visual sequence reordering
+  const handleTimelineDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  const handleTimelineDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleTimelineDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    const sourceIdxStr = e.dataTransfer.getData('text/plain');
+    if (sourceIdxStr === '') return;
+    const sourceIndex = parseInt(sourceIdxStr, 10);
+    if (sourceIndex === targetIndex) return;
+
+    const updated = [...clips];
+    const [moved] = updated.splice(sourceIndex, 1);
+    updated.splice(targetIndex, 0, moved);
+    
+    setClips(updated);
+    setSelectedClipId(moved.id);
+    triggerDebouncedSaveClips(updated);
+  };
+
+  // Drag and drop overlay positioning handler
+  const handleOverlayMouseDown = (e: React.MouseEvent, ov: VideoOverlay) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setSelectedOverlayId(ov.id);
+    setIsDragging(true);
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const initialX = ov.x;
+    const initialY = ov.y;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!previewContainerRef.current) return;
+      const rect = previewContainerRef.current.getBoundingClientRect();
+      
+      const deltaX = ((moveEvent.clientX - startX) / rect.width) * 100;
+      const deltaY = ((moveEvent.clientY - startY) / rect.height) * 100;
+
+      let newX = Math.round(initialX + deltaX);
+      let newY = Math.round(initialY + deltaY);
+
+      newX = Math.max(0, Math.min(100, newX));
+      newY = Math.max(0, Math.min(100, newY));
+
+      handleUpdateOverlay(ov.id, { x: newX, y: newY });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Splitting clips at the current playhead
+  const handleSplitClip = () => {
+    if (clips.length === 0) return;
+    const match = getClipAtTimelineTime(currentTime);
+    if (!match) return;
+
+    const { clip, localTime, clipIndex } = match;
+    
+    if (localTime - clip.trim_start < 0.3 || clip.trim_end - localTime < 0.3) {
+      alert("Cannot split too close to the start or end of a clip.");
+      return;
+    }
+
+    const clip1: VideoClip = {
+      ...clip,
+      id: `${Date.now()}_split1_${Math.random().toString(36).substr(2, 5)}`,
+      trim_end: localTime
+    };
+
+    const clip2: VideoClip = {
+      ...clip,
+      id: `${Date.now()}_split2_${Math.random().toString(36).substr(2, 5)}`,
+      trim_start: localTime
+    };
+
+    const updated = [...clips];
+    updated.splice(clipIndex, 1, clip1, clip2);
+
+    setClips(updated);
+    setSelectedClipId(clip2.id);
+    triggerDebouncedSaveClips(updated);
+  };
 
   // Debounced save timers per logical target
   const saveClipsTimer = useRef<NodeJS.Timeout | null>(null);
@@ -468,21 +583,69 @@ export default function VideoEditorView() {
     return null;
   };
 
-  // Track preview playhead
-  const updatePlayhead = (timestamp: number) => {
-    if (!isPlaying) return;
-    if (!lastTimeRef.current) lastTimeRef.current = timestamp;
-    const elapsedSec = (timestamp - lastTimeRef.current) / 1000;
-    lastTimeRef.current = timestamp;
+  // Track preview playhead smoothly reading from refs
+  const updatePlayhead = () => {
+    if (!isPlayingRef.current) return;
 
-    setCurrentTime(prev => {
-      const next = prev + elapsedSec;
-      if (next >= totalClipsDuration) {
-        setIsPlaying(false);
-        return 0;
+    const player = videoPlayerRef.current;
+    if (player) {
+      const getClipAtTimelineTimeRef = (time: number) => {
+        let accumulated = 0;
+        const currentClips = clipsRef.current;
+        for (let i = 0; i < currentClips.length; i++) {
+          const clip = currentClips[i];
+          const duration = clip.trim_end - clip.trim_start;
+          if (time >= accumulated && time <= accumulated + duration) {
+            return {
+              clip,
+              localTime: clip.trim_start + (time - accumulated),
+              clipIndex: i
+            };
+          }
+          accumulated += duration;
+        }
+        if (currentClips.length > 0) {
+          const last = currentClips[currentClips.length - 1];
+          return { clip: last, localTime: last.trim_end, clipIndex: currentClips.length - 1 };
+        }
+        return null;
+      };
+
+      const match = getClipAtTimelineTimeRef(currentTimeRef.current);
+      if (match) {
+        const { clip, clipIndex } = match;
+        const totalDuration = clipsRef.current.reduce((sum, c) => sum + (c.trim_end - c.trim_start), 0);
+
+        // Transition clip if current player position exceeds clip's trim_end
+        if (player.currentTime >= clip.trim_end) {
+          if (clipIndex < clipsRef.current.length - 1) {
+            const nextClip = clipsRef.current[clipIndex + 1];
+            let accumulated = 0;
+            for (let i = 0; i <= clipIndex; i++) {
+              accumulated += (clipsRef.current[i].trim_end - clipsRef.current[i].trim_start);
+            }
+            setCurrentTime(accumulated);
+            player.src = nextClip.source_url;
+            player.volume = (nextClip.volume / 100) * (masterVolumeRef.current / 100);
+            player.currentTime = nextClip.trim_start;
+            player.play().catch(() => {});
+          } else {
+            setIsPlaying(false);
+            setCurrentTime(0);
+            player.pause();
+          }
+        } else {
+          // Read native video current time to update playhead smoothly
+          let accumulated = 0;
+          for (let i = 0; i < clipIndex; i++) {
+            accumulated += (clipsRef.current[i].trim_end - clipsRef.current[i].trim_start);
+          }
+          const globalTime = accumulated + (player.currentTime - clip.trim_start);
+          const clampedTime = Math.max(0, Math.min(totalDuration, globalTime));
+          setCurrentTime(clampedTime);
+        }
       }
-      return next;
-    });
+    }
 
     animationFrameId.current = requestAnimationFrame(updatePlayhead);
   };
@@ -496,12 +659,20 @@ export default function VideoEditorView() {
       if (audioPlayerRef.current) audioPlayerRef.current.pause();
     } else {
       setIsPlaying(true);
-      lastTimeRef.current = 0;
-      animationFrameId.current = requestAnimationFrame(updatePlayhead);
+      if (videoPlayerRef.current) {
+        const match = getClipAtTimelineTime(currentTime);
+        if (match) {
+          videoPlayerRef.current.currentTime = match.localTime;
+        }
+        videoPlayerRef.current.play().catch(() => {});
+      }
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.play().catch(() => {});
+      }
     }
   };
 
-  // Sync HTML5 media tags
+  // Sync HTML5 video tag
   useEffect(() => {
     if (clips.length === 0) {
       if (videoPlayerRef.current) videoPlayerRef.current.src = '';
@@ -515,30 +686,31 @@ export default function VideoEditorView() {
     const player = videoPlayerRef.current;
     if (!player) return;
 
-    // Check if video source has changed
-    const currentSrc = player.getAttribute('data-src') || '';
-    if (currentSrc !== clip.source_url) {
-      player.setAttribute('data-src', clip.source_url);
-      player.src = clip.source_url;
+    const currentSrc = player.src || '';
+    const targetSrc = clip.source_url;
+    const normalizedCurrentSrc = currentSrc.replace(window.location.origin, '');
+    const normalizedTargetSrc = targetSrc.replace(window.location.origin, '');
+
+    if (normalizedCurrentSrc !== normalizedTargetSrc && currentSrc !== targetSrc) {
+      player.src = targetSrc;
       player.load();
     }
 
-    // Set volume
-    player.volume = (clip.volume / 100) * 0.7; // Scale a bit for safety
+    player.volume = (clip.volume / 100) * (masterVolume / 100);
+    player.muted = isMuted;
 
-    // Sync current playhead within +/- 0.35s tolerance to prevent rapid loop-sync stuttering
-    if (Math.abs(player.currentTime - localTime) > 0.35) {
+    // Seek the player only if the time difference is substantial to avoid stuttering
+    if (Math.abs(player.currentTime - localTime) > 0.45) {
       player.currentTime = localTime;
     }
 
-    // Control video playback based on main timeline play state
     if (isPlaying) {
       player.play().catch(() => {});
     } else {
       player.pause();
     }
 
-  }, [currentTime, isPlaying, clips]);
+  }, [currentTime, isPlaying, clips, masterVolume, isMuted]);
 
   // Sync background music audio element
   useEffect(() => {
@@ -550,34 +722,39 @@ export default function VideoEditorView() {
       return;
     }
 
-    if (audio.getAttribute('data-src') !== bgMusic.source_url) {
-      audio.setAttribute('data-src', bgMusic.source_url);
+    if (audio.src !== bgMusic.source_url) {
       audio.src = bgMusic.source_url;
       audio.loop = true;
       audio.load();
     }
 
-    audio.volume = bgMusic.volume / 100;
+    audio.volume = (bgMusic.volume / 100) * (masterVolume / 100);
+    audio.muted = isMuted;
 
-    // Align music timeline playhead
     if (isPlaying) {
-      // Loop music timeline seamlessly
-      if (Math.abs(audio.currentTime - currentTime) > 0.5) {
-        audio.currentTime = currentTime % (audio.duration || 300);
+      const targetAudioTime = currentTime % (audio.duration || 300);
+      if (Math.abs(audio.currentTime - targetAudioTime) > 0.8) {
+        audio.currentTime = targetAudioTime;
       }
       audio.play().catch(() => {});
     } else {
       audio.pause();
     }
 
-  }, [currentTime, isPlaying, bgMusic, clips]);
+  }, [currentTime, isPlaying, bgMusic, clips, masterVolume, isMuted]);
 
-  // Clean up animation frame
+  // Handle animation frame startup on play
   useEffect(() => {
+    if (isPlaying) {
+      lastTimeRef.current = 0;
+      animationFrameId.current = requestAnimationFrame(updatePlayhead);
+    } else {
+      if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+    }
     return () => {
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
     };
-  }, []);
+  }, [isPlaying]);
 
   return (
     <div className="relative min-h-screen p-6" id="video-editor-view-container">
@@ -717,8 +894,9 @@ export default function VideoEditorView() {
           )}
         </div>
       ) : (
-        /* 2. THE EDITOR CANVAS SCREEN */
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in" id="editor-screen-wrapper">
+        <>
+          {/* 2. THE EDITOR CANVAS SCREEN */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in" id="editor-screen-wrapper">
           
           {/* A. LEFT / SIDEBAR PANEL: MEDIA SELECTOR & UPLOADER (Cols: 3) */}
           <div className="lg:col-span-3 flex flex-col h-[70vh] bg-black/45 backdrop-blur-md border border-white/15 rounded-2xl p-4 overflow-hidden shadow-2xl" id="editor-left-media-sidebar">
@@ -851,8 +1029,12 @@ export default function VideoEditorView() {
               </div>
             </div>
 
-            {/* Video Preview Box */}
-            <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-white/5 my-auto flex items-center justify-center group" id="video-preview-window">
+            {/* Video Preview Box with bounding Ref */}
+            <div 
+              ref={previewContainerRef}
+              className="relative aspect-video bg-black rounded-xl overflow-hidden border border-white/5 my-auto flex items-center justify-center group" 
+              id="video-preview-window"
+            >
               
               {/* Actual Video Tag playing the active clip */}
               {clips.length > 0 ? (
@@ -860,10 +1042,9 @@ export default function VideoEditorView() {
                   ref={videoPlayerRef}
                   className="w-full h-full object-contain pointer-events-none"
                   playsInline
-                  muted // Muted to allow browser autoplay policies without breaking preview timelines
                 />
               ) : (
-                <div className="text-center text-slate-600 space-y-2">
+                <div className="text-center text-slate-600 space-y-2 select-none">
                   <Film className="w-12 h-12 mx-auto text-slate-800" />
                   <p className="text-xs font-mono">Sequence Timeline Empty</p>
                   <p className="text-[10px] max-w-xs text-slate-500">Pick video assets from the left panel and click "+ Clip" to start assembling your master cut.</p>
@@ -874,7 +1055,7 @@ export default function VideoEditorView() {
               <audio ref={audioPlayerRef} className="hidden" />
 
               {/* Dynamic Overlays Render Canvas Layer */}
-              <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute inset-0 pointer-events-none z-20">
                 {overlays.map((ov) => {
                   // Only display overlay if current timeline time falls between start_time and end_time
                   if (currentTime < ov.start_time || currentTime > ov.end_time) return null;
@@ -885,7 +1066,12 @@ export default function VideoEditorView() {
                     return (
                       <div 
                         key={ov.id}
-                        className={`absolute font-black tracking-wide leading-none ${isSelected ? 'border border-amber-500 px-1 rounded bg-black/40' : ''}`}
+                        onMouseDown={(e) => handleOverlayMouseDown(e, ov)}
+                        className={`absolute font-black tracking-wide leading-none select-none pointer-events-auto cursor-move transition-all ${
+                          isSelected 
+                            ? 'border-2 border-dashed border-amber-500 px-2 py-1 bg-black/60 shadow-xl scale-105 z-30 font-black' 
+                            : 'hover:border hover:border-dashed hover:border-amber-500/50 px-1'
+                        }`}
                         style={{
                           left: `${ov.x}%`,
                           top: `${ov.y}%`,
@@ -902,7 +1088,12 @@ export default function VideoEditorView() {
                         key={ov.id}
                         src={ov.image_url}
                         alt=""
-                        className={`absolute object-contain pointer-events-none ${isSelected ? 'outline outline-amber-500' : ''}`}
+                        onMouseDown={(e) => handleOverlayMouseDown(e, ov)}
+                        className={`absolute object-contain select-none pointer-events-auto cursor-move transition-all ${
+                          isSelected 
+                            ? 'outline-2 outline-dashed outline-amber-500 bg-black/30 shadow-xl scale-105 z-30' 
+                            : 'hover:outline hover:outline-dashed hover:outline-amber-500/50'
+                        }`}
                         referrerPolicy="no-referrer"
                         style={{
                           left: `${ov.x}%`,
@@ -917,7 +1108,7 @@ export default function VideoEditorView() {
               </div>
 
               {/* Hover overlay time display */}
-              <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-md border border-white/10 px-2 py-1 rounded-md text-[10px] font-mono text-amber-500 font-bold opacity-0 group-hover:opacity-100 transition">
+              <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-md border border-white/10 px-2 py-1 rounded-md text-[10px] font-mono text-amber-500 font-bold opacity-0 group-hover:opacity-100 transition z-10">
                 TIME: {currentTime.toFixed(1)}s / {totalClipsDuration.toFixed(1)}s
               </div>
             </div>
@@ -929,12 +1120,41 @@ export default function VideoEditorView() {
                 <button
                   onClick={handleTogglePlay}
                   disabled={clips.length === 0}
-                  className="p-2.5 rounded-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black transition cursor-pointer"
+                  className="p-2.5 rounded-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black transition cursor-pointer shrink-0"
                   id="preview-play-btn"
                 >
                   {isPlaying ? <Pause className="w-4 h-4 fill-black" /> : <Play className="w-4 h-4 fill-black" />}
                 </button>
 
+                {/* Master Volume Controls */}
+                <div className="flex items-center gap-1.5 border-r border-white/10 pr-3 shrink-0">
+                  <button
+                    onClick={() => setIsMuted(!isMuted)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition cursor-pointer"
+                    title={isMuted ? "Unmute Master Volume" : "Mute Master Volume"}
+                  >
+                    {isMuted || masterVolume === 0 ? (
+                      <VolumeX className="w-4 h-4 text-rose-400" />
+                    ) : (
+                      <Volume2 className="w-4 h-4 text-amber-500" />
+                    )}
+                  </button>
+                  <input 
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={masterVolume}
+                    onChange={(e) => {
+                      setMasterVolume(parseInt(e.target.value, 10));
+                      if (isMuted) setIsMuted(false);
+                    }}
+                    className="w-16 h-1 accent-amber-500 bg-white/5 rounded-lg appearance-none cursor-pointer"
+                    title={`Master Volume: ${masterVolume}%`}
+                  />
+                  <span className="text-[9px] font-mono text-slate-500 w-6 text-right">{masterVolume}%</span>
+                </div>
+
+                {/* Interactive Scrubber Slider */}
                 <div className="flex-1 relative">
                   <input 
                     type="range"
@@ -944,14 +1164,19 @@ export default function VideoEditorView() {
                     value={currentTime}
                     onChange={(e) => {
                       setIsPlaying(false);
-                      setCurrentTime(parseFloat(e.target.value));
+                      const val = parseFloat(e.target.value);
+                      setCurrentTime(val);
+                      const match = getClipAtTimelineTime(val);
+                      if (match && videoPlayerRef.current) {
+                        videoPlayerRef.current.currentTime = match.localTime;
+                      }
                     }}
                     className="w-full accent-amber-500 cursor-pointer bg-white/10 h-1.5 rounded-lg appearance-none"
                     id="preview-scrubber"
                   />
                 </div>
 
-                <div className="text-[10px] font-mono text-slate-400 w-24 text-right">
+                <div className="text-[10px] font-mono text-slate-400 w-24 text-right shrink-0">
                   {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')} / {Math.floor(totalClipsDuration / 60)}:{String(Math.floor(totalClipsDuration % 60)).padStart(2, '0')}
                 </div>
               </div>
@@ -1400,7 +1625,242 @@ export default function VideoEditorView() {
           </div>
 
         </div>
-      )}
+
+        {/* BOTTOM MULTI-TRACK VISUAL TIMELINE PANEL (Full-Width, elegant and dynamic) */}
+        <div className="bg-black/40 backdrop-blur-md rounded-2xl border border-white/15 p-5 shadow-2xl space-y-4" id="multitrack-timeline-panel">
+          {/* Header row with status, title, split buttons and zoom controller */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-3">
+            <div className="flex items-center gap-3">
+              <Layers className="w-5 h-5 text-amber-500" />
+              <div>
+                <h2 className="text-xs font-black text-white tracking-widest uppercase font-mono">Sequence Multitrack Timeline</h2>
+                <p className="text-[9px] font-mono text-slate-500 mt-0.5">Drag & drop clips to reorder, split at playhead, or trim endpoints visually.</p>
+              </div>
+            </div>
+
+            <div className="flex items-center flex-wrap gap-2.5">
+              {/* Split Clip Button */}
+              <button
+                onClick={handleSplitClip}
+                disabled={clips.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-45 text-black font-black text-[10px] uppercase tracking-wider transition cursor-pointer"
+                title="Cut selected clip at playhead position"
+              >
+                <Scissors className="w-3.5 h-3.5" />
+                Split Clip
+              </button>
+
+              {/* Remove selected clip/overlay button */}
+              {(selectedClipId || selectedOverlayId) && (
+                <button
+                  onClick={() => {
+                    if (selectedClipId) {
+                      handleRemoveClip(selectedClipId);
+                    } else if (selectedOverlayId) {
+                      handleRemoveOverlay(selectedOverlayId);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600 border border-rose-500/30 text-rose-300 hover:text-white font-bold text-[10px] uppercase tracking-wider transition cursor-pointer animate-fade-in"
+                  title="Delete selection from timeline"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete Selected
+                </button>
+              )}
+
+              {/* Zoom Controls */}
+              <div className="flex items-center gap-2 border-l border-white/10 pl-3">
+                <ZoomOut className="w-3.5 h-3.5 text-slate-400" />
+                <input 
+                  type="range"
+                  min={0.5}
+                  max={5}
+                  step={0.1}
+                  value={timelineZoom}
+                  onChange={(e) => setTimelineZoom(parseFloat(e.target.value))}
+                  className="w-24 h-1 accent-amber-500 bg-white/5 cursor-pointer rounded-lg appearance-none"
+                  title="Timeline zoom scale"
+                />
+                <ZoomIn className="w-3.5 h-3.5 text-slate-400" />
+              </div>
+            </div>
+          </div>
+
+          {/* Interactive Ruler & Multi-track Tracks area */}
+          <div className="relative overflow-x-auto bg-black/40 rounded-xl border border-white/5 scrollbar-thin scrollbar-thumb-white/10" id="tracks-scrollable-container">
+            {/* The multi-track grid system container. Width scales dynamically with total duration * zoom multiplier */}
+            <div 
+              className="relative py-4 min-w-full select-none"
+              style={{ width: `${Math.max(100, (totalClipsDuration || 10) * 15 * timelineZoom)}px` }}
+            >
+              {/* 1. VISUAL RULER TRACK */}
+              <div 
+                className="h-6 border-b border-white/10 flex items-end relative cursor-pointer"
+                id="timeline-ruler-track"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const clickX = e.clientX - rect.left;
+                  const ratio = clickX / rect.width;
+                  const targetTime = ratio * totalClipsDuration;
+                  setCurrentTime(Math.max(0, Math.min(totalClipsDuration, targetTime)));
+                  if (videoPlayerRef.current) {
+                    const match = getClipAtTimelineTime(targetTime);
+                    if (match) videoPlayerRef.current.currentTime = match.localTime;
+                  }
+                }}
+              >
+                {/* Visual ticks representing seconds */}
+                {Array.from({ length: Math.ceil(totalClipsDuration || 10) }).map((_, i) => (
+                  <div 
+                    key={i} 
+                    className="absolute bottom-0 flex flex-col items-center"
+                    style={{ left: `${(i / (totalClipsDuration || 10)) * 100}%` }}
+                  >
+                    <div className={`w-px bg-white/30 ${i % 5 === 0 ? 'h-3 bg-white/60' : 'h-1.5'}`} />
+                    {i % 5 === 0 && (
+                      <span className="text-[7px] font-mono text-slate-500 absolute -top-4">{i}s</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* 2. SEQUENTIAL VIDEO CLIPS TRACK */}
+              <div className="relative py-3 border-b border-white/5 group/clips">
+                <span className="absolute left-3 top-3 text-[7px] font-mono font-black uppercase text-amber-500 tracking-wider z-10 bg-black/60 px-1 rounded">Video Track</span>
+                <div className="flex gap-1 px-1">
+                  {clips.length === 0 ? (
+                    <div className="w-full h-12 flex items-center justify-center border border-dashed border-white/5 rounded-lg text-[9px] font-mono text-slate-600">
+                      Empty Track - Add videos from media files list
+                    </div>
+                  ) : (
+                    clips.map((clip, idx) => {
+                      const isSelected = selectedClipId === clip.id;
+                      const duration = clip.trim_end - clip.trim_start;
+                      const widthPercent = (duration / (totalClipsDuration || 1)) * 100;
+
+                      return (
+                        <div
+                          key={clip.id}
+                          draggable
+                          onDragStart={(e) => handleTimelineDragStart(e, idx)}
+                          onDragOver={handleTimelineDragOver}
+                          onDrop={(e) => handleTimelineDrop(e, idx)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedClipId(clip.id);
+                            setSelectedOverlayId(null);
+                          }}
+                          className={`relative h-14 rounded-lg border flex flex-col justify-between p-2 cursor-grab active:cursor-grabbing transition-all ${
+                            isSelected 
+                              ? 'border-amber-400 bg-amber-500/10 shadow-lg shadow-amber-500/5' 
+                              : 'border-white/10 bg-black/50 hover:border-white/25 hover:bg-black/60'
+                          }`}
+                          style={{ width: `${widthPercent}%` }}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[9px] font-mono font-black text-slate-300 truncate w-32" title={clip.name}>
+                              {idx + 1}. {clip.name}
+                            </span>
+                            <span className="text-[8px] font-mono text-amber-400 font-bold shrink-0">{duration.toFixed(1)}s</span>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-1.5 border-t border-white/5 pt-1 mt-1">
+                            <div className="flex items-center gap-1">
+                              <span className="text-[7px] font-mono text-slate-500">TRIM: {clip.trim_start.toFixed(1)}s-{clip.trim_end.toFixed(1)}s</span>
+                            </div>
+                            <span className="text-[7px] font-mono text-slate-600 uppercase font-black bg-white/5 px-1 rounded">vol: {clip.volume}%</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* 3. CAPTIONS & WATERMARK OVERLAYS TRACK */}
+              <div className="relative py-2 border-b border-white/5 h-16 group/overlays bg-white/[0.01]">
+                <span className="absolute left-3 top-2 text-[7px] font-mono font-black uppercase text-blue-400 tracking-wider z-10 bg-black/60 px-1 rounded">Overlays Track</span>
+                
+                {overlays.length === 0 ? (
+                  <div className="w-full h-full flex items-center justify-center border border-dashed border-white/5 rounded-lg text-[9px] font-mono text-slate-600">
+                    No active overlays. Click "+ Logo" or use the overlays tab to add caption text.
+                  </div>
+                ) : (
+                  overlays.map((ov) => {
+                    const isSelected = selectedOverlayId === ov.id;
+                    const duration = ov.end_time - ov.start_time;
+                    const leftPercent = (ov.start_time / (totalClipsDuration || 1)) * 100;
+                    const widthPercent = (duration / (totalClipsDuration || 1)) * 100;
+
+                    return (
+                      <div
+                        key={ov.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedOverlayId(ov.id);
+                          setSelectedClipId(null);
+                        }}
+                        className={`absolute h-8 rounded-lg border flex items-center justify-between px-2.5 cursor-pointer transition-all ${
+                          isSelected
+                            ? 'border-blue-400 bg-blue-500/10 shadow-lg'
+                            : 'border-white/10 bg-black/50 hover:border-white/20'
+                        }`}
+                        style={{
+                          left: `${leftPercent}%`,
+                          width: `${widthPercent}%`,
+                          top: '24px'
+                        }}
+                      >
+                        <span className="text-[8px] font-mono font-bold text-slate-300 truncate w-24">
+                          {ov.type === 'text' ? `"${ov.text}"` : 'Logo Watermark'}
+                        </span>
+                        <span className="text-[7px] font-mono text-blue-400 shrink-0 font-bold">{duration.toFixed(1)}s</span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* 4. BACKGROUND MUSIC AUDIO STREAM TRACK */}
+              <div className="relative py-3 group/music">
+                <span className="absolute left-3 top-3 text-[7px] font-mono font-black uppercase text-emerald-400 tracking-wider z-10 bg-black/60 px-1 rounded">Audio Track</span>
+                
+                {!bgMusic.source_url ? (
+                  <div className="w-full h-10 flex items-center justify-center border border-dashed border-white/5 rounded-lg text-[9px] font-mono text-slate-600">
+                    No active audio stream. Add from Left Sidebar formatted files.
+                  </div>
+                ) : (
+                  <div className="flex px-1">
+                    <div 
+                      className="h-10 rounded-lg border border-emerald-500/20 bg-emerald-500/10 flex items-center justify-between px-3 w-full"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Music className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                        <span className="text-[8px] font-mono text-slate-300 truncate font-bold uppercase tracking-wider">{bgMusic.source_url.split('/').pop()}</span>
+                      </div>
+                      <span className="text-[8px] font-mono text-emerald-400 font-bold">Vol: {bgMusic.volume}%</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* LIVE PLAYHEAD VERTICAL SCRIBING LINE */}
+              {totalClipsDuration > 0 && (
+                <div 
+                  className="absolute top-0 bottom-0 w-0.5 bg-rose-500 z-30 pointer-events-none"
+                  style={{ left: `${(currentTime / totalClipsDuration) * 100}%` }}
+                >
+                  <div className="absolute -top-1 -left-1.5 w-3.5 h-3.5 rounded-full bg-rose-500 shadow-md flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+        </div>
+      </>
+    )}
       </div> {/* Closing content wrapper with relative z-10 */}
     </div>
   );
