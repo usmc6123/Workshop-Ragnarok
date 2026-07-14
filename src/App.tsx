@@ -243,7 +243,7 @@ export default function App() {
     }
     if (view === 'video-editor') {
       return {
-        backgroundImage: `linear-gradient(rgba(10, 10, 15, 0.92), rgba(10, 10, 15, 0.92)), url('https://raw.githubusercontent.com/usmc6123/Workshop-Ragnarok/main/public/catvideoeditbackground.png')`,
+        backgroundImage: `url('/catvideoeditbackground.png')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundAttachment: 'fixed',
