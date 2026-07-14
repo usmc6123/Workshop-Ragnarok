@@ -887,6 +887,10 @@ export interface VideoOverlay {
   y: number; // 0-100 percentage
   w?: number; // 0-100 percentage
   h?: number; // 0-100 percentage
+  rotate?: number; // rotation in degrees
+  shadow?: boolean; // text/image shadow
+  bold?: boolean; // bold text
+  italic?: boolean; // italic text
   start_time: number; // in seconds
   end_time: number; // in seconds
 }

@@ -3,7 +3,7 @@ import {
   Plus, Trash2, Play, Pause, Save, Download, Loader2, Volume2, VolumeX, Music, 
   Type, Image as ImageIcon, Video, Layers, Settings, ArrowUp, ArrowDown, 
   Check, X, Film, Upload, Clapperboard, RefreshCw, Scissors, ChevronLeft,
-  ZoomIn, ZoomOut, Move
+  ChevronRight, ZoomIn, ZoomOut, Move, Copy, RotateCw, Eye, EyeOff, Grid
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { VideoProject, VideoTimeline, VideoClip, VideoOverlay } from '../types';
@@ -43,6 +43,20 @@ export default function VideoEditorView() {
 
   // Layout tabs
   const [activeTab, setActiveTab] = useState<'clips' | 'overlays' | 'music' | 'export'>('clips');
+
+  // Custom visual states for collapsible sidebar, media filtering, grid guides and context menu
+  const [isMediaSidebarOpen, setIsMediaSidebarOpen] = useState<boolean>(true);
+  const [mediaFilter, setMediaFilter] = useState<'all' | 'video' | 'image' | 'audio'>('all');
+  const [showGridGuide, setShowGridGuide] = useState<boolean>(false);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    visible: boolean;
+    overlay: VideoOverlay | null;
+  }>({ x: 0, y: 0, visible: false, overlay: null });
+
+  // Preview zoom scale
+  const [previewScale, setPreviewScale] = useState<number>(1);
 
   // Preview media ref syncing
   const videoPlayerRef = useRef<HTMLVideoElement | null>(null);
@@ -126,6 +140,118 @@ export default function VideoEditorView() {
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   };
+
+  // Corner drag-to-resize handler
+  const handleResizeOverlayMouseDown = (e: React.MouseEvent, ov: VideoOverlay) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setSelectedOverlayId(ov.id);
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const initialW = ov.w || 15;
+    const initialH = ov.h || 15;
+    const initialFontSize = ov.font_size || 24;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!previewContainerRef.current) return;
+      const rect = previewContainerRef.current.getBoundingClientRect();
+
+      const deltaX = ((moveEvent.clientX - startX) / rect.width) * 100;
+      const deltaY = ((moveEvent.clientY - startY) / rect.height) * 100;
+
+      if (ov.type === 'image') {
+        let newW = Math.round(initialW + deltaX);
+        let newH = Math.round(initialH + deltaY);
+        newW = Math.max(2, Math.min(100, newW));
+        newH = Math.max(2, Math.min(100, newH));
+        handleUpdateOverlay(ov.id, { w: newW, h: newH });
+      } else {
+        // For text overlays, resize font_size based on drag distance
+        const rawDeltaX = moveEvent.clientX - startX;
+        let newFontSize = Math.round(initialFontSize + rawDeltaX * 0.4);
+        newFontSize = Math.max(8, Math.min(120, newFontSize));
+        handleUpdateOverlay(ov.id, { font_size: newFontSize });
+      }
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Center-rotation drag handle
+  const handleRotateOverlayMouseDown = (e: React.MouseEvent, ov: VideoOverlay) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setSelectedOverlayId(ov.id);
+
+    // Find the boundary box center relative to viewport to compute drag angle
+    const targetEl = e.currentTarget.parentElement;
+    if (!targetEl) return;
+    const rect = targetEl.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const dx = moveEvent.clientX - centerX;
+      const dy = moveEvent.clientY - centerY;
+      // Calculate angle in degrees, orienting up
+      let angle = Math.round(Math.atan2(dy, dx) * (180 / Math.PI)) - 90;
+      angle = (angle + 360) % 360;
+      handleUpdateOverlay(ov.id, { rotate: angle });
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Duplicate an overlay with offset coordinates
+  const handleDuplicateOverlay = (ov: VideoOverlay) => {
+    const newOverlay: VideoOverlay = {
+      ...ov,
+      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      x: Math.min(90, ov.x + 4),
+      y: Math.min(90, ov.y + 4),
+    };
+    const updated = [...overlays, newOverlay];
+    setOverlays(updated);
+    setSelectedOverlayId(newOverlay.id);
+    triggerDebouncedSaveOverlays(updated);
+  };
+
+  // Right-click context menu triggers
+  const handleOverlayContextMenu = (e: React.MouseEvent, ov: VideoOverlay) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedOverlayId(ov.id);
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      visible: true,
+      overlay: ov
+    });
+  };
+
+  // Dismiss context menu on click elsewhere
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      if (contextMenu.visible) {
+        setContextMenu(prev => ({ ...prev, visible: false }));
+      }
+    };
+    document.addEventListener('click', handleGlobalClick);
+    return () => document.removeEventListener('click', handleGlobalClick);
+  }, [contextMenu.visible]);
 
   // Splitting clips at the current playhead
   const handleSplitClip = () => {
@@ -898,112 +1024,166 @@ export default function VideoEditorView() {
           {/* 2. THE EDITOR CANVAS SCREEN */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in" id="editor-screen-wrapper">
           
-          {/* A. LEFT / SIDEBAR PANEL: MEDIA SELECTOR & UPLOADER (Cols: 3) */}
-          <div className="lg:col-span-3 flex flex-col h-[70vh] bg-black/45 backdrop-blur-md border border-white/15 rounded-2xl p-4 overflow-hidden shadow-2xl" id="editor-left-media-sidebar">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3 shrink-0">
-              <div className="flex items-center gap-1.5 text-xs font-black text-slate-400 uppercase tracking-wider font-mono">
-                <Layers className="w-4 h-4 text-amber-500" />
-                <span>Media Assets</span>
-              </div>
-              <button 
-                onClick={refreshMedia}
-                disabled={mediaLoading}
-                className="p-1 rounded text-slate-500 hover:text-white disabled:opacity-50 transition cursor-pointer"
-                title="Refresh Assets"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${mediaLoading ? 'animate-spin text-amber-500' : ''}`} />
-              </button>
-            </div>
+          {/* A. LEFT / SIDEBAR PANEL: COLLAPSIBLE MEDIA SELECTOR & UPLOADER */}
+          <div className={`${isMediaSidebarOpen ? 'lg:col-span-3' : 'lg:col-span-1'} flex flex-col h-[70vh] bg-black/45 backdrop-blur-md border border-white/15 rounded-2xl p-4 overflow-hidden shadow-2xl transition-all duration-300 relative`} id="editor-left-media-sidebar">
+            
+            {/* Collapse Trigger Button on Side */}
+            <button 
+              onClick={() => setIsMediaSidebarOpen(!isMediaSidebarOpen)}
+              className="absolute right-2 top-3 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition cursor-pointer z-10"
+              title={isMediaSidebarOpen ? "Collapse Media Assets" : "Expand Media Assets"}
+            >
+              {isMediaSidebarOpen ? <ChevronLeft className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+            </button>
 
-            {/* Upload Zone */}
-            <label className="mt-3 block p-3 border border-dashed border-white/10 hover:border-amber-500/30 rounded-xl bg-white/2 cursor-pointer hover:bg-white/5 transition text-center shrink-0">
-              <input 
-                type="file" 
-                accept="video/*,image/*,audio/*" 
-                onChange={handleFileUpload} 
-                className="hidden" 
-              />
-              {uploading ? (
-                <div className="flex items-center justify-center gap-2 text-xs font-mono text-amber-500">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Uploading Asset...</span>
-                </div>
-              ) : (
-                <div className="text-slate-400 space-y-1">
-                  <Upload className="w-5 h-5 mx-auto text-slate-500" />
-                  <p className="text-[10px] font-bold font-mono uppercase tracking-wider text-slate-300">Upload Media</p>
-                  <p className="text-[9px] text-slate-600">Supports video, image logo or audio tracks</p>
-                </div>
-              )}
-            </label>
-
-            {/* Media Asset List */}
-            <div className="flex-1 overflow-y-auto mt-4 pr-1 space-y-2" id="media-assets-scroller">
-              {mediaFiles.length === 0 ? (
-                <div className="py-12 text-center text-slate-600 text-[10px] font-mono leading-relaxed">
-                  No formatted media available. Upload clips using the button above.
-                </div>
-              ) : (
-                mediaFiles.map((file) => (
-                  <div 
-                    key={file.filename} 
-                    className="group relative rounded-xl border border-white/10 bg-black/30 p-2 hover:bg-black/55 hover:border-amber-400 flex gap-2.5 items-center transition"
-                  >
-                    <div className="w-12 h-10 rounded bg-black/80 flex items-center justify-center shrink-0 overflow-hidden relative border border-white/10">
-                      {file.kind === 'image' ? (
-                        <img src={file.url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      ) : file.kind === 'video' ? (
-                        <div className="relative w-full h-full">
-                          <video src={file.url} className="w-full h-full object-cover" muted preload="metadata" />
-                          <Film className="absolute bottom-1 right-1 w-3 h-3 text-white/75 drop-shadow-md" />
-                        </div>
-                      ) : (
-                        <Music className="w-4 h-4 text-slate-500" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[10px] text-slate-300 truncate font-mono" title={file.filename}>{file.filename}</p>
-                      <p className="text-[9px] text-slate-600 font-mono mt-0.5 uppercase">{file.kind}</p>
-                    </div>
-
-                    {/* Quick Add Buttons */}
-                    <div className="opacity-0 group-hover:opacity-100 flex gap-1 absolute right-2 bg-[#12131b]/95 p-1 rounded-lg border border-white/10 transition">
-                      {file.kind === 'video' && (
-                        <button
-                          onClick={() => handleAddClip(file)}
-                          className="px-2 py-1 bg-amber-500 hover:bg-amber-400 text-black text-[9px] font-black uppercase rounded tracking-wider cursor-pointer"
-                          title="Add Video to Sequence"
-                        >
-                          + Clip
-                        </button>
-                      )}
-                      {file.kind === 'image' && (
-                        <button
-                          onClick={() => handleAddImageOverlay(file)}
-                          className="px-2 py-1 bg-blue-500 hover:bg-blue-400 text-white text-[9px] font-black uppercase rounded tracking-wider cursor-pointer"
-                          title="Overlay as Watermark"
-                        >
-                          + Logo
-                        </button>
-                      )}
-                      {file.kind === 'other' && file.filename.match(/\.(mp3|wav|ogg|m4a|aac)$/i) && (
-                        <button
-                          onClick={() => handleSelectMusic(file)}
-                          className="px-2 py-1 bg-emerald-500 hover:bg-emerald-400 text-black text-[9px] font-black uppercase rounded tracking-wider cursor-pointer"
-                          title="Set Background Music"
-                        >
-                          + Tune
-                        </button>
-                      )}
-                    </div>
+            {isMediaSidebarOpen ? (
+              <>
+                <div className="flex items-center justify-between border-b border-white/10 pb-3 pr-8 shrink-0">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-slate-400 uppercase tracking-wider font-mono">
+                    <Layers className="w-4 h-4 text-amber-500" />
+                    <span>Media Assets</span>
                   </div>
-                ))
-              )}
-            </div>
+                  <button 
+                    onClick={refreshMedia}
+                    disabled={mediaLoading}
+                    className="p-1 rounded text-slate-500 hover:text-white disabled:opacity-50 transition cursor-pointer"
+                    title="Refresh Assets"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${mediaLoading ? 'animate-spin text-amber-500' : ''}`} />
+                  </button>
+                </div>
+
+                {/* Filter Selector Tabs */}
+                <div className="flex gap-1 mt-3 bg-black/40 p-1 rounded-xl border border-white/5 shrink-0">
+                  {(['all', 'video', 'image', 'audio'] as const).map((filter) => (
+                    <button
+                      key={filter}
+                      onClick={() => setMediaFilter(filter)}
+                      className={`flex-1 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider transition cursor-pointer text-center ${
+                        mediaFilter === filter ? 'bg-amber-500 text-black' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {filter}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Upload Zone */}
+                <label className="mt-3 block p-3 border border-dashed border-white/10 hover:border-amber-500/30 rounded-xl bg-white/2 cursor-pointer hover:bg-white/5 transition text-center shrink-0">
+                  <input 
+                    type="file" 
+                    accept="video/*,image/*,audio/*" 
+                    onChange={handleFileUpload} 
+                    className="hidden" 
+                  />
+                  {uploading ? (
+                    <div className="flex items-center justify-center gap-2 text-xs font-mono text-amber-500">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Uploading Asset...</span>
+                    </div>
+                  ) : (
+                    <div className="text-slate-400 space-y-1">
+                      <Upload className="w-5 h-5 mx-auto text-slate-500" />
+                      <p className="text-[10px] font-bold font-mono uppercase tracking-wider text-slate-300">Upload Media</p>
+                      <p className="text-[9px] text-slate-600">Supports video, image logo or audio tracks</p>
+                    </div>
+                  )}
+                </label>
+
+                {/* Filtered Media Asset List */}
+                <div className="flex-1 overflow-y-auto mt-4 pr-1 space-y-2" id="media-assets-scroller">
+                  {(() => {
+                    const filtered = mediaFiles.filter(file => {
+                      if (mediaFilter === 'all') return true;
+                      if (mediaFilter === 'video') return file.kind === 'video';
+                      if (mediaFilter === 'image') return file.kind === 'image';
+                      if (mediaFilter === 'audio') {
+                        return file.kind === 'other' && file.filename.match(/\.(mp3|wav|ogg|m4a|aac)$/i);
+                      }
+                      return true;
+                    });
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="py-12 text-center text-slate-600 text-[10px] font-mono leading-relaxed">
+                          No {mediaFilter !== 'all' ? `${mediaFilter} ` : ''}assets available.
+                        </div>
+                      );
+                    }
+
+                    return filtered.map((file) => {
+                      const isAudio = file.kind === 'other' && file.filename.match(/\.(mp3|wav|ogg|m4a|aac)$/i);
+                      return (
+                        <div 
+                          key={file.filename} 
+                          className="group relative rounded-xl border border-white/10 bg-black/30 p-2 hover:bg-black/55 hover:border-amber-400 flex gap-2.5 items-center transition"
+                        >
+                          <div className="w-12 h-10 rounded bg-black/80 flex items-center justify-center shrink-0 overflow-hidden relative border border-white/10">
+                            {file.kind === 'image' ? (
+                              <img src={file.url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            ) : file.kind === 'video' ? (
+                              <div className="relative w-full h-full">
+                                <video src={file.url} className="w-full h-full object-cover" muted preload="metadata" />
+                                <Film className="absolute bottom-1 right-1 w-3 h-3 text-white/75 drop-shadow-md" />
+                              </div>
+                            ) : (
+                              <Music className="w-4 h-4 text-slate-500" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10px] text-slate-300 truncate font-mono" title={file.filename}>{file.filename}</p>
+                            <p className="text-[9px] text-slate-600 font-mono mt-0.5 uppercase">
+                              {file.kind === 'video' ? 'Video' : file.kind === 'image' ? 'Image' : isAudio ? 'Audio Track' : file.kind}
+                            </p>
+                          </div>
+
+                          {/* Quick Add Buttons */}
+                          <div className="opacity-0 group-hover:opacity-100 flex gap-1 absolute right-2 bg-[#12131b]/95 p-1 rounded-lg border border-white/10 transition">
+                            {file.kind === 'video' && (
+                              <button
+                                onClick={() => handleAddClip(file)}
+                                className="px-2 py-1 bg-amber-500 hover:bg-amber-400 text-black text-[9px] font-black uppercase rounded tracking-wider cursor-pointer"
+                                title="Add Video to Sequence"
+                              >
+                                + Clip
+                              </button>
+                            )}
+                            {file.kind === 'image' && (
+                              <button
+                                onClick={() => handleAddImageOverlay(file)}
+                                className="px-2 py-1 bg-blue-500 hover:bg-blue-400 text-white text-[9px] font-black uppercase rounded tracking-wider cursor-pointer"
+                                title="Overlay as Watermark"
+                              >
+                                + Logo
+                              </button>
+                            )}
+                            {isAudio && (
+                              <button
+                                onClick={() => handleSelectMusic(file)}
+                                className="px-2 py-1 bg-emerald-500 hover:bg-emerald-400 text-black text-[9px] font-black uppercase rounded tracking-wider cursor-pointer"
+                                title="Set Background Music"
+                              >
+                                + Tune
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </>
+            ) : (
+              // Collapsed Visual State representation
+              <div className="flex flex-col items-center gap-6 mt-12 text-slate-500 hover:text-slate-300 transition cursor-pointer" onClick={() => setIsMediaSidebarOpen(true)}>
+                <Layers className="w-5 h-5 text-amber-500/80 animate-pulse" />
+                <span className="text-[9px] font-bold uppercase tracking-widest font-mono [writing-mode:vertical-lr] scale-y-[-1] rotate-180">MEDIA LIBRARY</span>
+              </div>
+            )}
           </div>
 
-          {/* B. CENTER PLAYBACK PREVIEW CANVAS (Cols: 6) */}
-          <div className="lg:col-span-6 flex flex-col bg-black/30 backdrop-blur-md rounded-2xl overflow-hidden border border-white/15 p-4 justify-between min-h-[50vh] shadow-2xl" id="editor-center-canvas">
+          {/* B. CENTER PLAYBACK PREVIEW CANVAS */}
+          <div className={`${isMediaSidebarOpen ? 'lg:col-span-6' : 'lg:col-span-8'} flex flex-col bg-black/30 backdrop-blur-md rounded-2xl overflow-hidden border border-white/15 p-4 justify-between min-h-[50vh] shadow-2xl transition-all duration-300`} id="editor-center-canvas">
             {/* Project Name and Auto-save indicator */}
             <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
               <input 
@@ -1016,7 +1196,21 @@ export default function VideoEditorView() {
                 className="bg-transparent border-b border-transparent hover:border-white/10 focus:border-amber-500/50 text-white font-black text-sm uppercase tracking-wider px-1 py-0.5 focus:outline-none w-1/2"
                 placeholder="Untitled Video Project"
               />
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
+                {/* Rule of Thirds aligner toggle */}
+                <button
+                  onClick={() => setShowGridGuide(!showGridGuide)}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-mono font-bold uppercase transition border ${
+                    showGridGuide 
+                      ? 'bg-amber-500/20 border-amber-500/50 text-amber-400' 
+                      : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
+                  }`}
+                  title="Toggle Grid Guide (Rule of Thirds)"
+                >
+                  <Grid className="w-3 h-3" />
+                  <span>Grid Guides</span>
+                </button>
+
                 <span className={`text-[9px] font-mono uppercase tracking-widest flex items-center gap-1.5 ${
                   savingStatus === 'saving' ? 'text-amber-500' :
                   savingStatus === 'saved' ? 'text-emerald-500' :
@@ -1024,7 +1218,7 @@ export default function VideoEditorView() {
                 }`}>
                   {savingStatus === 'saving' && <Loader2 className="w-3 h-3 animate-spin" />}
                   {savingStatus === 'saved' && <Check className="w-3 h-3 text-emerald-500" />}
-                  {savingStatus === 'saving' ? 'Auto-saving...' : savingStatus === 'saved' ? 'Saved' : 'All Changes Saved'}
+                  {savingStatus === 'saving' ? 'Auto-saving...' : savingStatus === 'saved' ? 'Saved' : 'All Saved'}
                 </span>
               </div>
             </div>
@@ -1032,9 +1226,25 @@ export default function VideoEditorView() {
             {/* Video Preview Box with bounding Ref */}
             <div 
               ref={previewContainerRef}
-              className="relative aspect-video bg-black rounded-xl overflow-hidden border border-white/5 my-auto flex items-center justify-center group" 
+              onContextMenu={(e) => {
+                e.preventDefault();
+                // Toggle zoom on preview background right-click
+                if (e.target === e.currentTarget || (e.target as HTMLElement).id === 'video-preview-window') {
+                  setPreviewScale(prev => prev === 1 ? 1.5 : 1);
+                }
+              }}
+              className="relative aspect-video bg-black rounded-xl overflow-hidden border border-white/5 my-auto flex items-center justify-center group select-none cursor-crosshair" 
               id="video-preview-window"
             >
+              {/* Scalable Container Wrapper */}
+              <div 
+                className="w-full h-full relative flex items-center justify-center"
+                style={{
+                  transform: `scale(${previewScale})`,
+                  transformOrigin: 'center center',
+                  transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
+                }}
+              >
               
               {/* Actual Video Tag playing the active clip */}
               {clips.length > 0 ? (
@@ -1054,6 +1264,23 @@ export default function VideoEditorView() {
               {/* Invisible Background Music audio driver */}
               <audio ref={audioPlayerRef} className="hidden" />
 
+              {/* Grid Guide lines (Rule of Thirds) */}
+              {showGridGuide && (
+                <div className="absolute inset-0 pointer-events-none z-10">
+                  <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-30">
+                    <div className="border-r border-b border-dashed border-white"></div>
+                    <div className="border-r border-b border-dashed border-white"></div>
+                    <div className="border-b border-dashed border-white"></div>
+                    <div className="border-r border-b border-dashed border-white"></div>
+                    <div className="border-r border-b border-dashed border-white"></div>
+                    <div className="border-b border-dashed border-white"></div>
+                    <div className="border-r border-dashed border-white"></div>
+                    <div className="border-r border-dashed border-white"></div>
+                    <div></div>
+                  </div>
+                </div>
+              )}
+
               {/* Dynamic Overlays Render Canvas Layer */}
               <div className="absolute inset-0 pointer-events-none z-20">
                 {overlays.map((ov) => {
@@ -1067,51 +1294,204 @@ export default function VideoEditorView() {
                       <div 
                         key={ov.id}
                         onMouseDown={(e) => handleOverlayMouseDown(e, ov)}
-                        className={`absolute font-black tracking-wide leading-none select-none pointer-events-auto cursor-move transition-all ${
+                        onContextMenu={(e) => handleOverlayContextMenu(e, ov)}
+                        className={`absolute select-none pointer-events-auto cursor-move transition-shadow ${
                           isSelected 
-                            ? 'border-2 border-dashed border-amber-500 px-2 py-1 bg-black/60 shadow-xl scale-105 z-30 font-black' 
-                            : 'hover:border hover:border-dashed hover:border-amber-500/50 px-1'
+                            ? 'border border-dashed border-amber-500 bg-black/60 shadow-2xl z-30' 
+                            : 'hover:border hover:border-dashed hover:border-amber-500/50'
                         }`}
                         style={{
                           left: `${ov.x}%`,
                           top: `${ov.y}%`,
                           fontSize: `${ov.font_size || 24}px`,
-                          color: ov.color || '#ffffff'
+                          color: ov.color || '#ffffff',
+                          transform: `rotate(${ov.rotate || 0}deg)`,
+                          textShadow: ov.shadow ? '2px 2px 5px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.8)' : 'none',
+                          fontWeight: ov.bold ? '900' : 'bold',
+                          fontStyle: ov.italic ? 'italic' : 'normal',
+                          padding: isSelected ? '4px 8px' : '2px 4px',
+                          borderRadius: '4px'
                         }}
                       >
                         {ov.text}
+
+                        {/* Interactive direct-handles on the canvas */}
+                        {isSelected && (
+                          <>
+                            {/* Drag-to-Rotate handle knob */}
+                            <div 
+                              onMouseDown={(e) => handleRotateOverlayMouseDown(e, ov)}
+                              className="absolute -top-7 left-1/2 -translate-x-1/2 w-5 h-5 bg-amber-500 border border-black rounded-full cursor-alias flex items-center justify-center text-black shadow-lg pointer-events-auto z-40 hover:scale-115 transition"
+                              title="Drag to Rotate Dial"
+                            >
+                              <RotateCw className="w-2.5 h-2.5" />
+                            </div>
+                            
+                            {/* Corner Drag-to-Resize handle point */}
+                            <div 
+                              onMouseDown={(e) => handleResizeOverlayMouseDown(e, ov)}
+                              className="absolute -bottom-2 -right-2 w-4 h-4 bg-amber-500 border border-black rounded-full cursor-se-resize flex items-center justify-center text-black shadow-lg pointer-events-auto z-40 hover:scale-115 transition"
+                              title="Drag to Resize Font Size"
+                            >
+                              <Move className="w-2.5 h-2.5" />
+                            </div>
+                          </>
+                        )}
                       </div>
                     );
                   } else {
                     return (
-                      <img 
+                      <div
                         key={ov.id}
-                        src={ov.image_url}
-                        alt=""
-                        onMouseDown={(e) => handleOverlayMouseDown(e, ov)}
-                        className={`absolute object-contain select-none pointer-events-auto cursor-move transition-all ${
-                          isSelected 
-                            ? 'outline-2 outline-dashed outline-amber-500 bg-black/30 shadow-xl scale-105 z-30' 
-                            : 'hover:outline hover:outline-dashed hover:outline-amber-500/50'
-                        }`}
-                        referrerPolicy="no-referrer"
+                        className="absolute select-none pointer-events-auto"
                         style={{
                           left: `${ov.x}%`,
                           top: `${ov.y}%`,
                           width: `${ov.w || 15}%`,
-                          height: `${ov.h || 15}%`
+                          height: `${ov.h || 15}%`,
+                          transform: `rotate(${ov.rotate || 0}deg)`,
+                          zIndex: isSelected ? 30 : 20
                         }}
-                      />
+                      >
+                        <img 
+                          src={ov.image_url}
+                          alt=""
+                          onMouseDown={(e) => handleOverlayMouseDown(e, ov)}
+                          onContextMenu={(e) => handleOverlayContextMenu(e, ov)}
+                          className={`w-full h-full object-contain cursor-move transition-shadow ${
+                            isSelected 
+                              ? 'outline-1 outline-dashed outline-amber-500 bg-black/30 shadow-2xl' 
+                              : 'hover:outline hover:outline-dashed hover:outline-amber-500/50'
+                          }`}
+                          referrerPolicy="no-referrer"
+                          style={{
+                            filter: ov.shadow ? 'drop-shadow(2px 4px 6px rgba(0,0,0,0.85))' : 'none'
+                          }}
+                        />
+
+                        {/* Interactive direct-handles on the canvas */}
+                        {isSelected && (
+                          <>
+                            {/* Drag-to-Rotate handle knob */}
+                            <div 
+                              onMouseDown={(e) => handleRotateOverlayMouseDown(e, ov)}
+                              className="absolute -top-7 left-1/2 -translate-x-1/2 w-5 h-5 bg-amber-500 border border-black rounded-full cursor-alias flex items-center justify-center text-black shadow-lg pointer-events-auto z-40 hover:scale-115 transition"
+                              title="Drag to Rotate Dial"
+                            >
+                              <RotateCw className="w-2.5 h-2.5" />
+                            </div>
+                            
+                            {/* Corner Drag-to-Resize handle point */}
+                            <div 
+                              onMouseDown={(e) => handleResizeOverlayMouseDown(e, ov)}
+                              className="absolute -bottom-2 -right-2 w-4 h-4 bg-amber-500 border border-black rounded-full cursor-se-resize flex items-center justify-center text-black shadow-lg pointer-events-auto z-40 hover:scale-115 transition"
+                              title="Drag to Resize Dimensions"
+                            >
+                              <Move className="w-2.5 h-2.5" />
+                            </div>
+                          </>
+                        )}
+                      </div>
                     );
                   }
                 })}
+              </div>
               </div>
 
               {/* Hover overlay time display */}
               <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-md border border-white/10 px-2 py-1 rounded-md text-[10px] font-mono text-amber-500 font-bold opacity-0 group-hover:opacity-100 transition z-10">
                 TIME: {currentTime.toFixed(1)}s / {totalClipsDuration.toFixed(1)}s
               </div>
+
+              {/* Canvas Zoom Indicator Overlay badge */}
+              {previewScale > 1 && (
+                <div className="absolute bottom-3 left-3 bg-amber-500/95 text-black px-2 py-0.5 rounded-lg text-[9px] font-mono font-bold uppercase tracking-wider flex items-center gap-1 z-10">
+                  <ZoomIn className="w-3 h-3" />
+                  <span>Zoom: {previewScale}x</span>
+                </div>
+              )}
             </div>
+
+            {/* Floating Right-Click Context Menu */}
+            {contextMenu.visible && (
+              <div 
+                className="fixed bg-[#12131b] border border-white/15 rounded-xl shadow-2xl p-1.5 z-50 min-w-[175px] text-[11px] font-mono"
+                style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-2 py-0.5 text-[8px] uppercase tracking-wider text-slate-500 font-bold border-b border-white/5 mb-1 select-none">
+                  {contextMenu.overlay ? `${contextMenu.overlay.type} Options` : 'Canvas Actions'}
+                </div>
+                
+                {contextMenu.overlay && (
+                  <>
+                    <button
+                      onClick={() => {
+                        handleDuplicateOverlay(contextMenu.overlay!);
+                        setContextMenu(prev => ({ ...prev, visible: false }));
+                      }}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-slate-300 hover:text-white hover:bg-white/5 rounded-lg text-left cursor-pointer transition"
+                    >
+                      <Copy className="w-3 h-3.5 text-amber-500" />
+                      <span>Duplicate Layer</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleUpdateOverlay(contextMenu.overlay!.id, { rotate: ((contextMenu.overlay!.rotate || 0) + 90) % 360 });
+                        setContextMenu(prev => ({ ...prev, visible: false }));
+                      }}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-slate-300 hover:text-white hover:bg-white/5 rounded-lg text-left cursor-pointer transition"
+                    >
+                      <RotateCw className="w-3 h-3.5 text-amber-500" />
+                      <span>Rotate 90° CW</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleUpdateOverlay(contextMenu.overlay!.id, { rotate: 0 });
+                        setContextMenu(prev => ({ ...prev, visible: false }));
+                      }}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-slate-300 hover:text-white hover:bg-white/5 rounded-lg text-left cursor-pointer transition"
+                    >
+                      <RefreshCw className="w-3 h-3.5 text-amber-500" />
+                      <span>Reset Rotation</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleRemoveOverlay(contextMenu.overlay!.id);
+                        setContextMenu(prev => ({ ...prev, visible: false }));
+                      }}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg text-left cursor-pointer transition"
+                    >
+                      <Trash2 className="w-3 h-3.5 text-rose-500" />
+                      <span>Delete Layer</span>
+                    </button>
+                    <div className="h-px bg-white/5 my-1" />
+                  </>
+                )}
+
+                <button
+                  onClick={() => {
+                    setPreviewScale(prev => prev === 1 ? 1.5 : 1);
+                    setContextMenu(prev => ({ ...prev, visible: false }));
+                  }}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 text-slate-300 hover:text-white hover:bg-white/5 rounded-lg text-left cursor-pointer transition"
+                >
+                  <ZoomIn className="w-3 h-3.5 text-amber-500" />
+                  <span>{previewScale === 1 ? 'Zoom Canvas (1.5x)' : 'Zoom Out (1x)'}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setPreviewScale(1);
+                    setContextMenu(prev => ({ ...prev, visible: false }));
+                  }}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 text-slate-300 hover:text-white hover:bg-white/5 rounded-lg text-left cursor-pointer transition disabled:opacity-50"
+                  disabled={previewScale === 1}
+                >
+                  <ZoomOut className="w-3 h-3.5 text-amber-500" />
+                  <span>Reset Zoom</span>
+                </button>
+              </div>
+            )}
 
             {/* Playback Controls & Timeline Scrubber */}
             <div className="space-y-3 shrink-0 pt-3">
@@ -1463,6 +1843,99 @@ export default function VideoEditorView() {
                                       className="w-full bg-black/60 border border-white/10 rounded px-2 py-1 text-[10px] font-mono text-white"
                                     />
                                   </div>
+                                </div>
+
+                                {/* Text custom decorations */}
+                                {ov.type === 'text' && (
+                                  <div className="space-y-1 pt-1">
+                                    <span className="text-[8px] font-mono text-slate-600 block">FONT STYLE DECORATIONS</span>
+                                    <div className="grid grid-cols-3 gap-1">
+                                      <button
+                                        onClick={() => handleUpdateOverlay(ov.id, { bold: !ov.bold })}
+                                        className={`py-1 rounded text-[9px] font-mono font-bold uppercase border transition cursor-pointer ${
+                                          ov.bold 
+                                            ? 'bg-amber-500/20 border-amber-500 text-amber-400' 
+                                            : 'bg-black/40 border-white/10 text-slate-400 hover:text-white'
+                                        }`}
+                                      >
+                                        Bold
+                                      </button>
+                                      <button
+                                        onClick={() => handleUpdateOverlay(ov.id, { italic: !ov.italic })}
+                                        className={`py-1 rounded text-[9px] font-mono font-bold uppercase border transition cursor-pointer ${
+                                          ov.italic 
+                                            ? 'bg-amber-500/20 border-amber-500 text-amber-400' 
+                                            : 'bg-black/40 border-white/10 text-slate-400 hover:text-white'
+                                        }`}
+                                      >
+                                        Italic
+                                      </button>
+                                      <button
+                                        onClick={() => handleUpdateOverlay(ov.id, { shadow: !ov.shadow })}
+                                        className={`py-1 rounded text-[9px] font-mono font-bold uppercase border transition cursor-pointer ${
+                                          ov.shadow 
+                                            ? 'bg-amber-500/20 border-amber-500 text-amber-400' 
+                                            : 'bg-black/40 border-white/10 text-slate-400 hover:text-white'
+                                        }`}
+                                      >
+                                        Shadow
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Image custom shadow decoration */}
+                                {ov.type === 'image' && (
+                                  <div className="space-y-1 pt-1">
+                                    <span className="text-[8px] font-mono text-slate-600 block">IMAGE SHADOW EFFECT</span>
+                                    <button
+                                      onClick={() => handleUpdateOverlay(ov.id, { shadow: !ov.shadow })}
+                                      className={`w-full py-1.5 rounded text-[9px] font-mono font-bold uppercase border transition cursor-pointer ${
+                                        ov.shadow 
+                                          ? 'bg-amber-500/20 border-amber-500 text-amber-400' 
+                                          : 'bg-black/40 border-white/10 text-slate-400 hover:text-white'
+                                      }`}
+                                    >
+                                      Apply Drop-Shadow Effect
+                                    </button>
+                                  </div>
+                                )}
+
+                                {/* Rotation slider control */}
+                                <div className="space-y-1 border-t border-white/5 pt-3">
+                                  <div className="flex justify-between items-center text-[8px] font-mono text-slate-500">
+                                    <span>ROTATION ANGLE</span>
+                                    <span className="text-amber-500 font-bold">{ov.rotate || 0}°</span>
+                                  </div>
+                                  <div className="flex gap-2 items-center">
+                                    <input 
+                                      type="range"
+                                      min={0}
+                                      max={360}
+                                      value={ov.rotate || 0}
+                                      onChange={(e) => handleUpdateOverlay(ov.id, { rotate: parseInt(e.target.value, 10) || 0 })}
+                                      className="flex-1 accent-amber-500 bg-white/5 cursor-pointer h-1 rounded-lg appearance-none"
+                                    />
+                                    <input 
+                                      type="number"
+                                      min={0}
+                                      max={360}
+                                      value={ov.rotate || 0}
+                                      onChange={(e) => handleUpdateOverlay(ov.id, { rotate: parseInt(e.target.value, 10) || 0 })}
+                                      className="w-12 bg-black/60 border border-white/10 rounded px-1.5 py-0.5 text-[9px] font-mono text-center text-white focus:outline-none focus:border-amber-500"
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Duplication button control */}
+                                <div className="border-t border-white/5 pt-3">
+                                  <button
+                                    onClick={() => handleDuplicateOverlay(ov)}
+                                    className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white transition text-[9px] font-mono font-bold uppercase tracking-wider cursor-pointer"
+                                  >
+                                    <Copy className="w-3.5 h-3.5" />
+                                    <span>Duplicate Layer</span>
+                                  </button>
                                 </div>
                               </div>
                             )}
