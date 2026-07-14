@@ -600,7 +600,6 @@ try {
   videoEditorRouter = fallbackRouter;
 }
 
-app.use('/api/video-projects', videoEditorRouter);
 
 // robots.txt / sitemap.xml, resolved by the REQUEST'S HOSTNAME rather than
 // any path — a visitor's browser never asks for "the dashboard's robots.txt"
@@ -725,6 +724,8 @@ app.get('/api/calendar-feed/:token', (req, res) => {
 // Apply auth middleware to all API routes
 const { authMiddleware, adminOnly } = require('./middleware/authMiddleware');
 app.use('/api', authMiddleware);
+
+app.use('/api/video-projects', videoEditorRouter);
 
 // Initialize SQLite database
 let db;
