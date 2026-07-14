@@ -580,7 +580,20 @@ export default function VideoEditorView() {
   }, []);
 
   return (
-    <div className="space-y-6 p-6" id="video-editor-view-container">
+    <div className="relative min-h-screen p-6" id="video-editor-view-container">
+      {/* Fixed Full Screen Background Image (very bright and beautiful!) */}
+      <div 
+        className="fixed inset-0 pointer-events-none z-0" 
+        style={{
+          backgroundImage: `url('/catvideoeditbackground.png')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          opacity: 1,
+        }}
+      />
+      
+      {/* Content wrapper with higher z-index */}
+      <div className="relative z-10 space-y-6">
         {/* Top Header Row */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border-theme pb-4 shrink-0">
         <div className="flex items-center gap-3">
@@ -622,15 +635,15 @@ export default function VideoEditorView() {
               <span>Loading projects...</span>
             </div>
           ) : projects.length === 0 ? (
-            <div className="rounded-2xl border border-white/5 bg-[#0e0f14]/80 p-16 text-center shadow-inner">
-              <Film className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+            <div className="rounded-2xl border border-white/15 bg-black/30 backdrop-blur-md p-16 text-center shadow-xl">
+              <Film className="w-12 h-12 text-slate-400 mx-auto mb-4" />
               <h3 className="text-white font-black uppercase text-sm tracking-widest">No Projects Created Yet</h3>
-              <p className="text-xs text-slate-500 mt-2 max-w-sm mx-auto leading-relaxed">
+              <p className="text-xs text-slate-300 mt-2 max-w-sm mx-auto leading-relaxed">
                 Start by creating your first video project to merge clips, overlay captions/logo, and add background tunes.
               </p>
               <button
                 onClick={handleCreateProject}
-                className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-xs font-black uppercase tracking-wider transition cursor-pointer"
+                className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/25 text-white text-xs font-black uppercase tracking-wider transition cursor-pointer"
               >
                 <Plus className="w-4 h-4" /> Create First Project
               </button>
@@ -648,7 +661,7 @@ export default function VideoEditorView() {
                   <div 
                     key={proj.id}
                     onClick={() => handleSelectProject(proj)}
-                    className="group rounded-2xl border border-white/5 hover:border-amber-500/20 bg-[#0c0d12]/60 hover:bg-[#11121a]/90 p-5 shadow-lg flex flex-col justify-between cursor-pointer transition duration-300"
+                    className="group rounded-2xl border border-white/15 hover:border-amber-400 bg-black/40 backdrop-blur-md hover:bg-black/50 p-5 shadow-xl flex flex-col justify-between cursor-pointer transition duration-300"
                     id={`project-card-${proj.id}`}
                   >
                     <div>
@@ -708,8 +721,8 @@ export default function VideoEditorView() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in" id="editor-screen-wrapper">
           
           {/* A. LEFT / SIDEBAR PANEL: MEDIA SELECTOR & UPLOADER (Cols: 3) */}
-          <div className="lg:col-span-3 flex flex-col h-[70vh] bg-[#0c0d12]/70 border border-white/5 rounded-2xl p-4 overflow-hidden" id="editor-left-media-sidebar">
-            <div className="flex items-center justify-between border-b border-white/5 pb-3 shrink-0">
+          <div className="lg:col-span-3 flex flex-col h-[70vh] bg-black/45 backdrop-blur-md border border-white/15 rounded-2xl p-4 overflow-hidden shadow-2xl" id="editor-left-media-sidebar">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3 shrink-0">
               <div className="flex items-center gap-1.5 text-xs font-black text-slate-400 uppercase tracking-wider font-mono">
                 <Layers className="w-4 h-4 text-amber-500" />
                 <span>Media Assets</span>
@@ -756,9 +769,9 @@ export default function VideoEditorView() {
                 mediaFiles.map((file) => (
                   <div 
                     key={file.filename} 
-                    className="group relative rounded-xl border border-white/5 bg-[#12131b]/60 p-2 hover:bg-[#1a1b26]/80 hover:border-amber-500/20 flex gap-2.5 items-center transition"
+                    className="group relative rounded-xl border border-white/10 bg-black/30 p-2 hover:bg-black/55 hover:border-amber-400 flex gap-2.5 items-center transition"
                   >
-                    <div className="w-12 h-10 rounded bg-black/60 flex items-center justify-center shrink-0 overflow-hidden relative border border-white/5">
+                    <div className="w-12 h-10 rounded bg-black/80 flex items-center justify-center shrink-0 overflow-hidden relative border border-white/10">
                       {file.kind === 'image' ? (
                         <img src={file.url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       ) : file.kind === 'video' ? (
@@ -812,9 +825,9 @@ export default function VideoEditorView() {
           </div>
 
           {/* B. CENTER PLAYBACK PREVIEW CANVAS (Cols: 6) */}
-          <div className="lg:col-span-6 flex flex-col bg-[#0c0d12]/40 rounded-2xl overflow-hidden border border-white/5 p-4 justify-between min-h-[50vh]" id="editor-center-canvas">
+          <div className="lg:col-span-6 flex flex-col bg-black/30 backdrop-blur-md rounded-2xl overflow-hidden border border-white/15 p-4 justify-between min-h-[50vh] shadow-2xl" id="editor-center-canvas">
             {/* Project Name and Auto-save indicator */}
-            <div className="flex items-center justify-between pb-3 border-b border-white/5 shrink-0">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
               <input 
                 type="text"
                 value={projectName}
@@ -946,8 +959,8 @@ export default function VideoEditorView() {
           </div>
 
           {/* C. RIGHT PANEL: DETAILED CLIP/OVERLAY/MUSIC EDIT CONTROLS (Cols: 3) */}
-          <div className="lg:col-span-3 flex flex-col h-[70vh] bg-[#0c0d12]/70 border border-white/5 rounded-2xl p-4 overflow-hidden" id="editor-right-settings-sidebar">
-            <div className="flex border-b border-white/5 shrink-0">
+          <div className="lg:col-span-3 flex flex-col h-[70vh] bg-black/45 backdrop-blur-md border border-white/15 rounded-2xl p-4 overflow-hidden shadow-2xl" id="editor-right-settings-sidebar">
+            <div className="flex border-b border-white/10 shrink-0">
               {(['clips', 'overlays', 'music', 'export'] as const).map((tab) => (
                 <button
                   key={tab}
@@ -983,7 +996,7 @@ export default function VideoEditorView() {
                             key={clip.id}
                             onClick={() => setSelectedClipId(clip.id)}
                             className={`rounded-xl border p-3 cursor-pointer transition ${
-                              isSelected ? 'border-amber-500/40 bg-[#14151f]' : 'border-white/5 bg-[#12131a]/60 hover:border-white/10'
+                              isSelected ? 'border-amber-400 bg-black/60' : 'border-white/10 bg-black/35 hover:border-white/20'
                             }`}
                           >
                             <div className="flex items-center justify-between gap-2">
@@ -1095,7 +1108,7 @@ export default function VideoEditorView() {
                             key={ov.id}
                             onClick={() => setSelectedOverlayId(ov.id)}
                             className={`rounded-xl border p-3 cursor-pointer transition ${
-                              isSelected ? 'border-amber-500/40 bg-[#14151f]' : 'border-white/5 bg-[#12131a]/60 hover:border-white/10'
+                              isSelected ? 'border-amber-400 bg-black/60' : 'border-white/10 bg-black/35 hover:border-white/20'
                             }`}
                           >
                             <div className="flex items-center justify-between gap-2">
@@ -1251,7 +1264,7 @@ export default function VideoEditorView() {
                       </p>
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-white/5 bg-[#12131a]/60 p-4 space-y-4">
+                    <div className="rounded-xl border border-white/10 bg-black/35 p-4 space-y-4">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 min-w-0">
                           <Music className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -1388,6 +1401,7 @@ export default function VideoEditorView() {
 
         </div>
       )}
+      </div> {/* Closing content wrapper with relative z-10 */}
     </div>
   );
 }

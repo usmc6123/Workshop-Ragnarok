@@ -308,7 +308,9 @@ export default function App() {
   return (
     <ProtectedRoute>
       <div 
-        className="min-h-screen flex text-text-theme bg-bg-theme transition-all duration-200" 
+        className={`min-h-screen flex text-text-theme transition-all duration-200 ${
+          view === 'video-editor' ? 'bg-transparent' : 'bg-bg-theme'
+        }`} 
         id="application-container"
         style={getBackgroundStyle()}
       >
