@@ -866,4 +866,53 @@ export interface SmsMessage {
   customer_name?: string | null;
 }
 
+export interface VideoClip {
+  id: string;
+  source_url: string;
+  name: string;
+  duration: number; // in seconds
+  trim_start: number; // in seconds
+  trim_end: number; // in seconds
+  volume: number; // 0-100
+}
+
+export interface VideoOverlay {
+  id: string;
+  type: 'text' | 'image';
+  text?: string;
+  image_url?: string;
+  font_size?: number;
+  color?: string;
+  x: number; // 0-100 percentage
+  y: number; // 0-100 percentage
+  w?: number; // 0-100 percentage
+  h?: number; // 0-100 percentage
+  start_time: number; // in seconds
+  end_time: number; // in seconds
+}
+
+export interface VideoTimeline {
+  clips: VideoClip[];
+  overlays: VideoOverlay[];
+  background_music?: {
+    source_url: string | null;
+    volume: number; // 0-100;
+  };
+  output?: {
+    resolution: '480p' | '720p' | '1080p';
+  };
+}
+
+export interface VideoProject {
+  id: number;
+  user_id: number;
+  name: string;
+  timeline: string | VideoTimeline; // can be string from API, parsed on client
+  status: 'draft' | 'rendering' | 'rendered' | 'error';
+  output_url: string | null;
+  thumbnail_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 

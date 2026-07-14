@@ -30,6 +30,7 @@ import SitesView from './components/SitesView';
 import YoutubeTrimmerView from './components/YoutubeTrimmerView';
 import QuickReformatView from './components/QuickReformatView';
 import AiChatBotView from './components/AiChatBotView';
+import VideoEditorView from './components/VideoEditorView';
 import { LOGO_URL, BACKGROUND_URL } from './constants/branding';
 import { SITES_BASE_DOMAIN, RESERVED_SITE_SUBDOMAINS } from './constants/sites';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -42,7 +43,7 @@ import {
   Wifi, HelpCircle, CheckSquare, Settings, Car, ClipboardList, LayoutDashboard, Menu
 } from 'lucide-react';
 
-type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email' | 'texts' | 'automations' | 'payments' | 'funnels' | 'sites' | 'youtube-trimmer' | 'reformat-tool' | 'ai-chat-bot';
+type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email' | 'texts' | 'automations' | 'payments' | 'funnels' | 'sites' | 'youtube-trimmer' | 'reformat-tool' | 'ai-chat-bot' | 'video-editor';
 
 export default function App() {
   console.log('APP RENDERING');
@@ -213,6 +214,7 @@ export default function App() {
       case 'payments': return 'Payments';
       case 'sites': return 'Website Builder';
       case 'ai-chat-bot': return 'AI Chat Bot Builder';
+      case 'video-editor': return 'Shop Video Editor';
       case 'login': return 'Terminal Auth';
       case 'reformat-tool': return 'Quick Upload / Reformat';
       default: return 'Workshop Management';
@@ -501,6 +503,10 @@ export default function App() {
 
                 {view === 'ai-chat-bot' && (
                   <AiChatBotView />
+                )}
+
+                {view === 'video-editor' && (
+                  <VideoEditorView />
                 )}
 
                 {view === 'youtube-trimmer' && (

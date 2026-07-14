@@ -8,7 +8,7 @@ import {
   ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual, ShopSettings, JobPhoto,
   InventoryItem, WorkOrderPart, Service, JobService, Receipt, EmailTemplate, EmailSent, EmailReceived,
   JobNote, JobNoteAttachment, Funnel, PublicFunnel, FunnelLead, SmsMessage,
-  Site, PublicSite, SiteBlock, SiteMessage, Tag, Segment, SegmentFilters
+  Site, PublicSite, SiteBlock, SiteMessage, Tag, Segment, SegmentFilters, VideoProject
 } from '../types';
 
 import { 
@@ -1915,5 +1915,42 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
+  },
+
+  // --- VIDEO PROJECTS ---
+  async getVideoProjects(): Promise<VideoProject[]> {
+    return await request<VideoProject[]>('/api/video-projects');
+  },
+
+  async createVideoProject(name?: string): Promise<VideoProject> {
+    return await request<VideoProject>('/api/video-projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+  },
+
+  async getVideoProject(id: number | string): Promise<VideoProject> {
+    return await request<VideoProject>(`/api/video-projects/${id}`);
+  },
+
+  async updateVideoProject(id: number | string, data: Partial<VideoProject>): Promise<VideoProject> {
+    return await request<VideoProject>(`/api/video-projects/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async deleteVideoProject(id: number | string): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/video-projects/${id}`, { method: 'DELETE' });
+  },
+
+  async startVideoRender(id: number | string): Promise<{ jobId: string }> {
+    return await request<{ jobId: string }>(`/api/video-projects/${id}/render`, { method: 'POST' });
+  },
+
+  async getVideoRenderStatus(id: number | string, jobId: string): Promise<{ status: 'processing' | 'done' | 'error'; percent: number; url?: string; error?: string }> {
+    return await request<{ status: 'processing' | 'done' | 'error'; percent: number; url?: string; error?: string }>(`/api/video-projects/${id}/render/${jobId}`);
   }
 };
