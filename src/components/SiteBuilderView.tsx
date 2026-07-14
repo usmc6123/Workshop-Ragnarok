@@ -314,6 +314,24 @@ function BlockStyleEditor({ blockType, style, onChange, device }: { blockType: S
               showPreview
             />
             {style.bg_image_url && (
+              <div className="pt-1.5 border-t border-[#1e2028]/80 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Transparency</span>
+                  <span className="text-[10px] font-mono text-slate-400">{style.bg_image_opacity ?? 100}% visible</span>
+                </div>
+                <input
+                  type="range"
+                  min={10}
+                  max={100}
+                  step={5}
+                  value={style.bg_image_opacity ?? 100}
+                  onChange={(e) => set({ bg_image_opacity: parseInt(e.target.value, 10) })}
+                  className="w-full cursor-pointer accent-amber-500"
+                />
+                <p className="text-[9px] text-slate-600">Only applies when Background is set to Solid Color above, not Gradient.</p>
+              </div>
+            )}
+            {style.bg_image_url && (
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <div>
                   <FieldLabel>Image Fit</FieldLabel>
@@ -747,6 +765,10 @@ function BlockContentEditor({
             <MediaField
               value={c.custom_avatar_image || ''}
               onChange={(v) => set({ custom_avatar_image: v })}
+              opacityKey="custom_avatar_image"
+              mediaOpacity={mediaOpacity}
+              onOpacityChange={onOpacityChange}
+              showOpacity
               accept="image"
               placeholder="Custom bot logo URL or upload"
               showPreview
@@ -869,6 +891,7 @@ function BlockContentEditor({
                     opacityKey={`overlay_${el.id}`}
                     mediaOpacity={mediaOpacity}
                     onOpacityChange={onOpacityChange}
+                    showOpacity
                     accept="image"
                     placeholder="Image URL..."
                   />

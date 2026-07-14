@@ -194,7 +194,15 @@ export function resolveDeviceStyle(style: BlockStyle, device: DeviceBreakpoint):
 export function boxAppearanceStyle(style: BlockStyle): React.CSSProperties {
   const s: React.CSSProperties = {};
   if (style.bg_image_url) {
-    s.backgroundImage = `url(${style.bg_image_url})`;
+    // A plain CSS background-image has no independent opacity property, so a
+    // "faded" background image is done by layering a black scrim over it at an
+    // alpha proportional to (100 - bg_image_opacity)% — the same technique real
+    // page builders (Webflow, Framer) use for this exact control. Skipped
+    // entirely when the gradient-overlay branch below reassigns
+    // backgroundImage anyway, so the two don't fight each other.
+    const imgOpacity = style.bg_image_opacity ?? 100;
+    const scrim = imgOpacity < 100 ? `linear-gradient(rgba(0,0,0,${(1 - imgOpacity / 100).toFixed(2)}), rgba(0,0,0,${(1 - imgOpacity / 100).toFixed(2)})), ` : '';
+    s.backgroundImage = `${scrim}url(${style.bg_image_url})`;
     s.backgroundSize = style.bg_image_size || 'cover';
     s.backgroundPosition = style.bg_image_position || 'center';
     s.backgroundRepeat = 'no-repeat';
@@ -1089,7 +1097,7 @@ function AiChatBotBlockView({ block, dark, accent, headingFont, editable, onCont
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center overflow-hidden">
                 {avatarUrl ? (
-                  <img src={avatarUrl} alt={botConfig.bot_profile.name} className="w-full h-full object-cover" />
+                  <img src={avatarUrl} alt={botConfig.bot_profile.name} className="w-full h-full object-cover" style={{ opacity: getOpacity(block, 'custom_avatar_image') }} />
                 ) : (
                   <Bot className="w-4 h-4 text-amber-500" />
                 )}
@@ -1373,9 +1381,10 @@ interface InteractiveOverlayItemProps {
   onUpdate: (patch: Partial<BlockOverlayItem>) => void;
   onDelete: () => void;
   accent: string;
+  block: SiteBlock;
 }
 
-function InteractiveOverlayItem({ element, editable, onUpdate, onDelete, accent }: InteractiveOverlayItemProps) {
+function InteractiveOverlayItem({ element, editable, onUpdate, onDelete, accent, block }: InteractiveOverlayItemProps) {
   const [activeAction, setActiveAction] = useState<'move' | 'resize' | 'rotate' | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const startRef = useRef<{
@@ -1498,6 +1507,7 @@ function InteractiveOverlayItem({ element, editable, onUpdate, onDelete, accent 
             src={element.image_url}
             alt=""
             className="w-full h-full object-cover pointer-events-none rounded"
+            style={{ opacity: getOpacity(block, `overlay_${element.id}`) }}
             referrerPolicy="no-referrer"
           />
         )}
@@ -1600,6 +1610,7 @@ export default function SiteBlockView(props: SiteBlockViewProps) {
               element={el}
               editable={props.editable}
               accent={props.accent}
+              block={props.block}
               onUpdate={(patch) => handleUpdateElement(el.id, patch)}
               onDelete={() => handleDeleteElement(el.id)}
             />
