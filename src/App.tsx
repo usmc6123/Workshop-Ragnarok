@@ -106,6 +106,23 @@ export default function App() {
     return localStorage.getItem('ragnarok_active_theme') || 'theme-ragnarok';
   });
 
+  const [pageBackgrounds, setPageBackgroundsState] = useState<Record<string, { url: string; opacity: number }>>(() => {
+    try {
+      const saved = localStorage.getItem('ragnarok_page_backgrounds');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to parse page backgrounds:', e);
+    }
+    return {};
+  });
+
+  const setPageBackgrounds = (newBgs: Record<string, { url: string; opacity: number }>) => {
+    setPageBackgroundsState(newBgs);
+    localStorage.setItem('ragnarok_page_backgrounds', JSON.stringify(newBgs));
+  };
+
   // Per-page scale state and storage loading
   const [scale, setScale] = useState(100);
 
@@ -229,6 +246,20 @@ export default function App() {
   const isManualLibrary = view === 'manual-library';
 
   const getBackgroundStyle = () => {
+    // If a custom background image has been configured for the current view, apply it with custom opacity
+    const customBg = pageBackgrounds[view];
+    if (customBg && customBg.url.trim() !== '') {
+      const opacity = customBg.opacity ?? 100;
+      const alpha = 1 - (opacity / 100);
+      return {
+        backgroundImage: `linear-gradient(rgba(0, 0, 0, ${alpha}), rgba(0, 0, 0, ${alpha})), url('${customBg.url}')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+        backgroundRepeat: 'no-repeat',
+      };
+    }
+
     if (isManualLibrary) {
       return {
         backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55)), url('https://raw.githubusercontent.com/usmc6123/images/main/carmanualsbackground.jpg')`,
@@ -493,6 +524,8 @@ export default function App() {
                     activeTheme={activeTheme}
                     setActiveTheme={setActiveTheme}
                     onSaveAddress={handleApplyNewSettings}
+                    pageBackgrounds={pageBackgrounds}
+                    setPageBackgrounds={setPageBackgrounds}
                   />
                 )}
 

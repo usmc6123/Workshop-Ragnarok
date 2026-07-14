@@ -9,16 +9,25 @@ import { api, getApiBase, setApiBase } from '../lib/api';
 import MediaField from './MediaField';
 import {
   Settings, Server, Sun, Database, RefreshCw, AlertTriangle, Info, ShieldCheck, Cpu, ChevronDown, Store,
-  Users, Car, ClipboardList, Clock, Timer, Gauge, Package, CheckCircle2, DollarSign, TrendingUp, Megaphone
+  Users, Car, ClipboardList, Clock, Timer, Gauge, Package, CheckCircle2, DollarSign, TrendingUp, Megaphone,
+  LayoutDashboard, BookOpen, Mail, MessageSquare, Globe, Bot, Clapperboard, Scissors, Image, Calendar
 } from 'lucide-react';
 
 interface SettingsViewProps {
   activeTheme: string;
   setActiveTheme: (theme: string) => void;
   onSaveAddress: () => void;
+  pageBackgrounds: Record<string, { url: string; opacity: number }>;
+  setPageBackgrounds: (bgs: Record<string, { url: string; opacity: number }>) => void;
 }
 
-export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddress }: SettingsViewProps) {
+export default function SettingsView({
+  activeTheme,
+  setActiveTheme,
+  onSaveAddress,
+  pageBackgrounds,
+  setPageBackgrounds
+}: SettingsViewProps) {
   const [stats, setStats] = useState<DatabaseStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
@@ -28,6 +37,8 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
   const [testErrorMessage, setTestErrorMessage] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [bgDropdownOpen, setBgDropdownOpen] = useState(false);
+  const [selectedBgPageId, setSelectedBgPageId] = useState('dashboard');
 
   const [settings, setSettings] = useState<ShopSettings>({
     shop_name: '',
@@ -56,6 +67,7 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
   const [bookingSaveError, setBookingSaveError] = useState('');
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const bgDropdownRef = useRef<HTMLDivElement>(null);
 
   const availableThemes = [
     { id: 'theme-ragnarok', name: 'Ragnarök Dark', colors: ['#0a0a0f', '#f59e0b', '#1e2028', '#d97706'], desc: 'Default industrial orange / amber' },
@@ -77,12 +89,15 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setDropdownOpen(false);
       }
+      if (bgDropdownRef.current && !bgDropdownRef.current.contains(event.target as Node)) {
+        setBgDropdownOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [dropdownRef]);
+  }, [dropdownRef, bgDropdownRef]);
 
   // Live tick for the diagnostics panel — drives the "last synced" relative
   // timestamp and the session uptime clock without needing another server call.
@@ -913,6 +928,206 @@ export default function SettingsView({ activeTheme, setActiveTheme, onSaveAddres
                 </div>
               </div>
 
+            </div>
+          </div>
+
+          {/* Custom Page Backgrounds Card */}
+          <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl text-left">
+            <h2 className="text-sm font-bold text-slate-200 uppercase flex items-center gap-2">
+              <Image className="w-4 h-4 text-primary-theme" />
+              Custom Page Backgrounds
+            </h2>
+            <p className="text-xs text-slate-400">
+              Upload and configure custom background images with transparency overlays for each section. Automations page is excluded.
+            </p>
+
+            <div className="space-y-4">
+              {/* Dropdown to select page */}
+              <div className="relative" ref={bgDropdownRef}>
+                <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block mb-1">Select Page to Configure</label>
+                <button
+                  type="button"
+                  onClick={() => setBgDropdownOpen(!bgDropdownOpen)}
+                  className="w-full flex items-center justify-between bg-bg-theme border border-border-theme hover:border-amber-500/50 text-slate-200 text-xs px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/10 transition-all duration-150 cursor-pointer font-bold uppercase tracking-wider"
+                >
+                  <div className="flex items-center gap-2.5">
+                    {(() => {
+                      const backgroundPages = [
+                        { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
+                        { id: 'customers', name: 'Customers', icon: Users },
+                        { id: 'vehicles', name: 'Vehicles', icon: Car },
+                        { id: 'jobs', name: 'Jobs / Work Orders', icon: ClipboardList },
+                        { id: 'inventory', name: 'Inventory', icon: Package },
+                        { id: 'calendar', name: 'Calendar', icon: Calendar },
+                        { id: 'manual-library', name: 'Manual Library', icon: BookOpen },
+                        { id: 'manual', name: 'Active Service Manual', icon: BookOpen },
+                        { id: 'email', name: 'Email', icon: Mail },
+                        { id: 'texts', name: 'Texts', icon: MessageSquare },
+                        { id: 'payments', name: 'Payments', icon: DollarSign },
+                        { id: 'funnels', name: 'Funnels', icon: Megaphone },
+                        { id: 'sites', name: 'Websites', icon: Globe },
+                        { id: 'ai-chat-bot', name: 'AI Chat Bot', icon: Bot },
+                        { id: 'video-editor', name: 'Video Editor', icon: Clapperboard },
+                        { id: 'youtube-trimmer', name: 'Youtube Trimmer', icon: Scissors },
+                        { id: 'settings', name: 'Settings', icon: Settings },
+                        { id: 'admin', name: 'Manage Users', icon: ShieldCheck }
+                      ];
+                      const selectedPage = backgroundPages.find(p => p.id === selectedBgPageId) || backgroundPages[0];
+                      const PageIcon = selectedPage.icon;
+                      return (
+                        <>
+                          <PageIcon className="w-4 h-4 text-primary-theme" />
+                          <span>{selectedPage.name}</span>
+                        </>
+                      );
+                    })()}
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-150 ${bgDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {bgDropdownOpen && (
+                  <div className="absolute left-0 right-0 mt-1.5 bg-[#13141a] border border-[#1e2028] rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto animate-fade-in divide-y divide-[#1e2028] outline-none">
+                    {(() => {
+                      const backgroundPages = [
+                        { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
+                        { id: 'customers', name: 'Customers', icon: Users },
+                        { id: 'vehicles', name: 'Vehicles', icon: Car },
+                        { id: 'jobs', name: 'Jobs / Work Orders', icon: ClipboardList },
+                        { id: 'inventory', name: 'Inventory', icon: Package },
+                        { id: 'calendar', name: 'Calendar', icon: Calendar },
+                        { id: 'manual-library', name: 'Manual Library', icon: BookOpen },
+                        { id: 'manual', name: 'Active Service Manual', icon: BookOpen },
+                        { id: 'email', name: 'Email', icon: Mail },
+                        { id: 'texts', name: 'Texts', icon: MessageSquare },
+                        { id: 'payments', name: 'Payments', icon: DollarSign },
+                        { id: 'funnels', name: 'Funnels', icon: Megaphone },
+                        { id: 'sites', name: 'Websites', icon: Globe },
+                        { id: 'ai-chat-bot', name: 'AI Chat Bot', icon: Bot },
+                        { id: 'video-editor', name: 'Video Editor', icon: Clapperboard },
+                        { id: 'youtube-trimmer', name: 'Youtube Trimmer', icon: Scissors },
+                        { id: 'settings', name: 'Settings', icon: Settings },
+                        { id: 'admin', name: 'Manage Users', icon: ShieldCheck }
+                      ];
+                      return backgroundPages.map((p) => {
+                        const isSelected = p.id === selectedBgPageId;
+                        const PageIcon = p.icon;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedBgPageId(p.id);
+                              setBgDropdownOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between text-left p-3 hover:bg-slate-800/40 transition duration-150 cursor-pointer ${isSelected ? 'bg-amber-500/5' : ''}`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <PageIcon className={`w-4 h-4 ${isSelected ? 'text-amber-400' : 'text-slate-400'}`} />
+                              <span className={`text-xs font-black uppercase tracking-wider ${isSelected ? 'text-amber-400' : 'text-slate-200'}`}>
+                                {p.name}
+                              </span>
+                            </div>
+                            {isSelected && (
+                              <span className="w-2 h-2 rounded-full bg-amber-500 mr-2 animate-pulse" />
+                            )}
+                          </button>
+                        );
+                      });
+                    })()}
+                  </div>
+                )}
+              </div>
+
+              {/* MediaField for custom background upload */}
+              {(() => {
+                const backgroundPages = [
+                  { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
+                  { id: 'customers', name: 'Customers', icon: Users },
+                  { id: 'vehicles', name: 'Vehicles', icon: Car },
+                  { id: 'jobs', name: 'Jobs / Work Orders', icon: ClipboardList },
+                  { id: 'inventory', name: 'Inventory', icon: Package },
+                  { id: 'calendar', name: 'Calendar', icon: Calendar },
+                  { id: 'manual-library', name: 'Manual Library', icon: BookOpen },
+                  { id: 'manual', name: 'Active Service Manual', icon: BookOpen },
+                  { id: 'email', name: 'Email', icon: Mail },
+                  { id: 'texts', name: 'Texts', icon: MessageSquare },
+                  { id: 'payments', name: 'Payments', icon: DollarSign },
+                  { id: 'funnels', name: 'Funnels', icon: Megaphone },
+                  { id: 'sites', name: 'Websites', icon: Globe },
+                  { id: 'ai-chat-bot', name: 'AI Chat Bot', icon: Bot },
+                  { id: 'video-editor', name: 'Video Editor', icon: Clapperboard },
+                  { id: 'youtube-trimmer', name: 'Youtube Trimmer', icon: Scissors },
+                  { id: 'settings', name: 'Settings', icon: Settings },
+                  { id: 'admin', name: 'Manage Users', icon: ShieldCheck }
+                ];
+                const selectedPage = backgroundPages.find(p => p.id === selectedBgPageId) || backgroundPages[0];
+                const bgConfig = pageBackgrounds[selectedPage.id] || { url: '', opacity: 100 };
+                
+                const handleBgChange = (url: string) => {
+                  const updated = { ...pageBackgrounds };
+                  if (!url.trim()) {
+                    delete updated[selectedPage.id];
+                  } else {
+                    updated[selectedPage.id] = {
+                      url,
+                      opacity: bgConfig.opacity ?? 100
+                    };
+                  }
+                  setPageBackgrounds(updated);
+                };
+
+                const handleOpacityChange = (key: string, opacityVal: number) => {
+                  const updated = { ...pageBackgrounds };
+                  if (updated[key]) {
+                    updated[key] = {
+                      ...updated[key],
+                      opacity: opacityVal
+                    };
+                  } else {
+                    updated[key] = {
+                      url: '',
+                      opacity: opacityVal
+                    };
+                  }
+                  setPageBackgrounds(updated);
+                };
+
+                // Create a temporary media opacity map for MediaField input
+                const mediaOpacityMap = {
+                  [selectedPage.id]: bgConfig.opacity ?? 100
+                };
+
+                return (
+                  <div className="space-y-3 bg-bg-theme/40 border border-border-theme/40 rounded-xl p-4">
+                    <div className="flex items-center justify-between border-b border-border-theme pb-2 mb-2">
+                      <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                        Configure: {selectedPage.name} Background
+                      </span>
+                      {bgConfig.url && (
+                        <button
+                          type="button"
+                          onClick={() => handleBgChange('')}
+                          className="text-[10px] font-mono text-red-400 hover:text-red-300 uppercase tracking-wider cursor-pointer"
+                        >
+                          Reset Background
+                        </button>
+                      )}
+                    </div>
+                    <MediaField
+                      value={bgConfig.url}
+                      onChange={handleBgChange}
+                      accept="image"
+                      showPreview={true}
+                      placeholder="Upload custom image or paste URL"
+                      showOpacity={true}
+                      opacityKey={selectedPage.id}
+                      mediaOpacity={mediaOpacityMap}
+                      onOpacityChange={handleOpacityChange}
+                      help={`Select or upload a custom image for the ${selectedPage.name} view. Move the transparency slider to adjust visibility (higher values make the background image more visible, lower values darken it with a black overlay for higher text readability).`}
+                    />
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
