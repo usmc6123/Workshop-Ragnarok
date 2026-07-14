@@ -59,7 +59,7 @@ router.post('/', (req, res) => {
     const info = db.prepare(`
       INSERT INTO video_projects (user_id, name, timeline, status, created_at, updated_at)
       VALUES (?, ?, ?, 'draft', datetime('now'), datetime('now'))
-    `).run(req.user.id, name || 'Untitled Project');
+    `).run(req.user.id, name || 'Untitled Project', initialTimeline);
 
     const created = db.prepare('SELECT * FROM video_projects WHERE id = ? AND user_id = ?').get(info.lastInsertRowid, req.user.id);
     res.json(created);
