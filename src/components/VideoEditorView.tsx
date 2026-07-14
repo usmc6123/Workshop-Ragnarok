@@ -580,8 +580,8 @@ export default function VideoEditorView() {
   }, []);
 
   return (
-    <div className="space-y-6" id="video-editor-view-container">
-      {/* Top Header Row */}
+    <div className="space-y-6 p-6" id="video-editor-view-container">
+        {/* Top Header Row */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border-theme pb-4 shrink-0">
         <div className="flex items-center gap-3">
           <Clapperboard className="w-8 h-8 text-amber-500 shrink-0" />

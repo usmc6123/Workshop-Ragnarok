@@ -241,6 +241,15 @@ export default function App() {
     if (view === 'manual') {
       return { backgroundColor: '#0a0a0f' };
     }
+    if (view === 'video-editor') {
+      return {
+        backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.85)), url('/catvideoeditbackground.png')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+        backgroundRepeat: 'no-repeat',
+      };
+    }
     return {
       backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45)), url('https://raw.githubusercontent.com/usmc6123/images/main/catbackground.jpg')`,
       backgroundSize: 'cover',
