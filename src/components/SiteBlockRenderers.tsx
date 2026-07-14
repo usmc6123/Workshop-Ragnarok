@@ -12,9 +12,287 @@ import RichTextEditor from './RichTextEditor';
 import {
   Loader2, AlertTriangle, CheckCircle2, ArrowRight, Quote, Send, ChevronDown,
   ChevronLeft, ChevronRight, Bot, Filter, X, RotateCw, Plus, Trash2, GripVertical,
+  Sparkles,
 } from 'lucide-react';
 import BotThreeCanvas from './BotThreeCanvas';
 import { PERSONAS_20, ChatBotConfig } from './AiChatBotView';
+import { motion, AnimatePresence } from 'motion/react';
+
+// --- Cinematic & Interactive Animations Wrapper Components ---
+
+export function CinematicWrapper({
+  block,
+  style,
+  editable,
+  children,
+}: {
+  block: SiteBlock;
+  style: BlockStyle;
+  editable: boolean;
+  children: React.ReactNode;
+}) {
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  useEffect(() => {
+    setHasLoaded(true);
+  }, []);
+
+  // 1. Resolve Easing & Transition Config
+  const easing = style.core_motion_easing || 'ease-out';
+  const delay = style.core_motion_delay_stage ? 0.35 : 0;
+  
+  let transitionConfig: any = {
+    duration: 0.7,
+    delay,
+  };
+
+  if (easing === 'ease-in') {
+    transitionConfig.ease = 'easeIn';
+  } else if (easing === 'ease-out') {
+    transitionConfig.ease = 'easeOut';
+  } else if (easing === 'bezier-organic') {
+    transitionConfig.ease = [0.4, 0.0, 0.2, 1];
+  } else if (easing === 'spring-bouncy') {
+    transitionConfig.type = 'spring';
+    transitionConfig.stiffness = 240;
+    transitionConfig.damping = 14;
+  } else {
+    transitionConfig.ease = 'linear';
+  }
+
+  // 2. Resolve Scroll & Narrative (Initial vs. WhileInView)
+  const scrollNarrative = style.scroll_narrative_effect || '';
+  let initialProps: any = {};
+  let whileInViewProps: any = {};
+  let animateProps: any = {};
+
+  if (scrollNarrative === 'reveal-fade') {
+    initialProps = { opacity: 0 };
+    whileInViewProps = { opacity: 1 };
+  } else if (scrollNarrative === 'reveal-slide-up') {
+    initialProps = { opacity: 0, y: 40 };
+    whileInViewProps = { opacity: 1, y: 0 };
+  } else if (scrollNarrative === 'reveal-scale-up') {
+    initialProps = { opacity: 0, scale: 0.93 };
+    whileInViewProps = { opacity: 1, scale: 1 };
+  } else if (scrollNarrative === 'reveal-rotate-in') {
+    initialProps = { opacity: 0, rotate: -4, scale: 0.95 };
+    whileInViewProps = { opacity: 1, rotate: 0, scale: 1 };
+  } else if (scrollNarrative === 'parallax') {
+    animateProps = {
+      y: [0, -12, 0],
+    };
+    transitionConfig = {
+      ...transitionConfig,
+      y: {
+        repeat: Infinity,
+        duration: 5,
+        ease: 'easeInOut',
+      }
+    };
+  }
+
+  // 3. Resolve Micro-Interactions Hover state for Cards
+  const microInteraction = style.micro_interaction_type || '';
+  let whileHoverProps: any = {};
+  let whileTapProps: any = {};
+
+  if (microInteraction === 'glow') {
+    whileHoverProps = {
+      boxShadow: '0 0 25px rgba(245, 158, 11, 0.6)',
+      scale: 1.015,
+    };
+  } else if (microInteraction === 'pop') {
+    whileHoverProps = {
+      scale: 1.03,
+      y: -6,
+    };
+  } else if (microInteraction === 'skew') {
+    whileHoverProps = {
+      rotateX: 7,
+      rotateY: -7,
+      scale: 1.015,
+    };
+  } else if (microInteraction === 'press') {
+    whileHoverProps = { scale: 0.995 };
+    whileTapProps = { scale: 0.97, y: 2 };
+  } else if (microInteraction === 'shadow-shift') {
+    whileHoverProps = {
+      boxShadow: '0 20px 35px rgba(0,0,0,0.4)',
+      y: -5,
+    };
+  } else if (microInteraction === 'pulse') {
+    whileHoverProps = {
+      scale: [1, 1.025, 1],
+      transition: { repeat: Infinity, duration: 1.1 }
+    };
+  }
+
+  // 4. Preloaders & Page Transitions (if active on first mount)
+  const preloaderStyle = style.page_transition_style || '';
+  const showPreloader = !editable && preloaderStyle && !hasLoaded;
+
+  // 5. Render Background animations
+  const ambientBg = style.ambient_background_type || '';
+
+  return (
+    <div className={`relative h-full w-full ${style.pinning === 'pinning' || scrollNarrative === 'pinning' ? 'sticky top-6 z-40' : ''}`}>
+      {/* 1. Page Preloader Overlays */}
+      {showPreloader && (
+        <div className="absolute inset-0 bg-[#0d0e15] z-50 flex flex-col items-center justify-center rounded-2xl animate-fade-out duration-1000">
+          {preloaderStyle === 'brand' && (
+            <div className="flex flex-col items-center gap-3 animate-pulse">
+              <Sparkles className="w-10 h-10 text-amber-500 animate-spin" />
+              <span className="text-xs font-mono font-bold tracking-widest text-white uppercase">INITIALIZING SUITE</span>
+            </div>
+          )}
+          {preloaderStyle === 'fade' && (
+            <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+          )}
+          {preloaderStyle === 'skeleton' && (
+            <div className="w-full h-full p-6 space-y-4">
+              <div className="h-6 bg-slate-800 rounded-md w-1/3 animate-pulse" />
+              <div className="h-24 bg-slate-800 rounded-md w-full animate-pulse" />
+              <div className="h-10 bg-slate-800 rounded-md w-1/4 animate-pulse" />
+            </div>
+          )}
+          {preloaderStyle === 'sliding-curtain' && (
+            <div className="absolute inset-y-0 left-0 bg-amber-500 w-full animate-slide-out-left" />
+          )}
+        </div>
+      )}
+
+      {/* 2. Ambient Background canvas/svg/effects */}
+      {ambientBg === 'floating-particles' && (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-2xl z-[1]">
+          <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-amber-500/30 rounded-full animate-ping duration-1000" style={{ animationDuration: '3s' }} />
+          <div className="absolute top-2/3 left-1/2 w-3 h-3 bg-amber-500/25 rounded-full animate-ping" style={{ animationDuration: '4s' }} />
+          <div className="absolute top-1/3 left-3/4 w-1.5 h-1.5 bg-amber-500/40 rounded-full animate-ping" style={{ animationDuration: '2.5s' }} />
+        </div>
+      )}
+      {ambientBg === 'waving-fluid' && (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-2xl z-[1] opacity-30">
+          <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <path d="M0,50 C30,40 70,60 100,50 L100,100 L0,100 Z" fill="url(#fluid-grad)" className="animate-pulse" style={{ animationDuration: '6s' }} />
+            <defs>
+              <linearGradient id="fluid-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.15" />
+                <stop offset="100%" stopColor="#ef4444" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+      )}
+      {ambientBg === 'geometric-grid' && (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-2xl z-[1] opacity-20" style={{
+          backgroundImage: 'linear-gradient(rgba(245,158,11,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(245,158,11,0.07) 1px, transparent 1px)',
+          backgroundSize: '20px 20px',
+        }} />
+      )}
+      {ambientBg === 'animated-gradients' && (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-2xl z-[1] opacity-10 animate-gradient-sweep bg-gradient-to-r from-amber-500 via-rose-500 to-purple-600 bg-[length:200%_200%]" />
+      )}
+
+      {/* 3. The actual Animated Wrapper box */}
+      <motion.div
+        initial={initialProps}
+        whileInView={whileInViewProps}
+        animate={animateProps}
+        whileHover={whileHoverProps}
+        whileTap={whileTapProps}
+        viewport={{ once: true, margin: '-10px' }}
+        transition={transitionConfig}
+        className="w-full h-full relative"
+      >
+        {children}
+      </motion.div>
+    </div>
+  );
+}
+
+export function KineticTypography({
+  text,
+  effect,
+  className,
+  style,
+}: {
+  text: string;
+  effect?: string;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const [displayText, setDisplayText] = useState(text);
+
+  useEffect(() => {
+    if (!effect) {
+      setDisplayText(text);
+      return;
+    }
+
+    if (effect === 'typewriter') {
+      let index = 0;
+      setDisplayText('');
+      const interval = setInterval(() => {
+        setDisplayText(prev => prev + (text[index] || ''));
+        index++;
+        if (index >= text.length) clearInterval(interval);
+      }, 50);
+      return () => clearInterval(interval);
+    }
+
+    if (effect === 'scrambling-text') {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+';
+      let iterations = 0;
+      const interval = setInterval(() => {
+        setDisplayText(
+          text
+            .split('')
+            .map((char, index) => {
+              if (index < iterations) return text[index];
+              if (char === ' ') return ' ';
+              return chars[Math.floor(Math.random() * chars.length)];
+            })
+            .join('')
+        );
+        iterations += 1/3;
+        if (iterations >= text.length) {
+          setDisplayText(text);
+          clearInterval(interval);
+        }
+      }, 35);
+      return () => clearInterval(interval);
+    }
+
+    if (effect === 'letters-flying') {
+      setDisplayText(text);
+    }
+  }, [text, effect]);
+
+  if (effect === 'letters-flying') {
+    return (
+      <span className={`${className || ''} inline-block`} style={style}>
+        {text.split('').map((char, i) => (
+          <motion.span
+            key={i}
+            className="inline-block whitespace-pre"
+            initial={{ opacity: 0, y: 15, x: (i % 2 === 0 ? -10 : 10) }}
+            animate={{ opacity: 1, y: 0, x: 0 }}
+            transition={{ delay: i * 0.03, type: 'spring', stiffness: 150 }}
+          >
+            {char}
+          </motion.span>
+        ))}
+      </span>
+    );
+  }
+
+  return (
+    <span className={className} style={style}>
+      {displayText}
+      {effect === 'typewriter' && <span className="animate-pulse text-amber-500 ml-0.5">|</span>}
+    </span>
+  );
+}
 
 function getBotConfig(botId?: string): ChatBotConfig {
   const defaultBot = PERSONAS_20.find(p => p.id === 'cooper-patrol-cat') || PERSONAS_20[0];
@@ -438,8 +716,8 @@ function BlockChildWrapper({ block, childId, editable, onStyleChange, className 
 
 // Short, single-line, plain-text fields (headline, button labels, prices...).
 // No formatting toolbar — just click and type.
-function InlineText({ value, onCommit, editable, className, placeholder, tag = 'span' }: {
-  value: string; onCommit: (v: string) => void; editable: boolean; className?: string; placeholder?: string; tag?: 'span' | 'div';
+function InlineText({ value, onCommit, editable, className, placeholder, tag = 'span', kineticEffect }: {
+  value: string; onCommit: (v: string) => void; editable: boolean; className?: string; placeholder?: string; tag?: 'span' | 'div'; kineticEffect?: string;
 }) {
   const ref = React.useRef<HTMLElement>(null);
   const focused = React.useRef(false);
@@ -451,6 +729,9 @@ function InlineText({ value, onCommit, editable, className, placeholder, tag = '
   }, [value]);
 
   if (!editable) {
+    if (kineticEffect) {
+      return <KineticTypography text={value} effect={kineticEffect} className={className} />;
+    }
     const Tag = tag;
     return <Tag className={className}>{value}</Tag>;
   }
@@ -475,10 +756,10 @@ function Heading({ tag, children, className, fontFamily }: { tag?: HeadingTag; c
   return <Tag className={className} style={fontFamily ? { fontFamily } : undefined}>{children}</Tag>;
 }
 
-function ButtonIcon({ name }: { name?: string }) {
+function ButtonIcon({ name, className }: { name?: string; className?: string }) {
   const Icon = getSiteIcon(name);
   if (!Icon) return null;
-  return <Icon className="w-4 h-4" />;
+  return <Icon className={`w-4 h-4 ${className || ''}`} />;
 }
 
 // --- Shared prop shape ----------------------------------------------------------
@@ -572,8 +853,10 @@ function TextView({ block, dark, headingFont, editable, onContentChange, onStyle
   );
 }
 
-function ImageView({ block, editable, onContentChange }: SiteBlockViewProps) {
+function ImageView({ block, editable, onContentChange, device }: SiteBlockViewProps) {
   const c = useContent<ImageBlockContent>(block);
+  const rawStyle = parseJson<BlockStyle>(block.style, {});
+  const style = resolveDeviceStyle(rawStyle, device || 'desktop');
   const images = c.images || [];
   const [idx, setIdx] = useState(0);
   const isCarousel = c.layout === 'carousel';
@@ -588,24 +871,40 @@ function ImageView({ block, editable, onContentChange }: SiteBlockViewProps) {
     return editable ? <div className="w-full h-full flex items-center justify-center text-xs text-slate-600 border border-dashed border-white/10 rounded-xl">No images yet — add some in the panel</div> : null;
   }
 
+  const imgEffect = style.image_effect_type || '';
+  const imgClass = `w-full h-full transition-all duration-500 ${
+    imgEffect === 'zoom-in-out' ? 'hover:scale-110' : ''
+  } ${
+    imgEffect === 'grayscale-removal' ? 'filter grayscale hover:grayscale-0' : ''
+  }`;
+
   if (isCarousel) {
     return (
-      <section className="relative w-full h-full rounded-xl overflow-hidden bg-black/20">
-        {images.map((img, i) => (
-          <img
-            key={i}
-            data-media-key={`gallery_${i}`}
-            src={img.url}
-            alt={img.alt || img.caption || ''}
-            className="absolute inset-0 w-full h-full transition-opacity duration-500"
-            style={{ opacity: (i === idx ? 1 : 0) * getOpacity(block, `gallery_${i}`), objectFit: c.object_fit || 'cover', ...mediaTransformStyle(getMediaTransform(block, `gallery_${i}`)) }}
-          />
-        ))}
+      <section className="relative w-full h-full rounded-xl overflow-hidden bg-black/20 group/carousel">
+        {images.map((img, i) => {
+          const isCurrent = i === idx;
+          return (
+            <div key={i} className={`absolute inset-0 transition-opacity duration-500 ${isCurrent ? 'opacity-100' : 'opacity-0'}`}>
+              <img
+                data-media-key={`gallery_${i}`}
+                src={img.url}
+                alt={img.alt || img.caption || ''}
+                className={imgClass}
+                style={{ opacity: getOpacity(block, `gallery_${i}`), objectFit: c.object_fit || 'cover', ...mediaTransformStyle(getMediaTransform(block, `gallery_${i}`)) }}
+              />
+              {img.caption && imgEffect === 'slide-in-caption' && (
+                <div className="absolute inset-x-0 bottom-0 bg-black/60 backdrop-blur-sm p-3 transform translate-y-full group-hover/carousel:translate-y-0 transition-transform duration-300 text-center z-10">
+                  <span className="text-xs text-white font-bold">{img.caption}</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
         {images.length > 1 && (
           <>
-            <button onClick={() => setIdx(i => (i - 1 + images.length) % images.length)} className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white cursor-pointer"><ChevronLeft className="w-4 h-4" /></button>
-            <button onClick={() => setIdx(i => (i + 1) % images.length)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white cursor-pointer"><ChevronRight className="w-4 h-4" /></button>
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+            <button onClick={() => setIdx(i => (i - 1 + images.length) % images.length)} className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white cursor-pointer z-10"><ChevronLeft className="w-4 h-4" /></button>
+            <button onClick={() => setIdx(i => (i + 1) % images.length)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white cursor-pointer z-10"><ChevronRight className="w-4 h-4" /></button>
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
               {images.map((_, i) => <button key={i} onClick={() => setIdx(i)} className={`w-1.5 h-1.5 rounded-full cursor-pointer ${i === idx ? 'bg-white' : 'bg-white/40'}`} />)}
             </div>
           </>
@@ -614,23 +913,51 @@ function ImageView({ block, editable, onContentChange }: SiteBlockViewProps) {
     );
   }
 
+  const isScrollHorizontal = style.scroll_narrative_effect === 'horizontal-scroll';
+
   return (
     <section className="w-full h-full">
-      <div className={`grid gap-3 h-full ${images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-        {images.map((img, i) => (
-          <figure key={i} className="rounded-xl overflow-hidden bg-black/20 relative">
-            {img.url && (
-              <img
-                data-media-key={`gallery_${i}`}
-                src={img.url}
-                alt={img.alt || img.caption || ''}
-                className="w-full h-full"
-                style={{ objectFit: c.object_fit || 'cover', opacity: getOpacity(block, `gallery_${i}`), ...mediaTransformStyle(getMediaTransform(block, `gallery_${i}`)) }}
-              />
-            )}
-            {img.caption && <figcaption className="text-[11px] text-slate-400 p-2 text-center">{img.caption}</figcaption>}
-          </figure>
-        ))}
+      <div className={isScrollHorizontal 
+        ? "flex gap-4 overflow-x-auto snap-x snap-mandatory py-2 scrollbar-none" 
+        : `grid gap-3 h-full ${images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`
+      }>
+        {images.map((img, i) => {
+          const is3DTilt = imgEffect === '3d-tilt';
+          const WrapperTag = is3DTilt ? motion.div : 'div';
+          const wrapperProps = is3DTilt ? {
+            whileHover: { rotateX: 6, rotateY: -6, scale: 1.015 },
+            transition: { type: 'spring', stiffness: 160 }
+          } : {};
+
+          return (
+            // @ts-ignore
+            <WrapperTag key={i} {...wrapperProps} className={`rounded-xl overflow-hidden bg-black/20 relative group/fig ${isScrollHorizontal ? 'min-w-[80%] md:min-w-[45%] snap-start' : ''}`}>
+              {img.url && (
+                <img
+                  data-media-key={`gallery_${i}`}
+                  src={img.url}
+                  alt={img.alt || img.caption || ''}
+                  className={imgClass}
+                  style={{ objectFit: c.object_fit || 'cover', opacity: getOpacity(block, `gallery_${i}`), ...mediaTransformStyle(getMediaTransform(block, `gallery_${i}`)) }}
+                />
+              )}
+
+              {/* Peeling corner effect */}
+              {imgEffect === 'corner-folding' && (
+                <div className="absolute top-0 right-0 w-0 h-0 border-t-[0px] border-r-[0px] border-t-amber-500 border-r-transparent group-hover/fig:border-t-[18px] group-hover/fig:border-r-[18px] transition-all duration-300 rounded-tr-xl z-20" />
+              )}
+
+              {/* Caption handling */}
+              {img.caption && (imgEffect === 'slide-in-caption' ? (
+                <div className="absolute inset-x-0 bottom-0 bg-black/60 backdrop-blur-sm p-2 transform translate-y-full group-hover/fig:translate-y-0 transition-transform duration-300 text-center z-10">
+                  <span className="text-[11px] text-white font-bold">{img.caption}</span>
+                </div>
+              ) : (
+                <figcaption className="text-[11px] text-slate-400 p-2 text-center">{img.caption}</figcaption>
+              ))}
+            </WrapperTag>
+          );
+        })}
       </div>
     </section>
   );
@@ -716,6 +1043,12 @@ function LinkButtonView({ block, dark, accent, editable, onContentChange, onStyl
   const { href, target } = resolveLinkHref(c);
   const isButton = (c.style_variant || 'button') !== 'text_link';
 
+  const navStyle = style.link_navigation_style || '';
+  const isIconTranslate = navStyle === 'icon-translate';
+  const isColorSwap = navStyle === 'color-swap';
+  
+  const relativeClass = (navStyle === 'underline-reveal' || navStyle === 'strike-through') ? 'group relative overflow-hidden' : 'group';
+
   return (
     <section
       className={`w-full h-full flex items-center ${paddingClass(style.padding)} ${alignClass(style.align, 'center')}`}
@@ -728,13 +1061,36 @@ function LinkButtonView({ block, dark, accent, editable, onContentChange, onStyl
           rel={target === '_blank' ? 'noopener noreferrer' : undefined}
           onClick={(e) => editable && e.preventDefault()}
           className={isButton
-            ? 'inline-flex items-center gap-2 px-6 py-3 rounded-lg font-black uppercase tracking-wider text-sm transition hover:opacity-90'
-            : `inline-flex items-center gap-1.5 font-bold text-sm underline underline-offset-4 transition hover:opacity-80 ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}
+            ? `inline-flex items-center gap-2 px-6 py-3 rounded-lg font-black uppercase tracking-wider text-sm transition ${relativeClass} ${
+                isColorSwap
+                  ? 'hover:bg-white hover:text-black hover:scale-105 duration-300'
+                  : 'hover:opacity-90'
+              }`
+            : `inline-flex items-center gap-1.5 font-bold text-sm underline underline-offset-4 transition ${relativeClass} ${
+                isColorSwap ? 'hover:text-amber-400' : 'hover:opacity-80'
+              } ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}
           style={isButton ? { backgroundColor: accent, color: accentText } : { color: style.text_color || accent }}
         >
-          {(!c.button_icon_position || c.button_icon_position === 'left') && <ButtonIcon name={c.button_icon} />}
-          <InlineText value={c.label || ''} onCommit={(v) => set({ label: v })} editable={editable} placeholder="Learn More" />
-          {c.button_icon_position === 'right' && <ButtonIcon name={c.button_icon} />}
+          {(!c.button_icon_position || c.button_icon_position === 'left') && (
+            <ButtonIcon name={c.button_icon} className={isIconTranslate ? 'transition-transform duration-300 group-hover:translate-x-1' : ''} />
+          )}
+          <InlineText value={c.label || ''} onCommit={(v) => set({ label: v })} editable={editable} placeholder="Learn More" kineticEffect={style.kinetic_typography_type} />
+          {c.button_icon_position === 'right' && (
+            <ButtonIcon name={c.button_icon} className={isIconTranslate ? 'transition-transform duration-300 group-hover:translate-x-1' : ''} />
+          )}
+
+          {navStyle === 'underline-reveal' && (
+            <span
+              className="absolute bottom-0 left-0 h-[2px] w-0 group-hover:w-full transition-all duration-300"
+              style={{ backgroundColor: isButton ? accentText : (style.text_color || accent) }}
+            />
+          )}
+          {navStyle === 'strike-through' && (
+            <span
+              className="absolute top-1/2 left-0 h-[1.5px] w-0 group-hover:w-full transition-all duration-300"
+              style={{ backgroundColor: isButton ? accentText : (style.text_color || accent) }}
+            />
+          )}
         </a>
       </BlockChildWrapper>
     </section>
@@ -884,6 +1240,57 @@ function SpacerView() {
 
 const EMPTY_MSG_FORM: Record<string, any> = { name: '', email: '', message: '', company_website: '' };
 
+function InteractiveInput({ label, value, onChange, type = 'text', required, disabled, textarea, rows = 3, dark, accent }: {
+  label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; disabled?: boolean; textarea?: boolean; rows?: number; dark: boolean; accent: string;
+}) {
+  const [isFocused, setIsFocused] = useState(false);
+  const hasValue = value && value.length > 0;
+  const labelActive = isFocused || hasValue;
+
+  const inputClass = dark
+    ? 'w-full rounded-lg bg-[#0c0d12]/90 border border-[#1e2028] focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 px-3 pt-6 pb-2 text-sm text-white placeholder-transparent focus:outline-none transition-all duration-300'
+    : 'w-full rounded-lg bg-white border border-slate-300 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 px-3 pt-6 pb-2 text-sm text-slate-900 placeholder-transparent focus:outline-none transition-all duration-300';
+
+  return (
+    <div className="relative w-full">
+      {textarea ? (
+        <textarea
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          required={required}
+          disabled={disabled}
+          rows={rows}
+          className={inputClass}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          placeholder={label}
+        />
+      ) : (
+        <input
+          type={type}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          required={required}
+          disabled={disabled}
+          className={inputClass}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          placeholder={label}
+        />
+      )}
+      <label
+        className={`absolute left-3 transition-all duration-200 pointer-events-none text-xs origin-left ${
+          labelActive
+            ? 'top-1.5 scale-90 text-amber-500 font-bold'
+            : 'top-4 text-slate-500 text-sm'
+        }`}
+      >
+        {label} {required && '*'}
+      </label>
+    </div>
+  );
+}
+
 function ContactFormView({ block, dark, accent, headingFont, subdomain, editable, onContentChange, onStyleChange, device }: SiteBlockViewProps) {
   const c = useContent<ContactFormBlockContent>(block);
   const rawStyle = parseJson<BlockStyle>(block.style, {});
@@ -926,23 +1333,34 @@ function ContactFormView({ block, dark, accent, headingFont, subdomain, editable
   if (submitted) {
     return (
       <section className="w-full h-full flex items-center justify-center">
-        <div className="rounded-2xl p-8 text-center space-y-2 bg-emerald-950/20 border border-emerald-500/20 w-full">
-          <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
+        <motion.div 
+          initial={{ scale: 0.9, opacity: 0 }} 
+          animate={{ scale: 1, opacity: 1 }} 
+          transition={{ type: "spring", damping: 15 }}
+          className="rounded-2xl p-8 text-center space-y-2 bg-emerald-950/20 border border-emerald-500/20 w-full"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+          >
+            <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
+          </motion.div>
           <p className={`text-sm font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>Thanks — your message was sent!</p>
-        </div>
+        </motion.div>
       </section>
     );
   }
 
-  const inputClass = dark
-    ? 'w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none'
-    : 'w-full rounded-lg bg-white border border-slate-300 focus:border-amber-500 px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none';
+  const dropdownClass = dark
+    ? 'w-full rounded-lg bg-[#0c0d12]/90 border border-[#1e2028] focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 px-3 py-3 text-sm text-white placeholder-slate-500 focus:outline-none transition-all duration-300'
+    : 'w-full rounded-lg bg-white border border-slate-300 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 px-3 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none transition-all duration-300';
 
   return (
     <section className={`rounded-2xl space-y-3 border w-full h-full ${paddingClass(style.padding)} ${dark ? 'bg-[#13141a]/80 border-border-theme' : 'bg-white border-slate-200'}`} style={boxAppearanceStyle(style)}>
       <BlockChildWrapper block={block} childId="headline" editable={editable} onStyleChange={onStyleChange} className="block w-full">
         <Heading tag={c.headline_tag} fontFamily={style.font_family || headingFont} className={`font-black text-center ${HEADLINE_SIZE[style.font_size || 'md']} ${!style.text_color ? (dark ? 'text-white' : 'text-slate-900') : ''}`}>
-          <InlineText value={c.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Get In Touch" />
+          <InlineText value={c.headline || ''} onCommit={(v) => set({ headline: v })} editable={editable} placeholder="Get In Touch" kineticEffect={style.kinetic_typography_type} />
         </Heading>
       </BlockChildWrapper>
       <BlockChildWrapper block={block} childId="subheadline" editable={editable} onStyleChange={onStyleChange} className="block w-full">
@@ -955,9 +1373,9 @@ function ContactFormView({ block, dark, accent, headingFont, subdomain, editable
           customFields.map(f => (
             <div key={f.id}>
               {f.type === 'textarea' ? (
-                <textarea value={form[f.id] || ''} onChange={(e) => setForm(p => ({ ...p, [f.id]: e.target.value }))} placeholder={f.label} rows={3} className={inputClass} required={f.required} disabled={editable} />
+                <InteractiveInput label={f.label} value={form[f.id] || ''} onChange={(val) => setForm(p => ({ ...p, [f.id]: val }))} required={f.required} disabled={editable} textarea dark={dark} accent={accent} />
               ) : f.type === 'dropdown' ? (
-                <select value={form[f.id] || ''} onChange={(e) => setForm(p => ({ ...p, [f.id]: e.target.value }))} className={inputClass} required={f.required} disabled={editable}>
+                <select value={form[f.id] || ''} onChange={(e) => setForm(p => ({ ...p, [f.id]: e.target.value }))} className={dropdownClass} required={f.required} disabled={editable}>
                   <option value="">{f.label}</option>
                   {(f.options || []).map((opt, oi) => <option key={oi} value={opt}>{opt}</option>)}
                 </select>
@@ -967,21 +1385,31 @@ function ContactFormView({ block, dark, accent, headingFont, subdomain, editable
                   {f.label}
                 </label>
               ) : (
-                <input type={f.type} value={form[f.id] || ''} onChange={(e) => setForm(p => ({ ...p, [f.id]: e.target.value }))} placeholder={f.label} className={inputClass} required={f.required} disabled={editable} />
+                <InteractiveInput label={f.label} value={form[f.id] || ''} onChange={(val) => setForm(p => ({ ...p, [f.id]: val }))} type={f.type} required={f.required} disabled={editable} dark={dark} accent={accent} />
               )}
             </div>
           ))
         ) : (
           <>
-            <input type="text" value={form.name} onChange={(e) => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Your name" className={inputClass} disabled={editable} />
-            <input type="email" value={form.email} onChange={(e) => setForm(p => ({ ...p, email: e.target.value }))} placeholder="Your email" className={inputClass} disabled={editable} />
-            <textarea value={form.message} onChange={(e) => setForm(p => ({ ...p, message: e.target.value }))} placeholder="Your message" rows={3} className={inputClass} disabled={editable} />
+            <InteractiveInput label="Your name" value={form.name || ''} onChange={(val) => setForm(p => ({ ...p, name: val }))} disabled={editable} dark={dark} accent={accent} />
+            <InteractiveInput label="Your email" value={form.email || ''} onChange={(val) => setForm(p => ({ ...p, email: val }))} type="email" disabled={editable} dark={dark} accent={accent} />
+            <InteractiveInput label="Your message" value={form.message || ''} onChange={(val) => setForm(p => ({ ...p, message: val }))} textarea rows={3} disabled={editable} dark={dark} accent={accent} />
           </>
         )}
         <input type="text" value={form.company_website} onChange={(e) => setForm(p => ({ ...p, company_website: e.target.value }))} tabIndex={-1} autoComplete="off" aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 0, height: 0, opacity: 0 }} />
-        {error && <p className="text-xs text-rose-400 flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" /> {error}</p>}
+        
+        {error && (
+          <motion.div 
+            animate={{ x: [-6, 6, -6, 6, 0] }} 
+            transition={{ duration: 0.4 }} 
+            className="text-xs text-rose-400 flex items-center gap-1.5"
+          >
+            <AlertTriangle className="w-3.5 h-3.5" /> {error}
+          </motion.div>
+        )}
+        
         <BlockChildWrapper block={block} childId="button" editable={editable} onStyleChange={onStyleChange} className="block w-full">
-          <button type="submit" disabled={submitting || editable} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-black uppercase tracking-wider text-sm transition hover:opacity-90 disabled:opacity-50" style={{ backgroundColor: accent, color: accentText }}>
+          <button type="submit" disabled={submitting || editable} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-black uppercase tracking-wider text-sm transition hover:opacity-90 disabled:opacity-50 cursor-pointer" style={{ backgroundColor: accent, color: accentText }}>
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             <InlineText value={c.button_text || ''} onCommit={(v) => set({ button_text: v })} editable={editable} placeholder="Send Message" />
           </button>
@@ -1567,6 +1995,8 @@ function InteractiveOverlayItem({ element, editable, onUpdate, onDelete, accent,
 export default function SiteBlockView(props: SiteBlockViewProps) {
   const contentObj = parseJson<any>(props.block.content, {});
   const customElements = contentObj.custom_elements || [];
+  const styleObj = parseJson<BlockStyle>(props.block.style, {});
+  const resolvedStyle = resolveDeviceStyle(styleObj, props.device || 'desktop');
 
   const renderBlock = () => {
     switch (props.block.block_type) {
@@ -1599,7 +2029,9 @@ export default function SiteBlockView(props: SiteBlockViewProps) {
 
   return (
     <div className="relative w-full h-full group/block">
-      {renderBlock()}
+      <CinematicWrapper block={props.block} style={resolvedStyle} editable={props.editable}>
+        {renderBlock()}
+      </CinematicWrapper>
       
       {/* Custom Overlay Elements */}
       {customElements.length > 0 && (

@@ -457,6 +457,21 @@ export interface BlockStyle {
   invisible?: boolean;
   deleted_children?: string[];
   child_offsets?: Record<string, { x: number; y: number }>;
+
+  // Cinematic & Interactive Animation styles
+  micro_interaction_type?: string;
+  link_navigation_style?: string;
+  image_effect_type?: string;
+  form_input_style?: string;
+  toggle_switch_style?: string;
+  scroll_narrative_effect?: string;
+  page_transition_style?: string;
+  menu_animation_style?: string;
+  ambient_background_type?: string;
+  kinetic_typography_type?: string;
+  core_motion_easing?: string;
+  core_motion_delay_stage?: boolean;
+  pinning?: string;
 }
 
 export interface SiteBlock {
@@ -893,6 +908,7 @@ export interface VideoOverlay {
   italic?: boolean; // italic text
   start_time: number; // in seconds
   end_time: number; // in seconds
+  opacity?: number; // opacity percentage 0-100
 }
 
 export interface VideoTimeline {

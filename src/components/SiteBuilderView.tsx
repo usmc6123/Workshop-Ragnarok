@@ -423,6 +423,200 @@ function BlockStyleEditor({ blockType, style, onChange, device }: { blockType: S
           </div>
         )}
       </div>
+
+      {/* Cinematic Animations & Special Effects */}
+      <div className="rounded-lg border border-[#1e2028] bg-[#0c0d12]/40 p-3 space-y-3">
+        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-amber-300">
+          <Sparkles className="w-3 h-3" /> Cinematic Animations
+        </div>
+        
+        {/* Micro-Interactions */}
+        <div className="space-y-1.5">
+          <FieldLabel>Micro-Interactions (Buttons/Hovers)</FieldLabel>
+          <select
+            value={style.micro_interaction_type || ''}
+            onChange={(e) => set({ micro_interaction_type: e.target.value || undefined })}
+            className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-2 py-2 text-xs text-white focus:outline-none"
+          >
+            <option value="">No special interaction</option>
+            <option value="glow">Glow Pulse</option>
+            <option value="pulse">Beat Pulse</option>
+            <option value="pop">Gently Pop Out</option>
+            <option value="flip">Flip Card on Hover</option>
+            <option value="skew">3D Skew / Tilt Effect</option>
+            <option value="press">Tactile Press Down</option>
+            <option value="shadow-shift">Shadow Shift Deepen</option>
+          </select>
+        </div>
+
+        {/* Link navigation style */}
+        <div className="space-y-1.5">
+          <FieldLabel>Link / Navigation Style</FieldLabel>
+          <select
+            value={style.link_navigation_style || ''}
+            onChange={(e) => set({ link_navigation_style: e.target.value || undefined })}
+            className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-2 py-2 text-xs text-white focus:outline-none"
+          >
+            <option value="">Default links</option>
+            <option value="underline-reveal">Underline Reveal</option>
+            <option value="icon-translate">Icon Right-Translate</option>
+            <option value="color-swap">Dynamic Color Swap</option>
+            <option value="strike-through">Sleek Strike-Through</option>
+          </select>
+        </div>
+
+        {/* Image Effects */}
+        {blockType === 'image' && (
+          <div className="space-y-1.5">
+            <FieldLabel>Image Custom Hover Effect</FieldLabel>
+            <select
+              value={style.image_effect_type || ''}
+              onChange={(e) => set({ image_effect_type: e.target.value || undefined })}
+              className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-2 py-2 text-xs text-white focus:outline-none"
+            >
+              <option value="">Default fit</option>
+              <option value="zoom-in-out">Zoom-In Hover</option>
+              <option value="grayscale-removal">Grayscale to Full Color</option>
+              <option value="slide-in-caption">Slide-up Overlay Caption</option>
+              <option value="3d-tilt">Cinematic 3D Tilt</option>
+              <option value="corner-folding">Peelable Corner Fold</option>
+            </select>
+          </div>
+        )}
+
+        {/* Form Input Custom Styles */}
+        {blockType === 'contact_form' && (
+          <div className="space-y-1.5">
+            <FieldLabel>Form & Input Interaction Style</FieldLabel>
+            <select
+              value={style.form_input_style || ''}
+              onChange={(e) => set({ form_input_style: e.target.value || undefined })}
+              className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-2 py-2 text-xs text-white focus:outline-none"
+            >
+              <option value="">Default inputs</option>
+              <option value="floating-labels">Floating Action Labels</option>
+              <option value="error-shaking">Error-Shake (CSShake style)</option>
+              <option value="focused-glow">Amber Ambient Focused Glow</option>
+              <option value="success-check">Checkmark Validation Pop</option>
+            </select>
+          </div>
+        )}
+
+        {/* Toggles and switches style */}
+        <div className="space-y-1.5">
+          <FieldLabel>Toggles / Switches Transition</FieldLabel>
+          <select
+            value={style.toggle_switch_style || ''}
+            onChange={(e) => set({ toggle_switch_style: e.target.value || undefined })}
+            className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-2 py-2 text-xs text-white focus:outline-none"
+          >
+            <option value="">Default switch transition</option>
+            <option value="sliding-liquid">Sliding Liquid Blobs</option>
+            <option value="morphological">Morphing Fluid Toggle</option>
+          </select>
+        </div>
+
+        {/* Scroll & Narrative Effects */}
+        <div className="space-y-1.5">
+          <FieldLabel>Scroll & Storytelling Effect</FieldLabel>
+          <select
+            value={style.scroll_narrative_effect || ''}
+            onChange={(e) => set({ scroll_narrative_effect: e.target.value || undefined })}
+            className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-2 py-2 text-xs text-white focus:outline-none"
+          >
+            <option value="">None (Static stream)</option>
+            <option value="parallax">Parallax Floating Layer</option>
+            <option value="scrollytelling">Path Self-Drawing Scrollytelling</option>
+            <option value="reveal-fade">Reveal: Ambient Fade-In</option>
+            <option value="reveal-slide-up">Reveal: Smooth Slide-Up</option>
+            <option value="reveal-scale-up">Reveal: Soft Scale-Up</option>
+            <option value="reveal-rotate-in">Reveal: Gentle Rotate-In</option>
+            <option value="pinning">Sticker Pin Section</option>
+            <option value="horizontal-scroll">Horizontal Gallery Swipe</option>
+          </select>
+        </div>
+
+        {/* Page Transitions & Navigation */}
+        <div className="space-y-1.5">
+          <FieldLabel>Transition & Preloader Style</FieldLabel>
+          <select
+            value={style.page_transition_style || ''}
+            onChange={(e) => set({ page_transition_style: e.target.value || undefined })}
+            className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-2 py-2 text-xs text-white focus:outline-none"
+          >
+            <option value="">Instant default</option>
+            <option value="fade">Preloader Brand Spinner</option>
+            <option value="skeleton">Preloader Skeleton Screen</option>
+            <option value="brand">Preloader Animated Logo</option>
+            <option value="sliding-curtain">Sliding Curtain Page Reveal</option>
+            <option value="page-flip">Page Flip Book effect</option>
+            <option value="mask-transition">Cinematic Masking Fade</option>
+          </select>
+        </div>
+
+        {/* Ambient background motion & Typography */}
+        <div className="space-y-1.5">
+          <FieldLabel>Ambient Background Motion</FieldLabel>
+          <select
+            value={style.ambient_background_type || ''}
+            onChange={(e) => set({ ambient_background_type: e.target.value || undefined })}
+            className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-2 py-2 text-xs text-white focus:outline-none"
+          >
+            <option value="">Static theme default</option>
+            <option value="floating-particles">Ambient Floating Particles</option>
+            <option value="waving-fluid">Organic Waving Fluid Shapes</option>
+            <option value="geometric-grid">Moving Cyber Grid Mesh</option>
+            <option value="animated-gradients">Color-Shifting Animated Gradients</option>
+          </select>
+        </div>
+
+        {/* Kinetic Typography */}
+        <div className="space-y-1.5">
+          <FieldLabel>Kinetic Typography Effect</FieldLabel>
+          <select
+            value={style.kinetic_typography_type || ''}
+            onChange={(e) => set({ kinetic_typography_type: e.target.value || undefined })}
+            className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-2 py-2 text-xs text-white focus:outline-none"
+          >
+            <option value="">Default display</option>
+            <option value="letters-flying">Dynamic Flying Letters</option>
+            <option value="scrambling-text">Cyber Scrambled Decoding</option>
+            <option value="typewriter">Terminal Typewriter Echo</option>
+          </select>
+        </div>
+
+        {/* Core Motion Easing & Staging */}
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <FieldLabel>Easing Curve</FieldLabel>
+            <select
+              value={style.core_motion_easing || ''}
+              onChange={(e) => set({ core_motion_easing: e.target.value || undefined })}
+              className="w-full rounded-lg bg-[#0c0d12] border border-[#1e2028] focus:border-amber-500 px-2 py-2 text-[10px] text-white focus:outline-none"
+            >
+              <option value="">Standard linear</option>
+              <option value="ease-in">Ease In (Accelerate)</option>
+              <option value="ease-out">Ease Out (Decelerate)</option>
+              <option value="bezier-organic">Organic Cubic Bezier</option>
+              <option value="spring-bouncy">Playful Spring Bounce</option>
+            </select>
+          </div>
+          <div>
+            <FieldLabel>Stagger Delay</FieldLabel>
+            <button
+              type="button"
+              onClick={() => set({ core_motion_delay_stage: !style.core_motion_delay_stage })}
+              className={`w-full py-2 rounded-lg text-[10px] font-bold uppercase border transition cursor-pointer ${
+                style.core_motion_delay_stage
+                  ? 'border-amber-400 bg-amber-950/20 text-amber-300'
+                  : 'border-[#1e2028] text-slate-400 hover:border-slate-600'
+              }`}
+            >
+              {style.core_motion_delay_stage ? 'Staged Offset' : 'Simultaneous'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

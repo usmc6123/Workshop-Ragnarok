@@ -229,6 +229,164 @@ export default function VideoEditorView() {
     triggerDebouncedSaveOverlays(updated);
   };
 
+  // Trim Start drag handler
+  const handleTrimStartMouseDown = (e: React.MouseEvent, clip: VideoClip, clipIndex: number) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setSelectedClipId(clip.id);
+
+    const startX = e.clientX;
+    const initialTrimStart = clip.trim_start;
+
+    const timelineEl = document.getElementById('multitrack-timeline-panel');
+    const pxPerSecond = timelineEl ? ((totalClipsDuration || 10) * 15 * timelineZoom) / (totalClipsDuration || 10) : 15 * timelineZoom;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaSeconds = deltaX / pxPerSecond;
+      let newTrimStart = initialTrimStart + deltaSeconds;
+      
+      newTrimStart = Math.max(0, Math.min(clip.trim_end - 0.2, newTrimStart));
+      handleUpdateClip(clip.id, { trim_start: parseFloat(newTrimStart.toFixed(1)) });
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Trim End drag handler
+  const handleTrimEndMouseDown = (e: React.MouseEvent, clip: VideoClip, clipIndex: number) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setSelectedClipId(clip.id);
+
+    const startX = e.clientX;
+    const initialTrimEnd = clip.trim_end;
+
+    const timelineEl = document.getElementById('multitrack-timeline-panel');
+    const pxPerSecond = timelineEl ? ((totalClipsDuration || 10) * 15 * timelineZoom) / (totalClipsDuration || 10) : 15 * timelineZoom;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaSeconds = deltaX / pxPerSecond;
+      let newTrimEnd = initialTrimEnd + deltaSeconds;
+      
+      newTrimEnd = Math.max(clip.trim_start + 0.2, Math.min(clip.duration, newTrimEnd));
+      handleUpdateClip(clip.id, { trim_end: parseFloat(newTrimEnd.toFixed(1)) });
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Drag overlay timing in timeline track
+  const handleTimelineOverlayMouseDown = (e: React.MouseEvent, ov: VideoOverlay) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setSelectedOverlayId(ov.id);
+
+    const startX = e.clientX;
+    const initialStart = ov.start_time;
+    const duration = ov.end_time - ov.start_time;
+
+    const timelineEl = document.getElementById('multitrack-timeline-panel');
+    const pxPerSecond = timelineEl ? ((totalClipsDuration || 10) * 15 * timelineZoom) / (totalClipsDuration || 10) : 15 * timelineZoom;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaSeconds = deltaX / pxPerSecond;
+      
+      let newStart = initialStart + deltaSeconds;
+      newStart = Math.max(0, Math.min((totalClipsDuration || 10) - duration, newStart));
+      const newEnd = newStart + duration;
+
+      handleUpdateOverlay(ov.id, { 
+        start_time: parseFloat(newStart.toFixed(1)), 
+        end_time: parseFloat(newEnd.toFixed(1)) 
+      });
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Drag overlay start time in timeline
+  const handleTimelineOverlayTrimStartMouseDown = (e: React.MouseEvent, ov: VideoOverlay) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setSelectedOverlayId(ov.id);
+
+    const startX = e.clientX;
+    const initialStart = ov.start_time;
+
+    const timelineEl = document.getElementById('multitrack-timeline-panel');
+    const pxPerSecond = timelineEl ? ((totalClipsDuration || 10) * 15 * timelineZoom) / (totalClipsDuration || 10) : 15 * timelineZoom;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaSeconds = deltaX / pxPerSecond;
+      
+      let newStart = initialStart + deltaSeconds;
+      newStart = Math.max(0, Math.min(ov.end_time - 0.2, newStart));
+
+      handleUpdateOverlay(ov.id, { start_time: parseFloat(newStart.toFixed(1)) });
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Drag overlay end time in timeline
+  const handleTimelineOverlayTrimEndMouseDown = (e: React.MouseEvent, ov: VideoOverlay) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setSelectedOverlayId(ov.id);
+
+    const startX = e.clientX;
+    const initialEnd = ov.end_time;
+
+    const timelineEl = document.getElementById('multitrack-timeline-panel');
+    const pxPerSecond = timelineEl ? ((totalClipsDuration || 10) * 15 * timelineZoom) / (totalClipsDuration || 10) : 15 * timelineZoom;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaSeconds = deltaX / pxPerSecond;
+      
+      let newEnd = initialEnd + deltaSeconds;
+      newEnd = Math.max(ov.start_time + 0.2, Math.min(totalClipsDuration || 10, newEnd));
+
+      handleUpdateOverlay(ov.id, { end_time: parseFloat(newEnd.toFixed(1)) });
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
   // Right-click context menu triggers
   const handleOverlayContextMenu = (e: React.MouseEvent, ov: VideoOverlay) => {
     e.preventDefault();
@@ -710,65 +868,93 @@ export default function VideoEditorView() {
   };
 
   // Track preview playhead smoothly reading from refs
-  const updatePlayhead = () => {
+  const updatePlayhead = (timestamp: number) => {
     if (!isPlayingRef.current) return;
 
-    const player = videoPlayerRef.current;
-    if (player) {
-      const getClipAtTimelineTimeRef = (time: number) => {
-        let accumulated = 0;
-        const currentClips = clipsRef.current;
-        for (let i = 0; i < currentClips.length; i++) {
-          const clip = currentClips[i];
-          const duration = clip.trim_end - clip.trim_start;
-          if (time >= accumulated && time <= accumulated + duration) {
-            return {
-              clip,
-              localTime: clip.trim_start + (time - accumulated),
-              clipIndex: i
-            };
-          }
-          accumulated += duration;
-        }
-        if (currentClips.length > 0) {
-          const last = currentClips[currentClips.length - 1];
-          return { clip: last, localTime: last.trim_end, clipIndex: currentClips.length - 1 };
-        }
-        return null;
-      };
+    if (!lastTimeRef.current) {
+      lastTimeRef.current = timestamp;
+    }
+    const elapsedSeconds = (timestamp - lastTimeRef.current) / 1000;
+    lastTimeRef.current = timestamp;
 
-      const match = getClipAtTimelineTimeRef(currentTimeRef.current);
-      if (match) {
-        const { clip, clipIndex } = match;
-        const totalDuration = clipsRef.current.reduce((sum, c) => sum + (c.trim_end - c.trim_start), 0);
+    const getClipAtTimelineTimeRef = (time: number) => {
+      let accumulated = 0;
+      const currentClips = clipsRef.current;
+      for (let i = 0; i < currentClips.length; i++) {
+        const clip = currentClips[i];
+        const duration = clip.trim_end - clip.trim_start;
+        if (time >= accumulated && time <= accumulated + duration) {
+          return {
+            clip,
+            localTime: clip.trim_start + (time - accumulated),
+            clipIndex: i
+          };
+        }
+        accumulated += duration;
+      }
+      if (currentClips.length > 0) {
+        const last = currentClips[currentClips.length - 1];
+        return { clip: last, localTime: last.trim_end, clipIndex: currentClips.length - 1 };
+      }
+      return null;
+    };
 
-        // Transition clip if current player position exceeds clip's trim_end
-        if (player.currentTime >= clip.trim_end) {
-          if (clipIndex < clipsRef.current.length - 1) {
-            const nextClip = clipsRef.current[clipIndex + 1];
-            let accumulated = 0;
-            for (let i = 0; i <= clipIndex; i++) {
-              accumulated += (clipsRef.current[i].trim_end - clipsRef.current[i].trim_start);
-            }
-            setCurrentTime(accumulated);
-            player.src = nextClip.source_url;
-            player.volume = (nextClip.volume / 100) * (masterVolumeRef.current / 100);
-            player.currentTime = nextClip.trim_start;
+    const totalDuration = clipsRef.current.reduce((sum, c) => sum + (c.trim_end - c.trim_start), 0);
+    const nextTime = currentTimeRef.current + elapsedSeconds;
+
+    if (nextTime >= totalDuration) {
+      setIsPlaying(false);
+      setCurrentTime(0);
+      if (videoPlayerRef.current) {
+        videoPlayerRef.current.pause();
+        videoPlayerRef.current.currentTime = clipsRef.current[0]?.trim_start || 0;
+      }
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current.currentTime = 0;
+      }
+    } else {
+      setCurrentTime(nextTime);
+      
+      const player = videoPlayerRef.current;
+      if (player) {
+        const match = getClipAtTimelineTimeRef(nextTime);
+        if (match) {
+          const { clip, localTime } = match;
+          
+          const currentSrc = player.src || '';
+          const targetSrc = clip.source_url;
+          const normalizedCurrentSrc = currentSrc.replace(window.location.origin, '');
+          const normalizedTargetSrc = targetSrc.replace(window.location.origin, '');
+
+          if (normalizedCurrentSrc !== normalizedTargetSrc && currentSrc !== targetSrc) {
+            player.src = targetSrc;
+            player.load();
+            player.volume = (clip.volume / 100) * (masterVolumeRef.current / 100);
+            player.muted = isMuted;
+            player.currentTime = localTime;
             player.play().catch(() => {});
           } else {
-            setIsPlaying(false);
-            setCurrentTime(0);
-            player.pause();
+            player.volume = (clip.volume / 100) * (masterVolumeRef.current / 100);
+            player.muted = isMuted;
+            if (Math.abs(player.currentTime - localTime) > 0.4) {
+              player.currentTime = localTime;
+            }
           }
-        } else {
-          // Read native video current time to update playhead smoothly
-          let accumulated = 0;
-          for (let i = 0; i < clipIndex; i++) {
-            accumulated += (clipsRef.current[i].trim_end - clipsRef.current[i].trim_start);
-          }
-          const globalTime = accumulated + (player.currentTime - clip.trim_start);
-          const clampedTime = Math.max(0, Math.min(totalDuration, globalTime));
-          setCurrentTime(clampedTime);
+        }
+      }
+
+      // Sync background music audio element
+      const audio = audioPlayerRef.current;
+      if (audio && bgMusic.source_url) {
+        audio.volume = (bgMusic.volume / 100) * (masterVolumeRef.current / 100);
+        audio.muted = isMuted;
+        const targetAudioTime = nextTime % (audio.duration || 300);
+        if (Math.abs(audio.currentTime - targetAudioTime) > 0.6) {
+          audio.currentTime = targetAudioTime;
+        }
+        if (audio.paused) {
+          audio.play().catch(() => {});
         }
       }
     }
@@ -784,6 +970,7 @@ export default function VideoEditorView() {
       if (videoPlayerRef.current) videoPlayerRef.current.pause();
       if (audioPlayerRef.current) audioPlayerRef.current.pause();
     } else {
+      lastTimeRef.current = 0;
       setIsPlaying(true);
       if (videoPlayerRef.current) {
         const match = getClipAtTimelineTime(currentTime);
@@ -1310,7 +1497,8 @@ export default function VideoEditorView() {
                           fontWeight: ov.bold ? '900' : 'bold',
                           fontStyle: ov.italic ? 'italic' : 'normal',
                           padding: isSelected ? '4px 8px' : '2px 4px',
-                          borderRadius: '4px'
+                          borderRadius: '4px',
+                          opacity: (ov.opacity ?? 100) / 100
                         }}
                       >
                         {ov.text}
@@ -1350,7 +1538,8 @@ export default function VideoEditorView() {
                           width: `${ov.w || 15}%`,
                           height: `${ov.h || 15}%`,
                           transform: `rotate(${ov.rotate || 0}deg)`,
-                          zIndex: isSelected ? 30 : 20
+                          zIndex: isSelected ? 30 : 20,
+                          opacity: (ov.opacity ?? 100) / 100
                         }}
                       >
                         <img 
@@ -1455,6 +1644,49 @@ export default function VideoEditorView() {
                       <RefreshCw className="w-3 h-3.5 text-amber-500" />
                       <span>Reset Rotation</span>
                     </button>
+
+                    {/* Quick Opacity presets */}
+                    <div className="px-2 py-1 text-[7px] uppercase tracking-wider text-slate-500 font-black">Set Opacity</div>
+                    <div className="grid grid-cols-4 gap-1 px-2 pb-1.5">
+                      {[100, 75, 50, 25].map(op => (
+                        <button
+                          key={op}
+                          onClick={() => {
+                            handleUpdateOverlay(contextMenu.overlay!.id, { opacity: op });
+                            setContextMenu(prev => ({ ...prev, visible: false }));
+                          }}
+                          className={`py-0.5 rounded text-[8px] font-bold text-center border transition cursor-pointer ${
+                            (contextMenu.overlay!.opacity ?? 100) === op
+                              ? 'border-amber-500 bg-amber-500/10 text-white'
+                              : 'border-white/10 bg-black/40 text-slate-400 hover:text-white hover:bg-white/5'
+                          }`}
+                        >
+                          {op}%
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Quick Rotation Angle presets */}
+                    <div className="px-2 py-1 text-[7px] uppercase tracking-wider text-slate-500 font-black">Set Rotation</div>
+                    <div className="grid grid-cols-4 gap-1 px-2 pb-1.5">
+                      {[0, 90, 180, 270].map(rot => (
+                        <button
+                          key={rot}
+                          onClick={() => {
+                            handleUpdateOverlay(contextMenu.overlay!.id, { rotate: rot });
+                            setContextMenu(prev => ({ ...prev, visible: false }));
+                          }}
+                          className={`py-0.5 rounded text-[8px] font-bold text-center border transition cursor-pointer ${
+                            (contextMenu.overlay!.rotate || 0) === rot
+                              ? 'border-amber-500 bg-amber-500/10 text-white'
+                              : 'border-white/10 bg-black/40 text-slate-400 hover:text-white hover:bg-white/5'
+                          }`}
+                        >
+                          {rot}°
+                        </button>
+                      ))}
+                    </div>
+
                     <button
                       onClick={() => {
                         handleRemoveOverlay(contextMenu.overlay!.id);
@@ -1927,6 +2159,32 @@ export default function VideoEditorView() {
                                   </div>
                                 </div>
 
+                                {/* Transparency (Opacity) slider control */}
+                                <div className="space-y-1 border-t border-white/5 pt-3">
+                                  <div className="flex justify-between items-center text-[8px] font-mono text-slate-500">
+                                    <span>TRANSPARENCY / OPACITY</span>
+                                    <span className="text-amber-500 font-bold">{ov.opacity !== undefined ? ov.opacity : 100}%</span>
+                                  </div>
+                                  <div className="flex gap-2 items-center">
+                                    <input 
+                                      type="range"
+                                      min={0}
+                                      max={100}
+                                      value={ov.opacity !== undefined ? ov.opacity : 100}
+                                      onChange={(e) => handleUpdateOverlay(ov.id, { opacity: parseInt(e.target.value, 10) })}
+                                      className="flex-1 accent-amber-500 bg-white/5 cursor-pointer h-1 rounded-lg appearance-none"
+                                    />
+                                    <input 
+                                      type="number"
+                                      min={0}
+                                      max={100}
+                                      value={ov.opacity !== undefined ? ov.opacity : 100}
+                                      onChange={(e) => handleUpdateOverlay(ov.id, { opacity: parseInt(e.target.value, 10) })}
+                                      className="w-12 bg-black/60 border border-white/10 rounded px-1.5 py-0.5 text-[9px] font-mono text-center text-white focus:outline-none focus:border-amber-500"
+                                    />
+                                  </div>
+                                </div>
+
                                 {/* Duplication button control */}
                                 <div className="border-t border-white/5 pt-3">
                                   <button
@@ -2168,18 +2426,40 @@ export default function VideoEditorView() {
             >
               {/* 1. VISUAL RULER TRACK */}
               <div 
-                className="h-6 border-b border-white/10 flex items-end relative cursor-pointer"
+                className="h-6 border-b border-white/10 flex items-end relative cursor-pointer select-none"
                 id="timeline-ruler-track"
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const clickX = e.clientX - rect.left;
-                  const ratio = clickX / rect.width;
-                  const targetTime = ratio * totalClipsDuration;
-                  setCurrentTime(Math.max(0, Math.min(totalClipsDuration, targetTime)));
-                  if (videoPlayerRef.current) {
-                    const match = getClipAtTimelineTime(targetTime);
-                    if (match) videoPlayerRef.current.currentTime = match.localTime;
-                  }
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  isScrubbing.current = true;
+                  const updatePosition = (clientX: number) => {
+                    const rulerEl = document.getElementById('timeline-ruler-track');
+                    if (!rulerEl) return;
+                    const rect = rulerEl.getBoundingClientRect();
+                    const clickX = clientX - rect.left;
+                    const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+                    const targetTime = ratio * totalClipsDuration;
+                    setCurrentTime(targetTime);
+                    if (videoPlayerRef.current) {
+                      const match = getClipAtTimelineTime(targetTime);
+                      if (match) videoPlayerRef.current.currentTime = match.localTime;
+                    }
+                  };
+                  
+                  updatePosition(e.clientX);
+
+                  const handleMouseMove = (moveEvent: MouseEvent) => {
+                    if (!isScrubbing.current) return;
+                    updatePosition(moveEvent.clientX);
+                  };
+
+                  const handleMouseUp = () => {
+                    isScrubbing.current = false;
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
+                  };
+
+                  document.addEventListener('mousemove', handleMouseMove);
+                  document.addEventListener('mouseup', handleMouseUp);
                 }}
               >
                 {/* Visual ticks representing seconds */}
@@ -2225,11 +2505,30 @@ export default function VideoEditorView() {
                           }}
                           className={`relative h-14 rounded-lg border flex flex-col justify-between p-2 cursor-grab active:cursor-grabbing transition-all ${
                             isSelected 
-                              ? 'border-amber-400 bg-amber-500/10 shadow-lg shadow-amber-500/5' 
+                              ? 'border-amber-400 bg-amber-500/10 shadow-lg shadow-amber-500/5 pl-3 pr-3' 
                               : 'border-white/10 bg-black/50 hover:border-white/25 hover:bg-black/60'
                           }`}
                           style={{ width: `${widthPercent}%` }}
                         >
+                          {/* Visual Edge Trim Handles */}
+                          {isSelected && (
+                            <>
+                              <div 
+                                onMouseDown={(e) => handleTrimStartMouseDown(e, clip, idx)}
+                                className="absolute left-0 top-0 bottom-0 w-2.5 bg-amber-500/80 hover:bg-amber-400 cursor-ew-resize rounded-l flex items-center justify-center text-[6px] font-mono font-black text-black z-30 select-none transition"
+                                title="Drag to trim start time"
+                              >
+                                |
+                              </div>
+                              <div 
+                                onMouseDown={(e) => handleTrimEndMouseDown(e, clip, idx)}
+                                className="absolute right-0 top-0 bottom-0 w-2.5 bg-amber-500/80 hover:bg-amber-400 cursor-ew-resize rounded-r flex items-center justify-center text-[6px] font-mono font-black text-black z-30 select-none transition"
+                                title="Drag to trim end time"
+                              >
+                                |
+                              </div>
+                            </>
+                          )}
                           <div className="flex items-center justify-between gap-1">
                             <span className="text-[9px] font-mono font-black text-slate-300 truncate w-32" title={clip.name}>
                               {idx + 1}. {clip.name}
@@ -2268,14 +2567,15 @@ export default function VideoEditorView() {
                     return (
                       <div
                         key={ov.id}
+                        onMouseDown={(e) => handleTimelineOverlayMouseDown(e, ov)}
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedOverlayId(ov.id);
                           setSelectedClipId(null);
                         }}
-                        className={`absolute h-8 rounded-lg border flex items-center justify-between px-2.5 cursor-pointer transition-all ${
+                        className={`absolute h-8 rounded-lg border flex items-center justify-between px-2.5 cursor-grab active:cursor-grabbing transition-all ${
                           isSelected
-                            ? 'border-blue-400 bg-blue-500/10 shadow-lg'
+                            ? 'border-blue-400 bg-blue-500/20 shadow-lg pl-3 pr-3'
                             : 'border-white/10 bg-black/50 hover:border-white/20'
                         }`}
                         style={{
@@ -2284,6 +2584,21 @@ export default function VideoEditorView() {
                           top: '24px'
                         }}
                       >
+                        {/* Trim handles for overlay track block */}
+                        {isSelected && (
+                          <>
+                            <div 
+                              onMouseDown={(e) => handleTimelineOverlayTrimStartMouseDown(e, ov)}
+                              className="absolute left-0 top-0 bottom-0 w-1.5 bg-blue-400 hover:bg-blue-300 cursor-ew-resize rounded-l z-30"
+                              title="Drag to trim overlay start time"
+                            />
+                            <div 
+                              onMouseDown={(e) => handleTimelineOverlayTrimEndMouseDown(e, ov)}
+                              className="absolute right-0 top-0 bottom-0 w-1.5 bg-blue-400 hover:bg-blue-300 cursor-ew-resize rounded-r z-30"
+                              title="Drag to trim overlay end time"
+                            />
+                          </>
+                        )}
                         <span className="text-[8px] font-mono font-bold text-slate-300 truncate w-24">
                           {ov.type === 'text' ? `"${ov.text}"` : 'Logo Watermark'}
                         </span>
