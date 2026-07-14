@@ -77,7 +77,7 @@ export default function RichTextEditor({
 
   if (!editable) {
     const Tag = tag;
-    return <Tag className={className} dangerouslySetInnerHTML={{ __html: value || '' }} />;
+    return <Tag className={`rich-text ${className || ''}`} dangerouslySetInnerHTML={{ __html: value || '' }} />;
   }
 
   return (
@@ -101,7 +101,7 @@ export default function RichTextEditor({
         contentEditable
         suppressContentEditableWarning
         data-placeholder={placeholder}
-        className={`${className || ''} outline-none focus:ring-2 focus:ring-amber-400/50 rounded-sm empty:before:content-[attr(data-placeholder)] empty:before:opacity-40 empty:before:pointer-events-none cursor-text`}
+        className={`rich-text ${className || ''} outline-none focus:ring-2 focus:ring-amber-400/50 rounded-sm empty:before:content-[attr(data-placeholder)] empty:before:opacity-40 empty:before:pointer-events-none cursor-text`}
         onFocus={() => { isFocused.current = true; }}
         onInput={() => onChange(ref.current?.innerHTML || '')}
         onBlur={() => {
