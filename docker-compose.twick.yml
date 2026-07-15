@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  twick-prod:
+    image: twick-twick-prod:latest
+    restart: unless-stopped
+    expose:
+      - "80"
+    networks:
+      - app-network
+
+networks:
+  app-network:

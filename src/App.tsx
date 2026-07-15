@@ -426,6 +426,20 @@ export default function App() {
           <main className={`flex-1 ${view === 'automations' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
             {view === 'automations' ? (
               <AutomationsView />
+            ) : view === 'video-editor' ? (
+              // Render VideoEditor outside the scaled wrapper so iframe can fill the viewport
+              <div className="w-full flex-1 min-h-[calc(100vh-64px)]" id="video-editor-root">
+                <React.Suspense fallback={
+                  <div className="flex-1 flex flex-col items-center justify-center min-h-[400px] gap-3 font-mono">
+                    <span className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-[10px] text-amber-500 font-bold uppercase tracking-widest">
+                      Initializing Video Studio Module...
+                    </span>
+                  </div>
+                }>
+                  <VideoEditor />
+                </React.Suspense>
+              </div>
             ) : (
               <div
                 style={{

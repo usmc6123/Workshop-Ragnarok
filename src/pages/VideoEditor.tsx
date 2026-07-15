@@ -91,7 +91,7 @@ export default function VideoEditor() {
   const activeUrl = useFallbackUrl ? 'http://localhost:3000' : '/video-editor-proxy';
 
   const renderLoadingSkeleton = () => (
-    <div className="w-full h-[650px] bg-[#12131a] border border-white/5 rounded-2xl p-6 flex flex-col justify-between animate-pulse">
+      <div className="w-full h-full bg-[#12131a] border border-white/5 rounded-2xl p-6 flex flex-col justify-between animate-pulse" style={{minHeight:0}}>
       <div className="flex justify-between items-center pb-4 border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-white/5" />
@@ -125,7 +125,7 @@ export default function VideoEditor() {
   );
 
   return (
-    <div className="p-6 space-y-6 select-none" id="twick-studio-page-container">
+    <div className="p-6 space-y-6 select-none" id="twick-studio-page-container" style={{display: "flex", flexDirection: "column", padding: 24, height: "calc(100vh - 96px)"}}>
       {/* Visual Top Header Accent Row */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#12131a]/80 border border-white/5 p-4 rounded-2xl backdrop-blur-md">
         <div className="flex items-center gap-3">
@@ -182,12 +182,12 @@ export default function VideoEditor() {
       </div>
 
       {/* Main Studio Frame Content Container */}
-      <div className="relative">
+      <div className="relative" style={{flex:1, minHeight:0}}>
         {isPackageLoading ? (
           renderLoadingSkeleton()
         ) : TwickStudioComponent ? (
           /* Option 1: Native Studio component render */
-          <div className="rounded-2xl border border-white/5 bg-[#12131a] overflow-hidden p-6 shadow-2xl">
+          <div className="rounded-2xl border border-white/5 bg-[#12131a] overflow-hidden p-6 shadow-2xl" style={{height: '100%'}}>
             <Suspense fallback={renderLoadingSkeleton()}>
               <TwickStudioComponent
                 uploadConfig={{
@@ -203,7 +203,7 @@ export default function VideoEditor() {
           </div>
         ) : (
           /* Option 2: High-Performance Secure Sandbox IFrame Fallback (RECOMMENDED for Dev/Prod split) */
-          <div className="relative rounded-2xl border border-white/5 bg-[#090a0f] overflow-hidden shadow-2xl h-[680px]">
+          <div className="relative rounded-2xl border border-white/5 bg-[#090a0f] overflow-hidden shadow-2xl h-full" style={{minHeight:0}}>
             {isIframeLoading && (
               <div className="absolute inset-0 z-20 bg-[#090a0f]">
                 {renderLoadingSkeleton()}
