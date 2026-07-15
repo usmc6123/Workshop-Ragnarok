@@ -30,7 +30,7 @@ import SitesView from './components/SitesView';
 import YoutubeTrimmerView from './components/YoutubeTrimmerView';
 import QuickReformatView from './components/QuickReformatView';
 import AiChatBotView from './components/AiChatBotView';
-import VideoEditorView from './components/VideoEditorView';
+const VideoEditor = React.lazy(() => import('./pages/VideoEditor'));
 import { LOGO_URL, BACKGROUND_URL } from './constants/branding';
 import { SITES_BASE_DOMAIN, RESERVED_SITE_SUBDOMAINS } from './constants/sites';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -550,7 +550,16 @@ export default function App() {
                 )}
 
                 {view === 'video-editor' && (
-                  <VideoEditorView />
+                  <React.Suspense fallback={
+                    <div className="flex-1 flex flex-col items-center justify-center min-h-[400px] gap-3 font-mono">
+                      <span className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                      <span className="text-[10px] text-amber-500 font-bold uppercase tracking-widest">
+                        Initializing Video Studio Module...
+                      </span>
+                    </div>
+                  }>
+                    <VideoEditor />
+                  </React.Suspense>
                 )}
 
                 {view === 'youtube-trimmer' && (

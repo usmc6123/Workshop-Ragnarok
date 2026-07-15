@@ -32,6 +32,51 @@ if (!fs.existsSync(dbDir)) {
 
 // Enable CORS and JSON parsing with rawBody capture
 app.use(cors());
+
+// --- VIDEO EDITOR / TWICK STUDIO REVERSE PROXY ---
+// Must sit BEFORE express.json() so raw body streaming (for uploads) is preserved.
+// This matches the pathRewrite requirements by leveraging Express mount behavior.
+app.use('/video-editor-proxy', (req, res) => {
+  const targetHost = process.env.TWICK_PROD_URL || 'http://twick-prod:80';
+  const targetUrl = targetHost + req.url;
+  
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(targetUrl);
+  } catch (e) {
+    return res.status(400).send('Invalid proxy target URL');
+  }
+  
+  const options = {
+    hostname: parsedUrl.hostname,
+    port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
+    path: parsedUrl.pathname + parsedUrl.search,
+    method: req.method,
+    headers: {
+      ...req.headers,
+      host: parsedUrl.host,
+    }
+  };
+
+  const transport = parsedUrl.protocol === 'https:' ? require('https') : require('http');
+  
+  const proxyReq = transport.request(options, (proxyRes) => {
+    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    proxyRes.pipe(res);
+  });
+  
+  proxyReq.on('error', (err) => {
+    console.error('[Twick Proxy Error]:', err.message);
+    res.status(502).json({
+      error: 'Proxy Gateway Error',
+      message: 'Twick Studio backend is currently unreachable.',
+      host: targetHost,
+      tip: 'Ensure the Twick Studio Docker container is running locally (docker compose up -d twick-prod).'
+    });
+  });
+  
+  req.pipe(proxyReq);
+});
 app.use(express.json({
   // Media uploads (POST /api/uploads, POST /api/uploads/compress-video) go
   // through multer as multipart/form-data instead, streamed straight to disk —
