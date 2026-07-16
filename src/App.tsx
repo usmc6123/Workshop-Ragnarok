@@ -360,6 +360,7 @@ export default function App() {
         <div className="flex-1 flex flex-col min-w-0 min-h-screen">
           
           {/* Top Header Row Panel */}
+          {view !== 'video-editor' && (
           <header className="sticky top-0 z-30 h-[64px] px-6 bg-surface-theme/90 backdrop-blur-md border-b border-border-theme flex items-center justify-between shadow-md shrink-0 select-none">
             
             <div className="flex items-center gap-4">
@@ -421,14 +422,15 @@ export default function App() {
               </button>
             </div>
           </header>
+          )}
 
           {/* 3. Main Viewport Container */}
-          <main className={`flex-1 ${view === 'automations' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+          <main className={`flex-1 ${(view === 'automations' || view === 'video-editor') ? 'overflow-hidden' : 'overflow-y-auto'}`}>
             {view === 'automations' ? (
               <AutomationsView />
             ) : view === 'video-editor' ? (
               // Render VideoEditor outside the scaled wrapper so iframe can fill the viewport
-              <div className="w-full flex-1 min-h-[calc(100vh-64px)]" id="video-editor-root">
+              <div className="w-full h-full min-h-screen" id="video-editor-root">
                 <React.Suspense fallback={
                   <div className="flex-1 flex flex-col items-center justify-center min-h-[400px] gap-3 font-mono">
                     <span className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
@@ -594,7 +596,7 @@ export default function App() {
           </main>
 
           {/* Floating Scale Control Widget */}
-          {view !== 'settings' && view !== 'admin' && view !== 'automations' && (
+          {view !== 'settings' && view !== 'admin' && view !== 'automations' && view !== 'video-editor' && (
             <div 
               className="fixed bottom-6 right-6 z-40 flex items-center gap-1.5 bg-[#0e0f14]/80 backdrop-blur-md border border-white/10 px-2.5 py-1.5 rounded-full shadow-lg select-none"
               id="page-scale-control-widget"
@@ -624,7 +626,7 @@ export default function App() {
           )}
 
           {/* Mini Embedded Footer copyright */}
-          {view !== 'manual' && (
+          {view !== 'manual' && view !== 'video-editor' && (
             <footer className="py-4 border-t border-border-theme/40 text-[10px] font-mono text-center text-slate-600 select-none">
               RAGNARÖK AUTO WORKSHOP SUITE • LOCAL DISK PORT 3000
             </footer>

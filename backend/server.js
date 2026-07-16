@@ -55,14 +55,62 @@ app.use('/video-editor-proxy', (req, res) => {
     headers: {
       ...req.headers,
       host: parsedUrl.host,
+      'accept-encoding': 'identity',
     }
   };
 
   const transport = parsedUrl.protocol === 'https:' ? require('https') : require('http');
   
   const proxyReq = transport.request(options, (proxyRes) => {
-    res.writeHead(proxyRes.statusCode, proxyRes.headers);
-    proxyRes.pipe(res);
+    const contentType = proxyRes.headers['content-type'] || '';
+    const isHtml = typeof contentType === 'string' && contentType.includes('text/html');
+    const isJs = typeof contentType === 'string' && contentType.includes('javascript');
+
+    if (!isHtml && !isJs) {
+      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      proxyRes.pipe(res);
+      return;
+    }
+
+    const chunks = [];
+    proxyRes.on('data', (chunk) => chunks.push(chunk));
+    proxyRes.on('end', () => {
+      let bodyText = Buffer.concat(chunks).toString('utf-8');
+      if (isHtml) {
+        const twickBootstrapScript = `
+<script>
+  (function () {
+    try {
+      var p = window.location.pathname || '';
+      if (p === '/video-editor-proxy' || p === '/video-editor-proxy/') {
+        window.history.replaceState(null, '', '/');
+      }
+    } catch (e) {}
+  })();
+</script>`;
+        bodyText = bodyText
+          .replace(/(src|href)=["']\/(?!video-editor-proxy)([^"']+)["']/g, '$1="/video-editor-proxy/$2"')
+          .replace(/url\((['"]?)\/(?!video-editor-proxy)([^'")]+)\1\)/g, 'url($1/video-editor-proxy/$2$1)');
+        if (bodyText.includes('</head>')) {
+          bodyText = bodyText.replace('</head>', twickBootstrapScript + '</head>');
+        } else {
+          bodyText = twickBootstrapScript + bodyText;
+        }
+      }
+      if (isJs) {
+        bodyText = bodyText
+          .replace(/"\/assets\//g, '"/video-editor-proxy/assets/')
+          .replace(/'\/assets\//g, "'/video-editor-proxy/assets/");
+      }
+
+      const body = Buffer.from(bodyText, 'utf-8');
+      const headers = { ...proxyRes.headers };
+      delete headers['content-length'];
+      headers['content-length'] = body.length;
+
+      res.writeHead(proxyRes.statusCode, headers);
+      res.end(body);
+    });
   });
   
   proxyReq.on('error', (err) => {
@@ -76,6 +124,78 @@ app.use('/video-editor-proxy', (req, res) => {
   });
   
   req.pipe(proxyReq);
+});
+
+// Serve FFmpeg core assets from the Twick host so browser audio muxing does not
+// silently fall back when /ffmpeg resolves to the SPA index on this backend.
+app.use('/ffmpeg', (req, res) => {
+  const targetHost =
+    process.env.TWICK_FFMPEG_URL ||
+    process.env.TWICK_PROD_URL ||
+    'http://host.docker.internal:3000';
+  const targetUrl = targetHost + '/ffmpeg' + req.url;
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(targetUrl);
+  } catch (e) {
+    return res.status(400).send('Invalid FFmpeg proxy target URL');
+  }
+
+  const options = {
+    hostname: parsedUrl.hostname,
+    port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
+    path: parsedUrl.pathname + parsedUrl.search,
+    method: req.method,
+    headers: {
+      ...req.headers,
+      host: parsedUrl.host,
+      'accept-encoding': 'identity',
+    }
+  };
+
+  const transport = parsedUrl.protocol === 'https:' ? require('https') : require('http');
+  const proxyReq = transport.request(options, (proxyRes) => {
+    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.on('error', (err) => {
+    console.error('[FFmpeg Proxy Error]:', err.message);
+    res.status(502).json({
+      error: 'Proxy Gateway Error',
+      message: 'FFmpeg assets are currently unreachable from Twick host.',
+      host: targetHost,
+    });
+  });
+
+  req.pipe(proxyReq);
+});
+
+// Standalone fullscreen wrapper for "Open in New Tab" so the tab always loads
+// through a stable page and reuses the known-good /video-editor-proxy iframe path.
+app.get('/video-editor-tab', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ROSCOE & COOPERS STUDIO</title>
+    <style>
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }
+      iframe { width: 100%; height: 100%; border: 0; display: block; }
+    </style>
+  </head>
+  <body>
+    <iframe
+      src="/video-editor-proxy"
+      title="Twick Studio Fullscreen"
+      sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads allow-modals"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    ></iframe>
+  </body>
+</html>`);
 });
 app.use(express.json({
   // Media uploads (POST /api/uploads, POST /api/uploads/compress-video) go

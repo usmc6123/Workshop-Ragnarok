@@ -35,6 +35,21 @@ function probeDurationSeconds(inputPath) {
   });
 }
 
+function probeHasAudioStream(inputPath) {
+  return new Promise((resolve) => {
+    execFile('ffprobe', [
+      '-v', 'error',
+      '-select_streams', 'a',
+      '-show_entries', 'stream=index',
+      '-of', 'csv=p=0',
+      inputPath,
+    ], (error, stdout) => {
+      if (error) return resolve(false);
+      resolve(Boolean((stdout || '').trim()));
+    });
+  });
+}
+
 // 1. GET /api/video-projects - list current user's projects
 router.get('/', (req, res) => {
   try {
@@ -182,9 +197,17 @@ router.post('/:id/render', async (req, res) => {
         console.error(`Probing failed for clip ${clip.source_url}:`, e);
       }
 
+      let hasAudio = false;
+      try {
+        hasAudio = await probeHasAudioStream(localPath);
+      } catch (e) {
+        hasAudio = false;
+      }
+
       const start = typeof clip.trim_start === 'number' ? clip.trim_start : 0;
       const end = (typeof clip.trim_end === 'number' && clip.trim_end > start) ? clip.trim_end : durationSec;
       const clipDur = Math.max(0, end - start);
+      const clipVolume = Number.isFinite(Number(clip.volume)) ? Number(clip.volume) : 100;
       totalDuration += clipDur;
 
       clipInfos.push({
@@ -193,7 +216,9 @@ router.post('/:id/render', async (req, res) => {
         start,
         end,
         clipDur,
-        totalDur: durationSec
+        totalDur: durationSec,
+        hasAudio,
+        clipVolume
       });
     }
 
@@ -269,7 +294,13 @@ router.post('/:id/render', async (req, res) => {
         // 1. Clip Trimming & Scaling
         clipInfos.forEach((info, idx) => {
           filterComplexParts.push(`[${idx}:v]trim=start=${info.start}:end=${info.end},setpts=PTS-STARTPTS,scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:-1:-1,setsar=1,fps=30[v${idx}]`);
-          filterComplexParts.push(`[${idx}:a]atrim=start=${info.start}:end=${info.end},asetpts=PTS-STARTPTS,volume=${info.volume / 100}[a${idx}]`);
+          if (info.hasAudio) {
+            filterComplexParts.push(`[${idx}:a]atrim=start=${info.start}:end=${info.end},asetpts=PTS-STARTPTS,volume=${info.clipVolume / 100}[a${idx}]`);
+          } else {
+            // Keep concat stable when a source clip has no audio stream by generating
+            // a silent audio segment matching that clip's trimmed duration.
+            filterComplexParts.push(`anullsrc=channel_layout=stereo:sample_rate=48000,atrim=duration=${info.clipDur},asetpts=PTS-STARTPTS,volume=${info.clipVolume / 100}[a${idx}]`);
+          }
         });
 
         // 2. Concatenation of Clips
@@ -316,8 +347,9 @@ router.post('/:id/render', async (req, res) => {
         // 5. Audio Mixing
         let currentAudioStream = '[a_concat]';
         if (bgMusicInputIndex !== -1) {
-          filterComplexParts.push(`[${bgMusicInputIndex}:a]volume=${(bgMusic.volume || 40) / 100}[bg_music_vol]`);
-          filterComplexParts.push(`[a_concat][bg_music_vol]amix=inputs=2:duration=first:dropout_transition=0[a_mixed]`);
+          const bgVolume = Number.isFinite(Number(bgMusic.volume)) ? Number(bgMusic.volume) : 40;
+          filterComplexParts.push(`[${bgMusicInputIndex}:a]volume=${bgVolume / 100}[bg_music_vol]`);
+          filterComplexParts.push(`[a_concat][bg_music_vol]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a_mixed]`);
           currentAudioStream = '[a_mixed]';
         }
 

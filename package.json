@@ -14,8 +14,10 @@
   "dependencies": {
     "@google/genai": "^2.10.0",
     "@tailwindcss/vite": "^4.1.14",
+    "@twick/browser-render": "^0.15.31",
     "@vitejs/plugin-react": "^5.0.4",
     "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^4.22.2",
     "jsonwebtoken": "^9.0.3",

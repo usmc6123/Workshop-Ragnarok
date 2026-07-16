@@ -20,6 +20,7 @@ services:
     environment:
       - PORT=4000
       - LEMON_SERVER_URL=http://lemon-server:8080
+      - TWICK_PROD_URL=http://host.docker.internal:3000
       - DB_PATH=/data/db/workshop.db
       - NODE_ENV=production
       - GEMINI_API_KEY=${GEMINI_API_KEY}
