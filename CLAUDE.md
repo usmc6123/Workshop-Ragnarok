@@ -882,6 +882,80 @@ when verifying whether a Dockerfile/dependency fix actually landed, not normal
 day-to-day behavior. Don't mistake a slow `--no-cache` verification build for a sign
 that something's newly broken.
 
+**Texts: two-way SMS, Inbox/Sent/Trash, and a separate Private contact list
+(added 2026-07-17).** Previously `sms_messages` was outbound-only (Twilio
+never had an inbound webhook — see backend/sms.js's original comment), no
+trash/read state existed, and every text was tied to `customer_id`.
+
+Schema additions (all plain nullable `ALTER TABLE ADD COLUMN`s, no CHECK
+constraint touched, so no rename/rebuild migration needed): `sms_messages`
+gained `is_read` (default 1, so existing rows don't retroactively show as
+unread), `deleted_at` (soft-delete, same pattern as email trash), and
+`private_contact_id`. New `private_contacts` table (id, user_id, name, phone,
+notes) — deliberately zero foreign keys into `customers`/`jobs`/anything else,
+by design (see "The rule that actually matters" below — this is a rolodex,
+not a CRM extension). `shop_settings` gained `owner_cell_number`, used only by
+the call-bridge feature below.
+
+**Inbound texting**: `POST /api/webhooks/sms` (backend/server.js, registered
+before `authMiddleware`, same placement as the Resend/Stripe webhooks).
+Twilio POSTs `application/x-www-form-urlencoded` — a `express.urlencoded()`
+middleware was added right after `express.json()` to parse it (Twilio and
+Stripe webhooks don't need it, they read `req.rawBody`/JSON directly).
+Signature verified manually (HMAC-SHA1 against `TWILIO_AUTH_TOKEN`, Twilio's
+documented algorithm: sort POST param keys, concatenate key+value onto the
+exact webhook URL, HMAC, compare to `X-Twilio-Signature`) rather than via the
+`twilio` npm package — same "avoid new deps, raw crypto/fetch" choice already
+made in sms.js for outbound sends. The URL signed against is reconstructed
+from `PUBLIC_APP_BASE_URL`, NOT `req.protocol`/`req.get('host')` — those
+reflect what the container sees behind the Cloudflare Tunnel, not the exact
+URL Twilio was configured to hit. **On the Twilio console, the phone number's
+"A message comes in" webhook must be set to
+`https://workshop.homeslab.uk/api/webhooks/sms`, method POST** — nothing
+receives inbound texts until this is set. Inbound numbers are matched to a
+customer or private contact by normalizing both sides to digits-only (strips
+a leading US country code) since phone numbers on file are rarely strict
+E.164. This app is single-tenant in practice (one global Twilio number, not
+per-user) — an inbound text from a totally unknown number still gets logged
+against the first row in `users` rather than left with a NULL `user_id`, so
+it's actually visible somewhere instead of silently vanishing.
+
+**Texts page tabs** (`TextsView.tsx`): Conversations (unchanged merged
+thread view), Inbox (conversations built from inbound-only messages, unread
+badge in the tab bar), Sent (flat chronological outbound log, not threaded),
+Trash (soft-deleted messages from both regular and private conversations,
+restore or empty-trash), Private (see below). `GET /api/sms-messages`
+excludes both trashed AND private-contact-linked rows now — that exclusion is
+what actually keeps private texts out of the normal view, not anything in the
+frontend.
+
+**Private contact list**: intentionally its own tab, not a separate nav item
+(owner's call after I offered both) — `GET/POST /api/private-contacts` +
+`PUT`/`DELETE /:id`. Texting a private contact reuses the exact same Twilio
+number/`sendSms()`/`sms_messages` log as customers — the separation is purely
+architectural (`private_contact_id` set, `customer_id` NULL) and enforced at
+the query layer, not a second phone line.
+
+**Call button** (`POST /api/calls/bridge` + `GET/POST /api/calls/twiml/:token`,
+the latter registered before `authMiddleware` since Twilio hits it directly).
+A browser can't place a real phone call on its own, and a full WebRTC/Twilio
+Voice SDK integration would be a much bigger add than this needed — instead
+this bridges two real calls via Twilio's plain REST Calls API: Twilio calls
+`shop_settings.owner_cell_number` first, and the instant that's answered,
+TwiML (served by the `:token` route) tells Twilio to dial the actual contact
+and connect both legs. Call tokens live in an in-memory `Map`
+(`pendingCallBridges`, 5-minute TTL, single-use — same "in-memory job map"
+pattern already used for video-compress jobs), never persisted. The button
+only renders when `smsConfigured` is true (Twilio env vars present) — no
+button to click-and-fail before Twilio is even set up. If the Twilio number
+turns out to be SMS-only (a small fraction of numbers aren't Voice-capable),
+the bridge call fails with a real Twilio error surfaced via `alert()`; this
+wasn't pre-checked against Twilio's API since there's no cheap way to probe
+Voice capability without an extra live API call per attempt. **Needs
+`owner_cell_number` filled in under Settings** (new field, right after Local
+Access URL) before the Call button will do anything besides return a clear
+"add your cell number first" error.
+
 ## Bug log — real issues already diagnosed and fixed (don't re-diagnose from scratch)
 
 1. **Missing native binding for `@tailwindcss/oxide`** ("npm has a bug related to
@@ -1201,6 +1275,22 @@ run` flag list) can't recur for this or any future variable. If `docker compose 
 workshop-backend` ever hits `Error response from daemon: Conflict... container name
 "/ragnarok-backend" is already in use`, that's the same already-documented "down alone
 can't fully remove it" issue — the explicit `stop`/`rm` before it is what prevents that.
+
+**Same-day follow-up bug, introduced by the fix above: `docker compose up -d
+workshop-backend` pulled in `depends_on: - lemon-server` and collided with the
+already-running lemon-server container, leaving `ragnarok-backend` deleted with
+nothing to replace it (found when the app went fully down after a routine
+deploy).** Fixed by scoping the recreate to exactly the one named service with
+`docker compose up -d --force-recreate workshop-backend` — atomic, and Compose
+won't touch an already-up dependency it wasn't asked to recreate. This is now
+the correct, final version of both `webhook.js` recreate blocks (deploy path
+and `reconcileBackendMount()`) — a single `execSync` call running
+`cd ${WORKSPACE} && docker compose up -d --force-recreate workshop-backend`,
+no separate `stop`/`rm` needed since `--force-recreate` already implies it.
+**Lesson: `docker compose up -d
+<service>` is not actually equivalent to `docker stop/rm` + `up -d` once
+`depends_on` is in play — `--force-recreate <service>` is the version that's
+both correct AND scoped to just the one container.**
 
 **2026-07-17 — same-day, separate incident: `lemon-server` and `workshop-webhook`
 crash-looped after a full computer reboot, hitting the exact same "stale bind-mount
