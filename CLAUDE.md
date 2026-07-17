@@ -956,6 +956,59 @@ Voice capability without an extra live API call per attempt. **Needs
 Access URL) before the Call button will do anything besides return a clear
 "add your cell number first" error.
 
+**2026-07-17 — deploys were silently no-op'ing for hours: `docker compose` project-name
+mismatch between `workshop-webhook` and manual runs, root cause of "everything looks
+fine but my pushes aren't landing."** Found while debugging why the Texts/private-
+contacts/call-bridge feature wasn't appearing after two successful-looking deploys.
+`docker logs workshop-webhook` showed every single recreate attempt (both the deploy
+path and the 90s startup self-heal) failing with `Container name "/lemon-server" is
+already in use by container "205976ef..."`, immediately followed by
+`Error response from daemon: No such container: ragnarok-backend` — meaning the image
+built fine every time, but the container swap itself always failed, so
+`ragnarok-backend` never actually got replaced. It kept serving traffic anyway because
+a container from an earlier, successful recreate was still running — which is exactly
+why the app "looked" fine the whole time despite every subsequent deploy failing.
+
+Root cause: Compose tracks container ownership by a `com.docker.compose.project`
+label, not just literal `container_name`. `workshop-webhook` runs `docker compose`
+from `cd ${WORKSPACE}` where `WORKSPACE` is `/workspace` (the bind-mount target
+inside the webhook container) — with no explicit project name, Compose defaults to
+the *current directory's basename*, so every webhook-driven call implicitly used
+project `workspace`. The `lemon-server` container actually running, though, had
+`com.docker.compose.project=workshop-ragnarok` — it was created at some point by a
+plain `docker compose up` run manually from `D:\HomeServer\workshop-ragnarok`
+directly (that path's basename), a different implicit project name for the exact
+same compose file and exact same containers. When the `workspace`-project `up`
+tried to satisfy `workshop-backend`'s `depends_on: lemon-server`, it didn't
+recognize the existing (correctly-running, `workshop-ragnarok`-project) `lemon-server`
+as "its own," tried to create a second one, and collided on the literal
+`container_name: lemon-server` — aborting the whole `up` command, including the
+`workshop-backend`/`ragnarok-backend` half that had nothing to do with lemon-server.
+Confirmed via `docker inspect lemon-server --format '...Labels "com.docker.compose.project"'`
+→ `workshop-ragnarok`, plus `ragnarok-backend`'s actual running image being tagged
+`workshop-ragnarok-workshop-backend` (not `workspace-workshop-backend`, which is what
+the failing webhook builds were actually producing every time) — two parallel,
+never-reconciled project identities for the same deployment.
+
+**Fixed by pinning an explicit project name on every `docker compose` invocation in
+webhook.js** (`sed -i 's/docker compose /docker compose -p workshop-ragnarok /g'
+/opt/workshop-webhook/webhook.js`, then `docker restart workshop-webhook`) — this
+makes the project identity independent of whatever directory the command happens to
+run from, so it can never drift again regardless of whether a future recreate is
+triggered by the webhook (cwd `/workspace`) or run manually from the host path (cwd
+`workshop-ragnarok`, which already happened to match by coincidence, but shouldn't be
+relied on). One-time manual recovery to get the actually-current code live:
+`cd /mnt/d/HomeServer/workshop-ragnarok && docker compose -p workshop-ragnarok build
+workshop-backend && docker compose -p workshop-ragnarok up -d --force-recreate
+workshop-backend`. **Lesson: if a deploy "succeeds" in the webhook log but changes
+never actually show up in the running app, don't trust the "Rebuild complete!" line
+by itself — it fires unconditionally regardless of whether the container recreate
+step actually succeeded. Check for `Error response from daemon` lines earlier in the
+same log first.** Also surfaced a harmless orphan container,
+`workshop-ragnarok-twick-prod-1` (leftover from when the `twick-prod` service was
+removed from the compose file) — cosmetic only, cleans up on a future
+`--remove-orphans` run, not urgent.
+
 ## Bug log — real issues already diagnosed and fixed (don't re-diagnose from scratch)
 
 1. **Missing native binding for `@tailwindcss/oxide`** ("npm has a bug related to
