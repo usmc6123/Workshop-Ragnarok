@@ -267,9 +267,13 @@ export default function App() {
       };
     }
     if (activeVideoBg) {
-      // Video background is rendered as a real element (fixed, behind content);
-      // keep the container's own CSS background empty/dark so nothing shows through.
-      return { backgroundColor: '#0a0a0f' };
+      // Video background is rendered as a real element (fixed, z-index -1, behind
+      // content). `isolation: isolate` scopes that negative z-index to THIS
+      // container instead of the whole document — without it, the video paints
+      // behind <body>'s own opaque background (painted even earlier, since it's
+      // an ancestor stacking context) and never becomes visible at all, showing
+      // as solid black.
+      return { backgroundColor: '#0a0a0f', isolation: 'isolate' };
     }
 
     if (isManualLibrary) {
