@@ -648,4 +648,43 @@ export default function App() {
                 type="button"
                 onClick={() => handleAdjustScale(-5)}
                 disabled={scale <= 70}
-                className="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 border border-white/5 text-amber-500 hover:text-amber-400 disabled:text-zinc-600 dis
+                className="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 border border-white/5 text-amber-500 hover:text-amber-400 disabled:text-zinc-600 disabled:cursor-not-allowed hover:bg-white/5 active:scale-95 transition cursor-pointer text-sm font-bold animate-none"
+                id="scale-down-btn"
+              >
+                -
+              </button>
+              <span className="text-[11px] font-mono font-black text-amber-500 w-11 text-center" id="scale-display-value">
+                {scale}%
+              </span>
+              <button
+                type="button"
+                onClick={() => handleAdjustScale(5)}
+                disabled={scale >= 150}
+                className="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 border border-white/5 text-amber-500 hover:text-amber-400 disabled:text-zinc-600 disabled:cursor-not-allowed hover:bg-white/5 active:scale-95 transition cursor-pointer text-sm font-bold animate-none"
+                id="scale-up-btn"
+              >
+                +
+              </button>
+            </div>
+          )}
+
+          {/* Mini Embedded Footer copyright */}
+          {view !== 'manual' && view !== 'video-editor' && (
+            <footer className="py-4 border-t border-border-theme/40 text-[10px] font-mono text-center text-slate-600 select-none">
+              RAGNARÖK AUTO WORKSHOP SUITE • LOCAL DISK PORT 3000
+            </footer>
+          )}
+        </div>
+
+        {/* Network Diagnostics configuration Dialog overlay */}
+        <NetworkSettingsModal
+          isOpen={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          onSave={handleApplyNewSettings}
+        />
+
+        <ChatWidget />
+      </div>
+    </ProtectedRoute>
+  );
+}

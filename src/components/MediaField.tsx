@@ -476,4 +476,11 @@ export default function MediaField({
             max={100}
             step={5}
             value={opacity}
-   
+            onChange={(e) => onOpacityChange(opacityKey, parseInt(e.target.value, 10))}
+            className={`w-full cursor-pointer ${accentClass || 'accent-amber-500'}`}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
