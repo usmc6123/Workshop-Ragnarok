@@ -1175,6 +1175,77 @@ stale again on 2026-07-12 (missing several `restoreCoreFiles()` entries and the
 via `cat /opt/workshop-webhook/webhook.js` before editing it, never trust the mirror
 copy.
 
+**2026-07-17 — webhook.js's `docker run` recreate path was silently dropping env vars
+(root cause of a real video-editor outage), fixed by switching to `docker compose up
+-d`.** Both places `webhook.js` recreated `ragnarok-backend` — the deploy path and
+`reconcileBackendMount()` — used a raw `docker run -d ... -e PORT=4000 -e
+LEMON_SERVER_URL=... -e DB_PATH=... -e NODE_ENV=production --env-file /workspace/.env
+...` with a hand-copied, incomplete list of `-e` flags that had gone stale relative to
+`docker-compose.yml`'s actual `environment:` block — specifically missing
+`TWICK_PROD_URL=http://host.docker.internal:3000`. `--env-file /workspace/.env` didn't
+cover it either, since that var is hardcoded directly in `docker-compose.yml`, not
+`${TWICK_PROD_URL}`-interpolated from `.env`. Every deploy and every 90s self-heal
+cycle was silently recreating `ragnarok-backend` without `TWICK_PROD_URL`, so
+`/video-editor-proxy` fell back to the code default (`http://twick-prod:80`, a hostname
+that doesn't resolve on this network) and 502'd — while the rest of the app worked
+fine, since nothing else depends on that var. Diagnosed via `docker logs
+ragnarok-backend | grep twick` (`getaddrinfo ENOTFOUND twick-prod`) confirming the env
+var truly wasn't set, not a real connectivity problem (`docker exec ragnarok-backend
+node -e "require('http').get('http://host.docker.internal:3000/', ...)"` succeeded
+fine when hitting that URL directly). **Fixed by replacing both raw `docker run`
+blocks with `docker stop ragnarok-backend; docker rm ragnarok-backend; cd /workspace &&
+docker compose up -d workshop-backend`** — this always reads the full, current
+environment straight from `docker-compose.yml`, so this specific class of drift (any
+env var ever added to the compose file silently missing from a hand-copied `docker
+run` flag list) can't recur for this or any future variable. If `docker compose up -d
+workshop-backend` ever hits `Error response from daemon: Conflict... container name
+"/ragnarok-backend" is already in use`, that's the same already-documented "down alone
+can't fully remove it" issue — the explicit `stop`/`rm` before it is what prevents that.
+
+**2026-07-17 — same-day, separate incident: `lemon-server` and `workshop-webhook`
+crash-looped after a full computer reboot, hitting the exact same "stale bind-mount
+bridge" bug already documented above for `ragnarok-backend`/Homarr/Radarr, just
+manifesting as a hard crash instead of stale data.** `lemon-server` panicked with
+`Failed to open /data/charm/index.json: No such file or directory` even though
+`/mnt/m/e9dfaf...>/lemon-manuals/charm/index.json` was confirmed present on disk;
+`workshop-webhook` crashed with `Cannot find module '/app/webhook.js'` even though
+`/opt/workshop-webhook/webhook.js` was confirmed present and correct. In both cases a
+plain `docker compose up -d <service>` was NOT enough to fix it — compose saw no
+config change for either service and just resumed the existing (25-38-hour-old)
+container object, still bound to its stale pre-reboot mount view. Required the full
+`docker stop <name> && docker rm <name> && docker compose up -d <name>` force-recreate
+pattern, same as the already-documented `ragnarok-backend` fix. **Prevention:**
+`D:\HomeServer\reconcile-mounts.ps1` (the scheduled task already covering
+Homarr/Radarr/Sonarr/Prowlarr/Sabnzbd/Wizarr) was extended to also force-recreate
+`ragnarok-backend`, `lemon-server`, and `workshop-webhook` ~90s after every
+login/boot, in a second pass scoped to `cd /mnt/d/HomeServer/workshop-ragnarok`
+(a separate compose project from the main homelab stack). `ragnarok-backend` is
+included there too even though it already has its own in-app self-heal
+(`reconcileBackendMount` above) — that mechanism can't run at all if
+`workshop-webhook` itself is one of the stale containers, which is exactly what
+happened this time, so the PowerShell-level script is a necessary backstop, not
+redundant.
+
+**2026-07-17 — third, unrelated same-day incident: `n8n` (separate homelab stack,
+`D:\HomeServer\docker-compose.yml`) failed to start with `OCI runtime create failed:
+... error mounting ".../etc/localtime" to rootfs at "/etc/localtime": ... not a
+directory`.** This is a real Docker Desktop/WSL2 bug bind-mounting a *symlink*
+(`/etc/localtime` → `/usr/share/zoneinfo/...`) through the WSL2 bridge — confirmed
+NOT caused by a broken source file (`ls -la /etc/localtime` on the WSL host showed a
+perfectly valid symlink) and NOT fixed by a full `wsl --shutdown` + Docker Desktop
+restart (identical error, byte-for-byte, came right back). Root cause understood by
+inspecting `n8n`'s actual compose service: it bind-mounted `/etc/timezone` and
+`/etc/localtime` from the host purely as a generic timezone-sync tutorial pattern,
+which was always redundant here — `GENERIC_TIMEZONE=America/Los_Angeles` and
+`TZ=America/Los_Angeles` were already set as environment variables, which is what n8n
+(and Node.js's own `Intl`/`Date` handling) actually uses internally regardless of
+`/etc/localtime` being mounted. **Fixed by simply deleting those two `volumes:` lines
+from the `n8n` service** in `D:\HomeServer\docker-compose.yml` rather than fighting
+Docker Desktop's mount bridge — sidesteps the bug entirely, no loss of functionality.
+If another container ever hits this same `/etc/localtime` mount error, check whether
+it actually needs the bind mount at all (a `TZ` env var alone is usually sufficient)
+before assuming Docker Desktop needs a deeper reset.
+
 **A red herring from this incident, debunked:** a diff against an older copy of
 `D:\HomeServer\docker-compose.yml` showed its volume paths had changed from
 `D:\...` to `/mnt/d/...` at some point. This looked like a plausible root cause
