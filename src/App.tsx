@@ -245,10 +245,17 @@ export default function App() {
   const isManualOrLibrary = view === 'manual' || view === 'manual-library';
   const isManualLibrary = view === 'manual-library';
 
+  // Custom page backgrounds support both images and videos. Videos can't be applied
+  // via a CSS backgroundImage, so they're rendered as an actual <video> element
+  // (see activeVideoBg below); getBackgroundStyle() only ever handles the image case.
+  const isVideoBackgroundUrl = (url: string) => /\.(mp4|webm|mov|m4v|ogg)(\?.*)?$/i.test(url);
+
+  const customBg = pageBackgrounds[view];
+  const activeVideoBg = customBg && customBg.url.trim() !== '' && isVideoBackgroundUrl(customBg.url) ? customBg : null;
+
   const getBackgroundStyle = () => {
     // If a custom background image has been configured for the current view, apply it with custom opacity
-    const customBg = pageBackgrounds[view];
-    if (customBg && customBg.url.trim() !== '') {
+    if (customBg && customBg.url.trim() !== '' && !isVideoBackgroundUrl(customBg.url)) {
       const opacity = customBg.opacity ?? 100;
       const alpha = 1 - (opacity / 100);
       return {
@@ -258,6 +265,11 @@ export default function App() {
         backgroundAttachment: 'fixed',
         backgroundRepeat: 'no-repeat',
       };
+    }
+    if (activeVideoBg) {
+      // Video background is rendered as a real element (fixed, behind content);
+      // keep the container's own CSS background empty/dark so nothing shows through.
+      return { backgroundColor: '#0a0a0f' };
     }
 
     if (isManualLibrary) {
@@ -345,7 +357,38 @@ export default function App() {
         id="application-container"
         style={getBackgroundStyle()}
       >
-        
+        {activeVideoBg && (
+          <>
+            <video
+              key={activeVideoBg.url}
+              autoPlay
+              muted
+              loop
+              playsInline
+              style={{
+                position: 'fixed',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                zIndex: -1,
+                pointerEvents: 'none',
+              }}
+            >
+              <source src={activeVideoBg.url} />
+            </video>
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: -1,
+                backgroundColor: `rgba(0, 0, 0, ${1 - (activeVideoBg.opacity ?? 100) / 100})`,
+                pointerEvents: 'none',
+              }}
+            />
+          </>
+        )}
+
         {/* 1. Left Navigation Sidebar */}
         <Sidebar
           currentView={view}
@@ -605,43 +648,4 @@ export default function App() {
                 type="button"
                 onClick={() => handleAdjustScale(-5)}
                 disabled={scale <= 70}
-                className="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 border border-white/5 text-amber-500 hover:text-amber-400 disabled:text-zinc-600 disabled:cursor-not-allowed hover:bg-white/5 active:scale-95 transition cursor-pointer text-sm font-bold animate-none"
-                id="scale-down-btn"
-              >
-                -
-              </button>
-              <span className="text-[11px] font-mono font-black text-amber-500 w-11 text-center" id="scale-display-value">
-                {scale}%
-              </span>
-              <button
-                type="button"
-                onClick={() => handleAdjustScale(5)}
-                disabled={scale >= 150}
-                className="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 border border-white/5 text-amber-500 hover:text-amber-400 disabled:text-zinc-600 disabled:cursor-not-allowed hover:bg-white/5 active:scale-95 transition cursor-pointer text-sm font-bold animate-none"
-                id="scale-up-btn"
-              >
-                +
-              </button>
-            </div>
-          )}
-
-          {/* Mini Embedded Footer copyright */}
-          {view !== 'manual' && view !== 'video-editor' && (
-            <footer className="py-4 border-t border-border-theme/40 text-[10px] font-mono text-center text-slate-600 select-none">
-              RAGNARÖK AUTO WORKSHOP SUITE • LOCAL DISK PORT 3000
-            </footer>
-          )}
-        </div>
-
-        {/* Network Diagnostics configuration Dialog overlay */}
-        <NetworkSettingsModal
-          isOpen={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-          onSave={handleApplyNewSettings}
-        />
-
-        <ChatWidget />
-      </div>
-    </ProtectedRoute>
-  );
-}
+                className="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 border border-white/5 text-amber-500 hover:text-amber-400 disabled:text-zinc-600 dis

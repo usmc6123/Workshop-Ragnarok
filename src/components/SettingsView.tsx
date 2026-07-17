@@ -938,7 +938,7 @@ export default function SettingsView({
               Custom Page Backgrounds
             </h2>
             <p className="text-xs text-slate-400">
-              Upload and configure custom background images with transparency overlays for each section. Automations page is excluded.
+              Upload and configure custom background images or videos with transparency overlays for each section. Automations page is excluded.
             </p>
 
             <div className="space-y-4">
@@ -1116,23 +1116,16 @@ export default function SettingsView({
                     <MediaField
                       value={bgConfig.url}
                       onChange={handleBgChange}
-                      accept="image"
+                      accept="both"
                       showPreview={true}
-                      placeholder="Upload custom image or paste URL"
+                      placeholder="Upload custom image/video or paste URL"
                       showOpacity={true}
                       opacityKey={selectedPage.id}
                       mediaOpacity={mediaOpacityMap}
                       onOpacityChange={handleOpacityChange}
-                      help={`Select or upload a custom image for the ${selectedPage.name} view. Move the transparency slider to adjust visibility (higher values make the background image more visible, lower values darken it with a black overlay for higher text readability).`}
+                      help={`Select or upload a custom image or video for the ${selectedPage.name} view. Videos autoplay muted and loop. Move the transparency slider to adjust visibility (higher values make the background more visible, lower values darken it with a black overlay for higher text readability).`}
                     />
                   </div>
                 );
               })()}
             </div>
-          </div>
-
-      </div>
-
-    </div>
-  );
-}

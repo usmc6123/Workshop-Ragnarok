@@ -292,7 +292,11 @@ export default function MediaField({
         {showPreview && (
           value ? (
             <div className="relative w-10 h-10 shrink-0 bg-slate-800 rounded border border-[#1e2028] flex items-center justify-center overflow-hidden">
-              <img src={value} alt="Preview" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+              {/\.(mp4|webm|mov|m4v|ogg)(\?.*)?$/i.test(value) ? (
+                <video src={value} muted autoPlay loop playsInline className="max-w-full max-h-full object-contain" />
+              ) : (
+                <img src={value} alt="Preview" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+              )}
               <button type="button" onClick={() => onChange('')} className="absolute top-0 right-0 bg-red-600/80 hover:bg-red-700 text-white rounded-bl p-0.5 cursor-pointer" title="Remove">
                 <X className="w-2.5 h-2.5" />
               </button>
@@ -472,11 +476,4 @@ export default function MediaField({
             max={100}
             step={5}
             value={opacity}
-            onChange={(e) => onOpacityChange(opacityKey, parseInt(e.target.value, 10))}
-            className={`w-full cursor-pointer ${accentClass || 'accent-amber-500'}`}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
+   
