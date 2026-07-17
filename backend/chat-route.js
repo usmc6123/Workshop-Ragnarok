@@ -722,6 +722,17 @@ uriPath, then call browse_manual with that uriPath to get its table of contents.
 If the result is a list of section links (not actual procedure content), pick
 the most relevant link and call browse_manual again with its href — repeat
 until you reach real content. Don't guess at manual content; always browse to it.
+If a question is vague or doesn't cleanly split into separate make/model/year
+(e.g. "got anything on a 2008 tacoma" or "f150 5.4"), use
+search_manual_vehicles instead of find_vehicle_manual to get a uriPath, then
+continue into browse_manual exactly the same way.
+
+Before ever calling send_text_message, always first show the user the exact
+message you'd send, in plain chat, and ask them to confirm — even if their
+request already sounded like an instruction to send it (e.g. "text John his
+car is ready"). Only call send_text_message after they've clearly confirmed
+in a separate, later message (e.g. "yes," "send it," "go ahead"). Never draft
+and send within the same turn.
 
 If manual content includes image paths (e.g. "/images/DM10Q313/ford120/435388117/"),
 always format each one in your reply as a markdown image using this exact
@@ -1192,6 +1203,17 @@ const functionDeclarations = [
     name: 'get_dashboard_stats',
     description: 'Get a quick shop-wide snapshot: total customers/vehicles, active jobs, jobs completed this month, revenue this month, unpaid jobs, low-stock item count, and appointments in the next 7 days.',
     parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: 'search_manual_vehicles',
+    description: "Free-text search across the full 304,923-vehicle manual database, matching against make/model/year/engine — the same search the app's own Dashboard universal search bar uses. Handles multi-word queries (e.g. '2008 toyota tacoma') and common make aliases (chevy, vw, benz, ram). Use this as your first move for a vague vehicle question instead of find_vehicle_manual when you don't have clean separate make/model/year fields to pass — then use the returned uriPath with browse_manual as usual.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        query: { type: Type.STRING, description: "Free text, e.g. '2008 toyota tacoma' or 'f150 5.4'" },
+      },
+      required: ['query'],
+    },
   },
 ];
 
@@ -1761,6 +1783,32 @@ async function runTool(name, input, userId, authHeader) {
         low_stock_items: lowStock,
         appointments_next_7_days: upcomingAppointments,
       };
+    }
+
+    case 'search_manual_vehicles': {
+      // Mirrors GET /api/vehicles?q= exactly (same alias table, same
+      // multi-token AND matching across make/model/year/engine) so results
+      // match what the Dashboard's own universal search bar would show —
+      // a separate, additive entry point alongside find_vehicle_manual, not
+      // a replacement for it.
+      const aliases = {
+        chevy: 'chevrolet', vw: 'volkswagen', benz: 'mercedes',
+        ram: 'dodge', dodge: 'dodge and ram', merc: 'mercedes',
+      };
+      const tokens = (input.query || '').toLowerCase().trim().split(/\s+/).filter(Boolean).map((t) => aliases[t] || t);
+      if (tokens.length === 0) return { error: 'Provide a search query, e.g. "2008 toyota tacoma".' };
+
+      const conditions = [];
+      const params = [];
+      for (const token of tokens) {
+        conditions.push('(LOWER(make) LIKE ? OR LOWER(model) LIKE ? OR LOWER(year) LIKE ? OR LOWER(engine) LIKE ?)');
+        const p = `%${token}%`;
+        params.push(p, p, p, p);
+      }
+      params.push(20);
+      return db
+        .prepare(`SELECT id, source, make, year, model, engine, uriPath, isComplete FROM vehicles WHERE ${conditions.join(' AND ')} LIMIT ?`)
+        .all(...params);
     }
 
     default:
