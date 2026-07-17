@@ -54,6 +54,7 @@ export default function SettingsView({
     admin_notification_email: '',
     google_review_url: '',
     local_access_url: '',
+    owner_cell_number: '',
     booking_open_time: '08:00',
     booking_close_time: '17:00',
     booking_slot_minutes: 60,
@@ -648,6 +649,24 @@ export default function SettingsView({
                   />
                   <p className="text-[9px] text-slate-500 mt-1">
                     Large video uploads can fail over the public domain — Cloudflare caps proxied uploads around 100-200MB. Fill this in with your LAN IP:4000 or a Tailscale address, and the Reformat tool will offer it as a one-click link when a big file is selected. You'll need to log back in once you switch.
+                  </p>
+                </div>
+
+                {/* Owner Cell Number — powers the Call button in Texts. Twilio calls
+                    this number first, then bridges the call to whoever you tapped
+                    Call on, once you pick up. */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Your Cell Number (for Call button)</label>
+                  <input
+                    type="tel"
+                    placeholder="+1 555 123 4567"
+                    value={settings.owner_cell_number || ''}
+                    onChange={(e) => setSettings({ ...settings, owner_cell_number: e.target.value })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:border-primary-theme focus:outline-none"
+                    id="shop-owner-cell-number-input"
+                  />
+                  <p className="text-[9px] text-slate-500 mt-1">
+                    Used only by the Call button in Texts — Twilio rings this number first, and the moment you answer, it dials the contact and connects you both. Never shown to customers.
                   </p>
                 </div>
 

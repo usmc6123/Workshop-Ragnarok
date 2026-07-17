@@ -740,6 +740,7 @@ export interface ShopSettings {
   booking_days_closed?: string;
   booking_min_notice_hours?: number;
   booking_max_concurrent?: number;
+  owner_cell_number?: string;
 }
 
 export interface InventoryItem {
@@ -866,6 +867,7 @@ export type SmsStatus = 'sent' | 'failed' | 'not_configured';
 export interface SmsMessage {
   id: number;
   customer_id: number | null;
+  private_contact_id?: number | null;
   phone: string;
   body: string;
   direction: 'outbound' | 'inbound';
@@ -877,8 +879,19 @@ export interface SmsMessage {
   related_funnel_id: number | null;
   created_at: string;
   user_id?: number;
-  // Joined from customers
+  is_read?: number;
+  deleted_at?: string | null;
+  // Joined from customers / private_contacts
   customer_name?: string | null;
+  private_contact_name?: string | null;
+}
+
+export interface PrivateContact {
+  id: number;
+  name: string;
+  phone: string;
+  notes: string | null;
+  created_at?: string;
 }
 
 export interface VideoClip {

@@ -7,7 +7,7 @@ import {
   Vehicle, GarageItem, PageResponse, Customer, CustomerVehicle,
   ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual, ShopSettings, JobPhoto,
   InventoryItem, WorkOrderPart, Service, JobService, Receipt, EmailTemplate, EmailSent, EmailReceived,
-  JobNote, JobNoteAttachment, Funnel, PublicFunnel, FunnelLead, SmsMessage,
+  JobNote, JobNoteAttachment, Funnel, PublicFunnel, FunnelLead, SmsMessage, PrivateContact,
   Site, PublicSite, SiteBlock, SiteMessage, Tag, Segment, SegmentFilters, VideoProject
 } from '../types';
 
@@ -1632,11 +1632,105 @@ export const api = {
     }
   },
 
-  async sendSmsMessage(data: { customer_id?: number; phone?: string; body: string }): Promise<SmsMessage> {
+  async getPrivateSmsMessages(): Promise<SmsMessage[]> {
+    try {
+      return await request<SmsMessage[]>('/api/sms-messages/private');
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return [];
+      }
+      throw err;
+    }
+  },
+
+  async getPrivateSmsThread(contactId: number): Promise<SmsMessage[]> {
+    try {
+      return await request<SmsMessage[]>(`/api/sms-messages/private-contact/${contactId}`);
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return [];
+      }
+      throw err;
+    }
+  },
+
+  async getTrashedSmsMessages(): Promise<SmsMessage[]> {
+    try {
+      return await request<SmsMessage[]>('/api/sms-messages/trash');
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return [];
+      }
+      throw err;
+    }
+  },
+
+  async sendSmsMessage(data: { customer_id?: number; private_contact_id?: number; phone?: string; body: string }): Promise<SmsMessage> {
     return await request<SmsMessage>('/api/sms-messages/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
+    });
+  },
+
+  async markSmsThreadRead(data: { customer_id?: number; private_contact_id?: number; phone?: string }): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>('/api/sms-messages/mark-read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async trashSmsMessage(id: number): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/sms-messages/${id}/trash`, { method: 'POST' });
+  },
+
+  async restoreSmsMessage(id: number): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/sms-messages/${id}/restore`, { method: 'POST' });
+  },
+
+  async emptySmsTrash(): Promise<{ success: boolean; deleted: number }> {
+    return await request<{ success: boolean; deleted: number }>('/api/sms-messages/trash/empty', { method: 'DELETE' });
+  },
+
+  // --- PRIVATE CONTACTS ---
+  async getPrivateContacts(): Promise<PrivateContact[]> {
+    try {
+      return await request<PrivateContact[]>('/api/private-contacts');
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return [];
+      }
+      throw err;
+    }
+  },
+
+  async createPrivateContact(data: { name: string; phone: string; notes?: string }): Promise<PrivateContact> {
+    return await request<PrivateContact>('/api/private-contacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async updatePrivateContact(id: number, data: { name?: string; phone?: string; notes?: string }): Promise<PrivateContact> {
+    return await request<PrivateContact>(`/api/private-contacts/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async deletePrivateContact(id: number): Promise<{ success: boolean }> {
+    return await request<{ success: boolean }>(`/api/private-contacts/${id}`, { method: 'DELETE' });
+  },
+
+  // --- CALL BRIDGE ---
+  async bridgeCall(phone: string): Promise<{ success: boolean; sid: string }> {
+    return await request<{ success: boolean; sid: string }>('/api/calls/bridge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone })
     });
   },
 

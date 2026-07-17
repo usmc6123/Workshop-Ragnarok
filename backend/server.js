@@ -215,6 +215,16 @@ app.use(express.json({
 const UPLOADS_ROOT = path.join(path.dirname(dbDir), 'uploads');
 app.use('/uploads', express.static(UPLOADS_ROOT));
 
+// Twilio posts webhooks (inbound SMS, call-bridge TwiML requests) as
+// application/x-www-form-urlencoded, not JSON — express.json() above won't
+// parse those bodies, so req.body would be empty for them without this.
+app.use(express.urlencoded({
+  extended: false,
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
+
 // Inbound email webhook (Resend Svix) - placed before authMiddleware
 app.post('/api/webhooks/inbound-email', async (req, res) => {
   try {
@@ -390,6 +400,127 @@ app.post('/api/webhooks/inbound-email', async (req, res) => {
     console.error('[Inbound Webhook] Error processing webhook:', err);
     res.status(500).json({ error: 'Internal server error processing webhook' });
   }
+});
+
+// Inbound SMS webhook (Twilio) - placed before authMiddleware; Twilio calls this
+// directly (application/x-www-form-urlencoded) and signs the request with an
+// X-Twilio-Signature header instead of a JWT. Verified manually here (HMAC-SHA1,
+// per Twilio's documented signing algorithm) rather than via the `twilio` npm
+// package, matching the same "avoid new deps, raw fetch" choice already made in
+// sms.js for outbound sends. Configure this exact URL — <your public domain>
+// + /api/webhooks/sms — as the "A message comes in" webhook on the Twilio
+// phone number, method POST.
+app.post('/api/webhooks/sms', (req, res) => {
+  try {
+    const crypto = require('crypto');
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const twilioSignature = req.headers['x-twilio-signature'];
+
+    if (!authToken) {
+      console.error('[SMS Webhook] TWILIO_AUTH_TOKEN not configured — cannot verify inbound SMS.');
+      return res.status(500).send('SMS not configured');
+    }
+    if (!twilioSignature) {
+      console.warn('[SMS Webhook] Missing X-Twilio-Signature header');
+      return res.status(401).send('Missing signature');
+    }
+
+    // Twilio signs against the EXACT URL configured in its console for this
+    // number's inbound webhook, not whatever the container itself sees behind
+    // the Cloudflare Tunnel — always reconstruct from the known public base.
+    const webhookUrl = `${PUBLIC_APP_BASE_URL.replace(/\/$/, '')}/api/webhooks/sms`;
+    const params = req.body || {};
+    const sortedKeys = Object.keys(params).sort();
+    let dataToSign = webhookUrl;
+    for (const key of sortedKeys) {
+      dataToSign += key + params[key];
+    }
+
+    const expectedSignature = crypto.createHmac('sha1', authToken).update(Buffer.from(dataToSign, 'utf-8')).digest('base64');
+    const sigA = Buffer.from(twilioSignature);
+    const sigB = Buffer.from(expectedSignature);
+    const verified = sigA.length === sigB.length && crypto.timingSafeEqual(sigA, sigB);
+
+    if (!verified) {
+      console.warn('[SMS Webhook] Signature verification failed');
+      return res.status(401).send('Invalid signature');
+    }
+
+    const fromPhone = (params.From || '').trim();
+    const body = params.Body || '';
+
+    if (!fromPhone) {
+      console.warn('[SMS Webhook] No From number in inbound payload');
+      return res.type('text/xml').send('<Response></Response>');
+    }
+
+    // Phone numbers on file are rarely stored in strict E.164, so match loosely:
+    // strip everything but digits, and drop a leading US country code (1) so
+    // "+15551234567", "15551234567", and "555-123-4567" all compare equal.
+    const normalize = (p) => (p || '').replace(/\D/g, '').replace(/^1(\d{10})$/, '$1');
+    const normalizedFrom = normalize(fromPhone);
+
+    const allCustomers = db.prepare("SELECT id, user_id, phone FROM customers WHERE phone IS NOT NULL AND TRIM(phone) != ''").all();
+    const matchedCustomer = allCustomers.find(c => normalize(c.phone) === normalizedFrom) || null;
+
+    let matchedPrivateContact = null;
+    if (!matchedCustomer) {
+      const allPrivate = db.prepare("SELECT id, user_id, phone FROM private_contacts WHERE phone IS NOT NULL AND TRIM(phone) != ''").all();
+      matchedPrivateContact = allPrivate.find(c => normalize(c.phone) === normalizedFrom) || null;
+    }
+
+    // This app is single-tenant in practice (one Twilio number for the whole
+    // deployment, not per-user) — if the number doesn't match any known
+    // customer or private contact, still log it against the first (real) user
+    // account rather than leaving it orphaned with a NULL user_id, so an
+    // unrecognized inbound text is actually visible somewhere instead of
+    // silently vanishing from every Texts view.
+    let userId = matchedCustomer ? matchedCustomer.user_id : (matchedPrivateContact ? matchedPrivateContact.user_id : null);
+    if (!userId) {
+      const fallbackUser = db.prepare('SELECT id FROM users ORDER BY id ASC LIMIT 1').get();
+      userId = fallbackUser ? fallbackUser.id : null;
+    }
+
+    db.prepare(`
+      INSERT INTO sms_messages (customer_id, private_contact_id, phone, body, direction, status, trigger_type, is_read, user_id)
+      VALUES (?, ?, ?, ?, 'inbound', 'sent', 'manual', 0, ?)
+    `).run(
+      matchedCustomer ? matchedCustomer.id : null,
+      matchedPrivateContact ? matchedPrivateContact.id : null,
+      fromPhone,
+      body,
+      userId
+    );
+
+    console.log(`[SMS Webhook] Stored inbound text from ${fromPhone}${matchedCustomer ? ` (customer #${matchedCustomer.id})` : matchedPrivateContact ? ` (private contact #${matchedPrivateContact.id})` : ' (unmatched number)'}`);
+
+    // Empty TwiML response — we're not auto-replying, just acknowledging receipt.
+    res.type('text/xml').send('<Response></Response>');
+  } catch (err) {
+    console.error('[SMS Webhook] Error processing inbound SMS:', err);
+    res.status(500).send('Internal server error');
+  }
+});
+
+// GET/POST /api/calls/twiml/:token - placed before authMiddleware; Twilio hits
+// this directly (no JWT) once the owner's leg of a bridge call (see
+// POST /api/calls/bridge, further below in the authenticated SMS/Texts
+// section) is answered, and expects TwiML back dialing the actual contact.
+// Single-use: the token is deleted the moment it's consumed, whether valid or
+// not, so a replayed/guessed request can't be used to place a second call.
+// pendingCallBridges/CALL_BRIDGE_TTL_MS are declared down with the rest of the
+// call-bridge code — referencing them here works fine since this route (like
+// every route) only actually runs later, at request time, well after the
+// whole module has finished loading top to bottom.
+app.all('/api/calls/twiml/:token', (req, res) => {
+  const target = pendingCallBridges.get(req.params.token);
+  pendingCallBridges.delete(req.params.token);
+  res.type('text/xml');
+  if (!target) {
+    return res.send('<Response><Say>This call link has expired.</Say><Hangup/></Response>');
+  }
+  const escaped = target.replace(/[^+\d]/g, '');
+  res.send(`<Response><Dial>${escaped}</Dial></Response>`);
 });
 
 // Stripe checkout webhook - placed before authMiddleware; Stripe calls this directly and
@@ -1105,7 +1236,13 @@ try {
     { name: 'booking_slot_minutes', type: "INTEGER DEFAULT 60" },
     { name: 'booking_days_closed', type: "TEXT DEFAULT '[0]'" },
     { name: 'booking_min_notice_hours', type: "INTEGER DEFAULT 2" },
-    { name: 'booking_max_concurrent', type: "INTEGER DEFAULT 1" }
+    { name: 'booking_max_concurrent', type: "INTEGER DEFAULT 1" },
+    // The owner's own cell number, used only for the Texts "Call" button's
+    // bridge-call flow: Twilio calls THIS number first, and once answered,
+    // dials the contact and connects the two legs. Never shown to customers
+    // (that's shop_phone) and never sent anywhere except directly to Twilio's
+    // REST API.
+    { name: 'owner_cell_number', type: 'TEXT' }
   ];
   try {
     const columns = db.prepare('PRAGMA table_info(shop_settings)').all();
@@ -1437,6 +1574,55 @@ try {
     }
   } catch (err) {
     console.error('Error migrating sms_messages trigger_type for booking_confirmation:', err);
+  }
+
+  // --- PRIVATE CONTACTS: a rolodex deliberately isolated from `customers` ---
+  // Added 2026-07-17. Holds personal contacts the owner wants to call/text
+  // through the app without them ever touching the Customers/CRM side of
+  // things — no job, vehicle, or funnel linkage exists or should ever be
+  // added here. Texts to/from these contacts are logged in the same
+  // sms_messages table (same Twilio number, same send/receive plumbing) but
+  // tagged via private_contact_id instead of customer_id, which is what keeps
+  // them out of the regular Texts inbox/conversation list.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS private_contacts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // sms_messages: add read/trash state and private-contact linkage as plain
+  // nullable columns (no CHECK constraint involved, so a simple guarded
+  // ALTER TABLE ADD COLUMN is enough — no need for the rename/rebuild dance
+  // the trigger_type migrations above required).
+  try {
+    const smsCols = db.prepare('PRAGMA table_info(sms_messages)').all();
+    const addSmsCol = (name, type) => {
+      if (!smsCols.some(c => c.name === name)) {
+        db.exec(`ALTER TABLE sms_messages ADD COLUMN ${name} ${type}`);
+        console.log(`Successfully migrated sms_messages to include ${name} column.`);
+      }
+    };
+    // is_read: only meaningful for inbound messages, but harmless (and simpler)
+    // to have on every row rather than nullable-only-for-inbound.
+    addSmsCol('is_read', 'INTEGER DEFAULT 1');
+    // deleted_at: NULL = active, timestamp = trashed. Same soft-delete pattern
+    // already used for emails (see /api/emails/:type/:id/trash).
+    addSmsCol('deleted_at', 'TEXT DEFAULT NULL');
+    // private_contact_id: set for texts to/from a private contact, left NULL
+    // for ordinary customer/unknown-number texts. A row should really only
+    // ever have one of customer_id / private_contact_id set, enforced at the
+    // application layer rather than a CHECK constraint (SQLite CHECK
+    // constraints can't easily express "at most one of two nullable columns"
+    // without also blocking legitimate both-NULL rows for unmatched inbound
+    // numbers).
+    addSmsCol('private_contact_id', 'INTEGER REFERENCES private_contacts(id) ON DELETE SET NULL');
+  } catch (err) {
+    console.error('Error migrating sms_messages read/trash/private-contact columns:', err);
   }
 
   // --- SITES: a general-purpose, block-based website builder ---
@@ -3823,7 +4009,8 @@ app.put('/api/shop-settings', (req, res) => {
       booking_slot_minutes: 60,
       booking_days_closed: '[0]',
       booking_min_notice_hours: 2,
-      booking_max_concurrent: 1
+      booking_max_concurrent: 1,
+      owner_cell_number: ''
     };
 
     if (!settings) {
@@ -3847,7 +4034,7 @@ app.put('/api/shop-settings', (req, res) => {
           tax_rate = ?, default_labor_rate = ?, zip_code = ?, default_parts_markup = ?, admin_notification_email = ?, 
           daily_capacity_hours = ?, google_review_url = ?, local_access_url = ?,
           booking_open_time = ?, booking_close_time = ?, booking_slot_minutes = ?, booking_days_closed = ?,
-          booking_min_notice_hours = ?, booking_max_concurrent = ?
+          booking_min_notice_hours = ?, booking_max_concurrent = ?, owner_cell_number = ?
       WHERE user_id = ?
     `);
 
@@ -3856,7 +4043,7 @@ app.put('/api/shop-settings', (req, res) => {
       updatedData.tax_rate, updatedData.default_labor_rate, updatedData.zip_code, updatedData.default_parts_markup, updatedData.admin_notification_email,
       updatedData.daily_capacity_hours, updatedData.google_review_url, updatedData.local_access_url,
       updatedData.booking_open_time, updatedData.booking_close_time, updatedData.booking_slot_minutes, updatedData.booking_days_closed,
-      updatedData.booking_min_notice_hours, updatedData.booking_max_concurrent,
+      updatedData.booking_min_notice_hours, updatedData.booking_max_concurrent, updatedData.owner_cell_number,
       userId
     );
 
@@ -6254,8 +6441,9 @@ app.delete('/api/receipts/:id', (req, res) => {
 // --- SMS / TEXTS CENTER ---
 // Powers the Texts page. Logging happens inside backend/sms.js's sendSms() itself
 // (every attempt is written to sms_messages regardless of success/failure/not-
-// configured), so these routes are just reading that log back out, plus one route
-// for firing a manual send.
+// configured), and inbound texts are logged by the /api/webhooks/sms Twilio
+// webhook above — these routes read that log back out (split into inbox/sent/
+// trash + a separate private-contacts view) plus manual send/trash/read actions.
 
 // GET /api/sms/status - whether Twilio is actually configured yet on this server
 app.get('/api/sms/status', (req, res) => {
@@ -6263,15 +6451,17 @@ app.get('/api/sms/status', (req, res) => {
   res.json({ configured: isSmsConfigured() });
 });
 
-// GET /api/sms-messages - full message log, newest first, joined with customer name.
-// The Texts page groups these client-side into per-customer conversation threads.
+// GET /api/sms-messages - the regular (non-private, non-trashed) message log,
+// newest first, joined with customer name. private_contact_id rows are
+// deliberately excluded here — that's what keeps private contacts out of the
+// normal Texts view — see GET /api/sms-messages/private below.
 app.get('/api/sms-messages', (req, res) => {
   try {
     const rows = db.prepare(`
       SELECT m.*, c.name as customer_name
       FROM sms_messages m
       LEFT JOIN customers c ON m.customer_id = c.id
-      WHERE m.user_id = ?
+      WHERE m.user_id = ? AND m.private_contact_id IS NULL AND m.deleted_at IS NULL
       ORDER BY m.created_at DESC
       LIMIT 1000
     `).all(req.user.id);
@@ -6279,6 +6469,46 @@ app.get('/api/sms-messages', (req, res) => {
   } catch (error) {
     console.error('Error fetching sms messages:', error);
     res.status(500).json({ error: 'Database error fetching sms messages' });
+  }
+});
+
+// GET /api/sms-messages/private - private-contact conversations only, same shape
+// as the regular log, joined with private_contacts.name instead of customer name.
+app.get('/api/sms-messages/private', (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT m.*, pc.name as private_contact_name
+      FROM sms_messages m
+      LEFT JOIN private_contacts pc ON m.private_contact_id = pc.id
+      WHERE m.user_id = ? AND m.private_contact_id IS NOT NULL AND m.deleted_at IS NULL
+      ORDER BY m.created_at DESC
+      LIMIT 1000
+    `).all(req.user.id);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching private sms messages:', error);
+    res.status(500).json({ error: 'Database error fetching private sms messages' });
+  }
+});
+
+// GET /api/sms-messages/trash - trashed messages from BOTH regular and private
+// conversations, newest first. The frontend tells the two apart via
+// private_contact_id being set or not, same as everywhere else.
+app.get('/api/sms-messages/trash', (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT m.*, c.name as customer_name, pc.name as private_contact_name
+      FROM sms_messages m
+      LEFT JOIN customers c ON m.customer_id = c.id
+      LEFT JOIN private_contacts pc ON m.private_contact_id = pc.id
+      WHERE m.user_id = ? AND m.deleted_at IS NOT NULL
+      ORDER BY m.deleted_at DESC
+      LIMIT 1000
+    `).all(req.user.id);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching trashed sms messages:', error);
+    res.status(500).json({ error: 'Database error fetching trashed sms messages' });
   }
 });
 
@@ -6290,7 +6520,7 @@ app.get('/api/sms-messages/customer/:customerId', (req, res) => {
       SELECT m.*, c.name as customer_name
       FROM sms_messages m
       LEFT JOIN customers c ON m.customer_id = c.id
-      WHERE m.user_id = ? AND m.customer_id = ?
+      WHERE m.user_id = ? AND m.customer_id = ? AND m.deleted_at IS NULL
       ORDER BY m.created_at ASC
     `).all(req.user.id, customerId);
     res.json(rows);
@@ -6300,12 +6530,31 @@ app.get('/api/sms-messages/customer/:customerId', (req, res) => {
   }
 });
 
+// GET /api/sms-messages/private-contact/:contactId - one private contact's full thread
+app.get('/api/sms-messages/private-contact/:contactId', (req, res) => {
+  try {
+    const { contactId } = req.params;
+    const rows = db.prepare(`
+      SELECT m.*, pc.name as private_contact_name
+      FROM sms_messages m
+      LEFT JOIN private_contacts pc ON m.private_contact_id = pc.id
+      WHERE m.user_id = ? AND m.private_contact_id = ? AND m.deleted_at IS NULL
+      ORDER BY m.created_at ASC
+    `).all(req.user.id, contactId);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching private sms thread:', error);
+    res.status(500).json({ error: 'Database error fetching private sms thread' });
+  }
+});
+
 // POST /api/sms-messages/send - manual one-off text from the Texts page.
-// Body: { customer_id, phone, body } - phone is looked up from the customer record
-// if not passed explicitly.
+// Body: { customer_id, private_contact_id, phone, body } - exactly one of
+// customer_id / private_contact_id / phone should be set; phone is looked up
+// from the customer or private contact record if not passed explicitly.
 app.post('/api/sms-messages/send', async (req, res) => {
   try {
-    const { customer_id, phone, body } = req.body;
+    const { customer_id, private_contact_id, phone, body } = req.body;
     if (!body || !body.trim()) return res.status(400).json({ error: 'Message body is required' });
 
     let toPhone = phone;
@@ -6313,11 +6562,19 @@ app.post('/api/sms-messages/send', async (req, res) => {
       const customer = db.prepare('SELECT phone FROM customers WHERE id = ? AND user_id = ?').get(customer_id, req.user.id);
       toPhone = customer ? customer.phone : null;
     }
-    if (!toPhone) return res.status(400).json({ error: 'No destination phone number — provide phone or a customer_id with a phone on file' });
+    if (!toPhone && private_contact_id) {
+      const contact = db.prepare('SELECT phone FROM private_contacts WHERE id = ? AND user_id = ?').get(private_contact_id, req.user.id);
+      toPhone = contact ? contact.phone : null;
+    }
+    if (!toPhone) return res.status(400).json({ error: 'No destination phone number — provide phone, a customer_id, or a private_contact_id with a phone on file' });
 
     if (customer_id) {
       const ownedCustomer = db.prepare('SELECT id FROM customers WHERE id = ? AND user_id = ?').get(customer_id, req.user.id);
       if (!ownedCustomer) return res.status(400).json({ error: 'Invalid or unauthorized customer_id' });
+    }
+    if (private_contact_id) {
+      const ownedContact = db.prepare('SELECT id FROM private_contacts WHERE id = ? AND user_id = ?').get(private_contact_id, req.user.id);
+      if (!ownedContact) return res.status(400).json({ error: 'Invalid or unauthorized private_contact_id' });
     }
 
     const { sendSms } = require('./sms');
@@ -6334,10 +6591,22 @@ app.post('/api/sms-messages/send', async (req, res) => {
       console.error('[Texts] Manual send failed:', smsErr);
     }
 
+    // sendSms() (backend/sms.js) doesn't know about private_contact_id — it only
+    // accepts the fields already documented in its meta param — so the just-
+    // logged row is stamped with it here as a follow-up UPDATE rather than
+    // threading a new param through sms.js for a single caller.
+    if (private_contact_id) {
+      db.prepare(`
+        UPDATE sms_messages SET private_contact_id = ?
+        WHERE id = (SELECT id FROM sms_messages WHERE user_id = ? AND phone = ? ORDER BY id DESC LIMIT 1)
+      `).run(private_contact_id, req.user.id, toPhone);
+    }
+
     const logged = db.prepare(`
-      SELECT m.*, c.name as customer_name
+      SELECT m.*, c.name as customer_name, pc.name as private_contact_name
       FROM sms_messages m
       LEFT JOIN customers c ON m.customer_id = c.id
+      LEFT JOIN private_contacts pc ON m.private_contact_id = pc.id
       WHERE m.user_id = ? AND m.phone = ?
       ORDER BY m.id DESC LIMIT 1
     `).get(req.user.id, toPhone);
@@ -6348,6 +6617,198 @@ app.post('/api/sms-messages/send', async (req, res) => {
     res.status(500).json({ error: 'Database error sending sms' });
   }
 });
+
+// POST /api/sms-messages/mark-read - marks every message in one conversation as
+// read. Body: { customer_id } or { private_contact_id } or { phone } - whichever
+// key the conversation was grouped by client-side.
+app.post('/api/sms-messages/mark-read', (req, res) => {
+  try {
+    const { customer_id, private_contact_id, phone } = req.body;
+    let info;
+    if (customer_id) {
+      info = db.prepare('UPDATE sms_messages SET is_read = 1 WHERE user_id = ? AND customer_id = ?').run(req.user.id, customer_id);
+    } else if (private_contact_id) {
+      info = db.prepare('UPDATE sms_messages SET is_read = 1 WHERE user_id = ? AND private_contact_id = ?').run(req.user.id, private_contact_id);
+    } else if (phone) {
+      info = db.prepare('UPDATE sms_messages SET is_read = 1 WHERE user_id = ? AND phone = ? AND customer_id IS NULL AND private_contact_id IS NULL').run(req.user.id, phone);
+    } else {
+      return res.status(400).json({ error: 'One of customer_id, private_contact_id, or phone is required' });
+    }
+    res.json({ success: true, changes: info.changes });
+  } catch (error) {
+    console.error('Error marking sms thread read:', error);
+    res.status(500).json({ error: 'Database error marking sms thread read' });
+  }
+});
+
+// POST /api/sms-messages/:id/trash - soft-delete one message (same pattern as
+// POST /api/emails/:type/:id/trash)
+app.post('/api/sms-messages/:id/trash', (req, res) => {
+  try {
+    const info = db.prepare(`UPDATE sms_messages SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`).run(req.params.id, req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Message not found' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error trashing sms message:', error);
+    res.status(500).json({ error: 'Database error trashing sms message' });
+  }
+});
+
+// POST /api/sms-messages/:id/restore - undo a trash
+app.post('/api/sms-messages/:id/restore', (req, res) => {
+  try {
+    const info = db.prepare(`UPDATE sms_messages SET deleted_at = NULL WHERE id = ? AND user_id = ?`).run(req.params.id, req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Message not found' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error restoring sms message:', error);
+    res.status(500).json({ error: 'Database error restoring sms message' });
+  }
+});
+
+// DELETE /api/sms-messages/trash/empty - permanently delete every trashed
+// message for the current user. Registered before any generic /:id route could
+// swallow "trash" as an :id param.
+app.delete('/api/sms-messages/trash/empty', (req, res) => {
+  try {
+    const info = db.prepare('DELETE FROM sms_messages WHERE user_id = ? AND deleted_at IS NOT NULL').run(req.user.id);
+    res.json({ success: true, deleted: info.changes });
+  } catch (error) {
+    console.error('Error emptying sms trash:', error);
+    res.status(500).json({ error: 'Database error emptying sms trash' });
+  }
+});
+
+// --- PRIVATE CONTACTS ---
+// A rolodex deliberately isolated from `customers` — see the table comment
+// near its CREATE TABLE above. Plain CRUD, no linkage to jobs/vehicles/funnels
+// anywhere in these routes on purpose.
+
+app.get('/api/private-contacts', (req, res) => {
+  try {
+    const rows = db.prepare('SELECT * FROM private_contacts WHERE user_id = ? ORDER BY name COLLATE NOCASE ASC').all(req.user.id);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching private contacts:', error);
+    res.status(500).json({ error: 'Database error fetching private contacts' });
+  }
+});
+
+app.post('/api/private-contacts', (req, res) => {
+  try {
+    const { name, phone, notes } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+    if (!phone || !phone.trim()) return res.status(400).json({ error: 'Phone is required' });
+    const info = db.prepare('INSERT INTO private_contacts (user_id, name, phone, notes) VALUES (?, ?, ?, ?)').run(req.user.id, name.trim(), phone.trim(), notes || null);
+    const inserted = db.prepare('SELECT * FROM private_contacts WHERE id = ?').get(info.lastInsertRowid);
+    res.json(inserted);
+  } catch (error) {
+    console.error('Error creating private contact:', error);
+    res.status(500).json({ error: 'Database error creating private contact' });
+  }
+});
+
+app.put('/api/private-contacts/:id', (req, res) => {
+  try {
+    const { name, phone, notes } = req.body;
+    const existing = db.prepare('SELECT * FROM private_contacts WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    if (!existing) return res.status(404).json({ error: 'Private contact not found' });
+    db.prepare('UPDATE private_contacts SET name = ?, phone = ?, notes = ? WHERE id = ? AND user_id = ?').run(
+      name !== undefined ? name : existing.name,
+      phone !== undefined ? phone : existing.phone,
+      notes !== undefined ? notes : existing.notes,
+      req.params.id,
+      req.user.id
+    );
+    const updated = db.prepare('SELECT * FROM private_contacts WHERE id = ?').get(req.params.id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating private contact:', error);
+    res.status(500).json({ error: 'Database error updating private contact' });
+  }
+});
+
+app.delete('/api/private-contacts/:id', (req, res) => {
+  try {
+    const info = db.prepare('DELETE FROM private_contacts WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Private contact not found' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting private contact:', error);
+    res.status(500).json({ error: 'Database error deleting private contact' });
+  }
+});
+
+// --- CALL BRIDGE ---
+// Powers the "Call" button in Texts (both regular and private conversations).
+// Browsers can't place a real phone call on their own, and a full WebRTC
+// (Twilio Voice SDK) integration is a much bigger add than this app needs —
+// instead this uses Twilio's REST Calls API to bridge two real phone calls:
+// Twilio calls the owner's own cell (shop_settings.owner_cell_number) first,
+// and the instant that's answered, TwiML tells Twilio to dial the actual
+// contact and connect the two legs — functionally identical to a normal
+// outbound call from the owner's perspective, no browser microphone/WebRTC
+// involved. Requires TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_PHONE_NUMBER
+// (same as texting) AND owner_cell_number set in Settings — if the number
+// doesn't support Voice (a small fraction of Twilio numbers are SMS-only),
+// this will fail with a clear Twilio error surfaced back to the UI.
+
+// In-memory map of short-lived, single-use call tokens -> the phone number to
+// dial once the owner answers. Same "in-memory job map, cleaned up after a
+// timeout" pattern already used for compressJobs (video reformat). Never
+// persisted — a call token is meaningless outside the ~5 minutes it takes to
+// actually place one call.
+const pendingCallBridges = new Map();
+const CALL_BRIDGE_TTL_MS = 5 * 60 * 1000;
+
+app.post('/api/calls/bridge', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone || !phone.trim()) return res.status(400).json({ error: 'A phone number to call is required' });
+
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+    if (!accountSid || !authToken || !fromNumber) {
+      return res.status(400).json({ error: 'Twilio is not configured yet (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_PHONE_NUMBER).' });
+    }
+
+    const settings = db.prepare('SELECT owner_cell_number FROM shop_settings WHERE user_id = ?').get(req.user.id);
+    const ownerCell = settings && settings.owner_cell_number && settings.owner_cell_number.trim();
+    if (!ownerCell) {
+      return res.status(400).json({ error: 'Add your own cell number in Settings first — that\'s the number Twilio calls to bridge you to the contact.' });
+    }
+
+    const token = require('crypto').randomUUID();
+    pendingCallBridges.set(token, phone.trim());
+    setTimeout(() => pendingCallBridges.delete(token), CALL_BRIDGE_TTL_MS);
+
+    const twimlUrl = `${PUBLIC_APP_BASE_URL.replace(/\/$/, '')}/api/calls/twiml/${token}`;
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json`;
+    const params = new URLSearchParams({ To: ownerCell, From: fromNumber, Url: twimlUrl });
+    const basicAuth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Authorization': `Basic ${basicAuth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      pendingCallBridges.delete(token);
+      console.error('[Call Bridge] Twilio call create failed:', data);
+      return res.status(400).json({ error: data.message || `Twilio call failed with status ${response.status}` });
+    }
+
+    console.log(`[Call Bridge] Calling owner cell to bridge to ${phone}, Twilio call SID ${data.sid}`);
+    res.json({ success: true, sid: data.sid });
+  } catch (error) {
+    console.error('Error placing bridge call:', error);
+    res.status(500).json({ error: 'Server error placing call' });
+  }
+});
+
 
 // --- EMAIL CENTER ---
 
