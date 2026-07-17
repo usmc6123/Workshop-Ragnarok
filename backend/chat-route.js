@@ -1,10 +1,23 @@
 // chat-route.js
 //
-// Cooper & Roscoe shop assistant — Gemini API version. CRM tools (customers,
-// jobs, appointments, parts) plus live browsing of the full 304,923-vehicle
-// manual library via your existing /api/page route. The app's own User
-// Guide is baked in below (APP_USER_GUIDE) so the bot can answer "how do I
-// use this app" questions, not just data lookups.
+// Cooper & Roscoe shop assistant — Gemini API version. Full CRM tool access
+// (customers, vehicles, jobs, appointments, inventory, service history,
+// receipts, payments, tags/segments, texts/private contacts, and shop
+// settings — read AND write, but never delete) plus live browsing of the
+// full 304,923-vehicle manual library via your existing /api/page route.
+// The app's own User Guide is baked in below (APP_USER_GUIDE) so the bot
+// can answer "how do I use this app" questions, not just data lookups.
+//
+// 2026-07-17 upgrade: broadened tool coverage across every major data
+// domain in the app (previously customers/jobs/appointments/parts/manuals
+// only). The manual-browsing tools (find_vehicle_manual, browse_manual) and
+// their related SYSTEM_PROMPT instructions were deliberately left untouched
+// — that path already works correctly and this upgrade doesn't change it.
+// New tools follow the same two ground rules the original write tools
+// already established: every query is scoped to the caller's own userId,
+// and nothing added here can delete a record — only create, append, or
+// update existing fields (e.g. correcting a customer's phone number,
+// adjusting inventory stock with a logged reason, changing a job's status).
 //
 // SETUP:
 //   npm install @google/genai
@@ -102,6 +115,9 @@ Table of Contents
 16 Quick Reference & Tips
    Shortcuts and habits that save time
 
+17 Using Texts & Private Contacts
+   Two-way SMS, Inbox/Sent/Trash, and a separate personal contact list
+
 ---
 
 SECTION 01
@@ -133,6 +149,8 @@ WHERE: workshop.homeslab.uk
  Manual Library                 Browse and search factory service manuals by vehicle
 
  Garage                         Vehicles you've saved for quick access
+
+ Texts                          Two-way SMS with customers, plus a separate Private Contacts list
 
  Settings                       Shop branding, tax rate, labor rate, and admin/user management
 
@@ -576,6 +594,42 @@ Quick Reference & Tips
 
   For architecture, backups, troubleshooting, and admin-level details, see the companion "Complete System Manual" document.
 
+---
+
+SECTION 17
+
+Using Texts & Private Contacts
+
+WHERE: Texts tab
+
+1     Open the Texts tab
+      to see five sub-tabs: Conversations, Inbox, Sent, Trash, and Private.
+
+2     Conversations
+      is the main merged view — every text with a customer, sent or received, threaded together like a normal texting app.
+
+3     Inbox
+      shows only received texts, with an unread badge in the tab bar so you can see at a glance if a customer has replied.
+
+4     Sent
+      is a flat, non-threaded log of every outbound text — reminders, ready-for-pickup alerts, funnel leads, and manual sends.
+
+5     Trash
+      holds anything deleted from Conversations, Inbox, or Sent — restore it individually or use Empty Trash to clear everything.
+
+6     Private
+      is a completely separate rolodex, kept apart from the Customers list on purpose — Add Contact to create one, then tap it to
+      text or call. Nothing here ever links to a job, vehicle, or funnel.
+
+7     Call button
+      appears next to a conversation once Twilio is connected — it rings your own cell first (set under Settings → Your Cell
+      Number), then bridges you to the contact the moment you pick up.
+
+    GOOD TO KNOW
+
+    Two-way texting requires the Twilio phone number's inbound webhook to be configured — see the companion "Complete System
+    Manual" document for the exact setup steps. Until then, texts still send fine, but customer replies won't come in.
+
 ---`;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -617,12 +671,30 @@ add vehicles to existing customers, and book appointments.
 
 You can additionally look up inventory/parts stock, the shop's profile
 settings (tax rate, labor rate, branding), Stripe payment/transaction
-history, and past sent/received email correspondence — and you can jot a
-note onto an existing customer or job record, or add a brand-new part to
-inventory. All data you look up or change is scoped to Josh's own shop
-only; you never see or touch another shop's records. Mention these
-abilities proactively when they're relevant to what someone's asking,
-even if they didn't ask for them by name.
+history, past sent/received email correspondence, a vehicle's separate
+service history log, scanned supplier receipts, customer tags/segments,
+and a quick shop-wide stats snapshot (active jobs, revenue this month,
+unpaid jobs, low stock, upcoming appointments). You can also send a text
+message on the shop's behalf (to a customer, a private contact, or a raw
+number) and look up recent text conversations, and manage the separate
+Private Contacts list (personal contacts kept deliberately apart from the
+Customers CRM).
+
+Beyond creating records and jotting notes, you can also UPDATE existing
+ones: change a job's status or details (description, labor cost/hours,
+priority, estimated completion), correct a customer's phone/email/address,
+update a vehicle's mileage/VIN/color, reschedule an appointment's date or
+time, adjust inventory stock up or down with a logged reason, edit an
+inventory item's price/threshold/location, and generate a job's
+customer-facing payment portal link. You do NOT have permission to delete
+anything, ever — no customers, jobs, appointments, inventory, texts, or
+any other record. If asked to delete something, say plainly that you're
+not able to and the user needs to do it themselves in the app.
+
+All data you look up or change is scoped to Josh's own shop only; you
+never see or touch another shop's records. Mention these abilities
+proactively when they're relevant to what someone's asking, even if they
+didn't ask for them by name.
 
 You also have the app's own User Guide memorized below — use it to answer
 "how do I..." or "where do I find..." questions about USING THE APP ITSELF
@@ -638,10 +710,12 @@ ${APP_USER_GUIDE}
 When creating or booking something, confirm back to the user in plain language
 what you did (e.g. "Added a 2019 Toyota Tacoma to John Doe's account" or
 "Booked an appointment for Sarah Connor's Caprice on 2026-07-10 at 09:00").
-If create_vehicle or create_appointment returns an "ambiguous" result with
-multiple matches, list the options clearly and ask the user to pick one
-before trying again — never guess which one they meant. The same applies
-to add_customer_note when it matches more than one customer by name.
+If a tool returns an "ambiguous" result with multiple matches (this can
+happen on any tool that looks someone up by name — create_vehicle,
+create_appointment, add_customer_note, update_customer_contact_info,
+tag_customer, send_text_message, adjust_inventory_stock,
+update_inventory_item, and others), list the options clearly and ask the
+user to pick one before trying again — never guess which one they meant.
 
 For manual questions: first call find_vehicle_manual to get the vehicle's
 uriPath, then call browse_manual with that uriPath to get its table of contents.
@@ -905,6 +979,219 @@ const functionDeclarations = [
       },
       required: ['name'],
     },
+  },
+
+  // ---- 2026-07-17 upgrade: broader tool coverage across the rest of the ----
+  // ---- app. Same rules as above — read tools are unrestricted, write tools ----
+  // ---- can create/append/update but never delete. Manual-browsing tools ----
+  // ---- (find_vehicle_manual, browse_manual, above) are untouched. ----
+
+  {
+    name: 'send_text_message',
+    description: "Send a text message via the shop's Twilio number. Provide exactly one of customer_name, private_contact_name, or phone to identify the recipient.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        customer_name: { type: Type.STRING },
+        private_contact_name: { type: Type.STRING },
+        phone: { type: Type.STRING },
+        body: { type: Type.STRING },
+      },
+      required: ['body'],
+    },
+  },
+  {
+    name: 'search_texts',
+    description: 'Search recent text messages (Conversations + Private, excludes Trash) by customer name, private contact name, phone, or message content.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: { query: { type: Type.STRING } },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'list_private_contacts',
+    description: 'List or search the Private Contacts rolodex (personal contacts kept separate from Customers) by name.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: { name: { type: Type.STRING } },
+    },
+  },
+  {
+    name: 'add_private_contact',
+    description: 'Add a new Private Contact — completely separate from the Customers list.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        name: { type: Type.STRING },
+        phone: { type: Type.STRING },
+        notes: { type: Type.STRING },
+      },
+      required: ['name', 'phone'],
+    },
+  },
+  {
+    name: 'update_job_status',
+    description: "Change an existing job's status (e.g. Pending, In Progress, Completed).",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        job_id: { type: Type.INTEGER },
+        status: { type: Type.STRING },
+      },
+      required: ['job_id', 'status'],
+    },
+  },
+  {
+    name: 'update_job_details',
+    description: "Update fields on an existing job ticket. Only pass the fields you want to change — anything omitted stays as-is.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        job_id: { type: Type.INTEGER },
+        description: { type: Type.STRING },
+        estimated_completion: { type: Type.STRING, description: 'YYYY-MM-DD' },
+        labor_cost: { type: Type.NUMBER },
+        estimated_hours: { type: Type.NUMBER },
+        priority: { type: Type.STRING, description: 'e.g. Standard, Rush' },
+        mileage_at_intake: { type: Type.INTEGER },
+      },
+      required: ['job_id'],
+    },
+  },
+  {
+    name: 'generate_job_portal_link',
+    description: "Generate (or fetch the existing) customer-facing payment portal link for a job, so the customer can pay online.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: { job_id: { type: Type.INTEGER } },
+      required: ['job_id'],
+    },
+  },
+  {
+    name: 'update_customer_contact_info',
+    description: "Correct or update a customer's phone, email, and/or address. Only pass the fields you want to change.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        customer_name: { type: Type.STRING },
+        phone: { type: Type.STRING },
+        email: { type: Type.STRING },
+        address: { type: Type.STRING },
+      },
+      required: ['customer_name'],
+    },
+  },
+  {
+    name: 'tag_customer',
+    description: 'Apply a tag to a customer (creates the tag first if it does not already exist).',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        customer_name: { type: Type.STRING },
+        tag_name: { type: Type.STRING },
+      },
+      required: ['customer_name', 'tag_name'],
+    },
+  },
+  {
+    name: 'list_tags',
+    description: 'List every tag the shop has defined.',
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: 'update_vehicle_details',
+    description: "Update fields on an existing customer's vehicle (e.g. correct mileage, VIN, color, engine, notes). Only pass the fields you want to change.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        vehicle_id: { type: Type.INTEGER },
+        current_mileage: { type: Type.INTEGER },
+        vin: { type: Type.STRING },
+        color: { type: Type.STRING },
+        engine: { type: Type.STRING },
+        notes: { type: Type.STRING },
+      },
+      required: ['vehicle_id'],
+    },
+  },
+  {
+    name: 'reschedule_appointment',
+    description: "Change an existing appointment's date, time, duration, and/or notes. Only pass the fields you want to change.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        appointment_id: { type: Type.INTEGER },
+        date: { type: Type.STRING, description: 'YYYY-MM-DD' },
+        time: { type: Type.STRING, description: 'HH:MM, 24-hour' },
+        duration_minutes: { type: Type.INTEGER },
+        notes: { type: Type.STRING },
+      },
+      required: ['appointment_id'],
+    },
+  },
+  {
+    name: 'adjust_inventory_stock',
+    description: "Adjust an inventory item's quantity on hand up or down by a delta amount, with a logged reason (e.g. 'used on job #42', 'received shipment', 'inventory correction'). Provide item_id or item_name.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        item_id: { type: Type.INTEGER },
+        item_name: { type: Type.STRING },
+        delta: { type: Type.INTEGER, description: 'Positive to add stock, negative to remove.' },
+        reason: { type: Type.STRING },
+      },
+      required: ['delta', 'reason'],
+    },
+  },
+  {
+    name: 'update_inventory_item',
+    description: "Update an existing inventory item's price, reorder threshold, location, supplier, category, or part number. Only pass the fields you want to change. Provide item_id or item_name.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        item_id: { type: Type.INTEGER },
+        item_name: { type: Type.STRING },
+        cost_price: { type: Type.NUMBER },
+        sell_price: { type: Type.NUMBER },
+        reorder_threshold: { type: Type.INTEGER },
+        location: { type: Type.STRING },
+        supplier_name: { type: Type.STRING },
+        category: { type: Type.STRING },
+        part_number: { type: Type.STRING },
+      },
+    },
+  },
+  {
+    name: 'get_service_history',
+    description: "Get a vehicle's separate service history log (distinct from get_vehicle_history's job records) — past service dates, mileage, parts used, cost, and technician.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: { vehicle_id: { type: Type.INTEGER } },
+      required: ['vehicle_id'],
+    },
+  },
+  {
+    name: 'search_receipts',
+    description: 'Search scanned supplier receipts/invoices by supplier name and/or date range.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        supplier_name: { type: Type.STRING },
+        start_date: { type: Type.STRING, description: 'YYYY-MM-DD' },
+        end_date: { type: Type.STRING, description: 'YYYY-MM-DD' },
+      },
+    },
+  },
+  {
+    name: 'list_segments',
+    description: 'List saved customer segments (filtered customer groups used for targeted marketing/automations).',
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: 'get_dashboard_stats',
+    description: 'Get a quick shop-wide snapshot: total customers/vehicles, active jobs, jobs completed this month, revenue this month, unpaid jobs, low-stock item count, and appointments in the next 7 days.',
+    parameters: { type: Type.OBJECT, properties: {} },
   },
 ];
 
@@ -1215,6 +1502,265 @@ async function runTool(name, input, userId, authHeader) {
           input.supplier_name || null, input.location || null, userId
         );
       return db.prepare(`SELECT * FROM inventory_items WHERE id = ? AND user_id = ?`).get(info.lastInsertRowid, userId);
+    }
+
+    // ---- 2026-07-17 upgrade: new tool implementations. Same rules as the ----
+    // ---- existing write tools above — every query scoped to userId, and ----
+    // ---- nothing here can delete a record. ----
+
+    case 'send_text_message': {
+      const { sendSms } = require('./sms');
+      let toPhone = input.phone || null;
+      let customerId = null;
+      let privateContactId = null;
+
+      if (!toPhone && input.customer_name) {
+        const matches = db.prepare(`SELECT id, name, phone FROM customers WHERE user_id = ? AND name LIKE ?`).all(userId, `%${input.customer_name}%`);
+        if (matches.length === 0) return { error: `No customer found matching "${input.customer_name}".` };
+        if (matches.length > 1) return { ambiguous: true, matches, message: 'Multiple customers matched — ask which one.' };
+        if (!matches[0].phone) return { error: `${matches[0].name} has no phone number on file.` };
+        toPhone = matches[0].phone;
+        customerId = matches[0].id;
+      }
+
+      if (!toPhone && input.private_contact_name) {
+        const matches = db.prepare(`SELECT id, name, phone FROM private_contacts WHERE user_id = ? AND name LIKE ?`).all(userId, `%${input.private_contact_name}%`);
+        if (matches.length === 0) return { error: `No private contact found matching "${input.private_contact_name}".` };
+        if (matches.length > 1) return { ambiguous: true, matches, message: 'Multiple private contacts matched — ask which one.' };
+        toPhone = matches[0].phone;
+        privateContactId = matches[0].id;
+      }
+
+      if (!toPhone) return { error: 'Provide a customer_name, private_contact_name, or a raw phone number to text.' };
+
+      try {
+        await sendSms({ to: toPhone, body: input.body }, { userId, customerId, triggerType: 'manual' });
+      } catch (smsErr) {
+        return { error: smsErr.message || 'Failed to send text — Twilio may not be configured yet.' };
+      }
+      if (privateContactId) {
+        db.prepare(`
+          UPDATE sms_messages SET private_contact_id = ?
+          WHERE id = (SELECT id FROM sms_messages WHERE user_id = ? AND phone = ? ORDER BY id DESC LIMIT 1)
+        `).run(privateContactId, userId, toPhone);
+      }
+      return { success: true, to: toPhone };
+    }
+
+    case 'search_texts': {
+      const q = `%${input.query || ''}%`;
+      return db.prepare(`
+        SELECT m.id, m.phone, m.body, m.direction, m.status, m.created_at,
+               c.name AS customer_name, pc.name AS private_contact_name
+        FROM sms_messages m
+        LEFT JOIN customers c ON m.customer_id = c.id
+        LEFT JOIN private_contacts pc ON m.private_contact_id = pc.id
+        WHERE m.user_id = ? AND m.deleted_at IS NULL
+          AND (c.name LIKE ? OR pc.name LIKE ? OR m.phone LIKE ? OR m.body LIKE ?)
+        ORDER BY m.created_at DESC LIMIT 20
+      `).all(userId, q, q, q, q);
+    }
+
+    case 'list_private_contacts': {
+      let query = `SELECT id, name, phone, notes FROM private_contacts WHERE user_id = ?`;
+      const params = [userId];
+      if (input.name) { query += ` AND name LIKE ?`; params.push(`%${input.name}%`); }
+      query += ` ORDER BY name ASC LIMIT 30`;
+      return db.prepare(query).all(...params);
+    }
+
+    case 'add_private_contact': {
+      const info = db.prepare(`INSERT INTO private_contacts (user_id, name, phone, notes) VALUES (?, ?, ?, ?)`)
+        .run(userId, input.name, input.phone, input.notes || null);
+      return db.prepare(`SELECT * FROM private_contacts WHERE id = ?`).get(info.lastInsertRowid);
+    }
+
+    case 'update_job_status': {
+      const job = db.prepare(`SELECT id FROM jobs WHERE user_id = ? AND id = ?`).get(userId, input.job_id);
+      if (!job) return { error: 'Job not found for this account.' };
+      db.prepare(`UPDATE jobs SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`).run(input.status, input.job_id, userId);
+      return db.prepare(`SELECT id, description, status FROM jobs WHERE id = ? AND user_id = ?`).get(input.job_id, userId);
+    }
+
+    case 'update_job_details': {
+      const job = db.prepare(`SELECT id FROM jobs WHERE user_id = ? AND id = ?`).get(userId, input.job_id);
+      if (!job) return { error: 'Job not found for this account.' };
+      const fields = ['description', 'estimated_completion', 'labor_cost', 'estimated_hours', 'priority', 'mileage_at_intake'];
+      const sets = [];
+      const params = [];
+      for (const f of fields) {
+        if (input[f] !== undefined) { sets.push(`${f} = ?`); params.push(input[f]); }
+      }
+      if (sets.length === 0) return { error: 'No fields provided to update.' };
+      params.push(input.job_id, userId);
+      db.prepare(`UPDATE jobs SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`).run(...params);
+      return db.prepare(`SELECT * FROM jobs WHERE id = ? AND user_id = ?`).get(input.job_id, userId);
+    }
+
+    case 'generate_job_portal_link': {
+      const job = db.prepare(`SELECT id, portal_token FROM jobs WHERE id = ? AND user_id = ?`).get(input.job_id, userId);
+      if (!job) return { error: 'Job not found for this account.' };
+      let token = job.portal_token;
+      if (!token) {
+        token = require('crypto').randomUUID();
+        db.prepare(`UPDATE jobs SET portal_token = ?, portal_token_created_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`).run(token, input.job_id, userId);
+      }
+      const baseUrl = process.env.APP_BASE_URL || 'https://workshop.homeslab.uk';
+      return { portal_url: `${baseUrl.replace(/\/$/, '')}/portal/${token}` };
+    }
+
+    case 'update_customer_contact_info': {
+      const matches = db.prepare(`SELECT id, name FROM customers WHERE user_id = ? AND name LIKE ?`).all(userId, `%${input.customer_name}%`);
+      if (matches.length === 0) return { error: `No customer found matching "${input.customer_name}".` };
+      if (matches.length > 1) return { ambiguous: true, matches, message: 'Multiple customers matched — ask which one.' };
+      const fields = ['phone', 'email', 'address'];
+      const sets = [];
+      const params = [];
+      for (const f of fields) {
+        if (input[f] !== undefined) { sets.push(`${f} = ?`); params.push(input[f]); }
+      }
+      if (sets.length === 0) return { error: 'Provide at least one of phone, email, or address to update.' };
+      params.push(matches[0].id, userId);
+      db.prepare(`UPDATE customers SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`).run(...params);
+      return db.prepare(`SELECT id, name, phone, email, address FROM customers WHERE id = ? AND user_id = ?`).get(matches[0].id, userId);
+    }
+
+    case 'tag_customer': {
+      const matches = db.prepare(`SELECT id, name FROM customers WHERE user_id = ? AND name LIKE ?`).all(userId, `%${input.customer_name}%`);
+      if (matches.length === 0) return { error: `No customer found matching "${input.customer_name}".` };
+      if (matches.length > 1) return { ambiguous: true, matches, message: 'Multiple customers matched — ask which one.' };
+      let tag = db.prepare(`SELECT id, name FROM tags WHERE user_id = ? AND name = ?`).get(userId, input.tag_name);
+      if (!tag) {
+        const info = db.prepare(`INSERT INTO tags (user_id, name) VALUES (?, ?)`).run(userId, input.tag_name);
+        tag = { id: info.lastInsertRowid, name: input.tag_name };
+      }
+      db.prepare(`INSERT OR IGNORE INTO customer_tags (customer_id, tag_id) VALUES (?, ?)`).run(matches[0].id, tag.id);
+      return { success: true, customer: matches[0].name, tag: tag.name };
+    }
+
+    case 'list_tags': {
+      return db.prepare(`SELECT id, name, color FROM tags WHERE user_id = ? ORDER BY name ASC`).all(userId);
+    }
+
+    case 'update_vehicle_details': {
+      const vehicle = db.prepare(`SELECT id FROM customer_vehicles WHERE user_id = ? AND id = ?`).get(userId, input.vehicle_id);
+      if (!vehicle) return { error: 'Vehicle not found for this account.' };
+      const fields = ['current_mileage', 'vin', 'color', 'engine', 'notes'];
+      const sets = [];
+      const params = [];
+      for (const f of fields) {
+        if (input[f] !== undefined) { sets.push(`${f} = ?`); params.push(input[f]); }
+      }
+      if (sets.length === 0) return { error: 'No fields provided to update.' };
+      params.push(input.vehicle_id, userId);
+      db.prepare(`UPDATE customer_vehicles SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`).run(...params);
+      return db.prepare(`SELECT * FROM customer_vehicles WHERE id = ? AND user_id = ?`).get(input.vehicle_id, userId);
+    }
+
+    case 'reschedule_appointment': {
+      const appt = db.prepare(`SELECT id FROM appointments WHERE user_id = ? AND id = ?`).get(userId, input.appointment_id);
+      if (!appt) return { error: 'Appointment not found for this account.' };
+      const fields = ['date', 'time', 'notes', 'duration_minutes'];
+      const sets = [];
+      const params = [];
+      for (const f of fields) {
+        if (input[f] !== undefined) { sets.push(`${f} = ?`); params.push(input[f]); }
+      }
+      if (sets.length === 0) return { error: 'Provide at least a new date, time, duration, or notes.' };
+      params.push(input.appointment_id, userId);
+      db.prepare(`UPDATE appointments SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`).run(...params);
+      return db.prepare(`SELECT * FROM appointments WHERE id = ? AND user_id = ?`).get(input.appointment_id, userId);
+    }
+
+    case 'adjust_inventory_stock': {
+      let item = null;
+      if (input.item_id) {
+        item = db.prepare(`SELECT id, name, quantity_on_hand FROM inventory_items WHERE user_id = ? AND id = ?`).get(userId, input.item_id);
+      } else if (input.item_name) {
+        const matches = db.prepare(`SELECT id, name, quantity_on_hand FROM inventory_items WHERE user_id = ? AND name LIKE ?`).all(userId, `%${input.item_name}%`);
+        if (matches.length === 0) return { error: `No inventory item found matching "${input.item_name}".` };
+        if (matches.length > 1) return { ambiguous: true, matches, message: 'Multiple items matched — ask which one.' };
+        item = matches[0];
+      }
+      if (!item) return { error: 'Provide item_id or item_name.' };
+      db.prepare(`INSERT INTO inventory_adjustments (item_id, delta, reason, user_id) VALUES (?, ?, ?, ?)`).run(item.id, input.delta, input.reason, userId);
+      db.prepare(`UPDATE inventory_items SET quantity_on_hand = quantity_on_hand + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`).run(input.delta, item.id, userId);
+      return db.prepare(`SELECT * FROM inventory_items WHERE id = ? AND user_id = ?`).get(item.id, userId);
+    }
+
+    case 'update_inventory_item': {
+      let item = null;
+      if (input.item_id) {
+        item = db.prepare(`SELECT id FROM inventory_items WHERE user_id = ? AND id = ?`).get(userId, input.item_id);
+      } else if (input.item_name) {
+        const matches = db.prepare(`SELECT id, name FROM inventory_items WHERE user_id = ? AND name LIKE ?`).all(userId, `%${input.item_name}%`);
+        if (matches.length === 0) return { error: `No inventory item found matching "${input.item_name}".` };
+        if (matches.length > 1) return { ambiguous: true, matches, message: 'Multiple items matched — ask which one.' };
+        item = matches[0];
+      }
+      if (!item) return { error: 'Provide item_id or item_name.' };
+      const fields = ['cost_price', 'sell_price', 'reorder_threshold', 'location', 'supplier_name', 'category', 'part_number'];
+      const sets = [];
+      const params = [];
+      for (const f of fields) {
+        if (input[f] !== undefined) { sets.push(`${f} = ?`); params.push(input[f]); }
+      }
+      if (sets.length === 0) return { error: 'No fields provided to update.' };
+      params.push(item.id, userId);
+      db.prepare(`UPDATE inventory_items SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`).run(...params);
+      return db.prepare(`SELECT * FROM inventory_items WHERE id = ? AND user_id = ?`).get(item.id, userId);
+    }
+
+    case 'get_service_history': {
+      const owned = db.prepare(`SELECT id FROM customer_vehicles WHERE user_id = ? AND id = ?`).get(userId, input.vehicle_id);
+      if (!owned) return { error: 'Vehicle not found for this account.' };
+      return db.prepare(`
+        SELECT id, date, mileage, description, parts_used, cost, technician, notes
+        FROM service_history WHERE user_id = ? AND vehicle_id = ? ORDER BY date DESC
+      `).all(userId, input.vehicle_id);
+    }
+
+    case 'search_receipts': {
+      let query = `SELECT id, supplier_name, invoice_date, linked_import_summary, notes, uploaded_at FROM receipts WHERE user_id = ?`;
+      const params = [userId];
+      if (input.supplier_name) { query += ` AND supplier_name LIKE ?`; params.push(`%${input.supplier_name}%`); }
+      if (input.start_date) { query += ` AND date(invoice_date) >= ?`; params.push(input.start_date); }
+      if (input.end_date) { query += ` AND date(invoice_date) <= ?`; params.push(input.end_date); }
+      query += ` ORDER BY uploaded_at DESC LIMIT 20`;
+      return db.prepare(query).all(...params);
+    }
+
+    case 'list_segments': {
+      return db.prepare(`SELECT id, name, filters_json, created_at FROM segments WHERE user_id = ? ORDER BY name ASC`).all(userId);
+    }
+
+    case 'get_dashboard_stats': {
+      const totalCustomers = db.prepare(`SELECT COUNT(*) AS n FROM customers WHERE user_id = ?`).get(userId).n;
+      const totalVehicles = db.prepare(`SELECT COUNT(*) AS n FROM customer_vehicles WHERE user_id = ?`).get(userId).n;
+      const activeJobs = db.prepare(`SELECT COUNT(*) AS n FROM jobs WHERE user_id = ? AND status NOT IN ('Completed', 'Cancelled')`).get(userId).n;
+      const completedThisMonth = db.prepare(`
+        SELECT COUNT(*) AS n FROM jobs WHERE user_id = ? AND status = 'Completed'
+        AND strftime('%Y-%m', actual_completion) = strftime('%Y-%m', 'now')
+      `).get(userId).n;
+      const revenueThisMonthCents = db.prepare(`
+        SELECT COALESCE(SUM(amount_cents), 0) AS n FROM payments
+        WHERE user_id = ? AND status = 'succeeded' AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')
+      `).get(userId).n;
+      const unpaidJobs = db.prepare(`SELECT COUNT(*) AS n FROM jobs WHERE user_id = ? AND payment_status = 'Unpaid'`).get(userId).n;
+      const lowStock = db.prepare(`SELECT COUNT(*) AS n FROM inventory_items WHERE user_id = ? AND quantity_on_hand <= reorder_threshold`).get(userId).n;
+      const upcomingAppointments = db.prepare(`
+        SELECT COUNT(*) AS n FROM appointments WHERE user_id = ? AND date BETWEEN date('now') AND date('now', '+7 days')
+      `).get(userId).n;
+      return {
+        total_customers: totalCustomers,
+        total_vehicles: totalVehicles,
+        active_jobs: activeJobs,
+        completed_jobs_this_month: completedThisMonth,
+        revenue_this_month: `$${(revenueThisMonthCents / 100).toFixed(2)}`,
+        unpaid_jobs: unpaidJobs,
+        low_stock_items: lowStock,
+        appointments_next_7_days: upcomingAppointments,
+      };
     }
 
     default:
