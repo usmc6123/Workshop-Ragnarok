@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Vehicle } from './types';
 import { api, getApiBase, setApiBase } from './lib/api';
 import Sidebar from './components/Sidebar';
@@ -106,7 +106,7 @@ export default function App() {
     return localStorage.getItem('ragnarok_active_theme') || 'theme-ragnarok';
   });
 
-  const [pageBackgrounds, setPageBackgroundsState] = useState<Record<string, { url: string; opacity: number }>>(() => {
+  const [pageBackgrounds, setPageBackgroundsState] = useState<Record<string, { url: string; opacity: number; playbackRate?: number }>>(() => {
     try {
       const saved = localStorage.getItem('ragnarok_page_backgrounds');
       if (saved) {
@@ -118,10 +118,22 @@ export default function App() {
     return {};
   });
 
-  const setPageBackgrounds = (newBgs: Record<string, { url: string; opacity: number }>) => {
+  const setPageBackgrounds = (newBgs: Record<string, { url: string; opacity: number; playbackRate?: number }>) => {
     setPageBackgroundsState(newBgs);
     localStorage.setItem('ragnarok_page_backgrounds', JSON.stringify(newBgs));
   };
+
+  // Ref for the actual <video> DOM element used for video page backgrounds (see
+  // activeVideoBg further down) — playbackRate isn't a JSX/HTML attribute, it's
+  // a runtime property, so it has to be set imperatively via this ref+effect
+  // instead of just passed as a prop on <video>.
+  const bgVideoRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const bg = pageBackgrounds[view];
+    if (bgVideoRef.current && bg) {
+      bgVideoRef.current.playbackRate = bg.playbackRate ?? 1;
+    }
+  }, [view, pageBackgrounds]);
 
   // Per-page scale state and storage loading
   const [scale, setScale] = useState(100);
@@ -365,6 +377,7 @@ export default function App() {
           <>
             <video
               key={activeVideoBg.url}
+              ref={bgVideoRef}
               autoPlay
               muted
               loop

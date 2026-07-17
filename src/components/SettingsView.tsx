@@ -17,8 +17,8 @@ interface SettingsViewProps {
   activeTheme: string;
   setActiveTheme: (theme: string) => void;
   onSaveAddress: () => void;
-  pageBackgrounds: Record<string, { url: string; opacity: number }>;
-  setPageBackgrounds: (bgs: Record<string, { url: string; opacity: number }>) => void;
+  pageBackgrounds: Record<string, { url: string; opacity: number; playbackRate?: number }>;
+  setPageBackgrounds: (bgs: Record<string, { url: string; opacity: number; playbackRate?: number }>) => void;
 }
 
 export default function SettingsView({
@@ -1070,7 +1070,8 @@ export default function SettingsView({
                   } else {
                     updated[selectedPage.id] = {
                       url,
-                      opacity: bgConfig.opacity ?? 100
+                      opacity: bgConfig.opacity ?? 100,
+                      playbackRate: bgConfig.playbackRate ?? 1
                     };
                   }
                   setPageBackgrounds(updated);
@@ -1092,9 +1093,29 @@ export default function SettingsView({
                   setPageBackgrounds(updated);
                 };
 
-                // Create a temporary media opacity map for MediaField input
+                const handlePlaybackRateChange = (key: string, rateVal: number) => {
+                  const updated = { ...pageBackgrounds };
+                  if (updated[key]) {
+                    updated[key] = {
+                      ...updated[key],
+                      playbackRate: rateVal
+                    };
+                  } else {
+                    updated[key] = {
+                      url: '',
+                      opacity: 100,
+                      playbackRate: rateVal
+                    };
+                  }
+                  setPageBackgrounds(updated);
+                };
+
+                // Create a temporary media opacity/speed map for MediaField input
                 const mediaOpacityMap = {
                   [selectedPage.id]: bgConfig.opacity ?? 100
+                };
+                const mediaPlaybackRateMap = {
+                  [selectedPage.id]: bgConfig.playbackRate ?? 1
                 };
 
                 return (
@@ -1123,7 +1144,11 @@ export default function SettingsView({
                       opacityKey={selectedPage.id}
                       mediaOpacity={mediaOpacityMap}
                       onOpacityChange={handleOpacityChange}
-                      help={`Select or upload a custom image or video for the ${selectedPage.name} view. Videos autoplay muted and loop. Move the transparency slider to adjust visibility (higher values make the background more visible, lower values darken it with a black overlay for higher text readability).`}
+                      showPlaybackRate={true}
+                      playbackRateKey={selectedPage.id}
+                      mediaPlaybackRate={mediaPlaybackRateMap}
+                      onPlaybackRateChange={handlePlaybackRateChange}
+                      help={`Select or upload a custom image or video for the ${selectedPage.name} view. Videos autoplay muted and loop. Move the transparency slider to adjust visibility (higher values make the background more visible, lower values darken it with a black overlay for higher text readability). Video backgrounds also get a playback speed slider (0.25x-2x).`}
                     />
                   </div>
                 );

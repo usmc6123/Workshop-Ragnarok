@@ -112,6 +112,7 @@ function compressImage(file: File, maxDimension: number): Promise<Blob> {
 export default function MediaField({
   label, value, onChange, accept = 'both', placeholder, help,
   showOpacity = false, opacityKey, mediaOpacity, onOpacityChange,
+  showPlaybackRate = false, playbackRateKey, mediaPlaybackRate, onPlaybackRateChange,
   showPreview = false, maxImageDimension, labelColorClass, accentClass,
 }: {
   label?: string;
@@ -124,6 +125,10 @@ export default function MediaField({
   opacityKey?: string;
   mediaOpacity?: Record<string, number>;
   onOpacityChange?: (key: string, value: number) => void;
+  showPlaybackRate?: boolean;
+  playbackRateKey?: string;
+  mediaPlaybackRate?: Record<string, number>;
+  onPlaybackRateChange?: (key: string, value: number) => void;
   showPreview?: boolean;
   maxImageDimension?: number;
   labelColorClass?: string;
@@ -134,6 +139,10 @@ export default function MediaField({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const opacity = opacityKey && mediaOpacity ? (mediaOpacity[opacityKey] ?? 100) : 100;
+  const playbackRate = playbackRateKey && mediaPlaybackRate ? (mediaPlaybackRate[playbackRateKey] ?? 1) : 1;
+  // Reused by both the preview thumbnail (renders <video> instead of <img>) and
+  // the playback-speed slider below (speed only makes sense for video).
+  const isVideoValue = /\.(mp4|webm|mov|m4v|ogg)(\?.*)?$/i.test(value);
 
   const [showReformat, setShowReformat] = useState(false);
   const [reformatFile, setReformatFile] = useState<File | null>(null);
@@ -292,7 +301,7 @@ export default function MediaField({
         {showPreview && (
           value ? (
             <div className="relative w-10 h-10 shrink-0 bg-slate-800 rounded border border-[#1e2028] flex items-center justify-center overflow-hidden">
-              {/\.(mp4|webm|mov|m4v|ogg)(\?.*)?$/i.test(value) ? (
+              {isVideoValue ? (
                 <video src={value} muted autoPlay loop playsInline className="max-w-full max-h-full object-contain" />
               ) : (
                 <img src={value} alt="Preview" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
@@ -477,6 +486,24 @@ export default function MediaField({
             step={5}
             value={opacity}
             onChange={(e) => onOpacityChange(opacityKey, parseInt(e.target.value, 10))}
+            className={`w-full cursor-pointer ${accentClass || 'accent-amber-500'}`}
+          />
+        </div>
+      )}
+
+      {showPlaybackRate && playbackRateKey && mediaPlaybackRate && onPlaybackRateChange && value.trim() && isVideoValue && (
+        <div className="pt-1.5 border-t border-[#1e2028]/80 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Playback Speed</span>
+            <span className="text-[10px] font-mono text-slate-400">{playbackRate.toFixed(2)}x</span>
+          </div>
+          <input
+            type="range"
+            min={0.25}
+            max={2}
+            step={0.05}
+            value={playbackRate}
+            onChange={(e) => onPlaybackRateChange(playbackRateKey, parseFloat(e.target.value))}
             className={`w-full cursor-pointer ${accentClass || 'accent-amber-500'}`}
           />
         </div>
