@@ -86,6 +86,38 @@
   --text: #e2e8f0;
 }
 
+.theme-crimson {
+  --bg: #100404;
+  --surface: #1c0808;
+  --border: #2e0f0f;
+  --primary: #dc2626;
+  --text: #fef2f2;
+}
+
+.theme-cyberpunk {
+  --bg: #07020d;
+  --surface: #100a1f;
+  --border: #1f1235;
+  --primary: #ec4899;
+  --text: #fdf2f8;
+}
+
+.theme-copper {
+  --bg: #120a05;
+  --surface: #1f150a;
+  --border: #33240f;
+  --primary: #c2703d;
+  --text: #fdf3ea;
+}
+
+.theme-ocean {
+  --bg: #040f12;
+  --surface: #0a1e22;
+  --border: #123238;
+  --primary: #14b8a6;
+  --text: #ecfeff;
+}
+
 /* Custom styles for professional garage look */
 body {
   font-family: var(--font-sans);

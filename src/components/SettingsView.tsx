@@ -10,8 +10,47 @@ import MediaField from './MediaField';
 import {
   Settings, Server, Sun, Database, RefreshCw, AlertTriangle, Info, ShieldCheck, Cpu, ChevronDown, Store,
   Users, Car, ClipboardList, Clock, Timer, Gauge, Package, CheckCircle2, DollarSign, TrendingUp, Megaphone,
-  LayoutDashboard, BookOpen, Mail, MessageSquare, Globe, Bot, Clapperboard, Scissors, Image, Calendar
+  LayoutDashboard, BookOpen, Mail, MessageSquare, Globe, Bot, Clapperboard, Scissors, Image, Calendar, X, Check
 } from 'lucide-react';
+
+// A tiny, fully CSS-built mockup of the app shell in a given theme's colors —
+// a mini sidebar strip, header bar, and a content card with a primary-colored
+// button and a couple of text lines — so the picker shows an honest preview
+// of what you'll actually get instead of just a row of color dots.
+function ThemeThumbnail({ theme, className = '' }: { theme: { bg: string; surface: string; border: string; primary: string; text: string }; className?: string }) {
+  return (
+    <div
+      className={`relative flex overflow-hidden rounded-lg border ${className}`}
+      style={{ backgroundColor: theme.bg, borderColor: theme.border }}
+    >
+      {/* Fake sidebar */}
+      <div className="w-[22%] shrink-0 flex flex-col items-center gap-1.5 py-2.5" style={{ backgroundColor: theme.surface, borderRight: `1px solid ${theme.border}` }}>
+        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: theme.primary }} />
+        <span className="w-[60%] h-1 rounded-full opacity-60" style={{ backgroundColor: theme.text }} />
+        <span className="w-[60%] h-1 rounded-full opacity-30" style={{ backgroundColor: theme.text }} />
+        <span className="w-[60%] h-1 rounded-full opacity-30" style={{ backgroundColor: theme.text }} />
+      </div>
+      {/* Fake main pane */}
+      <div className="flex-1 flex flex-col gap-1.5 p-2.5">
+        {/* Fake header bar */}
+        <div className="flex items-center justify-between rounded px-1.5 py-1" style={{ backgroundColor: theme.surface, border: `1px solid ${theme.border}` }}>
+          <span className="w-[35%] h-1 rounded-full opacity-70" style={{ backgroundColor: theme.text }} />
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: theme.primary }} />
+        </div>
+        {/* Fake content card */}
+        <div className="flex-1 rounded p-1.5 flex flex-col justify-between" style={{ backgroundColor: theme.surface, border: `1px solid ${theme.border}` }}>
+          <div className="space-y-1">
+            <span className="block w-[70%] h-1 rounded-full opacity-70" style={{ backgroundColor: theme.text }} />
+            <span className="block w-[50%] h-1 rounded-full opacity-40" style={{ backgroundColor: theme.text }} />
+          </div>
+          <span className="self-start rounded-full px-2 py-0.5 text-[6px] font-black" style={{ backgroundColor: theme.primary, color: theme.bg }}>
+            &nbsp;
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface SettingsViewProps {
   activeTheme: string;
@@ -70,15 +109,22 @@ export default function SettingsView({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const bgDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Colors here are pulled directly from each .theme-* class in index.css so
+  // the thumbnails shown in the picker are a true, accurate preview of what
+  // you'll actually get — not just an approximation.
   const availableThemes = [
-    { id: 'theme-ragnarok', name: 'Ragnarök Dark', colors: ['#0a0a0f', '#f59e0b', '#1e2028', '#d97706'], desc: 'Default industrial orange / amber' },
-    { id: 'theme-midnight', name: 'Midnight Steel', colors: ['#0a0f1e', '#3b82f6', '#1e2535', '#1d4ed8'], desc: 'Oceanic blue / dark slate' },
-    { id: 'theme-carbon', name: 'Carbon Black', colors: ['#000000', '#ef4444', '#111111', '#dc2626'], desc: 'Pure stealth black with red highlights' },
-    { id: 'theme-arctic', name: 'Arctic White', colors: ['#f8fafc', '#0ea5e9', '#e2e8f0', '#0284c7'], desc: 'High-contrast light garage theme' },
-    { id: 'theme-forest', name: 'Forest Green', colors: ['#0a1a0a', '#22c55e', '#1a2e1a', '#16a34a'], desc: 'Overland green & charcoal' },
-    { id: 'theme-blood', name: 'Blood Orange', colors: ['#1a0500', '#f97316', '#2d0a00', '#ea580c'], desc: 'Crimson / heavy duty hot gold' },
-    { id: 'theme-purple', name: 'Royal Purple', colors: ['#0f0a1e', '#a855f7', '#1e1535', '#9333ea'], desc: 'Specialized diagnostic neon purple' },
-    { id: 'theme-gunmetal', name: 'Gunmetal', colors: ['#0a0f14', '#06b6d4', '#141e28', '#0891b2'], desc: 'Tactical cyan / heavy alloy' },
+    { id: 'theme-ragnarok', name: 'Ragnarök Dark', bg: '#0a0a0f', surface: '#13141a', border: '#1e2028', primary: '#f59e0b', text: '#f1f5f9', desc: 'Default industrial orange / amber' },
+    { id: 'theme-midnight', name: 'Midnight Steel', bg: '#0d1117', surface: '#161b22', border: '#21262d', primary: '#58a6ff', text: '#e6edf3', desc: 'Oceanic blue / dark slate' },
+    { id: 'theme-carbon', name: 'Carbon Black', bg: '#000000', surface: '#111111', border: '#222222', primary: '#ef4444', text: '#ffffff', desc: 'Pure stealth black with red highlights' },
+    { id: 'theme-arctic', name: 'Arctic White', bg: '#f8fafc', surface: '#ffffff', border: '#e2e8f0', primary: '#3b82f6', text: '#0f172a', desc: 'High-contrast light garage theme' },
+    { id: 'theme-forest', name: 'Forest Green', bg: '#0a0f0a', surface: '#111811', border: '#1a2e1a', primary: '#22c55e', text: '#f0fdf4', desc: 'Overland green & charcoal' },
+    { id: 'theme-blood', name: 'Blood Orange', bg: '#0f0a00', surface: '#1a1200', border: '#2d2000', primary: '#f97316', text: '#fff7ed', desc: 'Heavy-duty amber / burnt orange' },
+    { id: 'theme-purple', name: 'Royal Purple', bg: '#0a0014', surface: '#12001f', border: '#1f0035', primary: '#a855f7', text: '#faf5ff', desc: 'Specialized diagnostic neon purple' },
+    { id: 'theme-gunmetal', name: 'Gunmetal', bg: '#0a0c0f', surface: '#131720', border: '#1e2533', primary: '#06b6d4', text: '#e2e8f0', desc: 'Tactical cyan / heavy alloy' },
+    { id: 'theme-crimson', name: 'Crimson Racing', bg: '#100404', surface: '#1c0808', border: '#2e0f0f', primary: '#dc2626', text: '#fef2f2', desc: 'Motorsport red on near-black' },
+    { id: 'theme-cyberpunk', name: 'Neon Cyberpunk', bg: '#07020d', surface: '#100a1f', border: '#1f1235', primary: '#ec4899', text: '#fdf2f8', desc: 'Hot magenta / late-night diagnostics' },
+    { id: 'theme-copper', name: 'Copper Industrial', bg: '#120a05', surface: '#1f150a', border: '#33240f', primary: '#c2703d', text: '#fdf3ea', desc: 'Aged copper & rust on dark leather' },
+    { id: 'theme-ocean', name: 'Deep Ocean', bg: '#040f12', surface: '#0a1e22', border: '#123238', primary: '#14b8a6', text: '#ecfeff', desc: 'Teal & navy, calm night-shift mode' },
   ];
 
   useEffect(() => {
@@ -858,97 +904,100 @@ export default function SettingsView({
             </p>
 
             <div className="space-y-3">
-              {/* Custom Dropdown Theme Swatch Selector */}
-              <div className="relative" ref={dropdownRef}>
+              {/* Current theme preview + button to open the picker modal */}
+              <div className="flex items-center gap-4 bg-bg-theme/40 border border-border-theme/60 rounded-xl p-4 select-none">
+                <ThemeThumbnail theme={currentTheme} className="w-28 h-20 shrink-0 shadow-lg" />
+                <div className="text-left flex-1 min-w-0">
+                  <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block font-bold">Currently Active</span>
+                  <span className="text-sm font-black text-slate-100 block uppercase tracking-wider mt-0.5">
+                    {currentTheme.name}
+                  </span>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {currentTheme.desc}
+                  </p>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="w-full flex items-center justify-between bg-bg-theme border border-border-theme hover:border-amber-500/50 text-slate-200 text-xs px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/10 transition-all duration-150 cursor-pointer font-bold uppercase tracking-wider"
+                  onClick={() => setDropdownOpen(true)}
+                  className="shrink-0 bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-black rounded-lg px-4 py-2.5 text-[11px] uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5"
                   id="theme-select-dropdown"
                 >
-                  <div className="flex items-center gap-3">
-                    {/* Swatch color circles */}
-                    <div className="flex gap-0.5 shrink-0">
-                      {currentTheme.colors.map((c, idx) => (
-                        <span 
-                          key={idx} 
-                          className="w-3.5 h-3.5 rounded-sm border border-black/30 block shadow-sm" 
-                          style={{ backgroundColor: c }} 
-                        />
-                      ))}
-                    </div>
-                    <span className="text-slate-200 font-extrabold">{currentTheme.name}</span>
-                  </div>
-                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-150 ${dropdownOpen ? 'rotate-180' : ''}`} />
+                  <Sun className="w-3.5 h-3.5" />
+                  Change Theme
                 </button>
+              </div>
+            </div>
+          </div>
 
-                {dropdownOpen && (
-                  <div className="absolute left-0 right-0 mt-1.5 bg-[#13141a] border border-[#1e2028] rounded-xl shadow-2xl z-50 max-h-80 overflow-y-auto animate-fade-in divide-y divide-[#1e2028] outline-none">
-                    {availableThemes.map((t) => {
-                      const isSelected = t.id === activeTheme;
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => {
-                            setActiveTheme(t.id);
-                            setDropdownOpen(false);
-                          }}
-                          className={`w-full flex items-center justify-between text-left p-3 hover:bg-slate-800/40 transition duration-150 cursor-pointer ${isSelected ? 'bg-amber-500/5' : ''}`}
-                        >
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-3">
-                              {/* Theme color swatch cells */}
-                              <div className="flex gap-0.5 shrink-0">
-                                {t.colors.map((c, idx) => (
-                                  <span 
-                                    key={idx} 
-                                    className="w-3.5 h-3.5 rounded-sm border border-black/30 block shadow-sm" 
-                                    style={{ backgroundColor: c }} 
-                                  />
-                                ))}
-                              </div>
-                              <span className={`text-xs font-black uppercase tracking-wider ${isSelected ? 'text-amber-400' : 'text-slate-200'}`}>
-                                {t.name}
-                              </span>
-                            </div>
-                            <p className="text-[10px] text-slate-400 normal-case font-normal font-sans pl-1">
+          {/* Theme Picker Modal */}
+          {dropdownOpen && (
+            <div
+              className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in"
+              onClick={() => setDropdownOpen(false)}
+            >
+              <div
+                className="bg-[#13141a] border border-[#1e2028] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[#1e2028] shrink-0">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                      <Sun className="w-4 h-4 text-primary-theme" />
+                      Choose a Workshop Theme
+                    </h3>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      {availableThemes.length} presets — click any card to apply it instantly.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDropdownOpen(false)}
+                    className="p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition cursor-pointer shrink-0"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="overflow-y-auto p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {availableThemes.map((t) => {
+                    const isSelected = t.id === activeTheme;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveTheme(t.id);
+                          setDropdownOpen(false);
+                        }}
+                        className={`relative flex flex-col gap-2.5 text-left p-3 rounded-xl border transition-all duration-150 cursor-pointer group ${
+                          isSelected
+                            ? 'border-amber-500 bg-amber-500/5 ring-2 ring-amber-500/40'
+                            : 'border-[#1e2028] hover:border-slate-600 bg-black/20 hover:bg-black/30'
+                        }`}
+                      >
+                        <ThemeThumbnail theme={t} className="w-full h-24 group-hover:scale-[1.02] transition-transform shadow-md" />
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className={`text-xs font-black uppercase tracking-wider block ${isSelected ? 'text-amber-400' : 'text-slate-200'}`}>
+                              {t.name}
+                            </span>
+                            <p className="text-[10px] text-slate-450 normal-case font-normal font-sans mt-0.5 leading-snug">
                               {t.desc}
                             </p>
                           </div>
                           {isSelected && (
-                            <span className="w-2 h-2 rounded-full bg-amber-500 mr-2 animate-pulse" />
+                            <span className="shrink-0 w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
+                              <Check className="w-3 h-3 text-slate-950" strokeWidth={3} />
+                            </span>
                           )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Selected Theme Details Banner */}
-              <div className="flex items-center gap-3.5 bg-bg-theme/40 border border-border-theme/60 rounded-lg p-3.5 select-none">
-                <div className="flex gap-0.5 shrink-0">
-                  {currentTheme.colors.map((c, idx) => (
-                    <span 
-                      key={idx} 
-                      className="w-5 h-5 rounded-sm border border-black/45 block shadow-md" 
-                      style={{ backgroundColor: c }} 
-                    />
-                  ))}
-                </div>
-                <div className="text-left">
-                  <span className="text-xs font-bold text-slate-200 block uppercase tracking-wider">
-                    {currentTheme.name} SELECTED
-                  </span>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    {currentTheme.desc}
-                  </p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-
             </div>
-          </div>
+          )}
 
           {/* Custom Page Backgrounds Card */}
           <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl text-left">
