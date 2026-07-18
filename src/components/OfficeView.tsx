@@ -4,29 +4,27 @@
  */
 
 import React, { useState } from 'react';
-import { FileText, FileEdit, NotebookPen } from 'lucide-react';
+import { FileText, Table2, Presentation, Workflow, Type, FileEdit, NotebookPen } from 'lucide-react';
 
-// "The Office" — a study/productivity page bundling three self-hosted tools,
-// same pattern as YoutubeTrimmerView.tsx: each is its own standalone Docker
-// container with its own compose file, deliberately NOT folded into the
-// Ragnarök protected-file deploy pipeline, reached via its own Cloudflare
-// Tunnel hostname. All three are embedded directly and Documents is the
-// default/first tab, so opening "The Office" shows a ready-to-use doc
-// immediately with zero extra clicks.
+// "The Office" — a study/productivity page bundling self-hosted tools as
+// embedded tabs, same standalone-container pattern as YoutubeTrimmerView.tsx.
+// Word is the default/first tab, so opening "The Office" shows a ready-to-use
+// doc immediately with zero extra clicks. PDF Tools and Notes are pinned to
+// the far right since they're separate tools, not Nextcloud documents.
 //
-//   Documents -> existing Nextcloud instance, via a small nginx proxy
-//                (D:\HomeServer\nextcloud-embed-proxy) at
-//                https://docs.homeslab.uk that strips Nextcloud's
-//                X-Frame-Options header (Nextcloud hardcodes SAMEORIGIN,
-//                which otherwise blocks any cross-origin iframe) and spoofs
-//                the Host header back to the already-trusted
-//                nextcloud.homeslab.uk. Regular direct browsing still uses
-//                nextcloud.homeslab.uk unchanged — this proxy exists only
-//                for this embedded view. Deep-links straight into the
-//                "Scratchpad" doc's Collabora editor, skipping the Files
-//                list. If that file is ever renamed/moved/deleted, grab its
-//                new URL (Files -> open it -> copy address bar URL) and
-//                update below.
+//   Word/Excel/PowerPoint/Diagrams/Text -> blank files pre-created in the
+//                existing Nextcloud instance, each deep-linked straight into
+//                its Collabora editor view (skips the Files list entirely).
+//                Reached via a small nginx proxy (D:\HomeServer\nextcloud-embed-proxy)
+//                at https://docs.homeslab.uk that strips Nextcloud's
+//                X-Frame-Options header (hardcoded to SAMEORIGIN, which
+//                otherwise blocks any cross-origin iframe) and spoofs the
+//                Host header back to the already-trusted nextcloud.homeslab.uk.
+//                Regular direct browsing still uses nextcloud.homeslab.uk
+//                unchanged — this proxy exists only for this embedded view.
+//                If any of these files are ever renamed/moved/deleted, open
+//                the replacement in Nextcloud, copy its URL from the address
+//                bar, swap the domain to docs.homeslab.uk, and update below.
 //   PDF Tools -> Stirling-PDF (D:\HomeServer\stirling-pdf), via its own
 //                nginx proxy sidecar that strips Stirling's hardcoded
 //                X-Frame-Options: DENY. https://pdf.homeslab.uk
@@ -40,11 +38,39 @@ import { FileText, FileEdit, NotebookPen } from 'lucide-react';
 
 const TABS = [
   {
-    id: 'documents',
-    label: 'Documents',
+    id: 'word',
+    label: 'Word',
     icon: FileText,
     url: 'https://docs.homeslab.uk/apps/files/files/19762?dir=/&openfile=true',
-    description: 'Word / Excel / PowerPoint editing, file storage and organization.',
+    description: 'Word document editing.',
+  },
+  {
+    id: 'excel',
+    label: 'Excel',
+    icon: Table2,
+    url: 'https://docs.homeslab.uk/apps/files/files/19769?dir=/&editing=false&openfile=true',
+    description: 'Spreadsheet editing.',
+  },
+  {
+    id: 'powerpoint',
+    label: 'PowerPoint',
+    icon: Presentation,
+    url: 'https://docs.homeslab.uk/apps/files/files/19771?dir=/&editing=false&openfile=true',
+    description: 'Presentation editing.',
+  },
+  {
+    id: 'diagrams',
+    label: 'Diagrams',
+    icon: Workflow,
+    url: 'https://docs.homeslab.uk/apps/files/files/19773?dir=/&editing=false&openfile=true',
+    description: 'Diagrams and flowcharts.',
+  },
+  {
+    id: 'text',
+    label: 'Text',
+    icon: Type,
+    url: 'https://docs.homeslab.uk/apps/files/files/19775?dir=/&editing=false&openfile=true',
+    description: 'Plain text / quick notes doc.',
   },
   {
     id: 'pdf',
@@ -65,7 +91,7 @@ const TABS = [
 type TabId = typeof TABS[number]['id'];
 
 export default function OfficeView() {
-  const [activeTab, setActiveTab] = useState<TabId>('documents');
+  const [activeTab, setActiveTab] = useState<TabId>('word');
   const active = TABS.find((t) => t.id === activeTab)!;
 
   return (
@@ -103,9 +129,9 @@ export default function OfficeView() {
         </span>
       </div>
 
-      {/* Active tab content — all three mounted at once (hidden via CSS,
-          not unmounted) so switching tabs never reloads/re-logs-in an app,
-          and Documents is ready the instant the page opens. */}
+      {/* Active tab content — all tabs mounted at once (hidden via CSS, not
+          unmounted) so switching tabs never reloads/re-logs-in an app, and
+          Word is ready the instant the page opens. */}
       <div className="flex-1 relative">
         {TABS.map((tab) => (
           <iframe
