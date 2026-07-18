@@ -82,6 +82,16 @@ export default function App() {
 
   const [lastView, setLastView] = useState<ViewType>('dashboard');
 
+  // The main viewport is a scrolling container — switching pages (e.g. into
+  // AI Chat Bot) doesn't reset its scroll position on its own, so if you were
+  // scrolled down on the previous page, the new page opens already scrolled
+  // down too, looking like it "jumps to the middle." Reset to top on every
+  // view change.
+  const mainScrollRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    mainScrollRef.current?.scrollTo(0, 0);
+  }, [view]);
+
   const handleSplashComplete = () => {
     if (typeof window !== 'undefined' && window.sessionStorage) {
       window.sessionStorage.setItem('ragnarok_splash_shown', 'true');
@@ -487,7 +497,7 @@ export default function App() {
           )}
 
           {/* 3. Main Viewport Container */}
-          <main className={`flex-1 ${(view === 'automations' || view === 'video-editor') ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+          <main ref={mainScrollRef} className={`flex-1 ${(view === 'automations' || view === 'video-editor') ? 'overflow-hidden' : 'overflow-y-auto'}`}>
             {view === 'automations' ? (
               <AutomationsView />
             ) : view === 'video-editor' ? (
