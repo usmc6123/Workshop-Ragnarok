@@ -10,8 +10,8 @@ import {
   Search, Car, Wrench, ClipboardList, BookOpen, Clock, Users,
   RefreshCw, AlertTriangle, ChevronRight, Activity, Calendar, PlusCircle,
   Briefcase, Bot, Clapperboard, Scissors, Globe, TrendingUp, PackageX,
-  Rss, Server, BarChart3, Sparkles, DollarSign, MessageSquare, Mail,
-  UserPlus, CheckCircle2, ExternalLink, CalendarClock
+  Rss, BarChart3, Sparkles, DollarSign, MessageSquare, Mail,
+  UserPlus, CheckCircle2, CalendarClock
 } from 'lucide-react';
 import CatHeaderBanner from './CatHeaderBanner';
 import CatLaserOverlay from './CatLaserOverlay';
@@ -31,17 +31,6 @@ const QUICK_LAUNCH_ITEMS = [
   { tab: 'video-editor', label: 'Video Editor', icon: Clapperboard },
   { tab: 'youtube-trimmer', label: 'Youtube Trimmer', icon: Scissors },
   { tab: 'sites', label: 'Websites', icon: Globe },
-] as const;
-
-// Homelab quick links — plain links, not a live health monitor (that would
-// need real Uptime Kuma polling wired up separately to be honest about
-// status rather than faking green dots).
-const HOMELAB_LINKS = [
-  { label: 'Nextcloud', url: 'https://nextcloud.homeslab.uk' },
-  { label: 'Portainer', url: 'https://portainer.homeslab.uk' },
-  { label: 'Pi-hole', url: 'https://pihole.homeslab.uk' },
-  { label: 'Immich', url: 'https://immich.homeslab.uk' },
-  { label: 'Uptime Kuma', url: 'https://uptime.homeslab.uk' },
 ] as const;
 
 type FeedItem = {
@@ -1157,26 +1146,6 @@ export default function DashboardView({
             </div>
           )}
         </div>
-      </div>
-
-      {/* NEW: Homelab quick links footer strip */}
-      <div className="bg-[#0f1015]/70 border border-border-theme/60 rounded-xl px-5 py-3 flex flex-wrap items-center gap-x-5 gap-y-2" id="dashboard-homelab-strip">
-        <div className="flex items-center gap-1.5 text-slate-500">
-          <Server className="w-3.5 h-3.5" />
-          <span className="text-[9px] font-mono uppercase tracking-wider font-bold">Homelab</span>
-        </div>
-        {HOMELAB_LINKS.map(link => (
-          <a
-            key={link.label}
-            href={link.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-[10px] font-mono text-slate-450 hover:text-primary-theme transition-colors"
-          >
-            {link.label}
-            <ExternalLink className="w-2.5 h-2.5" />
-          </a>
-        ))}
       </div>
 
     </div>

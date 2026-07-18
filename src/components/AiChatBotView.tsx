@@ -1051,6 +1051,12 @@ export default function AiChatBotView() {
   const [copyCodeSuccess, setCopyCodeSuccess] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  // Guards the auto-scroll-to-bottom effect below so it only fires in
+  // response to a real new message, not on the page's very first mount.
+  // Without this, scrollIntoView() on mount would drag the whole page's
+  // scroll position down to wherever this preview panel happens to sit,
+  // making the AI Chat Bot page look like it opens "scrolled halfway."
+  const chatSimulatorMountedRef = useRef(false);
 
   // PDF/TXT Document Knowledge Base states
   const [isParsingPdf, setIsParsingPdf] = useState(false);
@@ -1240,10 +1246,15 @@ export default function AiChatBotView() {
     };
   }, [botStyle, bubblePhrases]);
 
-  // Scroll to bottom of chat simulator when messages update
+  // Scroll to bottom of chat simulator when messages update (but not on the
+  // initial page mount — see chatSimulatorMountedRef above).
   useEffect(() => {
+    if (!chatSimulatorMountedRef.current) {
+      chatSimulatorMountedRef.current = true;
+      return;
+    }
     if (chatBottomRef.current) {
-      chatBottomRef.current.scrollIntoView({ behavior: 'smooth' });
+      chatBottomRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [chatMessages, isTyping]);
 
