@@ -4,21 +4,29 @@
  */
 
 import React, { useState } from 'react';
-import { FileText, FileEdit, NotebookPen } from 'lucide-react';
+import { FileText, FileEdit, NotebookPen, ExternalLink } from 'lucide-react';
 
-// "The Office" — a study/productivity page bundling three self-hosted tools as
-// iframe tabs, same pattern as YoutubeTrimmerView.tsx: each is its own standalone
-// Docker container with its own compose file, deliberately NOT folded into the
-// Ragnarök protected-file deploy pipeline, reached via its own Cloudflare Tunnel
-// hostname.
+// "The Office" — a study/productivity page bundling three self-hosted tools,
+// same pattern as YoutubeTrimmerView.tsx: each is its own standalone Docker
+// container with its own compose file, deliberately NOT folded into the
+// Ragnarök protected-file deploy pipeline, reached via its own Cloudflare
+// Tunnel hostname.
 //
 //   PDF Tools -> Stirling-PDF   (D:\HomeServer\stirling-pdf, own docker-compose.yml)
-//                https://pdf.homeslab.uk
+//                https://pdf.homeslab.uk  — embedded directly, no framing restrictions.
 //   Documents -> existing Nextcloud instance (nextcloud.homeslab.uk), with the
-//                Collabora Online app enabled via the Nextcloud AIO admin panel —
-//                that's what gives in-browser Word/Excel/PowerPoint editing.
+//                Collabora Online app enabled via the Nextcloud AIO admin panel
+//                for in-browser Word/Excel/PowerPoint editing. NOT embedded as
+//                an iframe — Nextcloud sends `X-Frame-Options: SAMEORIGIN` by
+//                design (anti-clickjacking) and refuses to render inside a
+//                frame on a different origin (workshop.homeslab.uk). Fighting
+//                that with header-stripping at the proxy layer would weaken a
+//                real security control, so this tab instead opens Nextcloud in
+//                a new tab.
 //   Notes     -> Trilium        (D:\HomeServer\trilium, own docker-compose.yml)
-//                https://notes.homeslab.uk
+//                https://notes.homeslab.uk — embedded directly. First visit
+//                will show Trilium's own one-time setup/password screen —
+//                that's normal first-run behavior, not a bug.
 //
 // If any of these LAN ports / hostnames ever change, update the URLs below —
 // same rule as the Youtube Trimmer view.
@@ -30,6 +38,7 @@ const TABS = [
     icon: FileEdit,
     url: 'https://pdf.homeslab.uk',
     description: 'Merge, split, compress, OCR, redact, sign, and convert PDFs.',
+    embeddable: true,
   },
   {
     id: 'documents',
@@ -37,6 +46,7 @@ const TABS = [
     icon: FileText,
     url: 'https://nextcloud.homeslab.uk',
     description: 'Word / Excel / PowerPoint editing, file storage and organization.',
+    embeddable: false,
   },
   {
     id: 'notes',
@@ -44,6 +54,7 @@ const TABS = [
     icon: NotebookPen,
     url: 'https://notes.homeslab.uk',
     description: 'Trilium — hierarchical notes for coursework, organized by class/topic.',
+    embeddable: true,
   },
 ] as const;
 
@@ -90,15 +101,42 @@ export default function OfficeView() {
 
       {/* Active tab content */}
       <div className="flex-1 relative">
-        {TABS.map((tab) => (
-          <iframe
-            key={tab.id}
-            src={tab.url}
-            title={tab.label}
-            className={`w-full h-full border-0 absolute inset-0 ${tab.id === activeTab ? 'block' : 'hidden'}`}
-            allow="fullscreen; clipboard-read; clipboard-write"
-          />
-        ))}
+        {TABS.map((tab) => {
+          if (!tab.embeddable) {
+            return (
+              <div
+                key={tab.id}
+                className={`w-full h-full absolute inset-0 flex-col items-center justify-center gap-4 ${tab.id === activeTab ? 'flex' : 'hidden'}`}
+              >
+                <tab.icon className="w-12 h-12 text-primary-theme/60" />
+                <div className="text-center max-w-sm">
+                  <h3 className="text-sm font-black uppercase tracking-wider text-slate-200 mb-1">{tab.label}</h3>
+                  <p className="text-xs text-slate-500">{tab.description}</p>
+                  <p className="text-[10px] text-slate-600 mt-2">
+                    Opens in a new tab — Nextcloud blocks being embedded inside another site for security.
+                  </p>
+                </div>
+                <a
+                  href={tab.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary-theme text-slate-950 text-xs font-black uppercase tracking-wider hover:opacity-90 transition"
+                >
+                  Open {tab.label} <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            );
+          }
+          return (
+            <iframe
+              key={tab.id}
+              src={tab.url}
+              title={tab.label}
+              className={`w-full h-full border-0 absolute inset-0 ${tab.id === activeTab ? 'block' : 'hidden'}`}
+              allow="fullscreen; clipboard-read; clipboard-write"
+            />
+          );
+        })}
       </div>
     </div>
   );
