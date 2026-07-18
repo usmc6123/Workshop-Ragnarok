@@ -464,54 +464,318 @@ export default function SettingsView({
         )}
       </div>
 
-      <div className="max-w-3xl space-y-6">
+      <div className="max-w-4xl space-y-6">
 
-          {/* Server Connection Form Card */}
-          <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl">
+          {/* Server Connection + Theme row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+            {/* Server Connection Form Card */}
+            <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl">
+              <h2 className="text-sm font-bold text-slate-200 uppercase flex items-center gap-2">
+                <Server className="w-4 h-4 text-primary-theme" />
+                API Server LAN Host Location
+              </h2>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Set the LAN IP Address and PORT of your self-hosted Node.js backend. The default is http://localhost:4000.
+              </p>
+
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. http://192.168.1.100:4000"
+                    value={addressInput}
+                    onChange={(e) => setAddressInput(e.target.value)}
+                    className="flex-1 bg-bg-theme border border-border-theme rounded-lg px-3.5 py-2 text-sm text-slate-205 font-mono focus:border-primary-theme focus:outline-none"
+                    id="api-address-input"
+                  />
+                  <button
+                    onClick={handleTestAndSaveConnection}
+                    disabled={testStatus === 'testing'}
+                    className="bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-black rounded-lg px-5 py-2 text-xs uppercase tracking-wider transition-all cursor-pointer"
+                  >
+                    {testStatus === 'testing' ? 'Testing...' : 'Test & Save'}
+                  </button>
+                </div>
+
+                {/* Status responses */}
+                {testStatus === 'success' && (
+                  <div className="bg-green-950/20 border border-green-800/30 text-green-300 p-3 rounded-lg text-xs flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-green-500 shrink-0" />
+                    <span>Connection successful! Server synchronized. Settings updated.</span>
+                  </div>
+                )}
+
+                {testStatus === 'failed' && (
+                  <div className="bg-red-950/20 border border-red-900/30 text-red-300 p-3 rounded-lg text-xs flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold block">Ping Check Interrupted</span>
+                      <span className="text-[10px] text-slate-400">{testErrorMessage}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Theme customizer */}
+            <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl text-left">
+              <h2 className="text-sm font-bold text-slate-200 uppercase flex items-center gap-2">
+                <Sun className="w-4 h-4 text-primary-theme" />
+                Workshop Display Theme
+              </h2>
+              <p className="text-xs text-slate-400">
+                Select a specialized color layout. Dark-ambient presets are highly recommended for eye safety and durability inside physical repair environments.
+              </p>
+
+              <div className="space-y-3">
+                {/* Current theme preview + button to open the picker modal */}
+                <div className="flex items-center gap-4 bg-bg-theme/40 border border-border-theme/60 rounded-xl p-4 select-none">
+                  <ThemeThumbnail theme={currentTheme} className="w-28 h-20 shrink-0 shadow-lg" />
+                  <div className="text-left flex-1 min-w-0">
+                    <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block font-bold">Currently Active</span>
+                    <span className="text-sm font-black text-slate-100 block uppercase tracking-wider mt-0.5">
+                      {currentTheme.name}
+                    </span>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {currentTheme.desc}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDropdownOpen(true)}
+                    className="shrink-0 bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-black rounded-lg px-4 py-2.5 text-[11px] uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5"
+                    id="theme-select-dropdown"
+                  >
+                    <Sun className="w-3.5 h-3.5" />
+                    Change Theme
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Custom Page Backgrounds Card */}
+          <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl text-left">
             <h2 className="text-sm font-bold text-slate-200 uppercase flex items-center gap-2">
-              <Server className="w-4 h-4 text-primary-theme" />
-              API Server LAN Host Location
+              <Image className="w-4 h-4 text-primary-theme" />
+              Custom Page Backgrounds
             </h2>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Set the LAN IP Address and PORT of your self-hosted Node.js backend. The default is http://localhost:4000.
+            <p className="text-xs text-slate-400">
+              Upload and configure custom background images or videos with transparency overlays for each section. Automations page is excluded.
             </p>
 
-            <div className="space-y-3">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="e.g. http://192.168.1.100:4000"
-                  value={addressInput}
-                  onChange={(e) => setAddressInput(e.target.value)}
-                  className="flex-1 bg-bg-theme border border-border-theme rounded-lg px-3.5 py-2 text-sm text-slate-205 font-mono focus:border-primary-theme focus:outline-none"
-                  id="api-address-input"
-                />
+            <div className="space-y-4">
+              {/* Dropdown to select page */}
+              <div className="relative" ref={bgDropdownRef}>
+                <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block mb-1">Select Page to Configure</label>
                 <button
-                  onClick={handleTestAndSaveConnection}
-                  disabled={testStatus === 'testing'}
-                  className="bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-black rounded-lg px-5 py-2 text-xs uppercase tracking-wider transition-all cursor-pointer"
+                  type="button"
+                  onClick={() => setBgDropdownOpen(!bgDropdownOpen)}
+                  className="w-full flex items-center justify-between bg-bg-theme border border-border-theme hover:border-amber-500/50 text-slate-200 text-xs px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/10 transition-all duration-150 cursor-pointer font-bold uppercase tracking-wider"
                 >
-                  {testStatus === 'testing' ? 'Testing...' : 'Test & Save'}
+                  <div className="flex items-center gap-2.5">
+                    {(() => {
+                      const backgroundPages = [
+                        { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
+                        { id: 'customers', name: 'Customers', icon: Users },
+                        { id: 'vehicles', name: 'Vehicles', icon: Car },
+                        { id: 'jobs', name: 'Jobs / Work Orders', icon: ClipboardList },
+                        { id: 'inventory', name: 'Inventory', icon: Package },
+                        { id: 'calendar', name: 'Calendar', icon: Calendar },
+                        { id: 'manual-library', name: 'Manual Library', icon: BookOpen },
+                        { id: 'manual', name: 'Active Service Manual', icon: BookOpen },
+                        { id: 'email', name: 'Email', icon: Mail },
+                        { id: 'texts', name: 'Texts', icon: MessageSquare },
+                        { id: 'payments', name: 'Payments', icon: DollarSign },
+                        { id: 'funnels', name: 'Funnels', icon: Megaphone },
+                        { id: 'sites', name: 'Websites', icon: Globe },
+                        { id: 'ai-chat-bot', name: 'AI Chat Bot', icon: Bot },
+                        { id: 'video-editor', name: 'Video Editor', icon: Clapperboard },
+                        { id: 'youtube-trimmer', name: 'Youtube Trimmer', icon: Scissors },
+                        { id: 'settings', name: 'Settings', icon: Settings },
+                        { id: 'admin', name: 'Manage Users', icon: ShieldCheck }
+                      ];
+                      const selectedPage = backgroundPages.find(p => p.id === selectedBgPageId) || backgroundPages[0];
+                      const PageIcon = selectedPage.icon;
+                      return (
+                        <>
+                          <PageIcon className="w-4 h-4 text-primary-theme" />
+                          <span>{selectedPage.name}</span>
+                        </>
+                      );
+                    })()}
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-150 ${bgDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
+
+                {bgDropdownOpen && (
+                  <div className="absolute left-0 right-0 mt-1.5 bg-[#13141a] border border-[#1e2028] rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto animate-fade-in divide-y divide-[#1e2028] outline-none">
+                    {(() => {
+                      const backgroundPages = [
+                        { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
+                        { id: 'customers', name: 'Customers', icon: Users },
+                        { id: 'vehicles', name: 'Vehicles', icon: Car },
+                        { id: 'jobs', name: 'Jobs / Work Orders', icon: ClipboardList },
+                        { id: 'inventory', name: 'Inventory', icon: Package },
+                        { id: 'calendar', name: 'Calendar', icon: Calendar },
+                        { id: 'manual-library', name: 'Manual Library', icon: BookOpen },
+                        { id: 'manual', name: 'Active Service Manual', icon: BookOpen },
+                        { id: 'email', name: 'Email', icon: Mail },
+                        { id: 'texts', name: 'Texts', icon: MessageSquare },
+                        { id: 'payments', name: 'Payments', icon: DollarSign },
+                        { id: 'funnels', name: 'Funnels', icon: Megaphone },
+                        { id: 'sites', name: 'Websites', icon: Globe },
+                        { id: 'ai-chat-bot', name: 'AI Chat Bot', icon: Bot },
+                        { id: 'video-editor', name: 'Video Editor', icon: Clapperboard },
+                        { id: 'youtube-trimmer', name: 'Youtube Trimmer', icon: Scissors },
+                        { id: 'settings', name: 'Settings', icon: Settings },
+                        { id: 'admin', name: 'Manage Users', icon: ShieldCheck }
+                      ];
+                      return backgroundPages.map((p) => {
+                        const isSelected = p.id === selectedBgPageId;
+                        const PageIcon = p.icon;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedBgPageId(p.id);
+                              setBgDropdownOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between text-left p-3 hover:bg-slate-800/40 transition duration-150 cursor-pointer ${isSelected ? 'bg-amber-500/5' : ''}`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <PageIcon className={`w-4 h-4 ${isSelected ? 'text-amber-400' : 'text-slate-400'}`} />
+                              <span className={`text-xs font-black uppercase tracking-wider ${isSelected ? 'text-amber-400' : 'text-slate-200'}`}>
+                                {p.name}
+                              </span>
+                            </div>
+                            {isSelected && (
+                              <span className="w-2 h-2 rounded-full bg-amber-500 mr-2 animate-pulse" />
+                            )}
+                          </button>
+                        );
+                      });
+                    })()}
+                  </div>
+                )}
               </div>
 
-              {/* Status responses */}
-              {testStatus === 'success' && (
-                <div className="bg-green-950/20 border border-green-800/30 text-green-300 p-3 rounded-lg text-xs flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-green-500 shrink-0" />
-                  <span>Connection successful! Server synchronized. Settings updated.</span>
-                </div>
-              )}
+              {/* MediaField for custom background upload */}
+              {(() => {
+                const backgroundPages = [
+                  { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
+                  { id: 'customers', name: 'Customers', icon: Users },
+                  { id: 'vehicles', name: 'Vehicles', icon: Car },
+                  { id: 'jobs', name: 'Jobs / Work Orders', icon: ClipboardList },
+                  { id: 'inventory', name: 'Inventory', icon: Package },
+                  { id: 'calendar', name: 'Calendar', icon: Calendar },
+                  { id: 'manual-library', name: 'Manual Library', icon: BookOpen },
+                  { id: 'manual', name: 'Active Service Manual', icon: BookOpen },
+                  { id: 'email', name: 'Email', icon: Mail },
+                  { id: 'texts', name: 'Texts', icon: MessageSquare },
+                  { id: 'payments', name: 'Payments', icon: DollarSign },
+                  { id: 'funnels', name: 'Funnels', icon: Megaphone },
+                  { id: 'sites', name: 'Websites', icon: Globe },
+                  { id: 'ai-chat-bot', name: 'AI Chat Bot', icon: Bot },
+                  { id: 'video-editor', name: 'Video Editor', icon: Clapperboard },
+                  { id: 'youtube-trimmer', name: 'Youtube Trimmer', icon: Scissors },
+                  { id: 'settings', name: 'Settings', icon: Settings },
+                  { id: 'admin', name: 'Manage Users', icon: ShieldCheck }
+                ];
+                const selectedPage = backgroundPages.find(p => p.id === selectedBgPageId) || backgroundPages[0];
+                const bgConfig = pageBackgrounds[selectedPage.id] || { url: '', opacity: 100 };
 
-              {testStatus === 'failed' && (
-                <div className="bg-red-950/20 border border-red-900/30 text-red-300 p-3 rounded-lg text-xs flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold block">Ping Check Interrupted</span>
-                    <span className="text-[10px] text-slate-400">{testErrorMessage}</span>
+                const handleBgChange = (url: string) => {
+                  const updated = { ...pageBackgrounds };
+                  if (!url.trim()) {
+                    delete updated[selectedPage.id];
+                  } else {
+                    updated[selectedPage.id] = {
+                      url,
+                      opacity: bgConfig.opacity ?? 100,
+                      playbackRate: bgConfig.playbackRate ?? 1
+                    };
+                  }
+                  setPageBackgrounds(updated);
+                };
+
+                const handleOpacityChange = (key: string, opacityVal: number) => {
+                  const updated = { ...pageBackgrounds };
+                  if (updated[key]) {
+                    updated[key] = {
+                      ...updated[key],
+                      opacity: opacityVal
+                    };
+                  } else {
+                    updated[key] = {
+                      url: '',
+                      opacity: opacityVal
+                    };
+                  }
+                  setPageBackgrounds(updated);
+                };
+
+                const handlePlaybackRateChange = (key: string, rateVal: number) => {
+                  const updated = { ...pageBackgrounds };
+                  if (updated[key]) {
+                    updated[key] = {
+                      ...updated[key],
+                      playbackRate: rateVal
+                    };
+                  } else {
+                    updated[key] = {
+                      url: '',
+                      opacity: 100,
+                      playbackRate: rateVal
+                    };
+                  }
+                  setPageBackgrounds(updated);
+                };
+
+                // Create a temporary media opacity/speed map for MediaField input
+                const mediaOpacityMap = {
+                  [selectedPage.id]: bgConfig.opacity ?? 100
+                };
+                const mediaPlaybackRateMap = {
+                  [selectedPage.id]: bgConfig.playbackRate ?? 1
+                };
+
+                return (
+                  <div className="space-y-3 bg-bg-theme/40 border border-border-theme/40 rounded-xl p-4">
+                    <div className="flex items-center justify-between border-b border-border-theme pb-2 mb-2">
+                      <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                        Configure: {selectedPage.name} Background
+                      </span>
+                      {bgConfig.url && (
+                        <button
+                          type="button"
+                          onClick={() => handleBgChange('')}
+                          className="text-[10px] font-mono text-red-400 hover:text-red-300 uppercase tracking-wider cursor-pointer"
+                        >
+                          Reset Background
+                        </button>
+                      )}
+                    </div>
+                    <MediaField
+                      value={bgConfig.url}
+                      onChange={handleBgChange}
+                      accept="both"
+                      showPreview={true}
+                      placeholder="Upload custom image/video or paste URL"
+                      showOpacity={true}
+                      opacityKey={selectedPage.id}
+                      mediaOpacity={mediaOpacityMap}
+                      onOpacityChange={handleOpacityChange}
+                      showPlaybackRate={true}
+                      playbackRateKey={selectedPage.id}
+                      mediaPlaybackRate={mediaPlaybackRateMap}
+                      onPlaybackRateChange={handlePlaybackRateChange}
+                      help={`Select or upload a custom image or video for the ${selectedPage.name} view. Videos autoplay muted and loop. Move the transparency slider to adjust visibility (higher values make the background more visible, lower values darken it with a black overlay for higher text readability). Video backgrounds also get a playback speed slider (0.25x-2x).`}
+                    />
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           </div>
 
@@ -893,42 +1157,6 @@ export default function SettingsView({
             </form>
           </div>
 
-          {/* Theme customizer */}
-          <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl text-left">
-            <h2 className="text-sm font-bold text-slate-200 uppercase flex items-center gap-2">
-              <Sun className="w-4 h-4 text-primary-theme" />
-              Workshop Display Theme
-            </h2>
-            <p className="text-xs text-slate-400">
-              Select a specialized color layout. Dark-ambient presets are highly recommended for eye safety and durability inside physical repair environments.
-            </p>
-
-            <div className="space-y-3">
-              {/* Current theme preview + button to open the picker modal */}
-              <div className="flex items-center gap-4 bg-bg-theme/40 border border-border-theme/60 rounded-xl p-4 select-none">
-                <ThemeThumbnail theme={currentTheme} className="w-28 h-20 shrink-0 shadow-lg" />
-                <div className="text-left flex-1 min-w-0">
-                  <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block font-bold">Currently Active</span>
-                  <span className="text-sm font-black text-slate-100 block uppercase tracking-wider mt-0.5">
-                    {currentTheme.name}
-                  </span>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    {currentTheme.desc}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setDropdownOpen(true)}
-                  className="shrink-0 bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-black rounded-lg px-4 py-2.5 text-[11px] uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5"
-                  id="theme-select-dropdown"
-                >
-                  <Sun className="w-3.5 h-3.5" />
-                  Change Theme
-                </button>
-              </div>
-            </div>
-          </div>
-
           {/* Theme Picker Modal */}
           {dropdownOpen && (
             <div
@@ -998,234 +1226,9 @@ export default function SettingsView({
               </div>
             </div>
           )}
-
-          {/* Custom Page Backgrounds Card */}
-          <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl text-left">
-            <h2 className="text-sm font-bold text-slate-200 uppercase flex items-center gap-2">
-              <Image className="w-4 h-4 text-primary-theme" />
-              Custom Page Backgrounds
-            </h2>
-            <p className="text-xs text-slate-400">
-              Upload and configure custom background images or videos with transparency overlays for each section. Automations page is excluded.
-            </p>
-
-            <div className="space-y-4">
-              {/* Dropdown to select page */}
-              <div className="relative" ref={bgDropdownRef}>
-                <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block mb-1">Select Page to Configure</label>
-                <button
-                  type="button"
-                  onClick={() => setBgDropdownOpen(!bgDropdownOpen)}
-                  className="w-full flex items-center justify-between bg-bg-theme border border-border-theme hover:border-amber-500/50 text-slate-200 text-xs px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/10 transition-all duration-150 cursor-pointer font-bold uppercase tracking-wider"
-                >
-                  <div className="flex items-center gap-2.5">
-                    {(() => {
-                      const backgroundPages = [
-                        { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
-                        { id: 'customers', name: 'Customers', icon: Users },
-                        { id: 'vehicles', name: 'Vehicles', icon: Car },
-                        { id: 'jobs', name: 'Jobs / Work Orders', icon: ClipboardList },
-                        { id: 'inventory', name: 'Inventory', icon: Package },
-                        { id: 'calendar', name: 'Calendar', icon: Calendar },
-                        { id: 'manual-library', name: 'Manual Library', icon: BookOpen },
-                        { id: 'manual', name: 'Active Service Manual', icon: BookOpen },
-                        { id: 'email', name: 'Email', icon: Mail },
-                        { id: 'texts', name: 'Texts', icon: MessageSquare },
-                        { id: 'payments', name: 'Payments', icon: DollarSign },
-                        { id: 'funnels', name: 'Funnels', icon: Megaphone },
-                        { id: 'sites', name: 'Websites', icon: Globe },
-                        { id: 'ai-chat-bot', name: 'AI Chat Bot', icon: Bot },
-                        { id: 'video-editor', name: 'Video Editor', icon: Clapperboard },
-                        { id: 'youtube-trimmer', name: 'Youtube Trimmer', icon: Scissors },
-                        { id: 'settings', name: 'Settings', icon: Settings },
-                        { id: 'admin', name: 'Manage Users', icon: ShieldCheck }
-                      ];
-                      const selectedPage = backgroundPages.find(p => p.id === selectedBgPageId) || backgroundPages[0];
-                      const PageIcon = selectedPage.icon;
-                      return (
-                        <>
-                          <PageIcon className="w-4 h-4 text-primary-theme" />
-                          <span>{selectedPage.name}</span>
-                        </>
-                      );
-                    })()}
-                  </div>
-                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-150 ${bgDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {bgDropdownOpen && (
-                  <div className="absolute left-0 right-0 mt-1.5 bg-[#13141a] border border-[#1e2028] rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto animate-fade-in divide-y divide-[#1e2028] outline-none">
-                    {(() => {
-                      const backgroundPages = [
-                        { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
-                        { id: 'customers', name: 'Customers', icon: Users },
-                        { id: 'vehicles', name: 'Vehicles', icon: Car },
-                        { id: 'jobs', name: 'Jobs / Work Orders', icon: ClipboardList },
-                        { id: 'inventory', name: 'Inventory', icon: Package },
-                        { id: 'calendar', name: 'Calendar', icon: Calendar },
-                        { id: 'manual-library', name: 'Manual Library', icon: BookOpen },
-                        { id: 'manual', name: 'Active Service Manual', icon: BookOpen },
-                        { id: 'email', name: 'Email', icon: Mail },
-                        { id: 'texts', name: 'Texts', icon: MessageSquare },
-                        { id: 'payments', name: 'Payments', icon: DollarSign },
-                        { id: 'funnels', name: 'Funnels', icon: Megaphone },
-                        { id: 'sites', name: 'Websites', icon: Globe },
-                        { id: 'ai-chat-bot', name: 'AI Chat Bot', icon: Bot },
-                        { id: 'video-editor', name: 'Video Editor', icon: Clapperboard },
-                        { id: 'youtube-trimmer', name: 'Youtube Trimmer', icon: Scissors },
-                        { id: 'settings', name: 'Settings', icon: Settings },
-                        { id: 'admin', name: 'Manage Users', icon: ShieldCheck }
-                      ];
-                      return backgroundPages.map((p) => {
-                        const isSelected = p.id === selectedBgPageId;
-                        const PageIcon = p.icon;
-                        return (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedBgPageId(p.id);
-                              setBgDropdownOpen(false);
-                            }}
-                            className={`w-full flex items-center justify-between text-left p-3 hover:bg-slate-800/40 transition duration-150 cursor-pointer ${isSelected ? 'bg-amber-500/5' : ''}`}
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <PageIcon className={`w-4 h-4 ${isSelected ? 'text-amber-400' : 'text-slate-400'}`} />
-                              <span className={`text-xs font-black uppercase tracking-wider ${isSelected ? 'text-amber-400' : 'text-slate-200'}`}>
-                                {p.name}
-                              </span>
-                            </div>
-                            {isSelected && (
-                              <span className="w-2 h-2 rounded-full bg-amber-500 mr-2 animate-pulse" />
-                            )}
-                          </button>
-                        );
-                      });
-                    })()}
-                  </div>
-                )}
-              </div>
-
-              {/* MediaField for custom background upload */}
-              {(() => {
-                const backgroundPages = [
-                  { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
-                  { id: 'customers', name: 'Customers', icon: Users },
-                  { id: 'vehicles', name: 'Vehicles', icon: Car },
-                  { id: 'jobs', name: 'Jobs / Work Orders', icon: ClipboardList },
-                  { id: 'inventory', name: 'Inventory', icon: Package },
-                  { id: 'calendar', name: 'Calendar', icon: Calendar },
-                  { id: 'manual-library', name: 'Manual Library', icon: BookOpen },
-                  { id: 'manual', name: 'Active Service Manual', icon: BookOpen },
-                  { id: 'email', name: 'Email', icon: Mail },
-                  { id: 'texts', name: 'Texts', icon: MessageSquare },
-                  { id: 'payments', name: 'Payments', icon: DollarSign },
-                  { id: 'funnels', name: 'Funnels', icon: Megaphone },
-                  { id: 'sites', name: 'Websites', icon: Globe },
-                  { id: 'ai-chat-bot', name: 'AI Chat Bot', icon: Bot },
-                  { id: 'video-editor', name: 'Video Editor', icon: Clapperboard },
-                  { id: 'youtube-trimmer', name: 'Youtube Trimmer', icon: Scissors },
-                  { id: 'settings', name: 'Settings', icon: Settings },
-                  { id: 'admin', name: 'Manage Users', icon: ShieldCheck }
-                ];
-                const selectedPage = backgroundPages.find(p => p.id === selectedBgPageId) || backgroundPages[0];
-                const bgConfig = pageBackgrounds[selectedPage.id] || { url: '', opacity: 100 };
-                
-                const handleBgChange = (url: string) => {
-                  const updated = { ...pageBackgrounds };
-                  if (!url.trim()) {
-                    delete updated[selectedPage.id];
-                  } else {
-                    updated[selectedPage.id] = {
-                      url,
-                      opacity: bgConfig.opacity ?? 100,
-                      playbackRate: bgConfig.playbackRate ?? 1
-                    };
-                  }
-                  setPageBackgrounds(updated);
-                };
-
-                const handleOpacityChange = (key: string, opacityVal: number) => {
-                  const updated = { ...pageBackgrounds };
-                  if (updated[key]) {
-                    updated[key] = {
-                      ...updated[key],
-                      opacity: opacityVal
-                    };
-                  } else {
-                    updated[key] = {
-                      url: '',
-                      opacity: opacityVal
-                    };
-                  }
-                  setPageBackgrounds(updated);
-                };
-
-                const handlePlaybackRateChange = (key: string, rateVal: number) => {
-                  const updated = { ...pageBackgrounds };
-                  if (updated[key]) {
-                    updated[key] = {
-                      ...updated[key],
-                      playbackRate: rateVal
-                    };
-                  } else {
-                    updated[key] = {
-                      url: '',
-                      opacity: 100,
-                      playbackRate: rateVal
-                    };
-                  }
-                  setPageBackgrounds(updated);
-                };
-
-                // Create a temporary media opacity/speed map for MediaField input
-                const mediaOpacityMap = {
-                  [selectedPage.id]: bgConfig.opacity ?? 100
-                };
-                const mediaPlaybackRateMap = {
-                  [selectedPage.id]: bgConfig.playbackRate ?? 1
-                };
-
-                return (
-                  <div className="space-y-3 bg-bg-theme/40 border border-border-theme/40 rounded-xl p-4">
-                    <div className="flex items-center justify-between border-b border-border-theme pb-2 mb-2">
-                      <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                        Configure: {selectedPage.name} Background
-                      </span>
-                      {bgConfig.url && (
-                        <button
-                          type="button"
-                          onClick={() => handleBgChange('')}
-                          className="text-[10px] font-mono text-red-400 hover:text-red-300 uppercase tracking-wider cursor-pointer"
-                        >
-                          Reset Background
-                        </button>
-                      )}
-                    </div>
-                    <MediaField
-                      value={bgConfig.url}
-                      onChange={handleBgChange}
-                      accept="both"
-                      showPreview={true}
-                      placeholder="Upload custom image/video or paste URL"
-                      showOpacity={true}
-                      opacityKey={selectedPage.id}
-                      mediaOpacity={mediaOpacityMap}
-                      onOpacityChange={handleOpacityChange}
-                      showPlaybackRate={true}
-                      playbackRateKey={selectedPage.id}
-                      mediaPlaybackRate={mediaPlaybackRateMap}
-                      onPlaybackRateChange={handlePlaybackRateChange}
-                      help={`Select or upload a custom image or video for the ${selectedPage.name} view. Videos autoplay muted and loop. Move the transparency slider to adjust visibility (higher values make the background more visible, lower values darken it with a black overlay for higher text readability). Video backgrounds also get a playback speed slider (0.25x-2x).`}
-                    />
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-
       </div>
 
     </div>
   );
 }
+
