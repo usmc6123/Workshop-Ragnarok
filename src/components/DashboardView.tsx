@@ -694,28 +694,39 @@ export default function DashboardView({
       </div>
 
       {/* NEW: AI Morning Briefing */}
-      <div className="bg-gradient-to-br from-[#151626]/90 to-[#13141a]/80 backdrop-blur-sm border border-primary-theme/25 rounded-xl p-5 shadow" id="dashboard-ai-briefing">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-primary-theme" />
-            <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-350">Cooper & Roscoe's Morning Briefing</span>
+      <div
+        className="relative overflow-hidden border border-primary-theme/25 rounded-xl p-5 shadow"
+        id="dashboard-ai-briefing"
+        style={{
+          backgroundImage: `url('/briefing.png')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/55 to-transparent" />
+        <div className="relative">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary-theme" />
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-white drop-shadow">Cooper & Roscoe's Morning Briefing</span>
+            </div>
+            <button
+              onClick={() => fetchBriefing(stats, jobsDueToday.length, appointmentsToday.length)}
+              disabled={briefingLoading}
+              className="text-slate-300 hover:text-primary-theme transition-colors disabled:opacity-50"
+              title="Refresh briefing"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${briefingLoading ? 'animate-spin' : ''}`} />
+            </button>
           </div>
-          <button
-            onClick={() => fetchBriefing(stats, jobsDueToday.length, appointmentsToday.length)}
-            disabled={briefingLoading}
-            className="text-slate-500 hover:text-primary-theme transition-colors disabled:opacity-50"
-            title="Refresh briefing"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${briefingLoading ? 'animate-spin' : ''}`} />
-          </button>
+          {briefingLoading ? (
+            <p className="text-xs text-slate-300 font-mono">Thinking it over...</p>
+          ) : briefingError || !briefing ? (
+            <p className="text-xs text-slate-300 font-mono italic">Briefing unavailable right now — check the AI Chat Bot setup if this persists.</p>
+          ) : (
+            <p className="text-sm text-slate-100 leading-relaxed max-w-2xl drop-shadow">{briefing}</p>
+          )}
         </div>
-        {briefingLoading ? (
-          <p className="text-xs text-slate-450 font-mono">Thinking it over...</p>
-        ) : briefingError || !briefing ? (
-          <p className="text-xs text-slate-450 font-mono italic">Briefing unavailable right now — check the AI Chat Bot setup if this persists.</p>
-        ) : (
-          <p className="text-sm text-slate-200 leading-relaxed">{briefing}</p>
-        )}
       </div>
 
       {/* NEW: Revenue sparkline + Low stock alert */}
