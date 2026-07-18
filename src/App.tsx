@@ -28,6 +28,7 @@ import FunnelsView from './components/FunnelsView';
 import SitePageView from './components/SitePageView';
 import SitesView from './components/SitesView';
 import YoutubeTrimmerView from './components/YoutubeTrimmerView';
+import OfficeView from './components/OfficeView';
 import QuickReformatView from './components/QuickReformatView';
 import AiChatBotView from './components/AiChatBotView';
 const VideoEditor = React.lazy(() => import('./pages/VideoEditor'));
@@ -43,7 +44,7 @@ import {
   Wifi, HelpCircle, CheckSquare, Settings, Car, ClipboardList, LayoutDashboard, Menu
 } from 'lucide-react';
 
-type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email' | 'texts' | 'automations' | 'payments' | 'funnels' | 'sites' | 'youtube-trimmer' | 'reformat-tool' | 'ai-chat-bot' | 'video-editor';
+type ViewType = 'dashboard' | 'customers' | 'vehicles' | 'jobs' | 'inventory' | 'calendar' | 'manual-library' | 'settings' | 'manual' | 'admin' | 'login' | 'email' | 'texts' | 'automations' | 'payments' | 'funnels' | 'sites' | 'youtube-trimmer' | 'office' | 'reformat-tool' | 'ai-chat-bot' | 'video-editor';
 
 export default function App() {
   console.log('APP RENDERING');
@@ -244,6 +245,7 @@ export default function App() {
       case 'sites': return 'Website Builder';
       case 'ai-chat-bot': return 'AI Chat Bot Builder';
       case 'video-editor': return 'Shop Video Editor';
+      case 'office': return 'The Office';
       case 'login': return 'Terminal Auth';
       case 'reformat-tool': return 'Quick Upload / Reformat';
       default: return 'Workshop Management';
@@ -640,6 +642,10 @@ export default function App() {
 
                 {view === 'youtube-trimmer' && (
                   <YoutubeTrimmerView />
+                )}
+
+                {view === 'office' && (
+                  <OfficeView />
                 )}
 
                 {view === 'reformat-tool' && (

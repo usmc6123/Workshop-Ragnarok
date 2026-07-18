@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   LayoutDashboard, Users, Car, ClipboardList, Calendar, BookOpen, Settings,
-  ChevronLeft, ChevronRight, Menu, ShieldCheck, LogOut, Package, Mail, MessageSquare, Zap, DollarSign, Megaphone, Scissors, Globe, Bot, Clapperboard
+  ChevronLeft, ChevronRight, Menu, ShieldCheck, LogOut, Package, Mail, MessageSquare, Zap, DollarSign, Megaphone, Scissors, Globe, Bot, Clapperboard, Briefcase
 } from 'lucide-react';
 import { LOGO_URL } from '../constants/branding';
 import { useAuth } from '../contexts/AuthContext';
@@ -42,6 +42,7 @@ export default function Sidebar({
     { id: 'ai-chat-bot', label: 'AI Chat Bot', icon: Bot },
     { id: 'video-editor', label: 'Video Editor', icon: Clapperboard },
     { id: 'youtube-trimmer', label: 'Youtube Trimmer', icon: Scissors },
+    { id: 'office', label: 'The Office', icon: Briefcase },
   ];
 
   if (isAdmin) {
