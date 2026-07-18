@@ -44,7 +44,13 @@ const TABS = [
     id: 'documents',
     label: 'Documents',
     icon: FileText,
-    url: 'https://nextcloud.homeslab.uk',
+    // Deep link straight into the "Scratchpad" doc's editor view (Collabora),
+    // not the bare Nextcloud root — skips the Files list entirely so this
+    // opens ready to type. Files browsing/upload is still one click away
+    // from inside Nextcloud's own nav once you're in there. If this file is
+    // ever renamed/moved/deleted, grab its new URL from the address bar the
+    // same way (Files -> open it -> copy URL) and update this.
+    url: 'https://nextcloud.homeslab.uk/apps/files/files/19762?dir=/&openfile=true',
     description: 'Word / Excel / PowerPoint editing, file storage and organization.',
     embeddable: false,
   },
