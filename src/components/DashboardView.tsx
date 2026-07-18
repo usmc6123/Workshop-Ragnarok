@@ -26,11 +26,11 @@ interface DashboardViewProps {
 // Quick Launch — one-click shortcuts to the pages that have piled up in the
 // sidebar over time without ever getting dashboard-level visibility.
 const QUICK_LAUNCH_ITEMS = [
-  { tab: 'office', label: 'The Office', icon: Briefcase },
-  { tab: 'ai-chat-bot', label: 'AI Chat Bot', icon: Bot },
-  { tab: 'video-editor', label: 'Video Editor', icon: Clapperboard },
-  { tab: 'youtube-trimmer', label: 'Youtube Trimmer', icon: Scissors },
-  { tab: 'sites', label: 'Websites', icon: Globe },
+  { tab: 'office', label: 'The Office', icon: Briefcase, bg: '/office.png' },
+  { tab: 'ai-chat-bot', label: 'AI Chat Bot', icon: Bot, bg: '/chatbot.png' },
+  { tab: 'video-editor', label: 'Video Editor', icon: Clapperboard, bg: '/videoeditor.png' },
+  { tab: 'youtube-trimmer', label: 'Youtube Trimmer', icon: Scissors, bg: '/youtubetrimmer.png' },
+  { tab: 'sites', label: 'Websites', icon: Globe, bg: '/websites.png' },
 ] as const;
 
 type FeedItem = {
@@ -542,10 +542,18 @@ export default function DashboardView({
               <button
                 key={item.tab}
                 onClick={() => onNavigateToTab(item.tab)}
-                className="flex flex-col items-center justify-center gap-2 bg-bg-theme/60 hover:bg-bg-theme border border-border-theme hover:border-primary-theme/50 rounded-lg py-4 px-2 transition-all duration-200 group"
+                className="relative flex flex-col items-center justify-end h-28 rounded-lg overflow-hidden border border-border-theme hover:border-primary-theme/60 transition-all duration-200 group shadow-md"
+                style={{
+                  backgroundImage: `url('${item.bg}')`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }}
               >
-                <Icon className="w-5 h-5 text-primary-theme group-hover:scale-110 transition-transform" />
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-300 text-center">{item.label}</span>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/5 to-transparent group-hover:from-black/60 transition-colors" />
+                <div className="relative flex items-center gap-1.5 pb-2 px-2">
+                  <Icon className="w-3.5 h-3.5 text-primary-theme drop-shadow group-hover:scale-110 transition-transform shrink-0" />
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-white text-center drop-shadow">{item.label}</span>
+                </div>
               </button>
             );
           })}
