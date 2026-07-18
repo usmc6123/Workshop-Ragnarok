@@ -4,55 +4,54 @@
  */
 
 import React, { useState } from 'react';
-import { FileText, FileEdit, NotebookPen, ExternalLink } from 'lucide-react';
+import { FileText, FileEdit, NotebookPen } from 'lucide-react';
 
 // "The Office" — a study/productivity page bundling three self-hosted tools,
 // same pattern as YoutubeTrimmerView.tsx: each is its own standalone Docker
 // container with its own compose file, deliberately NOT folded into the
 // Ragnarök protected-file deploy pipeline, reached via its own Cloudflare
-// Tunnel hostname.
+// Tunnel hostname. All three are embedded directly and Documents is the
+// default/first tab, so opening "The Office" shows a ready-to-use doc
+// immediately with zero extra clicks.
 //
-//   PDF Tools -> Stirling-PDF   (D:\HomeServer\stirling-pdf, own docker-compose.yml)
-//                https://pdf.homeslab.uk  — embedded directly, no framing restrictions.
-//   Documents -> existing Nextcloud instance (nextcloud.homeslab.uk), with the
-//                Collabora Online app enabled via the Nextcloud AIO admin panel
-//                for in-browser Word/Excel/PowerPoint editing. NOT embedded as
-//                an iframe — Nextcloud sends `X-Frame-Options: SAMEORIGIN` by
-//                design (anti-clickjacking) and refuses to render inside a
-//                frame on a different origin (workshop.homeslab.uk). Fighting
-//                that with header-stripping at the proxy layer would weaken a
-//                real security control, so this tab instead opens Nextcloud in
-//                a new tab.
-//   Notes     -> Trilium        (D:\HomeServer\trilium, own docker-compose.yml)
-//                https://notes.homeslab.uk — embedded directly. First visit
-//                will show Trilium's own one-time setup/password screen —
-//                that's normal first-run behavior, not a bug.
+//   Documents -> existing Nextcloud instance, via a small nginx proxy
+//                (D:\HomeServer\nextcloud-embed-proxy) at
+//                https://docs.homeslab.uk that strips Nextcloud's
+//                X-Frame-Options header (Nextcloud hardcodes SAMEORIGIN,
+//                which otherwise blocks any cross-origin iframe) and spoofs
+//                the Host header back to the already-trusted
+//                nextcloud.homeslab.uk. Regular direct browsing still uses
+//                nextcloud.homeslab.uk unchanged — this proxy exists only
+//                for this embedded view. Deep-links straight into the
+//                "Scratchpad" doc's Collabora editor, skipping the Files
+//                list. If that file is ever renamed/moved/deleted, grab its
+//                new URL (Files -> open it -> copy address bar URL) and
+//                update below.
+//   PDF Tools -> Stirling-PDF (D:\HomeServer\stirling-pdf), via its own
+//                nginx proxy sidecar that strips Stirling's hardcoded
+//                X-Frame-Options: DENY. https://pdf.homeslab.uk
+//   Notes     -> Trilium (D:\HomeServer\trilium), via its own nginx proxy
+//                sidecar that strips Trilium's hardcoded X-Frame-Options.
+//                https://notes.homeslab.uk — first visit shows Trilium's
+//                own one-time setup/password screen, that's normal.
 //
 // If any of these LAN ports / hostnames ever change, update the URLs below —
 // same rule as the Youtube Trimmer view.
 
 const TABS = [
   {
+    id: 'documents',
+    label: 'Documents',
+    icon: FileText,
+    url: 'https://docs.homeslab.uk/apps/files/files/19762?dir=/&openfile=true',
+    description: 'Word / Excel / PowerPoint editing, file storage and organization.',
+  },
+  {
     id: 'pdf',
     label: 'PDF Tools',
     icon: FileEdit,
     url: 'https://pdf.homeslab.uk',
     description: 'Merge, split, compress, OCR, redact, sign, and convert PDFs.',
-    embeddable: true,
-  },
-  {
-    id: 'documents',
-    label: 'Documents',
-    icon: FileText,
-    // Deep link straight into the "Scratchpad" doc's editor view (Collabora),
-    // not the bare Nextcloud root — skips the Files list entirely so this
-    // opens ready to type. Files browsing/upload is still one click away
-    // from inside Nextcloud's own nav once you're in there. If this file is
-    // ever renamed/moved/deleted, grab its new URL from the address bar the
-    // same way (Files -> open it -> copy URL) and update this.
-    url: 'https://nextcloud.homeslab.uk/apps/files/files/19762?dir=/&openfile=true',
-    description: 'Word / Excel / PowerPoint editing, file storage and organization.',
-    embeddable: false,
   },
   {
     id: 'notes',
@@ -60,14 +59,13 @@ const TABS = [
     icon: NotebookPen,
     url: 'https://notes.homeslab.uk',
     description: 'Trilium — hierarchical notes for coursework, organized by class/topic.',
-    embeddable: true,
   },
 ] as const;
 
 type TabId = typeof TABS[number]['id'];
 
 export default function OfficeView() {
-  const [activeTab, setActiveTab] = useState<TabId>('pdf');
+  const [activeTab, setActiveTab] = useState<TabId>('documents');
   const active = TABS.find((t) => t.id === activeTab)!;
 
   return (
@@ -105,44 +103,19 @@ export default function OfficeView() {
         </span>
       </div>
 
-      {/* Active tab content */}
+      {/* Active tab content — all three mounted at once (hidden via CSS,
+          not unmounted) so switching tabs never reloads/re-logs-in an app,
+          and Documents is ready the instant the page opens. */}
       <div className="flex-1 relative">
-        {TABS.map((tab) => {
-          if (!tab.embeddable) {
-            return (
-              <div
-                key={tab.id}
-                className={`w-full h-full absolute inset-0 flex-col items-center justify-center gap-4 ${tab.id === activeTab ? 'flex' : 'hidden'}`}
-              >
-                <tab.icon className="w-12 h-12 text-primary-theme/60" />
-                <div className="text-center max-w-sm">
-                  <h3 className="text-sm font-black uppercase tracking-wider text-slate-200 mb-1">{tab.label}</h3>
-                  <p className="text-xs text-slate-500">{tab.description}</p>
-                  <p className="text-[10px] text-slate-600 mt-2">
-                    Opens in a new tab — Nextcloud blocks being embedded inside another site for security.
-                  </p>
-                </div>
-                <a
-                  href={tab.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary-theme text-slate-950 text-xs font-black uppercase tracking-wider hover:opacity-90 transition"
-                >
-                  Open {tab.label} <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
-            );
-          }
-          return (
-            <iframe
-              key={tab.id}
-              src={tab.url}
-              title={tab.label}
-              className={`w-full h-full border-0 absolute inset-0 ${tab.id === activeTab ? 'block' : 'hidden'}`}
-              allow="fullscreen; clipboard-read; clipboard-write"
-            />
-          );
-        })}
+        {TABS.map((tab) => (
+          <iframe
+            key={tab.id}
+            src={tab.url}
+            title={tab.label}
+            className={`w-full h-full border-0 absolute inset-0 ${tab.id === activeTab ? 'block' : 'hidden'}`}
+            allow="fullscreen; clipboard-read; clipboard-write"
+          />
+        ))}
       </div>
     </div>
   );
