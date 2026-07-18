@@ -602,6 +602,249 @@ export default function SettingsView({
           </div>
 
 
+          {/* Shop Profile Settings Card */}
+          <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl text-left" id="shop-profile-card">
+            <h2 className="text-sm font-bold text-slate-200 uppercase flex items-center gap-2">
+              <Store className="w-4 h-4 text-primary-theme" />
+              Shop Profile & Billing Preferences
+            </h2>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Configure your garage branding, location info, tax rate, and default labor rate. These details will dynamically generate invoice headings and tax calculations.
+            </p>
+
+            <form onSubmit={handleSaveSettings} className="space-y-4" id="shop-profile-form">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* Shop Name */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Shop Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Workshop: Ragnarök"
+                    value={settings.shop_name}
+                    onChange={(e) => setSettings({ ...settings, shop_name: e.target.value })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
+                    id="shop-name-input"
+                  />
+                </div>
+
+                {/* Shop Phone */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Phone Number</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. (555) 0199"
+                    value={settings.shop_phone}
+                    onChange={(e) => setSettings({ ...settings, shop_phone: e.target.value })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
+                    id="shop-phone-input"
+                  />
+                </div>
+
+                {/* Shop Address */}
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Street Address</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 123 Resistance Way"
+                    value={settings.shop_address}
+                    onChange={(e) => setSettings({ ...settings, shop_address: e.target.value })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
+                    id="shop-address-input"
+                  />
+                </div>
+
+                {/* Shop City */}
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">City</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Los Angeles"
+                    value={settings.shop_city}
+                    onChange={(e) => setSettings({ ...settings, shop_city: e.target.value })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
+                    id="shop-city-input"
+                  />
+                </div>
+
+                {/* Shop State */}
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">State</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. CA"
+                    value={settings.shop_state}
+                    onChange={(e) => setSettings({ ...settings, shop_state: e.target.value })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
+                    id="shop-state-input"
+                  />
+                </div>
+
+                {/* Tax Rate */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Tax Rate (%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="e.g. 8.25"
+                    value={settings.tax_rate === 0 ? '' : settings.tax_rate}
+                    onChange={(e) => setSettings({ ...settings, tax_rate: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:border-primary-theme focus:outline-none"
+                    id="shop-tax-rate-input"
+                  />
+                </div>
+
+                {/* Default Labor Rate */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Default Labor Rate ($/hr)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="e.g. 90.00"
+                    value={settings.default_labor_rate === 0 ? '' : settings.default_labor_rate}
+                    onChange={(e) => setSettings({ ...settings, default_labor_rate: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:border-primary-theme focus:outline-none"
+                    id="shop-labor-rate-input"
+                  />
+                </div>
+
+                {/* Default Parts Markup (%) */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Default Parts Markup (%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="e.g. 30.00"
+                    value={(settings.default_parts_markup === undefined || settings.default_parts_markup === 0) ? '' : settings.default_parts_markup}
+                    onChange={(e) => setSettings({ ...settings, default_parts_markup: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:border-primary-theme focus:outline-none"
+                    id="shop-parts-markup-input"
+                  />
+                </div>
+
+                {/* Zip Code */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Shop Zip Code</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 90210"
+                    value={settings.zip_code}
+                    onChange={(e) => setSettings({ ...settings, zip_code: e.target.value })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:border-primary-theme focus:outline-none"
+                    id="shop-zip-code-input"
+                  />
+                </div>
+
+                {/* Admin Notification Email */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Admin Notification Email</label>
+                  <input
+                    type="email"
+                    placeholder="e.g. admin@yourshop.com"
+                    value={settings.admin_notification_email || ''}
+                    onChange={(e) => setSettings({ ...settings, admin_notification_email: e.target.value })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
+                    id="shop-admin-notification-email-input"
+                  />
+                </div>
+
+                {/* Google Review Link — powers the automated post-job review request */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Google Review Link</label>
+                  <input
+                    type="text"
+                    placeholder="https://g.page/r/.../review"
+                    value={settings.google_review_url || ''}
+                    onChange={(e) => setSettings({ ...settings, google_review_url: e.target.value })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
+                    id="shop-google-review-url-input"
+                  />
+                  <p className="text-[9px] text-slate-500 mt-1">
+                    Used by the automated review-request that goes out ~2 days after a job is marked Complete. Nothing sends until this is filled in.
+                  </p>
+                </div>
+
+                {/* Local/Tailscale Access URL — surfaced as a link in the Reformat tool
+                    for large videos, since Cloudflare's proxy caps uploads around
+                    100-200MB and silently fails anything bigger over the public domain */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Local / Tailscale Access URL</label>
+                  <input
+                    type="text"
+                    placeholder="http://192.168.x.x:4000 or your Tailscale address"
+                    value={settings.local_access_url || ''}
+                    onChange={(e) => setSettings({ ...settings, local_access_url: e.target.value })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
+                    id="shop-local-access-url-input"
+                  />
+                  <p className="text-[9px] text-slate-500 mt-1">
+                    Large video uploads can fail over the public domain — Cloudflare caps proxied uploads around 100-200MB. Fill this in with your LAN IP:4000 or a Tailscale address, and the Reformat tool will offer it as a one-click link when a big file is selected. You'll need to log back in once you switch.
+                  </p>
+                </div>
+
+                {/* Owner Cell Number — powers the Call button in Texts. Twilio calls
+                    this number first, then bridges the call to whoever you tapped
+                    Call on, once you pick up. */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Your Cell Number (for Call button)</label>
+                  <input
+                    type="tel"
+                    placeholder="+1 555 123 4567"
+                    value={settings.owner_cell_number || ''}
+                    onChange={(e) => setSettings({ ...settings, owner_cell_number: e.target.value })}
+                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:border-primary-theme focus:outline-none"
+                    id="shop-owner-cell-number-input"
+                  />
+                  <p className="text-[9px] text-slate-500 mt-1">
+                    Used only by the Call button in Texts — Twilio rings this number first, and the moment you answer, it dials the contact and connects you both. Never shown to customers.
+                  </p>
+                </div>
+
+                {/* Logo Upload & Preview */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Shop Logo</label>
+                  <MediaField
+                    value={settings.shop_logo_url}
+                    onChange={(v) => setSettings({ ...settings, shop_logo_url: v })}
+                    accept="image"
+                    maxImageDimension={300}
+                    showPreview
+                    placeholder="https://... or upload a file"
+                    help="Uploads are auto-scaled to 300x300px max, or paste a hosted image URL directly."
+                  />
+                </div>
+
+              </div>
+
+              {/* Status and Actions */}
+              <div className="flex items-center justify-between pt-2 border-t border-[#1e2028]">
+                <div>
+                  {saveStatus === 'success' && (
+                    <span className="text-xs text-green-400 font-bold block animate-pulse">
+                      ✓ Profile Saved Successfully!
+                    </span>
+                  )}
+                  {saveStatus === 'failed' && (
+                    <span className="text-xs text-red-400 font-bold block">
+                      ⚠ {saveError}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="submit"
+                  disabled={saveStatus === 'saving'}
+                  className="bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-black rounded-lg px-6 py-2 text-xs uppercase tracking-wider transition-all cursor-pointer"
+                  id="save-shop-profile-button"
+                >
+                  {saveStatus === 'saving' ? 'Saving...' : 'Save Profile'}
+                </button>
+              </div>
+            </form>
+          </div>
+
           {/* Server Connection + Theme row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
             {/* Server Connection Form Card */}
@@ -913,249 +1156,6 @@ export default function SettingsView({
                 );
               })()}
             </div>
-          </div>
-
-          {/* Shop Profile Settings Card */}
-          <div className="bg-[#13141a]/80 backdrop-blur-sm border border-[#1e2028] rounded-xl p-5 space-y-4 shadow-xl text-left" id="shop-profile-card">
-            <h2 className="text-sm font-bold text-slate-200 uppercase flex items-center gap-2">
-              <Store className="w-4 h-4 text-primary-theme" />
-              Shop Profile & Billing Preferences
-            </h2>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Configure your garage branding, location info, tax rate, and default labor rate. These details will dynamically generate invoice headings and tax calculations.
-            </p>
-
-            <form onSubmit={handleSaveSettings} className="space-y-4" id="shop-profile-form">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                
-                {/* Shop Name */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Shop Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Workshop: Ragnarök"
-                    value={settings.shop_name}
-                    onChange={(e) => setSettings({ ...settings, shop_name: e.target.value })}
-                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
-                    id="shop-name-input"
-                  />
-                </div>
-
-                {/* Shop Phone */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Phone Number</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. (555) 0199"
-                    value={settings.shop_phone}
-                    onChange={(e) => setSettings({ ...settings, shop_phone: e.target.value })}
-                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
-                    id="shop-phone-input"
-                  />
-                </div>
-
-                {/* Shop Address */}
-                <div className="space-y-1 md:col-span-2">
-                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Street Address</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 123 Resistance Way"
-                    value={settings.shop_address}
-                    onChange={(e) => setSettings({ ...settings, shop_address: e.target.value })}
-                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
-                    id="shop-address-input"
-                  />
-                </div>
-
-                {/* Shop City */}
-                <div className="space-y-1 md:col-span-2">
-                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">City</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Los Angeles"
-                    value={settings.shop_city}
-                    onChange={(e) => setSettings({ ...settings, shop_city: e.target.value })}
-                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
-                    id="shop-city-input"
-                  />
-                </div>
-
-                {/* Shop State */}
-                <div className="space-y-1 md:col-span-2">
-                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">State</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. CA"
-                    value={settings.shop_state}
-                    onChange={(e) => setSettings({ ...settings, shop_state: e.target.value })}
-                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
-                    id="shop-state-input"
-                  />
-                </div>
-
-                {/* Tax Rate */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Tax Rate (%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="e.g. 8.25"
-                    value={settings.tax_rate === 0 ? '' : settings.tax_rate}
-                    onChange={(e) => setSettings({ ...settings, tax_rate: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:border-primary-theme focus:outline-none"
-                    id="shop-tax-rate-input"
-                  />
-                </div>
-
-                {/* Default Labor Rate */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Default Labor Rate ($/hr)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="e.g. 90.00"
-                    value={settings.default_labor_rate === 0 ? '' : settings.default_labor_rate}
-                    onChange={(e) => setSettings({ ...settings, default_labor_rate: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:border-primary-theme focus:outline-none"
-                    id="shop-labor-rate-input"
-                  />
-                </div>
-
-                {/* Default Parts Markup (%) */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Default Parts Markup (%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="e.g. 30.00"
-                    value={(settings.default_parts_markup === undefined || settings.default_parts_markup === 0) ? '' : settings.default_parts_markup}
-                    onChange={(e) => setSettings({ ...settings, default_parts_markup: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:border-primary-theme focus:outline-none"
-                    id="shop-parts-markup-input"
-                  />
-                </div>
-
-                {/* Zip Code */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Shop Zip Code</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 90210"
-                    value={settings.zip_code}
-                    onChange={(e) => setSettings({ ...settings, zip_code: e.target.value })}
-                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:border-primary-theme focus:outline-none"
-                    id="shop-zip-code-input"
-                  />
-                </div>
-
-                {/* Admin Notification Email */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Admin Notification Email</label>
-                  <input
-                    type="email"
-                    placeholder="e.g. admin@yourshop.com"
-                    value={settings.admin_notification_email || ''}
-                    onChange={(e) => setSettings({ ...settings, admin_notification_email: e.target.value })}
-                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
-                    id="shop-admin-notification-email-input"
-                  />
-                </div>
-
-                {/* Google Review Link — powers the automated post-job review request */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Google Review Link</label>
-                  <input
-                    type="text"
-                    placeholder="https://g.page/r/.../review"
-                    value={settings.google_review_url || ''}
-                    onChange={(e) => setSettings({ ...settings, google_review_url: e.target.value })}
-                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
-                    id="shop-google-review-url-input"
-                  />
-                  <p className="text-[9px] text-slate-500 mt-1">
-                    Used by the automated review-request that goes out ~2 days after a job is marked Complete. Nothing sends until this is filled in.
-                  </p>
-                </div>
-
-                {/* Local/Tailscale Access URL — surfaced as a link in the Reformat tool
-                    for large videos, since Cloudflare's proxy caps uploads around
-                    100-200MB and silently fails anything bigger over the public domain */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Local / Tailscale Access URL</label>
-                  <input
-                    type="text"
-                    placeholder="http://192.168.x.x:4000 or your Tailscale address"
-                    value={settings.local_access_url || ''}
-                    onChange={(e) => setSettings({ ...settings, local_access_url: e.target.value })}
-                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-primary-theme focus:outline-none"
-                    id="shop-local-access-url-input"
-                  />
-                  <p className="text-[9px] text-slate-500 mt-1">
-                    Large video uploads can fail over the public domain — Cloudflare caps proxied uploads around 100-200MB. Fill this in with your LAN IP:4000 or a Tailscale address, and the Reformat tool will offer it as a one-click link when a big file is selected. You'll need to log back in once you switch.
-                  </p>
-                </div>
-
-                {/* Owner Cell Number — powers the Call button in Texts. Twilio calls
-                    this number first, then bridges the call to whoever you tapped
-                    Call on, once you pick up. */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Your Cell Number (for Call button)</label>
-                  <input
-                    type="tel"
-                    placeholder="+1 555 123 4567"
-                    value={settings.owner_cell_number || ''}
-                    onChange={(e) => setSettings({ ...settings, owner_cell_number: e.target.value })}
-                    className="w-full bg-bg-theme border border-border-theme rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:border-primary-theme focus:outline-none"
-                    id="shop-owner-cell-number-input"
-                  />
-                  <p className="text-[9px] text-slate-500 mt-1">
-                    Used only by the Call button in Texts — Twilio rings this number first, and the moment you answer, it dials the contact and connects you both. Never shown to customers.
-                  </p>
-                </div>
-
-                {/* Logo Upload & Preview */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-slate-400 uppercase font-bold block">Shop Logo</label>
-                  <MediaField
-                    value={settings.shop_logo_url}
-                    onChange={(v) => setSettings({ ...settings, shop_logo_url: v })}
-                    accept="image"
-                    maxImageDimension={300}
-                    showPreview
-                    placeholder="https://... or upload a file"
-                    help="Uploads are auto-scaled to 300x300px max, or paste a hosted image URL directly."
-                  />
-                </div>
-
-              </div>
-
-              {/* Status and Actions */}
-              <div className="flex items-center justify-between pt-2 border-t border-[#1e2028]">
-                <div>
-                  {saveStatus === 'success' && (
-                    <span className="text-xs text-green-400 font-bold block animate-pulse">
-                      ✓ Profile Saved Successfully!
-                    </span>
-                  )}
-                  {saveStatus === 'failed' && (
-                    <span className="text-xs text-red-400 font-bold block">
-                      ⚠ {saveError}
-                    </span>
-                  )}
-                </div>
-                <button
-                  type="submit"
-                  disabled={saveStatus === 'saving'}
-                  className="bg-primary-theme hover:bg-primary-theme/90 text-slate-950 font-black rounded-lg px-6 py-2 text-xs uppercase tracking-wider transition-all cursor-pointer"
-                  id="save-shop-profile-button"
-                >
-                  {saveStatus === 'saving' ? 'Saving...' : 'Save Profile'}
-                </button>
-              </div>
-            </form>
           </div>
           {/* Theme Picker Modal */}
           {dropdownOpen && (
