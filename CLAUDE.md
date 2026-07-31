@@ -1138,6 +1138,52 @@ removed from the compose file) — cosmetic only, cleans up on a future
    have several unrelated causes that all look identical from the browser's
    side.**
 
+10. **Collabora Office ("The Office" Word tab) — "Document loading failed" /
+    502 Bad Gateway, recurring even after a full `docker compose down/up`.**
+    Root cause: `collabora/code`'s docker image has a long-standing upstream bug
+    where the `extra_params=--o:ssl.enable=false --o:ssl.termination=true`
+    environment variable in `docker-compose.yml` silently never reaches
+    coolwsd's actual runtime config
+    (https://github.com/CollaboraOnline/online/issues/894, still open/recurring
+    as of 2025). The container keeps serving HTTPS on port 9980 with a
+    self-signed cert regardless of what the env var says, which breaks
+    `collabora-proxy`'s plain-HTTP proxying — nginx gets "upstream prematurely
+    closed connection" (a TLS ClientHello response to a plain HTTP request)
+    and returns 502. A `docker compose down && up` does NOT fix this — it's not
+    a "stale container drifted from its config" issue (see "The July 11-12,
+    2026 incident" further down for that distinct failure mode); the freshly recreated container still
+    ignores the env var every time. Confirmed by pulling the container's
+    actual `/etc/coolwsd/coolwsd.xml` via `docker cp` and finding `<ssl><enable>`
+    still hardcoded to the image's default `true` — none of `extra_params`,
+    `aliasgroup1/2`, `username`, or `password` had been written into it despite
+    all being set correctly in `docker-compose.yml` (confirmed via
+    `docker inspect collabora --format '{{range .Config.Env}}{{println .}}{{end}}'`,
+    which is also the reliable way to check a running container's actual env —
+    this specific `collabora/code` image is stripped down enough that `docker
+    exec collabora <cmd>` fails for `env`, `ps`, `cat`, and `grep` alike with
+    "executable file not found in $PATH").
+    **Fix: don't rely on `extra_params` at all — bind-mount a corrected
+    `coolwsd.xml` directly.** `D:\HomeServer\collabora\coolwsd.xml` now has
+    `ssl.enable` hardcoded to `false` and `ssl.termination` to `true`, mounted
+    read-only into the container at `/etc/coolwsd/coolwsd.xml` via
+    `docker-compose.yml` (same pattern as the pre-existing `nginx.conf` mount
+    for `collabora-proxy`). This is durable against the upstream bug regardless
+    of image version, since it bypasses the broken env-var mechanism entirely.
+    **To prevent recurrence: `docker-compose.yml` pins `collabora/code:latest`
+    — a moving tag, so every `docker compose pull`/recreate can silently land
+    on a different build with different (or newly-broken) behavior. Pin to a
+    specific version tag next time this stack is touched.** Verify the fix
+    stays in effect with `docker exec collabora-proxy curl -s
+    http://collabora:9980/hosting/discovery` — should return real WOPI
+    discovery XML, not hang/empty-reply (which would mean TLS is back on,
+    i.e. the bind mount got removed or overridden).
+    **Lesson: when a documented docker-image env var demonstrably has zero
+    effect at runtime (verified via `docker inspect`'s env dump AND a live
+    protocol-level test, not just "the container looks up"), stop trying to
+    fix it by re-recreating the container — check the image's GitHub issues
+    for that exact variable name before assuming it's a local
+    misconfiguration. Some of these "documented" env vars are just broken.**
+
 ## Tooling lessons (for future Claude sessions specifically)
 
 - The bash sandbox's mounted view of these Windows folders can be **stale/cached**
@@ -1425,6 +1471,87 @@ owner before touching):
 - The Cowork nightly DB backup scheduled task is scoped **only** to this repo's
   own `data/`/`workshop.db` — it has no relationship to the homelab stack above
   and can't affect or be affected by anything in this section.
+
+**2026-07-23 — `reconcile-mounts.ps1` had a real bug that made it silently fail
+to recover `ragnarok-backend`/`workshop-webhook` on reboot, plus Collabora was
+never covered by it at all.** Found after a normal computer restart left
+`workshop-webhook` crash-looping and `collabora`/`collabora-proxy` both fully
+stopped, neither self-healed. Root cause of the webhook/backend half: the
+script's workshop-ragnarok block did `docker stop <container>; docker rm
+<container>` (correct — those take container names) immediately followed by
+`docker compose up -d <same names>` — but `docker compose up -d` takes COMPOSE
+SERVICE names, not container names, and two of the three don't match
+(`workshop-ragnarok/docker-compose.yml`: service `workshop-backend` → container
+`ragnarok-backend`, service `webhook` → container `workshop-webhook`; only
+`lemon-server` happens to be spelled the same both ways). So every run of this
+script was removing all three containers correctly, then only successfully
+recreating `lemon-server` — `ragnarok-backend` and `workshop-webhook` were left
+deleted/never recreated until something else (a later deploy, or a manual
+force-recreate) brought them back. This had been silently wrong since the
+2026-07-17 fix that first added this block. Fixed by keeping a container→service
+map in the script and passing container names to `stop`/`rm` but service names
+to `docker compose up -d`. Collabora (`D:\HomeServer\collabora`, its own
+separate compose project, not part of `D:\HomeServer\docker-compose.yml`) was
+never in either list — added as a third block. Both fixes are already applied
+in the live `D:\HomeServer\reconcile-mounts.ps1`; if this file is ever
+regenerated from scratch, keep the container-name-vs-service-name distinction
+in mind for the workshop-ragnarok block specifically, since it's the only one
+on this host where they differ.
+
+**2026-07-24 — the Nextcloud AIO mastercontainer (`D:\HomeServer\nextcloud`)
+is an unrelated, abandoned experiment; the REAL Nextcloud is a separate plain
+docker-compose project at `D:\NextCloud\docker-compose.yml`, container
+`nextcloud_app` — don't confuse the two.** Found while chasing "docs.homeslab.uk
+refused to connect" (the Office tab's embedded Word/Excel/etc. view, backed by
+Collabora via `nextcloud-embed-proxy` → `nextcloud_app:80`). The real root
+cause was the same stale-bind-mount bug as everything else on this host:
+`nextcloud_app`'s `./config` bind mount (to `D:\NextCloud\config`) silently
+resolved to an empty view after a Docker Desktop restart, so Nextcloud served
+"Cannot write into config directory!" / 503 on every request even though the
+real config.php (confirmed: real content, correct size, untouched) sat right
+there on disk the whole time. Chasing this down the AIO admin UI path (login →
+"domaincheck container not running", port 443 conflict with
+`nginx-proxy-manager` → `SKIP_DOMAIN_VALIDATION`/`APACHE_PORT` → "Download and
+start containers") was a dead end that actually made things worse: it created
+a second, completely separate, brand-new empty Nextcloud instance
+(`nextcloud-aio-apache`, `nextcloud-aio-database` on Postgres, `nextcloud-aio-*`
+containers on a new `nextcloud-aio` docker network) alongside the real one,
+which is NOT what you want and should be torn down (`cd D:\HomeServer\nextcloud
+&& docker compose down`) once you're sure the real instance is healthy — don't
+log into or put data in the `nextcloud-aio-*` instance.
+
+The real instance was recovered by going back to first principles: a
+previously-saved `D:\HomeServer\nextcloud_app_inspect.json` (a full `docker
+inspect nextcloud_app` dump, evidently saved as a reference at some earlier
+point) had the labels `com.docker.compose.project: nextcloud`,
+`com.docker.compose.project.config_files: D:\NextCloud\docker-compose.yml` -
+proof this container was never AIO-managed at all. That compose file (plain
+`nextcloud:latest` + `mariadb:10.11` + `redis:alpine`, `MYSQL_HOST=db`) still
+exists and is completely correct. Recovery was just:
+```
+cd /mnt/d/NextCloud && docker compose up -d
+docker network connect homeserver_default nextcloud_app
+docker restart nextcloud-embed-proxy
+```
+`nextcloud_db`/`nextcloud_redis` never needed touching (plain named volumes,
+not D:-drive bind mounts, not exposed to the staleness bug) - only `app`
+needed recreating. The two extra steps are both easy to forget and both
+silently break things if skipped: `homeserver_default` is a SECOND network
+attached to `nextcloud_app` by hand outside the compose file (that's how
+`cloudflared` and `nextcloud-embed-proxy` resolve it by container name for
+both `nextcloud.homeslab.uk` and `docs.homeslab.uk` - the compose file alone
+only attaches its own `nextcloud_network`), and `nextcloud-embed-proxy`'s
+nginx does a static `proxy_pass http://nextcloud_app:80` that it resolves
+once at its own startup and caches - a recreated `nextcloud_app` gets a new
+IP, so the proxy needs a restart or it keeps connecting to the old, dead IP
+("connection refused") even once `nextcloud_app` itself is fully healthy.
+
+**Now covered by `reconcile-mounts.ps1`** (see that file's 2026-07-24 comment
+block) so this shouldn't require manual recovery again after a normal reboot.
+**Lesson: a saved `docker inspect` dump of a container is genuinely valuable
+disaster-recovery material** - it's what made it possible to confirm this
+container's real origin (compose project/file path, image, env vars, both
+networks) after it had already been deleted, rather than guessing.
 
 ## Standing workflow rules
 

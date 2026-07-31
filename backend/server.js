@@ -1595,6 +1595,25 @@ try {
     )
   `);
 
+  // --- SCHOOL TRACKER: personal WGU/Sophia/Study.com degree-progress tracker ---
+  // Added 2026-07-31. Lives under The Office > School tab. One row per user
+  // (same "single settings-ish row" pattern as shop_settings), since this is
+  // a personal checklist, not a multi-record resource like private_contacts.
+  // checked_courses is a JSON array of course-id strings (e.g. "s1", "t4",
+  // "w17" — ids are defined client-side in SchoolView.tsx, this table has no
+  // opinion on what they mean) rather than one column per course, since the
+  // course list is a static plan that only lives in the frontend and adding
+  // a column per course would mean a migration every time that plan changes.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS school_tracker (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      start_date TEXT,
+      checked_courses TEXT DEFAULT '[]',
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // sms_messages: add read/trash state and private-contact linkage as plain
   // nullable columns (no CHECK constraint involved, so a simple guarded
   // ALTER TABLE ADD COLUMN is enough — no need for the rename/rebuild dance
@@ -4052,6 +4071,59 @@ app.put('/api/shop-settings', (req, res) => {
   } catch (error) {
     console.error('Error updating shop settings:', error);
     res.status(500).json({ error: 'Database error updating shop settings' });
+  }
+});
+
+// --- SCHOOL TRACKER ---
+// Genuine partial-update route (checks `'key' in req.body`, not a falsy
+// check) — the same site_blocks bug from earlier this deploy cycle taught us
+// that blindly overwriting every column on every PUT silently wipes out
+// whatever the caller didn't send. checked_courses is stored as a JSON
+// string; parsed back into a real array before being sent to the client.
+app.get('/api/school-tracker', (req, res) => {
+  try {
+    let row = db.prepare('SELECT * FROM school_tracker WHERE user_id = ?').get(req.user.id);
+    if (!row) {
+      db.prepare('INSERT INTO school_tracker (user_id, start_date, checked_courses) VALUES (?, ?, ?)')
+        .run(req.user.id, new Date().toISOString().slice(0, 10), '[]');
+      row = db.prepare('SELECT * FROM school_tracker WHERE user_id = ?').get(req.user.id);
+    }
+    res.json({
+      startDate: row.start_date,
+      checkedCourses: JSON.parse(row.checked_courses || '[]')
+    });
+  } catch (error) {
+    console.error('Error fetching school tracker:', error);
+    res.status(500).json({ error: 'Database error fetching school tracker' });
+  }
+});
+
+app.put('/api/school-tracker', (req, res) => {
+  try {
+    const userId = req.user.id;
+    let row = db.prepare('SELECT * FROM school_tracker WHERE user_id = ?').get(userId);
+    if (!row) {
+      db.prepare('INSERT INTO school_tracker (user_id, start_date, checked_courses) VALUES (?, ?, ?)')
+        .run(userId, new Date().toISOString().slice(0, 10), '[]');
+      row = db.prepare('SELECT * FROM school_tracker WHERE user_id = ?').get(userId);
+    }
+
+    const startDate = 'startDate' in req.body ? req.body.startDate : row.start_date;
+    const checkedCourses = 'checkedCourses' in req.body
+      ? JSON.stringify(req.body.checkedCourses)
+      : row.checked_courses;
+
+    db.prepare('UPDATE school_tracker SET start_date = ?, checked_courses = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?')
+      .run(startDate, checkedCourses, userId);
+
+    const updated = db.prepare('SELECT * FROM school_tracker WHERE user_id = ?').get(userId);
+    res.json({
+      startDate: updated.start_date,
+      checkedCourses: JSON.parse(updated.checked_courses || '[]')
+    });
+  } catch (error) {
+    console.error('Error updating school tracker:', error);
+    res.status(500).json({ error: 'Database error updating school tracker' });
   }
 });
 

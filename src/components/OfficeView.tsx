@@ -4,7 +4,8 @@
  */
 
 import React, { useState } from 'react';
-import { FileText, Table2, Presentation, Workflow, Type, FileEdit, NotebookPen } from 'lucide-react';
+import { FileText, Table2, Presentation, Workflow, Type, FileEdit, NotebookPen, GraduationCap } from 'lucide-react';
+import SchoolView from './SchoolView';
 
 // "The Office" — a study/productivity page bundling self-hosted tools as
 // embedded tabs, same standalone-container pattern as YoutubeTrimmerView.tsx.
@@ -32,6 +33,14 @@ import { FileText, Table2, Presentation, Workflow, Type, FileEdit, NotebookPen }
 //                sidecar that strips Trilium's hardcoded X-Frame-Options.
 //                https://notes.homeslab.uk — first visit shows Trilium's
 //                own one-time setup/password screen, that's normal.
+//   School    -> NOT an iframe to an external self-hosted service like the
+//                tabs above — SchoolView.tsx is a real in-app React
+//                component, backed by this app's own database
+//                (school_tracker table, GET/PUT /api/school-tracker) so
+//                progress syncs across devices instead of living in one
+//                browser's localStorage. A personal checklist tracker for
+//                the Sophia Learning -> Study.com -> WGU BS Computer
+//                Science credit-transfer plan. Added 2026-07-31.
 //
 // If any of these LAN ports / hostnames ever change, update the URLs below —
 // same rule as the Youtube Trimmer view.
@@ -86,6 +95,13 @@ const TABS = [
     url: 'https://notes.homeslab.uk',
     description: 'Trilium — hierarchical notes for coursework, organized by class/topic.',
   },
+  {
+    id: 'school',
+    label: 'School',
+    icon: GraduationCap,
+    url: null,
+    description: 'WGU BS Computer Science credit-transfer progress tracker.',
+  },
 ] as const;
 
 type TabId = typeof TABS[number]['id'];
@@ -131,16 +147,26 @@ export default function OfficeView() {
 
       {/* Active tab content — all tabs mounted at once (hidden via CSS, not
           unmounted) so switching tabs never reloads/re-logs-in an app, and
-          Word is ready the instant the page opens. */}
+          Word is ready the instant the page opens. School has no url (it's a
+          real in-app component, not an embedded external service) so it
+          renders SchoolView directly instead of an iframe. */}
       <div className="flex-1 relative">
         {TABS.map((tab) => (
-          <iframe
+          <div
             key={tab.id}
-            src={tab.url}
-            title={tab.label}
-            className={`w-full h-full border-0 absolute inset-0 ${tab.id === activeTab ? 'block' : 'hidden'}`}
-            allow="fullscreen; clipboard-read; clipboard-write"
-          />
+            className={`w-full h-full absolute inset-0 ${tab.id === activeTab ? 'block' : 'hidden'}`}
+          >
+            {tab.url ? (
+              <iframe
+                src={tab.url}
+                title={tab.label}
+                className="w-full h-full border-0"
+                allow="fullscreen; clipboard-read; clipboard-write"
+              />
+            ) : (
+              <SchoolView />
+            )}
+          </div>
         ))}
       </div>
     </div>

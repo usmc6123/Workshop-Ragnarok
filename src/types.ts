@@ -743,6 +743,11 @@ export interface ShopSettings {
   owner_cell_number?: string;
 }
 
+export interface SchoolTracker {
+  startDate: string;
+  checkedCourses: string[];
+}
+
 export interface InventoryItem {
   id: number;
   part_number: string;

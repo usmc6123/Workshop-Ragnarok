@@ -8,7 +8,7 @@ import {
   ServiceHistory, Job, JobPart, Appointment, DatabaseStats, VehicleManual, ShopSettings, JobPhoto,
   InventoryItem, WorkOrderPart, Service, JobService, Receipt, EmailTemplate, EmailSent, EmailReceived,
   JobNote, JobNoteAttachment, Funnel, PublicFunnel, FunnelLead, SmsMessage, PrivateContact,
-  Site, PublicSite, SiteBlock, SiteMessage, Tag, Segment, SegmentFilters, VideoProject
+  Site, PublicSite, SiteBlock, SiteMessage, Tag, Segment, SegmentFilters, VideoProject, SchoolTracker
 } from '../types';
 
 import { 
@@ -207,6 +207,22 @@ function getSimulatedShopSettings(): ShopSettings {
 
 function saveSimulatedShopSettings(settings: ShopSettings) {
   localStorage.setItem(SIMULATED_SHOP_SETTINGS_KEY, JSON.stringify(settings));
+}
+
+const SIMULATED_SCHOOL_TRACKER_KEY = 'ragnarok_simulated_school_tracker_v1';
+
+function getSimulatedSchoolTracker(): SchoolTracker {
+  const saved = localStorage.getItem(SIMULATED_SCHOOL_TRACKER_KEY);
+  if (saved) {
+    try { return JSON.parse(saved); } catch {}
+  }
+  const initial: SchoolTracker = { startDate: new Date().toISOString().slice(0, 10), checkedCourses: [] };
+  localStorage.setItem(SIMULATED_SCHOOL_TRACKER_KEY, JSON.stringify(initial));
+  return initial;
+}
+
+function saveSimulatedSchoolTracker(tracker: SchoolTracker) {
+  localStorage.setItem(SIMULATED_SCHOOL_TRACKER_KEY, JSON.stringify(tracker));
 }
 
 export function getApiBase(): string {
@@ -1365,6 +1381,36 @@ export const api = {
       if (err instanceof ApiError && err.isOffline) {
         saveSimulatedShopSettings(settings);
         return settings;
+      }
+      throw err;
+    }
+  },
+
+  // --- SCHOOL TRACKER (The Office > School tab) ---
+  async getSchoolTracker(): Promise<SchoolTracker> {
+    try {
+      return await request<SchoolTracker>('/api/school-tracker');
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        return getSimulatedSchoolTracker();
+      }
+      throw err;
+    }
+  },
+
+  async updateSchoolTracker(tracker: Partial<SchoolTracker>): Promise<SchoolTracker> {
+    try {
+      return await request<SchoolTracker>('/api/school-tracker', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tracker)
+      });
+    } catch (err: any) {
+      if (err instanceof ApiError && err.isOffline) {
+        const current = getSimulatedSchoolTracker();
+        const merged = { ...current, ...tracker } as SchoolTracker;
+        saveSimulatedSchoolTracker(merged);
+        return merged;
       }
       throw err;
     }
