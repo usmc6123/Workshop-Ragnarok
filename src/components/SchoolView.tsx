@@ -16,11 +16,18 @@
 // checked_courses in the DB just stores whichever of these ids are checked.
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { GraduationCap, RotateCcw, Lock } from 'lucide-react';
+import { GraduationCap, RotateCcw, Lock, Search } from 'lucide-react';
 import { api } from '../lib/api';
 import type { SchoolTracker } from '../types';
 
-type Course = { id: string; name: string; cu: number; lock?: string };
+// `providerCourse` is the name the credit-provider (Sophia / Study.com)
+// actually sells the course under — WGU's transfer pathway agreement maps
+// it to the `name` above, but that WGU-side name is NOT what's listed on
+// sophia.org or study.com, so searching the WGU name there finds nothing.
+// Verified 2026-07-31 directly against both providers' live catalogs plus
+// WGU's official program-specific pathway agreements (BSCS7110 / BSCS4424,
+// Catalog 12-2024) at partners.wgu.edu.
+type Course = { id: string; name: string; cu: number; lock?: string; providerCourse?: string };
 type Phase = { key: 'sophia' | 'study' | 'wgu'; label: string; sub: string; courses: Course[] };
 
 const PHASES: Phase[] = [
@@ -29,17 +36,17 @@ const PHASES: Phase[] = [
     label: 'Phase 1 — Sophia Learning',
     sub: '~$99/mo — do this first',
     courses: [
-      { id: 's1', name: 'Composition: Successful Self-Expression', cu: 3 },
-      { id: 's2', name: 'Introduction to Communication: Connecting with Others', cu: 3 },
-      { id: 's3', name: 'American Politics and the US Constitution', cu: 3 },
-      { id: 's4', name: 'Calculus I', cu: 4 },
-      { id: 's5', name: 'Applied Probability and Statistics', cu: 3 },
-      { id: 's6', name: 'Health, Fitness, and Wellness', cu: 4 },
-      { id: 's7', name: 'Natural Science Lab', cu: 2 },
-      { id: 's8', name: 'Data Management – Foundations', cu: 3 },
-      { id: 's9', name: 'Network and Security – Foundations', cu: 3 },
-      { id: 's10', name: 'Web Development Foundations', cu: 3 },
-      { id: 's11', name: 'Java Fundamentals', cu: 3 },
+      { id: 's1', name: 'Composition: Successful Self-Expression', cu: 3, providerCourse: 'English Composition I' },
+      { id: 's2', name: 'Introduction to Communication: Connecting with Others', cu: 3, providerCourse: 'Public Speaking' },
+      { id: 's3', name: 'American Politics and the US Constitution', cu: 3, providerCourse: 'U.S. Government' },
+      { id: 's4', name: 'Calculus I', cu: 4, providerCourse: 'Calculus I' },
+      { id: 's5', name: 'Applied Probability and Statistics', cu: 3, providerCourse: 'Introduction to Statistics' },
+      { id: 's6', name: 'Health, Fitness, and Wellness', cu: 4, providerCourse: 'Introduction to Nutrition' },
+      { id: 's7', name: 'Natural Science Lab', cu: 2, providerCourse: 'Two 1-credit labs (e.g. Human Biology Lab + Introduction to Chemistry Lab)' },
+      { id: 's8', name: 'Data Management – Foundations', cu: 3, providerCourse: 'Introduction to Relational Databases' },
+      { id: 's9', name: 'Network and Security – Foundations', cu: 3, providerCourse: 'Introduction to Networking' },
+      { id: 's10', name: 'Web Development Foundations', cu: 3, providerCourse: 'Introduction to Web Development' },
+      { id: 's11', name: 'Java Fundamentals', cu: 3, providerCourse: 'Introduction to Java Programming' },
     ],
   },
   {
@@ -47,12 +54,12 @@ const PHASES: Phase[] = [
     label: 'Phase 2 — Study.com',
     sub: '~$235/mo — only what Sophia doesn’t cover',
     courses: [
-      { id: 't1', name: 'Ethics in Technology', cu: 3 },
-      { id: 't2', name: 'Scripting and Programming – Foundations', cu: 3 },
-      { id: 't3', name: 'Data Management – Applications', cu: 4 },
-      { id: 't4', name: 'Fundamentals of Information Security', cu: 3 },
-      { id: 't5', name: 'Introduction to AI for Computer Scientists', cu: 2 },
-      { id: 't6', name: 'Software Engineering', cu: 4 },
+      { id: 't1', name: 'Ethics in Technology', cu: 3, providerCourse: 'Philosophy 104: Contemporary Trends in Technology and Ethics' },
+      { id: 't2', name: 'Scripting and Programming – Foundations', cu: 3, providerCourse: 'Computer Science 109: Introduction to Programming' },
+      { id: 't3', name: 'Data Management – Applications', cu: 4, providerCourse: 'Computer Science 204: Database Programming' },
+      { id: 't4', name: 'Fundamentals of Information Security', cu: 3, providerCourse: 'Computer Science 110: Introduction to Cybersecurity' },
+      { id: 't5', name: 'Introduction to AI for Computer Scientists', cu: 2, providerCourse: 'Computer Science 311: Artificial Intelligence' },
+      { id: 't6', name: 'Software Engineering', cu: 4, providerCourse: 'Computer Science 307: Software Engineering' },
     ],
   },
   {
@@ -288,21 +295,34 @@ export default function SchoolView() {
                     )}
                     {phase.courses.map((c) => {
                       const isChecked = checked.has(c.id);
+                      const providerLabel = phase.key === 'sophia' ? 'Sophia' : phase.key === 'study' ? 'Study.com' : null;
                       return (
                         <label
                           key={c.id}
-                          className="flex items-center gap-3 px-4 py-2 border-t border-border-theme/60 cursor-pointer hover:bg-black/10"
+                          className="flex items-start gap-3 px-4 py-2.5 border-t border-border-theme/60 cursor-pointer hover:bg-black/10"
                         >
                           <input
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => toggleCourse(c.id)}
-                            className="w-4 h-4 shrink-0 accent-current"
+                            className="w-4 h-4 shrink-0 accent-current mt-0.5"
                             style={{ color: undefined }}
                           />
-                          <span className={`flex-1 text-[13px] ${isChecked ? 'line-through text-slate-500' : 'text-text-theme'}`}>
-                            {c.name}
-                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className={`text-[13px] ${isChecked ? 'line-through text-slate-500' : 'text-text-theme'}`}>
+                              {c.name}
+                            </div>
+                            {c.providerCourse && providerLabel && !isChecked && (
+                              <div className="flex items-start gap-1 mt-1 text-[11px] leading-snug text-slate-500">
+                                <Search className="w-2.5 h-2.5 shrink-0 mt-0.5" />
+                                <span>
+                                  Search{' '}
+                                  <span className={`font-semibold ${colors.text}`}>&ldquo;{c.providerCourse}&rdquo;</span>
+                                  {' '}on {providerLabel}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                           {c.lock && (
                             <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-500/10 rounded px-1.5 py-0.5 whitespace-nowrap shrink-0">
                               <Lock className="w-2.5 h-2.5" /> {c.lock}
